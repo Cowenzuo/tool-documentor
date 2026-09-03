@@ -1,0 +1,12 @@
+# 文本统一以 LF 入库（checkout 时按平台转换由 core.autocrlf 决定）
+* text=auto
+
+# 二进制（docx / sqlite / 图片等）
+*.docx binary
+*.db binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.emf binary
+*.woff2 binary
+*.ico binary

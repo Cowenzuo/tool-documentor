@@ -1,0 +1,35 @@
+{
+  "name": "@documentor/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Documentor desktop shell (Electron main/preload + React renderer)",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "cli:test-export": "node --experimental-sqlite cli/test-export.cjs"
+  },
+  "dependencies": {
+    "@documentor/core": "workspace:*",
+    "@documentor/docx": "workspace:*",
+    "@documentor/templates": "workspace:*",
+    "katex": "^0.18.5",
+    "mermaid": "^11.17.2",
+    "prismjs": "^1.30.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/katex": "^0.16.8",
+    "@types/node": "^22.0.0",
+    "@types/prismjs": "^1.26.6",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "44.0.0",
+    "electron-vite": "^5.0.0",
+    "vite": "^7.3.6"
+  }
+}

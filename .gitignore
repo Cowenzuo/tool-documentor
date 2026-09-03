@@ -1,0 +1,28 @@
+# dependencies
+node_modules/
+
+# build outputs（库 dist 与桌面 out 均为编译产物，clone 后由 dev/build 自动重建）
+out/
+dist/
+release/
+*.tsbuildinfo
+
+# 临时/探针产物
+.e2e-workspace/
+.probe/
+.tmp*
+*~
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# editors / os
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# local
+*.local

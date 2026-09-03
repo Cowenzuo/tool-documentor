@@ -1,0 +1,81 @@
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.app-main {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* ===== 设置对话框 ===== */
+.settings-dialog {
+  width: min(640px, calc(100vw - 96px));
+  height: auto;
+  max-height: min(620px, calc(100vh - 96px));
+}
+
+.settings-body {
+  padding: var(--space-4);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.settings-group h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.settings-hint {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  line-height: 1.6;
+}
+
+.settings-dirs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.settings-dirs .w-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.be-btn.danger-text {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.be-btn.danger-text:hover:not(:disabled) {
+  background: rgb(240 97 109 / 0.1);
+}
+/* ===== 导出对话框 ===== */
+.export-radio {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.export-radio-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.export-style-select {
+  width: 100%;
+}
+
+.export-style-desc {
+  margin-top: var(--space-1);
+}

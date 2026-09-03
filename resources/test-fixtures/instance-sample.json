@@ -1,0 +1,62 @@
+{
+  "name": "样例实例（CLI 验证用）",
+  "basedOn": "438C-软件需求规格说明(SRS)",
+  "styleTemplate": "438c-srs-stylemap",
+  "root": {
+    "title": "软件需求规格说明（CLI 样例）",
+    "children": [
+      {
+        "title": "范围",
+        "headingLevel": 1,
+        "contentBlocks": [
+          {
+            "type": "orderedList",
+            "items": ["软件名称：Documentor", "软件版本：V1.0", "软件标识：DEMO-001"]
+          }
+        ],
+        "children": [
+          {
+            "title": "标识",
+            "headingLevel": 2,
+            "contentBlocks": [
+              { "type": "text", "content": "本文档为样例实例 JSON 导出的验证文档。" },
+              {
+                "type": "table",
+                "caption": "表1 引用文档",
+                "rows": 2,
+                "cols": 3,
+                "headers": ["序号", "标识", "标题"],
+                "data": [
+                  ["1", "GJB 438C-2021", "军用软件开发文档通用要求"],
+                  ["2", "-", "软件工程化管理体系文件"]
+                ]
+              }
+            ]
+          },
+          {
+            "title": "系统概述",
+            "headingLevel": 2,
+            "contentBlocks": [
+              {
+                "type": "mermaid",
+                "caption": "图1 系统组成",
+                "content": "graph TD\n  A[编辑器] --> B[模板系统]\n  A --> C[导出管线]"
+              },
+              {
+                "type": "unorderedList",
+                "items": ["支持结构模板扩展", "支持样式模板定制"]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "title": "附录",
+        "headingLevel": 3,
+        "nodeType": "subTitle",
+        "subTitleStyle": "alpha",
+        "contentBlocks": [{ "type": "text", "content": "样例附录正文。" }]
+      }
+    ]
+  }
+}

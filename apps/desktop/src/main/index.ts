@@ -1,0 +1,215 @@
+import { app, BrowserWindow, ipcMain, Menu, nativeTheme, shell } from 'electron'
+import { join } from 'node:path'
+import { IPC } from '../shared/contract'
+import { registerProjectIpc } from './ipc'
+import { ProjectService } from './services/project-service'
+import { buildTemplateManager } from './services/template-host'
+
+let mainWindow: BrowserWindow | null = null
+let projectService: ProjectService | null = null
+
+function isDev(): boolean {
+  return !app.isPackaged && Boolean(process.env['ELECTRON_RENDERER_URL'])
+}
+
+function createMainWindow(): void {
+  const isMac = process.platform === 'darwin'
+  const preloadPath = join(__dirname, '../preload/index.js')
+
+  mainWindow = new BrowserWindow({
+    width: 1280,
+    height: 820,
+    minWidth: 960,
+    minHeight: 640,
+    show: false,
+    // 无边框自绘标题栏（win32/linux）；macOS 用 hiddenInset + 原生红绿灯
+    frame: false,
+    titleBarStyle: isMac ? 'hiddenInset' : undefined,
+    trafficLightPosition: isMac ? { x: 16, y: 15 } : undefined,
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#0f1115' : '#f6f7f9',
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false
+    }
+  })
+
+  mainWindow.on('ready-to-show', () => {
+    mainWindow?.show()
+  })
+
+  // 最大化状态推送（标题栏按钮图标切换）
+  const sendMaximized = (maximized: boolean): void => {
+    mainWindow?.webContents.send(IPC.WindowMaximizedChanged, maximized)
+  }
+  mainWindow.on('maximize', () => sendMaximized(true))
+  mainWindow.on('unmaximize', () => sendMaximized(false))
+  mainWindow.on('closed', () => {
+    mainWindow = null
+  })
+
+  // 外部链接一律交给系统浏览器
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    void shell.openExternal(url)
+    return { action: 'deny' }
+  })
+
+  if (isDev()) {
+    void mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] as string)
+  } else {
+    void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+  }
+
+  // E2E 冒烟（DOC_E2E=<workspaceDir> 时执行）：DOM 驱动 新建工程→选中→编辑→保存
+  if (isDev() && process.env['DOC_E2E']) {
+    const ws = process.env['DOC_E2E']
+    mainWindow.webContents.on('did-finish-load', () => {
+      const probe = `
+        (async () => {
+          const WS = ${JSON.stringify(ws)};
+          const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+          const out = {};
+          const waitFor = async (sel, ms = 6000) => {
+            const t0 = Date.now();
+            while (Date.now() - t0 < ms) {
+              const el = document.querySelector(sel);
+              if (el) return el;
+              await sleep(80);
+            }
+            throw new Error('timeout: ' + sel);
+          };
+          const setNative = (el, val) => {
+            const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+            Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, val);
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+          };
+          await sleep(700);
+          out.welcome = !!document.querySelector('.welcome');
+          // 打开新建向导
+          document.querySelector('.welcome-actions .btn-primary').click();
+          await sleep(250);
+          out.wizardOpen = !!document.querySelector('.wizard');
+          const inputs = document.querySelectorAll('.wizard-config .w-field input');
+          setNative(inputs[0], WS);
+          setNative(inputs[1], 'e2e工程');
+          await sleep(200);
+          document.querySelector('.w-cards .w-card').click();
+          await sleep(200);
+          const createBtn = await waitFor('.wizard-foot .be-btn-primary:not(:disabled)');
+          createBtn.click();
+          // 等待编辑器出现
+          await waitFor('.editor-workspace', 10000);
+          await sleep(600);
+          out.editor = !!document.querySelector('.editor-workspace');
+          out.titlebarProject = (document.querySelector('.tb-project') || {}).textContent || null;
+          out.treeRows = document.querySelectorAll('.tree-row').length + 1;
+          // 选中根节点
+          document.querySelector('.tree-root-row').click();
+          await sleep(300);
+          out.rootTitle = document.querySelector('.np-title') ? document.querySelector('.np-title').value : null;
+          // 树搜索 '标识' 并选中
+          const q = await waitFor('.tree-search input');
+          setNative(q, '标识');
+          await sleep(200);
+          const rows = [...document.querySelectorAll('.tree-row')];
+          const match = rows.find((r) => r.textContent.includes('标识'));
+          if (match) match.click();
+          await sleep(350);
+          out.biaoShi = {
+            title: document.querySelector('.np-title') ? document.querySelector('.np-title').value : null,
+            blockCards: document.querySelectorAll('.block-card').length
+          };
+          // 清空搜索恢复全树
+          setNative(q, '');
+          // 保存
+          const saveBtn = await waitFor('.tb-action[aria-label="保存工程"]');
+          saveBtn.click();
+          await sleep(900);
+          out.toast = document.querySelector('.toast') ? document.querySelector('.toast').textContent : null;
+          // 导出 DOCX（真实对话框流程）
+          const exportBtn = await waitFor('.tb-action[aria-label="导出 DOCX"]');
+          exportBtn.click();
+          await sleep(400);
+          out.exportDialogOpen = ((document.querySelector('.wizard .wizard-head h2') || {}).textContent || '') === '导出文档';
+          const doExport = await waitFor('.wizard-foot .be-btn-primary');
+          doExport.click();
+          await sleep(1500);
+          out.exportToast = document.querySelector('.toast') ? document.querySelector('.toast').textContent : null;
+          // 预览视图切换
+          const previewTab = [...document.querySelectorAll('.insp-view-toggle button')].find((b) => b.textContent === '预览');
+          if (previewTab) {
+            previewTab.click();
+            await sleep(900);
+            out.previewPage = !!document.querySelector('.pv-article');
+            out.previewListItems = document.querySelectorAll('.pv-list li').length;
+            const editTab = [...document.querySelectorAll('.insp-view-toggle button')].find((b) => b.textContent === '编辑');
+            if (editTab) editTab.click();
+            await sleep(300);
+            out.backToEdit = !!document.querySelector('.np-blocks');
+          }
+          return out;
+        })()
+      `
+      void mainWindow?.webContents
+        .executeJavaScript(probe)
+        .then((result) => console.log('[e2e]', JSON.stringify(result)))
+        .catch((err) => console.error('[e2e] failed:', err))
+    })
+  }
+}
+
+function registerIpc(): void {
+  ipcMain.handle(IPC.AppGetInfo, () => ({
+    version: app.getVersion(),
+    platform: process.platform as 'win32' | 'darwin' | 'linux'
+  }))
+
+  ipcMain.on(IPC.WindowMinimize, () => {
+    mainWindow?.minimize()
+  })
+
+  ipcMain.on(IPC.WindowToggleMaximize, () => {
+    if (!mainWindow) return
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize()
+    } else {
+      mainWindow.maximize()
+    }
+  })
+
+  ipcMain.on(IPC.WindowClose, () => {
+    mainWindow?.close()
+  })
+
+  ipcMain.handle(IPC.WindowIsMaximized, () => mainWindow?.isMaximized() ?? false)
+}
+
+app.whenReady().then(() => {
+  app.setName('Documentor')
+  // 自绘标题栏：移除默认菜单（macOS 保留原生应用菜单占位，窗口内无菜单栏）
+  Menu.setApplicationMenu(null)
+
+  const manager = buildTemplateManager()
+  projectService = new ProjectService(manager)
+  registerProjectIpc(projectService)
+  registerIpc()
+  createMainWindow()
+
+  // 退出前自动保存当前工程
+  app.on('before-quit', () => {
+    projectService?.saveAndCloseProject()
+  })
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createMainWindow()
+    }
+  })
+})
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit()
+  }
+})

@@ -1,0 +1,2166 @@
+{
+  "name": "438C-软件设计说明(SDD)",
+  "category": "军用软件文档",
+  "description": "依据 GJB 438C-2021 编制的软件设计说明模板，适用于军用软件开发文档编写",
+  "version": "1.0",
+  "styleTemplate": "438c-sdd-stylemap",
+  "root": {
+    "nodeType": "root",
+    "title": "软件设计说明",
+    "headingLevel": 0,
+    "description": "文档根节点",
+    "copyable": false,
+    "deletable": false,
+    "children": [
+      {
+        "nodeType": "chapter",
+        "title": "范围",
+        "headingLevel": 1,
+        "description": "无",
+        "copyable": false,
+        "deletable": false,
+        "allowContentBlocks": false,
+        "children": [
+          {
+            "nodeType": "section",
+            "title": "标识",
+            "headingLevel": 2,
+            "description": "参考样例内容块自行修改，不建议扩展内容块，直接替换或补全文本",
+            "copyable": false,
+            "deletable": false,
+            "contentBlocks": [
+              {
+                "type": "orderedList",
+                "items": [
+                  "软件名称：",
+                  "软件标识：",
+                  "软件简称：",
+                  "软件版本：V"
+                ]
+              }
+            ]
+          },
+          {
+            "nodeType": "section",
+            "title": "系统概述",
+            "headingLevel": 2,
+            "description": "描述软件基本背景情况，可包括下列内容：\na) 适用的系统和软件的用途；\nb) 系统和软件的一般特性；\nc) 整体的构成情况以及该软件所处的位置（建议用图形描述，并辅以文字说明）；\nd) 说明研制状态，如新研、升级改进或移植等；\ne) 概括系统开发、运行和维护的历史；\nf) 标识项目的需方（如合同甲方）、用户（如中国人民解放军）、开发方和保障机构",
+            "copyable": false,
+            "deletable": false
+          },
+          {
+            "nodeType": "section",
+            "title": "文档概述",
+            "headingLevel": 2,
+            "description": "概括描述本文档的用途和内容，并描述与它的使用有关的保密性要求等",
+            "copyable": false,
+            "deletable": false,
+            "contentBlocks": [
+              {
+                "type": "text",
+                "content": "本文档是XX软件设计说明，本文档将作为软件开发人员软件编码和测试的基础，是XX软件开发和测试工作的主要依据之一。本文档包括如下主要内容："
+              },
+              {
+                "type": "orderedList",
+                "items": [
+                  "XX的设计决策",
+                  "XX体系结构设计",
+                  "XX详细设计",
+                  "XX的需求可追踪性"
+                ]
+              },
+              {
+                "type": "text",
+                "content": "本文档为XX级文档，应按照相应的保密要求进行使用和管理。"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeType": "chapter",
+        "title": "引用文档",
+        "headingLevel": 1,
+        "description": "注1：列出引用文档的编号、标题、编写单位、修订版和日期，还应标识不能通过正常采购活动得到的文档的来源。引用文件按照国家标准、国家军用标准、行业标准、文件的顺序排列。所引文件一般为国家和军队一级的文件。\n注2：通常软件任务书、系统级需求和设计文档、ICD文件、军方和总师单位相关规定以及本文档涉及其内容的其他所有文档均必须引用。\n注3：当某文档不能通过正常采购活动得到时需注明来源",
+        "copyable": false,
+        "deletable": false,
+        "contentBlocks": [
+          {
+            "type": "text",
+            "content": "下列文件对于本文件的应用是必不可少的，在本文的正文中引用的文档见表1。凡是注日期的引用文件，仅所注日期的版本适用于本文件。凡是不注日期的引用文件，其最新版本（包括所有的修改单）适用于本文件。"
+          },
+          {
+            "type": "table",
+            "caption": "表1 引用文档",
+            "rows": 3,
+            "cols": 5,
+            "headers": [
+              "标识",
+              "标题",
+              "版本",
+              "日期",
+              "编写单位/来源"
+            ],
+            "data": [
+              [
+                "",
+                "",
+                "",
+                "",
+                ""
+              ],
+              [
+                "",
+                "",
+                "",
+                "",
+                ""
+              ],
+              [
+                "",
+                "",
+                "",
+                "",
+                ""
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "nodeType": "chapter",
+        "title": "CSCI级设计决策",
+        "headingLevel": 1,
+        "description": "注：\na) 分小节描述CSCI级的设计决策（忽略其内部实现，从用户角度出发描述系统怎样运转以满足需求）和其他影响组成该CSCI的软件单元的选择与设计的决策；\nb) 如果在需求中所有这些决策是明确的，或者这些决策要推迟到CSCI的软件单元的设计中，应如实陈述；\nc) 针对关键性需求（例如对安全性或保密性关键的需求）作出的设计决策，应在专门的章节中加以描述；\nd) 如果设计决策依赖于系统状态或方式，则应指明这一依赖性；\ne) 应给出或引用理解这些设计所需的设计约定；\nf) 本章可引用软件需求规格说明的相应内容",
+        "copyable": false,
+        "deletable": false,
+        "allowContentBlocks": false,
+        "children": [
+          {
+            "nodeType": "section",
+            "title": "输入/输出设计决策",
+            "headingLevel": 2,
+            "description": "无",
+            "copyable": false,
+            "deletable": false,
+            "allowContentBlocks": false,
+            "children": [
+              {
+                "nodeType": "section",
+                "title": "（软件名称）的输入/输出数据流图",
+                "headingLevel": 3,
+                "description": "根据《QAR.G23.0203-2021 软件设计规范》中附录A.5数据流图，画出该CSCI的输入/输出数据流图来描述输入/输出决策，包括与其他系统、HWCI、CSCI和用户的接口（本文档中的4.3.X条指出本说明要考虑的主题）。可引用外部接口示意图。如果这一信息的全部或部分已在接口设计说明（IDD）中给出，此处可引用",
+                "copyable": false,
+                "deletable": false,
+                "contentBlocks": [
+                  {
+                    "type": "text",
+                    "content": "（软件名称）的输入/输出数据流见图1。"
+                  },
+                  {
+                    "type": "mermaid",
+                    "caption": "图1 （软件名称）的输入/输出数据流图",
+                    "content": "flowchart LR\n    U[用户] --> S[软件]\n    E[外部系统] --> S\n    S --> DB[(数据库)]\n    S --> U\n    S --> E"
+                  }
+                ]
+              },
+              {
+                "nodeType": "section",
+                "title": "输入/输出说明",
+                "headingLevel": 3,
+                "description": "“类型”：指出是输入/输出。“描述”：指出其用途",
+                "copyable": false,
+                "deletable": false,
+                "contentBlocks": [
+                  {
+                    "type": "text",
+                    "content": "（软件名称）输入/输出说明见表2。"
+                  },
+                  {
+                    "type": "table",
+                    "caption": "表2 输入/输出说明",
+                    "rows": 3,
+                    "cols": 4,
+                    "headers": [
+                      "名称",
+                      "标识符",
+                      "类型",
+                      "描述"
+                    ],
+                    "data": [
+                      [
+                        "",
+                        "",
+                        "",
+                        ""
+                      ],
+                      [
+                        "",
+                        "",
+                        "",
+                        ""
+                      ],
+                      [
+                        "",
+                        "",
+                        "",
+                        ""
+                      ]
+                    ]
+                  }
+                ]
+              },
+              {
+                "nodeType": "section",
+                "title": "软件配置项的行为设计决策",
+                "headingLevel": 3,
+                "description": "注1：有关响应每个输入或条件的CSCI行为的设计决策，包括CSCI要执行的动作、响应时间和其他性能特性、模型化的物理系统的说明、选定的方程式/算法/规则，以及对不允许的输入或条件进行的处理。\n注2：“其他描述”可包括被模式化的物理系统的描述、所选择的方程式/算法/规则等。\n注3：若不适用，可删除该章节",
+                "copyable": false,
+                "deletable": true,
+                "contentBlocks": [
+                  {
+                    "type": "text",
+                    "content": "软件配置项的行为设计决策见表3。"
+                  },
+                  {
+                    "type": "table",
+                    "caption": "表3 软件配置项的行为设计决策",
+                    "rows": 3,
+                    "cols": 6,
+                    "headers": [
+                      "输入",
+                      "软件配置项的动作",
+                      "软件配置项的响应时间",
+                      "输出",
+                      "对不允许的输入或条件的处理",
+                      "其他描述"
+                    ],
+                    "data": [
+                      [
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        ""
+                      ],
+                      [
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        ""
+                      ],
+                      [
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        ""
+                      ]
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "nodeType": "section",
+            "title": "软件配置项的数据库/数据文件决策",
+            "headingLevel": 2,
+            "description": "（若适用）用文字描述CSCI数据库/数据文件如何呈现给用户的设计决策（本文档中的4.3.X条指出本说明要考虑的主题）。如果该信息的部分或全部已在数据库设计说明（DBDD）中给出，此处可引用。若不适用，可删除该章节",
+            "copyable": false,
+            "deletable": true
+          },
+          {
+            "nodeType": "section",
+            "title": "软件配置项的安全性/保密性决策",
+            "headingLevel": 2,
+            "description": "用文字描述CSCI为满足安全性、保密性需求所选用的有关方法",
+            "copyable": false,
+            "deletable": true
+          },
+          {
+            "nodeType": "section",
+            "title": "其他设计决策",
+            "headingLevel": 2,
+            "description": "用文字描述为满足需求所做的其他CSCI级设计决策，如为提供所需的灵活性、可用性和可维护性所选择的方法",
+            "copyable": false,
+            "deletable": true
+          }
+        ]
+      },
+      {
+        "nodeType": "chapter",
+        "title": "CSCI体系结构设计",
+        "headingLevel": 1,
+        "description": "如果本软件构件中包含多个CSCI，在本部分的开始给出软件构件的体系结构设计图，描述软件各CSCI逻辑构成和部署关系，然后从4.1节开始分别对每个CSCI进行描述",
+        "copyable": false,
+        "deletable": false,
+        "allowContentBlocks": false,
+        "children": [
+          {
+            "nodeType": "section",
+            "title": "CSCI部件",
+            "headingLevel": 2,
+            "description": "无",
+            "copyable": false,
+            "deletable": false,
+            "allowContentBlocks": false,
+            "children": [
+              {
+                "nodeType": "section",
+                "title": "CSCI部件图",
+                "headingLevel": 3,
+                "description": "注1：软件单元的静态（如，由…组成）关系。根据所选择的软件设计方法学，可以给出多种关系（例如，采用面向对象的设计方法时，本条既可给出类和对象结构，也可给出CSCI的模块和过程结构）。\n注2：根据《QAR.G23.0203-2021 软件设计规范》中附录A.2框图要求，画出整个CSCI的所有逻辑包视图的组成，要求画到类包（该包全部由类组成，不能再划分为子包）一级。如有多个图示可分小节描述",
+                "copyable": false,
+                "deletable": false,
+                "contentBlocks": [
+                  {
+                    "type": "text",
+                    "content": "CSCI部件图见图2。"
+                  },
+                  {
+                    "type": "mermaid",
+                    "caption": "图2 CSCI部件图",
+                    "content": "flowchart TD\n    CSCI[CSCI]\n    CSCI --> CSC1[CSC1]\n    CSCI --> CSC2[CSC2]\n    CSC1 --> CSU11[CSU11]\n    CSC1 --> CSU12[CSU12]\n    CSC2 --> CSU21[CSU21]"
+                  }
+                ]
+              },
+              {
+                "nodeType": "section",
+                "title": "软件配置项部件描述",
+                "headingLevel": 3,
+                "description": "注1：根据4.1.1的结构分解，说明图中每个软件单元的用途；单元类型分为：CSC和CSU。\n注2：“用途”指明分配给它的CSCI需求和CSCI级设计决策。\n注3：“开发状态/类型”如新开发、按原样重用已有的设计或部件、再工程的已有的设计或部件、为重用而要开发的部件等。对已有的设计或部件，应提供诸如名称、版本、文档引用、库等标识信息。\n注4：“硬件资源”若适用，每个软件单元计划使用的计算机硬件资源（例如处理机能力，内存能力，输入/输出设备能力，辅存能力以及通信/网络设备能力），应覆盖CSCI的资源使用需求中、影响该CSCI的系统级资源分配中、以及在软件开发计划（SDP）的资源使用测量策划中包含的全部计算机硬件资源。如果针对指定计算机硬件资源的所有使用数据都在同一处提供，例如在SDD中提供，那么本条可直接引用",
+                "copyable": false,
+                "deletable": false,
+                "contentBlocks": [
+                  {
+                    "type": "text",
+                    "content": "软件配置项部件描述见表4。"
+                  },
+                  {
+                    "type": "table",
+                    "caption": "表4 软件配置项部件描述",
+                    "rows": 3,
+                    "cols": 7,
+                    "headers": [
+                      "唯一标识",
+                      "单元名称",
+                      "单元类型",
+                      "用途",
+                      "开发状态/类型",
+                      "硬件资源",
+                      "实现程序库"
+                    ],
+                    "data": [
+                      [
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        ""
+                      ],
+                      [
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        ""
+                      ],
+                      [
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        ""
+                      ]
+                    ]
+                  }
+                ]
+              },
+              {
+                "nodeType": "repeatable",
+                "title": "（软件单元名称/软件单元标识）",
+                "headingLevel": 3,
+                "description": "如果CSCI结构复杂，顶层部件还可以划分为多个子部件，可以从4.1.3章节开始，顺序编号，分小节说明4.1.2表格中需进一步分解的软件部件的静态关系图以及其子部件的标识和说明。若无，本节删除",
+                "copyable": true,
+                "deletable": true,
+                "copyGroupId": "sdd-software-unit",
+                "contentBlocks": [
+                  {
+                    "type": "text",
+                    "content": "若无，本节删除。"
+                  }
+                ],
+                "children": [
+                  {
+                    "nodeType": "section",
+                    "title": "CSCI部件静态关系图",
+                    "headingLevel": 4,
+                    "description": "说明构成本部件的子部件的静态关系。如果CSU的分解在第5章详细设计部分给出，可以不需要分解到CSU。形式同顶层静态关系图",
+                    "copyable": false,
+                    "deletable": true,
+                    "contentBlocks": [
+                      {
+                        "type": "mermaid",
+                        "caption": "",
+                        "content": "flowchart TD\n    A[本部件] --> B[子部件1]\n    A --> C[子部件2]"
+                      }
+                    ]
+                  },
+                  {
+                    "nodeType": "section",
+                    "title": "软件单元标识和说明",
+                    "headingLevel": 4,
+                    "description": "说明构成本软件部件CSC的各个软件单元",
+                    "copyable": false,
+                    "deletable": true,
+                    "contentBlocks": [
+                      {
+                        "type": "text",
+                        "content": "构成该部件的各个软件单元的标识和说明见表5。"
+                      },
+                      {
+                        "type": "table",
+                        "caption": "表5 软件单元描述",
+                        "rows": 3,
+                        "cols": 7,
+                        "headers": [
+                          "唯一标识",
+                          "单元名称",
+                          "单元类型",
+                          "用途",
+                          "开发状态/类型",
+                          "硬件资源",
+                          "实现程序库"
+                        ],
+                        "data": [
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ],
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ],
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ]
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "nodeType": "section",
+            "title": "执行方案",
+            "headingLevel": 2,
+            "description": "注1：本节描述软件单元间的执行方案。可采用图表和描述来说明软件单元之间动态关系，即CSCI运行期间软件单元如何交互。\n注2：本节应说明软件单元间的执行方案，采用图标和描述说明软件单元间的动态关系，即CSCI运行期间软件单元间的相互作用情况。可以分多图说明。（若适用）应包括执行控制流程、数据流、动态控制序列、状态图、时序图（顺序图）、单元间的优先关系、中断处理、时序/排序关系、例外处理、并发执行、动态分配与去除分配、对象/进程/任务的动态创建/删除、以及动态行为等方面，根据《QAR.G23.0203-2021 软件设计规范》的准则，选择适用的图示进行描述。\n注3：执行控制流或数据流的要求可参考需求说明模板相应内容的要求",
+            "copyable": false,
+            "deletable": false,
+            "allowContentBlocks": false,
+            "children": [
+              {
+                "nodeType": "section",
+                "title": "CSCI活动图",
+                "headingLevel": 3,
+                "description": "（若适用）画出CSCI设计中的所有活动图并配以文字说明，如有多个图形可分小节分别描述。否则本节可省略",
+                "copyable": false,
+                "deletable": true,
+                "contentBlocks": [
+                  {
+                    "type": "text",
+                    "content": "CSCI活动图见图3。"
+                  },
+                  {
+                    "type": "mermaid",
+                    "caption": "图3 CSCI活动图",
+                    "content": "flowchart TD\n    A[开始] --> B[处理1]\n    B --> C{判断}\n    C -- 是 --> D[处理2]\n    C -- 否 --> E[处理3]\n    D --> F[结束]\n    E --> F"
+                  }
+                ]
+              },
+              {
+                "nodeType": "section",
+                "title": "CSCI顺序图",
+                "headingLevel": 3,
+                "description": "（若适用）画出CSCI设计中的所有顺序图并配以文字说明，如有多个图形可分小节分别描述。否则本节可省略",
+                "copyable": false,
+                "deletable": true,
+                "contentBlocks": [
+                  {
+                    "type": "text",
+                    "content": "CSCI顺序图见图4。"
+                  },
+                  {
+                    "type": "mermaid",
+                    "caption": "图4 CSCI顺序图",
+                    "content": "sequenceDiagram\n    participant U as 用户\n    participant S as 软件\n    participant D as 数据库\n    U->>S: 请求\n    S->>D: 查询\n    D-->>S: 结果\n    S-->>U: 响应"
+                  }
+                ]
+              },
+              {
+                "nodeType": "section",
+                "title": "CSCI状态图",
+                "headingLevel": 3,
+                "description": "（若适用）画出CSCI设计中的所有状态图并配以文字说明，如有多个图形可分小节分别描述。否则本节可省略",
+                "copyable": false,
+                "deletable": true,
+                "contentBlocks": [
+                  {
+                    "type": "text",
+                    "content": "CSCI状态图见图5。"
+                  },
+                  {
+                    "type": "mermaid",
+                    "caption": "图5 CSCI状态图",
+                    "content": "stateDiagram-v2\n    [*] --> 空闲\n    空闲 --> 运行: 启动\n    运行 --> 空闲: 停止\n    运行 --> 故障: 异常\n    故障 --> 空闲: 复位\n    空闲 --> [*]"
+                  }
+                ]
+              },
+              {
+                "nodeType": "section",
+                "title": "其他动态行为设计",
+                "headingLevel": 3,
+                "description": "（若适用）用文字或其他方法来描述CSCI的其他动态行为",
+                "copyable": false,
+                "deletable": true
+              },
+              {
+                "nodeType": "section",
+                "title": "界面设计",
+                "headingLevel": 3,
+                "description": "（若适用）针对软件需求规格说明中重要的用户界面原型，以直观的图形表示方式给出界面的总体布局和框架，界面设计不只包含软件使用界面，还应包含用户使用的各种打印、导入、导出的报表，可按照《QAR.G23.0203-2021 软件设计规范》3.2.5节开展设计；否则可删除本节",
+                "copyable": false,
+                "deletable": true
+              }
+            ]
+          },
+          {
+            "nodeType": "section",
+            "title": "接口设计",
+            "headingLevel": 2,
+            "description": "如果已在上级文档（系统需求、系统设计或者软件需求规格说明）文档中对该CSCI的外部接口或内部接口进行了完整的描述，在此可以直接引用",
+            "copyable": false,
+            "deletable": false,
+            "allowContentBlocks": false,
+            "children": [
+              {
+                "nodeType": "section",
+                "title": "外部接口",
+                "headingLevel": 3,
+                "description": "无",
+                "copyable": false,
+                "deletable": false,
+                "allowContentBlocks": false,
+                "children": [
+                  {
+                    "nodeType": "section",
+                    "title": "接口标识和接口图",
+                    "headingLevel": 4,
+                    "description": "本条应说明赋予每个接口的唯一标示符，通过接口图简要描述接口，可按照《QAR.G23.0203-2021 软件设计规范》附录A.3接口图要求绘制。接口说明按照表6所示格式给出，其中接口类型可按照《QAR.G23.0203-2021 软件设计规范》附录C",
+                    "copyable": false,
+                    "deletable": false,
+                    "contentBlocks": [
+                      {
+                        "type": "text",
+                        "content": "接口图见图6。"
+                      },
+                      {
+                        "type": "mermaid",
+                        "caption": "图6 外部接口图",
+                        "content": "flowchart LR\n    A[接口实体A] -- 接口 --> B[接口实体B]"
+                      },
+                      {
+                        "type": "table",
+                        "caption": "表6 外部接口说明",
+                        "rows": 3,
+                        "cols": 7,
+                        "headers": [
+                          "序号",
+                          "接口名称",
+                          "项目唯一标识",
+                          "需求说明",
+                          "接口类型",
+                          "来源",
+                          "接收者"
+                        ],
+                        "data": [
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ],
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ],
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ]
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "nodeType": "repeatable",
+                    "title": "（接口标识）",
+                    "headingLevel": 4,
+                    "description": "本条应通过唯一的标识符来标识CSCI接口，应简要地标识接口实体。视需要可分条描述单方或双方实体特性",
+                    "copyable": true,
+                    "deletable": true,
+                    "copyGroupId": "sdd-external-interface",
+                    "children": [
+                      {
+                        "nodeType": "subTitle",
+                        "title": "接口优先级",
+                        "headingLevel": 5,
+                        "description": "若适用，接口实体分配给接口的优先级",
+                        "copyable": false,
+                        "deletable": true
+                      },
+                      {
+                        "nodeType": "subTitle",
+                        "title": "接口类型",
+                        "headingLevel": 5,
+                        "description": "接口类型可按照《QAR.G23.0203-2021 软件设计规范》附录C进行识别选择，需要与表6描述匹配",
+                        "copyable": false,
+                        "deletable": true
+                      },
+                      {
+                        "nodeType": "subTitle",
+                        "title": "数据元素",
+                        "headingLevel": 5,
+                        "description": "描述系统接口必须提供、存储、发送、访问、接收的单个数据元素的特性，如果还有表格未列出的说明项目，如精度、单位、字符串的长度、数据元素方位的优先级别等，可根据情况添加。特别提示：参考表格中的元素描述方式不拘于参考表格形式，只要适合描述清楚数据元素就可。本条可引用其他文档（例如数据字典）代替在此所描述的信息。\n数据元素的特征属性列可根据《QAR.G23.0203-2021 软件设计规范》附录C选择对应接口类型的典型特征进行剪裁。其中：“类型”有字母、数字、整数等；“格式”和“长度”如字符串的长度和标点符号等；“计量单位”有：米、厘米等；“可能的范围或枚举”如：[0,99]，“Mon，Tus，……”；“精度/分辨率”用有效数字（如10-3）标识；“来源”指设置/发送实体的名称；“接收者”指使用/接收实体",
+                        "copyable": false,
+                        "deletable": true,
+                        "contentBlocks": [
+                          {
+                            "type": "text",
+                            "content": "数据元素说明见表7。"
+                          },
+                          {
+                            "type": "table",
+                            "caption": "表7 数据元素特性",
+                            "rows": 3,
+                            "cols": 9,
+                            "headers": [
+                              "数据元素名称",
+                              "唯一标识符",
+                              "数据类型",
+                              "长度",
+                              "范围/枚举",
+                              "准确性/精度",
+                              "单位",
+                              "来源",
+                              "接受者"
+                            ],
+                            "data": [
+                              [
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                ""
+                              ],
+                              [
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                ""
+                              ],
+                              [
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                ""
+                              ]
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "nodeType": "subTitle",
+                        "title": "数据元素组合体",
+                        "headingLevel": 5,
+                        "description": "若适用，CSCI接口必须提供、存储、发送、访问、接收数据元素集合（记录、消息、文件、显示、报表等）的特性。“集合体类型”，如记录、消息、文件、数组、显示、报表等。如果还有表格未列出的说明项目，如集合体间的关系，如排序/访问特性，如集合1访问集合2；显示和其他输出的视听特性，如颜色、布局、字体、图标蜂鸣声、灯光；优先级别、时序、频率、容量、序列、其他的约束条件，如：数据元素是否可被更新、业务规则是否适用；保密性和私密性的约束等，可以增加表格列进行说明。特别提示：参考表格中的元素是必填项，描述方式不拘于参考表格形式，只要适合描述清楚数据元素就可。本条可引用其他文档（例如数据字典、通信协议标准、用户接口标准）代替在此所描述的信息",
+                        "copyable": false,
+                        "deletable": true,
+                        "contentBlocks": [
+                          {
+                            "type": "text",
+                            "content": "数据元素组合的参考表格见表8。"
+                          },
+                          {
+                            "type": "table",
+                            "caption": "表8 数据元素集合体特性",
+                            "rows": 3,
+                            "cols": 7,
+                            "headers": [
+                              "数据元素集合体名称",
+                              "项目唯一标识符",
+                              "集合体类型",
+                              "包含的数据元素名称",
+                              "数据元素基本特性",
+                              "其他特性",
+                              "说明"
+                            ],
+                            "data": [
+                              [
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                ""
+                              ],
+                              [
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                ""
+                              ],
+                              [
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                ""
+                              ]
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "nodeType": "subTitle",
+                        "title": "接口通讯方法描述",
+                        "headingLevel": 5,
+                        "description": "若适用，描述CSCI必须为外部接口使用的通信方法的特性。数据传送特性，包括传送速率、周期或非周期以及传送间隔。其他特性，可包括：传输服务，包括：优先级别和等级；安全性/保密性/私密性方面的考虑，如：加密、用户鉴别、隔离、审计等；流控制（如：序列编号和缓冲区分配）；消息格式化；路由、寻址、命名约定等内容。本条可引用其他文档（通信协议标准）代替在此所描述的信息",
+                        "copyable": false,
+                        "deletable": true
+                      },
+                      {
+                        "nodeType": "subTitle",
+                        "title": "接口协议特征",
+                        "headingLevel": 5,
+                        "description": "若适用，描述协议优先级/层次、打包、路由、寻址；合法化的检查、错误控制和恢复过程；同步，包括连接的建立、保持和终止；状态、标识和其他报告特性。本条可引用其他文档代替在此所描述的信息",
+                        "copyable": false,
+                        "deletable": true
+                      },
+                      {
+                        "nodeType": "subTitle",
+                        "title": "其他要求",
+                        "headingLevel": 5,
+                        "description": "若适用，描述接口其他所需的特性，如：接口实体的物理兼容性（尺寸、容错度、负荷、电压和接插件兼容性等）。用户可根据实际情况自行设计表格或文字描述",
+                        "copyable": false,
+                        "deletable": true
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "nodeType": "section",
+                "title": "内部接口",
+                "headingLevel": 3,
+                "description": "无",
+                "copyable": false,
+                "deletable": false,
+                "allowContentBlocks": false,
+                "children": [
+                  {
+                    "nodeType": "section",
+                    "title": "接口标识和接口图",
+                    "headingLevel": 4,
+                    "description": "本条应说明赋予每个接口的唯一标示符，通过接口图简要描述接口，可按照《QAR.G23.0203-2021 软件设计规范》附录A.3接口图要求绘制。接口说明按照表9所示格式给出，其中接口类型可按照《QAR.G23.0203-2021 软件设计规范》附录C",
+                    "copyable": false,
+                    "deletable": false,
+                    "contentBlocks": [
+                      {
+                        "type": "text",
+                        "content": "接口图见图7。"
+                      },
+                      {
+                        "type": "mermaid",
+                        "caption": "图7 内部接口图",
+                        "content": "flowchart LR\n    A[软件单元A] -- 内部接口 --> B[软件单元B]"
+                      },
+                      {
+                        "type": "table",
+                        "caption": "表9 内部接口说明",
+                        "rows": 3,
+                        "cols": 7,
+                        "headers": [
+                          "序号",
+                          "接口名称",
+                          "项目唯一标识",
+                          "需求说明",
+                          "接口类型",
+                          "来源",
+                          "接收者"
+                        ],
+                        "data": [
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ],
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ],
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ]
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "nodeType": "repeatable",
+                    "title": "（接口标识）",
+                    "headingLevel": 4,
+                    "description": "本条应通过唯一的标识符来标识CSCI接口，应简要地标识接口实体。视需要可分条描述单方或双方实体特性",
+                    "copyable": true,
+                    "deletable": true,
+                    "copyGroupId": "sdd-internal-interface",
+                    "children": [
+                      {
+                        "nodeType": "subTitle",
+                        "title": "接口优先级",
+                        "headingLevel": 5,
+                        "description": "若适用，接口实体分配给接口的优先级",
+                        "copyable": false,
+                        "deletable": true
+                      },
+                      {
+                        "nodeType": "subTitle",
+                        "title": "接口类型",
+                        "headingLevel": 5,
+                        "description": "接口类型可按照《QAR.G23.0203-2021 软件设计规范》附录C进行识别选择，需要与表9描述匹配",
+                        "copyable": false,
+                        "deletable": true
+                      },
+                      {
+                        "nodeType": "subTitle",
+                        "title": "数据元素",
+                        "headingLevel": 5,
+                        "description": "描述系统接口必须提供、存储、发送、访问、接收的单个数据元素的特性，如果还有表格未列出的说明项目，如精度、单位、字符串的长度、数据元素方位的优先级别等，可根据情况添加。特别提示：参考表格中的元素描述方式不拘于参考表格形式，只要适合描述清楚数据元素就可。本条可引用其他文档（例如数据字典）代替在此所描述的信息。\n数据元素的特征属性列可根据《QAR.G23.0203-2021 软件设计规范》附录C选择对应接口类型的典型特征进行剪裁。其中：“类型”有字母、数字、整数等；“格式”和“长度”如字符串的长度和标点符号等；“计量单位”有：米、厘米等；“可能的范围或枚举”如：[0,99]，“Mon，Tus，……”；“精度/分辨率”用有效数字（如10-3）标识；“来源”指设置/发送实体的名称；“接收者”指使用/接收实体",
+                        "copyable": false,
+                        "deletable": true,
+                        "contentBlocks": [
+                          {
+                            "type": "text",
+                            "content": "数据元素说明见表10。"
+                          },
+                          {
+                            "type": "table",
+                            "caption": "表10 数据元素特性",
+                            "rows": 3,
+                            "cols": 9,
+                            "headers": [
+                              "数据元素名称",
+                              "唯一标识符",
+                              "数据类型",
+                              "长度",
+                              "范围/枚举",
+                              "准确性/精度",
+                              "单位",
+                              "来源",
+                              "接受者"
+                            ],
+                            "data": [
+                              [
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                ""
+                              ],
+                              [
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                ""
+                              ],
+                              [
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                ""
+                              ]
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "nodeType": "subTitle",
+                        "title": "数据元素组合体",
+                        "headingLevel": 5,
+                        "description": "若适用，CSCI接口必须提供、存储、发送、访问、接收数据元素集合（记录、消息、文件、显示、报表等）的特性。“集合体类型”，如记录、消息、文件、数组、显示、报表等。如果还有表格未列出的说明项目，如集合体间的关系，如排序/访问特性，如集合1访问集合2；显示和其他输出的视听特性，如颜色、布局、字体、图标蜂鸣声、灯光；优先级别、时序、频率、容量、序列、其他的约束条件，如：数据元素是否可被更新、业务规则是否适用；保密性和私密性的约束等，可以增加表格列进行说明。特别提示：参考表格中的元素是必填项，描述方式不拘于参考表格形式，只要适合描述清楚数据元素就可。本条可引用其他文档（例如数据字典、通信协议标准、用户接口标准）代替在此所描述的信息",
+                        "copyable": false,
+                        "deletable": true,
+                        "contentBlocks": [
+                          {
+                            "type": "text",
+                            "content": "数据元素组合的参考表格见表11。"
+                          },
+                          {
+                            "type": "table",
+                            "caption": "表11 数据元素集合体特性",
+                            "rows": 3,
+                            "cols": 7,
+                            "headers": [
+                              "数据元素集合体名称",
+                              "项目唯一标识符",
+                              "集合体类型",
+                              "包含的数据元素名称",
+                              "数据元素基本特性",
+                              "其他特性",
+                              "说明"
+                            ],
+                            "data": [
+                              [
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                ""
+                              ],
+                              [
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                ""
+                              ],
+                              [
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                ""
+                              ]
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "nodeType": "subTitle",
+                        "title": "接口通讯方法描述",
+                        "headingLevel": 5,
+                        "description": "若适用，描述CSCI必须为外部接口使用的通信方法的特性。数据传送特性，包括传送速率、周期或非周期以及传送间隔。其他特性，可包括：传输服务，包括：优先级别和等级；安全性/保密性/私密性方面的考虑，如：加密、用户鉴别、隔离、审计等；流控制（如：序列编号和缓冲区分配）；消息格式化；路由、寻址、命名约定等内容。本条可引用其他文档（通信协议标准）代替在此所描述的信息",
+                        "copyable": false,
+                        "deletable": true
+                      },
+                      {
+                        "nodeType": "subTitle",
+                        "title": "接口协议特征",
+                        "headingLevel": 5,
+                        "description": "若适用，描述协议优先级/层次、打包、路由、寻址；合法化的检查、错误控制和恢复过程；同步，包括连接的建立、保持和终止；状态、标识和其他报告特性。本条可引用其他文档代替在此所描述的信息",
+                        "copyable": false,
+                        "deletable": true
+                      },
+                      {
+                        "nodeType": "subTitle",
+                        "title": "其他要求",
+                        "headingLevel": 5,
+                        "description": "若适用，描述接口其他所需的特性，如：接口实体的物理兼容性（尺寸、容错度、负荷、电压和接插件兼容性等）。用户可根据实际情况自行设计表格或文字描述",
+                        "copyable": false,
+                        "deletable": true
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeType": "chapter",
+        "title": "CSCI详细设计",
+        "headingLevel": 1,
+        "description": "从5.1开始编号，对应于4.1 CSCI功能模块图中最底层的每个软件单元（集合）进行描述。\na) 如果是描述CSC应按照5.1小节的样式描述；\nb) 如果该软件单元不隶属于某个CSC则按照5.2的样式描述",
+        "copyable": false,
+        "deletable": false,
+        "allowContentBlocks": false,
+        "children": [
+          {
+            "nodeType": "repeatable",
+            "title": "（CSC的名称）",
+            "headingLevel": 2,
+            "description": "从5.1开始编号，对应4.1 CSCI功能模块图中最底层的每个软件单元（集合）进行描述。用CSC的名称作为节标题",
+            "copyable": true,
+            "deletable": true,
+            "copyGroupId": "sdd-csc",
+            "allowContentBlocks": false,
+            "children": [
+              {
+                "nodeType": "section",
+                "title": "CSC的结构",
+                "headingLevel": 3,
+                "description": "无",
+                "copyable": false,
+                "deletable": false,
+                "allowContentBlocks": false,
+                "children": [
+                  {
+                    "nodeType": "section",
+                    "title": "CSC的组成",
+                    "headingLevel": 4,
+                    "description": "如果是使用面向过程的方法使用表12描述CSC所包含的所有CSU（计算机软件单元）；如果是面向对象的方法，采用表13、表14描述CSC（类）的数据（属性）和操作（CSU）",
+                    "copyable": false,
+                    "deletable": false,
+                    "contentBlocks": [
+                      {
+                        "type": "text",
+                        "content": "CSC的组成见表12。"
+                      },
+                      {
+                        "type": "table",
+                        "caption": "表12 （CSC的名称和项目唯一标识号）",
+                        "rows": 3,
+                        "cols": 4,
+                        "headers": [
+                          "CSC名称",
+                          "CSC标识",
+                          "CSU名称",
+                          "CSU标识"
+                        ],
+                        "data": [
+                          [
+                            "",
+                            "",
+                            "",
+                            ""
+                          ],
+                          [
+                            "",
+                            "",
+                            "",
+                            ""
+                          ],
+                          [
+                            "",
+                            "",
+                            "",
+                            ""
+                          ]
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "content": "如果是面向对象的方法，数据说明见表13，CSU说明见表14。"
+                      },
+                      {
+                        "type": "table",
+                        "caption": "表13 数据说明",
+                        "rows": 3,
+                        "cols": 4,
+                        "headers": [
+                          "数据名称",
+                          "数据标识",
+                          "数据说明",
+                          "数据类型"
+                        ],
+                        "data": [
+                          [
+                            "",
+                            "",
+                            "",
+                            ""
+                          ],
+                          [
+                            "",
+                            "",
+                            "",
+                            ""
+                          ],
+                          [
+                            "",
+                            "",
+                            "",
+                            ""
+                          ]
+                        ]
+                      },
+                      {
+                        "type": "table",
+                        "caption": "表14 CSU说明",
+                        "rows": 3,
+                        "cols": 5,
+                        "headers": [
+                          "CSU名称",
+                          "CSU标识",
+                          "访问类型",
+                          "CSU说明",
+                          "异常处理"
+                        ],
+                        "data": [
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ],
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ],
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ]
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "nodeType": "section",
+                    "title": "CSU之间的关系",
+                    "headingLevel": 4,
+                    "description": "用控制流图或数据流图描述该CSC下的各CSU间的关系",
+                    "copyable": false,
+                    "deletable": false,
+                    "contentBlocks": [
+                      {
+                        "type": "mermaid",
+                        "caption": "",
+                        "content": "flowchart TD\n    A[CSU1] --> B[CSU2]\n    B --> C[CSU3]"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "nodeType": "repeatable",
+                "title": "（CSU的名称）",
+                "headingLevel": 3,
+                "description": "对表12中列出的该CSC所包含的每个CSU用一小节描述它，并用其名称作为节的标题",
+                "copyable": true,
+                "deletable": true,
+                "copyGroupId": "sdd-csu",
+                "allowContentBlocks": false,
+                "children": [
+                  {
+                    "nodeType": "section",
+                    "title": "（CSU的名称）的设计约束",
+                    "headingLevel": 4,
+                    "description": "说明该软件单元设计中的任何约束、限定或非常规特征",
+                    "copyable": false,
+                    "deletable": false
+                  },
+                  {
+                    "nodeType": "section",
+                    "title": "编程语言说明",
+                    "headingLevel": 4,
+                    "description": "如果使用的编程语言不同于该CSCI所指定的语言，则应指出并说明使用它的理由",
+                    "copyable": false,
+                    "deletable": false
+                  },
+                  {
+                    "nodeType": "section",
+                    "title": "输入/输出元素",
+                    "headingLevel": 4,
+                    "description": "如该软件单元包含、接收或输出数据，（若适用）应对它的输入、输出及其他数据元素或数据元素组合体进行说明。\n数据元素的特征属性列可根据实际情况进行剪裁。其中：“类型”有字母、数字、整数等；“格式”和“长度”如字符串的长度和标点符号等；“计量单位”有：米、厘米等；“可能的范围或枚举”如：0～99，“Mon，Tus，……”；“精度/分辨率”用有效数字（如10-3）标识；“来源”指设置/发送实体的名称；“接收者”指使用/接收实体",
+                    "copyable": false,
+                    "deletable": false,
+                    "contentBlocks": [
+                      {
+                        "type": "text",
+                        "content": "输入/输出元素见表15。"
+                      },
+                      {
+                        "type": "table",
+                        "caption": "表15 输入/输出元素",
+                        "rows": 3,
+                        "cols": 11,
+                        "headers": [
+                          "名称",
+                          "唯一标识",
+                          "类型",
+                          "格式",
+                          "长度",
+                          "计量单位",
+                          "可能范围或枚举",
+                          "精度",
+                          "来源",
+                          "接受者",
+                          "保密约束"
+                        ],
+                        "data": [
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ],
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ],
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ]
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "nodeType": "section",
+                    "title": "局部数据元素",
+                    "headingLevel": 4,
+                    "description": "标识并指出每个在CSU中产生的并且不被其他CSU所使用的数据元素的用途",
+                    "copyable": false,
+                    "deletable": false,
+                    "contentBlocks": [
+                      {
+                        "type": "text",
+                        "content": "局部数据元素见表16。"
+                      },
+                      {
+                        "type": "table",
+                        "caption": "表16 局部数据元素",
+                        "rows": 3,
+                        "cols": 9,
+                        "headers": [
+                          "元素名称",
+                          "元素标识",
+                          "数据类型",
+                          "数据长度",
+                          "测量单位",
+                          "极限值/值域",
+                          "精确度",
+                          "分辨率",
+                          "用途"
+                        ],
+                        "data": [
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ],
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ],
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ]
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "nodeType": "section",
+                    "title": "中断和信号",
+                    "headingLevel": 4,
+                    "description": "描述CSU所处理的中断和信号，表格的属性列可根据实际情况进行剪裁。如不存在中断和信号本节可删除",
+                    "copyable": false,
+                    "deletable": true,
+                    "contentBlocks": [
+                      {
+                        "type": "text",
+                        "content": "中断和信号见表17。"
+                      },
+                      {
+                        "type": "table",
+                        "caption": "表17 中断和信号",
+                        "rows": 3,
+                        "cols": 9,
+                        "headers": [
+                          "CSU处理的中断和信号",
+                          "信号源",
+                          "用途",
+                          "优先级",
+                          "期望响应时间",
+                          "响应时间",
+                          "最小值",
+                          "最大值",
+                          "发生的概率"
+                        ],
+                        "data": [
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ],
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ],
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ]
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "nodeType": "section",
+                    "title": "算法",
+                    "headingLevel": 4,
+                    "description": "描述该CSU采用的算法，可按以下例子描述：通过将待识别目标参数与目标识别库中的基准目标参数进行相似度匹配以识别目标的敌我属性。匹配的原则如下：1. 参数的匹配顺序次为载频类型、重复间隔类型、载频、重复间隔和脉宽；2. 待识别目标的载频类型和重复间隔类型必须和基准目标参数的相应值完全一致，否则匹配失败；3. 待识别目标的载频、重复间隔和脉宽必须在允许的门限范围内，否则失败",
+                    "copyable": false,
+                    "deletable": false
+                  },
+                  {
+                    "nodeType": "section",
+                    "title": "错误处理",
+                    "headingLevel": 4,
+                    "description": "描述CSU的错误诊断和恢复特性，包括对错误的输入数据和影响CSU执行的其他条件的处理",
+                    "copyable": false,
+                    "deletable": false,
+                    "contentBlocks": [
+                      {
+                        "type": "text",
+                        "content": "错误处理见表18。"
+                      },
+                      {
+                        "type": "table",
+                        "caption": "表18 错误处理",
+                        "rows": 3,
+                        "cols": 3,
+                        "headers": [
+                          "错误名称",
+                          "产生错误的条件",
+                          "处理方法"
+                        ],
+                        "data": [
+                          [
+                            "",
+                            "",
+                            ""
+                          ],
+                          [
+                            "",
+                            "",
+                            ""
+                          ],
+                          [
+                            "",
+                            "",
+                            ""
+                          ]
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "nodeType": "section",
+                    "title": "逻辑流程图",
+                    "headingLevel": 4,
+                    "description": "若该软件单元包含逻辑，则用控制流程图给出CSU的逻辑流程，（若适用）应包括：1. 该软件单元执行启动时，其内部起作用的条件；2. 将控制传递给其他软件单元的条件；3. 对每个输入的响应以及响应时间；4. 在软件单元运行期间的操作顺序和动态控制序列；5. 异常和错误处理",
+                    "copyable": false,
+                    "deletable": false,
+                    "contentBlocks": [
+                      {
+                        "type": "text",
+                        "content": "逻辑流程图见图8。"
+                      },
+                      {
+                        "type": "mermaid",
+                        "caption": "图8 逻辑流程图",
+                        "content": "flowchart TD\n    A[开始] --> B{条件判断}\n    B -- 是 --> C[处理A]\n    B -- 否 --> D[处理B]\n    C --> E[结束]\n    D --> E"
+                      }
+                    ]
+                  },
+                  {
+                    "nodeType": "section",
+                    "title": "数据元素体",
+                    "headingLevel": 4,
+                    "description": "描述CSU实现的局部数据元素体以及它所使用的所有共享数据元素体，并在描述中说明是局部的还是共享的",
+                    "copyable": false,
+                    "deletable": false,
+                    "contentBlocks": [
+                      {
+                        "type": "text",
+                        "content": "数据元素体说明见表19。"
+                      },
+                      {
+                        "type": "table",
+                        "caption": "表19 数据元素体说明",
+                        "rows": 3,
+                        "cols": 6,
+                        "headers": [
+                          "名称",
+                          "项目唯一标识号",
+                          "描述",
+                          "数据项标识",
+                          "数据项类型",
+                          "数据项长度"
+                        ],
+                        "data": [
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ],
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ],
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ]
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "nodeType": "section",
+                    "title": "局部数据文件和数据库",
+                    "headingLevel": 4,
+                    "description": "（若适用）描述作为CSU的局部数据一部分的数据文件和数据库。“访问过程”指顺序访问还是随机访问。如果该软件单元是一个数据库，应用相应的数据库设计说明，无需在数据项标识、数据项类型和数据项长度栏中说明",
+                    "copyable": false,
+                    "deletable": false,
+                    "contentBlocks": [
+                      {
+                        "type": "text",
+                        "content": "局部数据文件和数据库见表20。"
+                      },
+                      {
+                        "type": "table",
+                        "caption": "表20 局部数据文件和数据库",
+                        "rows": 3,
+                        "cols": 7,
+                        "headers": [
+                          "名称",
+                          "项目唯一标识号",
+                          "用途",
+                          "访问过程",
+                          "数据项标识",
+                          "数据项类型",
+                          "数据项长度"
+                        ],
+                        "data": [
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ],
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ],
+                          [
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            ""
+                          ]
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "nodeType": "repeatable",
+            "title": "（CSU的名称）",
+            "headingLevel": 2,
+            "description": "从5.2开始编号。对4.1.2表中列出的不属于某个CSC的CSU用一小节描述它，并用其名称作为节的标题",
+            "copyable": true,
+            "deletable": true,
+            "copyGroupId": "sdd-standalone-csu",
+            "allowContentBlocks": false,
+            "children": [
+              {
+                "nodeType": "section",
+                "title": "（CSU的名称）的设计约束",
+                "headingLevel": 3,
+                "description": "说明该软件单元设计中的任何约束、限定或非常规特征",
+                "copyable": false,
+                "deletable": false
+              },
+              {
+                "nodeType": "section",
+                "title": "编程语言说明",
+                "headingLevel": 3,
+                "description": "如果使用的编程语言不同于该CSCI所指定的语言，则应指出并说明使用它的理由",
+                "copyable": false,
+                "deletable": false
+              },
+              {
+                "nodeType": "section",
+                "title": "输入/输出元素",
+                "headingLevel": 3,
+                "description": "如该软件单元包含、接收或输出数据，（若适用）应对它的输入、输出及其他数据元素或数据元素组合体进行说明。\n数据元素的特征属性列可根据实际情况进行剪裁。其中：“类型”有字母、数字、整数等；“格式”和“长度”如字符串的长度和标点符号等；“计量单位”有：米、厘米等；“可能的范围或枚举”如：0～99，“Mon，Tus，……”；“精度/分辨率”用有效数字（如10-3）标识；“来源”指设置/发送实体的名称；“接收者”指使用/接收实体",
+                "copyable": false,
+                "deletable": false,
+                "contentBlocks": [
+                  {
+                    "type": "text",
+                    "content": "输入/输出元素见表15。"
+                  },
+                  {
+                    "type": "table",
+                    "caption": "表15 输入/输出元素",
+                    "rows": 3,
+                    "cols": 11,
+                    "headers": [
+                      "名称",
+                      "唯一标识",
+                      "类型",
+                      "格式",
+                      "长度",
+                      "计量单位",
+                      "可能范围或枚举",
+                      "精度",
+                      "来源",
+                      "接受者",
+                      "保密约束"
+                    ],
+                    "data": [
+                      [
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        ""
+                      ],
+                      [
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        ""
+                      ],
+                      [
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        ""
+                      ]
+                    ]
+                  }
+                ]
+              },
+              {
+                "nodeType": "section",
+                "title": "局部数据元素",
+                "headingLevel": 3,
+                "description": "标识并指出每个在CSU中产生的并且不被其他CSU所使用的数据元素的用途",
+                "copyable": false,
+                "deletable": false,
+                "contentBlocks": [
+                  {
+                    "type": "text",
+                    "content": "局部数据元素见表16。"
+                  },
+                  {
+                    "type": "table",
+                    "caption": "表16 局部数据元素",
+                    "rows": 3,
+                    "cols": 9,
+                    "headers": [
+                      "元素名称",
+                      "元素标识",
+                      "数据类型",
+                      "数据长度",
+                      "测量单位",
+                      "极限值/值域",
+                      "精确度",
+                      "分辨率",
+                      "用途"
+                    ],
+                    "data": [
+                      [
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        ""
+                      ],
+                      [
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        ""
+                      ],
+                      [
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        ""
+                      ]
+                    ]
+                  }
+                ]
+              },
+              {
+                "nodeType": "section",
+                "title": "中断和信号",
+                "headingLevel": 3,
+                "description": "描述CSU所处理的中断和信号，表格的属性列可根据实际情况进行剪裁。如不存在中断和信号本节可删除",
+                "copyable": false,
+                "deletable": true,
+                "contentBlocks": [
+                  {
+                    "type": "text",
+                    "content": "中断和信号见表17。"
+                  },
+                  {
+                    "type": "table",
+                    "caption": "表17 中断和信号",
+                    "rows": 3,
+                    "cols": 9,
+                    "headers": [
+                      "CSU处理的中断和信号",
+                      "信号源",
+                      "用途",
+                      "优先级",
+                      "期望响应时间",
+                      "响应时间",
+                      "最小值",
+                      "最大值",
+                      "发生的概率"
+                    ],
+                    "data": [
+                      [
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        ""
+                      ],
+                      [
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        ""
+                      ],
+                      [
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        ""
+                      ]
+                    ]
+                  }
+                ]
+              },
+              {
+                "nodeType": "section",
+                "title": "算法",
+                "headingLevel": 3,
+                "description": "描述该CSU采用的算法，可按以下例子描述：通过将待识别目标参数与目标识别库中的基准目标参数进行相似度匹配以识别目标的敌我属性。匹配的原则如下：1. 参数的匹配顺序次为载频类型、重复间隔类型、载频、重复间隔和脉宽；2. 待识别目标的载频类型和重复间隔类型必须和基准目标参数的相应值完全一致，否则匹配失败；3. 待识别目标的载频、重复间隔和脉宽必须在允许的门限范围内，否则失败",
+                "copyable": false,
+                "deletable": false
+              },
+              {
+                "nodeType": "section",
+                "title": "错误处理",
+                "headingLevel": 3,
+                "description": "描述CSU的错误诊断和恢复特性，包括对错误的输入数据和影响CSU执行的其他条件的处理",
+                "copyable": false,
+                "deletable": false,
+                "contentBlocks": [
+                  {
+                    "type": "text",
+                    "content": "错误处理见表18。"
+                  },
+                  {
+                    "type": "table",
+                    "caption": "表18 错误处理",
+                    "rows": 3,
+                    "cols": 3,
+                    "headers": [
+                      "错误名称",
+                      "产生错误的条件",
+                      "处理方法"
+                    ],
+                    "data": [
+                      [
+                        "",
+                        "",
+                        ""
+                      ],
+                      [
+                        "",
+                        "",
+                        ""
+                      ],
+                      [
+                        "",
+                        "",
+                        ""
+                      ]
+                    ]
+                  }
+                ]
+              },
+              {
+                "nodeType": "section",
+                "title": "逻辑流程图",
+                "headingLevel": 3,
+                "description": "若该软件单元包含逻辑，则用控制流程图给出CSU的逻辑流程，（若适用）应包括：1. 该软件单元执行启动时，其内部起作用的条件；2. 将控制传递给其他软件单元的条件；3. 对每个输入的响应以及响应时间；4. 在软件单元运行期间的操作顺序和动态控制序列；5. 异常和错误处理",
+                "copyable": false,
+                "deletable": false,
+                "contentBlocks": [
+                  {
+                    "type": "text",
+                    "content": "逻辑流程图见图9。"
+                  },
+                  {
+                    "type": "mermaid",
+                    "caption": "图9 逻辑流程图",
+                    "content": "flowchart TD\n    A[开始] --> B{条件判断}\n    B -- 是 --> C[处理A]\n    B -- 否 --> D[处理B]\n    C --> E[结束]\n    D --> E"
+                  }
+                ]
+              },
+              {
+                "nodeType": "section",
+                "title": "数据元素体",
+                "headingLevel": 3,
+                "description": "描述CSU实现的局部数据元素体以及它所使用的所有共享数据元素体，并在描述中说明是局部的还是共享的",
+                "copyable": false,
+                "deletable": false,
+                "contentBlocks": [
+                  {
+                    "type": "text",
+                    "content": "数据元素体说明见表19。"
+                  },
+                  {
+                    "type": "table",
+                    "caption": "表19 数据元素体说明",
+                    "rows": 3,
+                    "cols": 6,
+                    "headers": [
+                      "名称",
+                      "项目唯一标识号",
+                      "描述",
+                      "数据项标识",
+                      "数据项类型",
+                      "数据项长度"
+                    ],
+                    "data": [
+                      [
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        ""
+                      ],
+                      [
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        ""
+                      ],
+                      [
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        ""
+                      ]
+                    ]
+                  }
+                ]
+              },
+              {
+                "nodeType": "section",
+                "title": "局部数据文件和数据库",
+                "headingLevel": 3,
+                "description": "（若适用）描述作为CSU的局部数据一部分的数据文件和数据库。“访问过程”指顺序访问还是随机访问。如果该软件单元是一个数据库，应用相应的数据库设计说明，无需在数据项标识、数据项类型和数据项长度栏中说明",
+                "copyable": false,
+                "deletable": false,
+                "contentBlocks": [
+                  {
+                    "type": "text",
+                    "content": "局部数据文件和数据库见表20。"
+                  },
+                  {
+                    "type": "table",
+                    "caption": "表20 局部数据文件和数据库",
+                    "rows": 3,
+                    "cols": 7,
+                    "headers": [
+                      "名称",
+                      "项目唯一标识号",
+                      "用途",
+                      "访问过程",
+                      "数据项标识",
+                      "数据项类型",
+                      "数据项长度"
+                    ],
+                    "data": [
+                      [
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        ""
+                      ],
+                      [
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        ""
+                      ],
+                      [
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        ""
+                      ]
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeType": "chapter",
+        "title": "需求可追踪性",
+        "headingLevel": 1,
+        "description": "给出本文档（软件设计说明）与软件需求规格说明（SRS）之间的追踪关系",
+        "copyable": false,
+        "deletable": false,
+        "contentBlocks": [
+          {
+            "type": "text",
+            "content": "需求的正向追踪矩阵见表21。"
+          },
+          {
+            "type": "table",
+            "caption": "表21 需求的正向追踪矩阵",
+            "rows": 3,
+            "cols": 4,
+            "headers": [
+              "SRS 章节号",
+              "软件需求名称和标识",
+              "SDD 章节号",
+              "软件部件名称和标识"
+            ],
+            "data": [
+              [
+                "",
+                "",
+                "",
+                ""
+              ],
+              [
+                "",
+                "",
+                "",
+                ""
+              ],
+              [
+                "",
+                "",
+                "",
+                ""
+              ]
+            ]
+          },
+          {
+            "type": "text",
+            "content": "需求的逆向追踪矩阵见表22。"
+          },
+          {
+            "type": "table",
+            "caption": "表22 需求的逆向追踪矩阵",
+            "rows": 3,
+            "cols": 4,
+            "headers": [
+              "SDD 章节号",
+              "软件部件名称和标识",
+              "SRS 章节号",
+              "软件需求名称和标识"
+            ],
+            "data": [
+              [
+                "",
+                "",
+                "",
+                ""
+              ],
+              [
+                "",
+                "",
+                "",
+                ""
+              ],
+              [
+                "",
+                "",
+                "",
+                ""
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "nodeType": "chapter",
+        "title": "注释",
+        "headingLevel": 1,
+        "description": "本章应包含有助于理解本文档的一般信息（例如：背景、术语、缩略语或公式）。如无，请标注本章无内容，并说明理由",
+        "copyable": false,
+        "deletable": true
+      }
+    ]
+  }
+}

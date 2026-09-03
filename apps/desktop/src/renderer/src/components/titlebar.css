@@ -1,0 +1,140 @@
+.titlebar {
+  height: var(--titlebar-height);
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+/* macOS：左侧预留红绿灯空间 */
+.titlebar-mac .tb-brand {
+  padding-left: 76px;
+}
+
+.tb-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-left: var(--space-3);
+  overflow: hidden;
+}
+
+.tb-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: var(--gradient-brand);
+  flex: none;
+}
+
+.tb-logo-mark {
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+}
+
+.tb-appname {
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.tb-actions {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+.tb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 100%;
+  color: var(--text-2);
+  border-radius: 0;
+  transition:
+    background-color var(--duration-fast) ease,
+    color var(--duration-fast) ease;
+}
+
+.tb-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-1);
+}
+
+.tb-btn:active {
+  background: var(--bg-active);
+}
+
+.tb-window-controls {
+  display: flex;
+  height: 100%;
+  margin-left: var(--space-1);
+}
+
+.tb-win-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 100%;
+  color: var(--text-2);
+  transition:
+    background-color var(--duration-fast) ease,
+    color var(--duration-fast) ease;
+}
+
+.tb-win-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-1);
+}
+
+.tb-win-btn:active {
+  background: var(--bg-active);
+}
+
+.tb-win-close:hover {
+  background: var(--win-close-hover);
+  color: #fff;
+}
+
+.tb-win-close:active {
+  background: var(--win-close-hover);
+  color: #fff;
+  opacity: 0.85;
+}
+
+/* 工程上下文（TitleBar） */
+.tb-project {
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tb-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  margin: 0 var(--space-1);
+}
+
+.tb-action {
+  width: auto;
+  padding: 0 10px;
+  gap: 6px;
+  font-size: var(--text-xs);
+}

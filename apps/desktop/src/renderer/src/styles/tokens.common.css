@@ -1,0 +1,36 @@
+/* ===== 设计 token（无主题差异部分）· 对应 PLAN-02 §3.1 ===== */
+:root {
+  /* 圆角 */
+  --radius-control: 6px;
+  --radius-card: 8px;
+  --radius-overlay: 10px;
+
+  /* 间距阶梯 4/8/12/16/24 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+
+  /* 字体 */
+  --font-ui:
+    'Segoe UI', 'Microsoft YaHei UI', 'PingFang SC', 'HarmonyOS Sans SC', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, 'Courier New', monospace;
+
+  /* 字号 12/13/14/16/20/28 */
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-hero: 28px;
+
+  /* 动效 */
+  --duration-fast: 80ms;
+  --duration-base: 150ms;
+  --duration-enter: 200ms;
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+
+  /* 标题栏与布局 */
+  --titlebar-height: 40px;
+}

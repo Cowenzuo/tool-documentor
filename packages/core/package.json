@@ -1,0 +1,51 @@
+{
+  "name": "@documentor/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Documentor 核心：文档树/内容块数据模型、SQLite 工程存储、题注剥离",
+  "main": "./dist/index.js",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "require": "./dist/index.js"
+    },
+    "./tree": {
+      "import": "./src/tree.ts",
+      "require": "./dist/tree.js"
+    },
+    "./blocks": {
+      "import": "./src/blocks.ts",
+      "require": "./dist/blocks.js"
+    },
+    "./captions": {
+      "import": "./src/captions.ts",
+      "require": "./dist/captions.js"
+    },
+    "./time": {
+      "import": "./src/time.ts",
+      "require": "./dist/time.js"
+    },
+    "./idgen": {
+      "import": "./src/idgen.ts",
+      "require": "./dist/idgen.js"
+    },
+    "./anchor": {
+      "import": "./src/anchor.ts",
+      "require": "./dist/anchor.js"
+    },
+    "./store": {
+      "import": "./src/store.ts",
+      "require": "./dist/store.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "set NODE_OPTIONS=--experimental-sqlite&& vitest run",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "vitest": "^4.1.11"
+  }
+}

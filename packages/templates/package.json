@@ -1,0 +1,26 @@
+{
+  "name": "@documentor/templates",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Documentor 模板系统：manifest 注册表、结构模板加载与实例化、样式映射定位",
+  "main": "./dist/index.js",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "require": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@documentor/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "vitest": "^4.1.11"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "set NODE_OPTIONS=--experimental-sqlite&& vitest run",
+    "build": "tsc -p tsconfig.build.json"
+  }
+}

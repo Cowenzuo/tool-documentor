@@ -1,0 +1,37 @@
+/* ===== 深色主题 token（定稿：C 紫蓝科技，PLAN-02 §3.2）===== */
+html[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg-app: #0f1115;
+  --bg-panel: #161a21;
+  --bg-card: #161a21;
+  --bg-raised: #1c212b;
+  --bg-hover: rgb(255 255 255 / 0.05);
+  --bg-active: rgb(255 255 255 / 0.09);
+  --bg-input: #1d2330;
+
+  --text-1: #e8eaed;
+  --text-2: #9aa3b2;
+  --text-3: #626b7a;
+
+  --border: rgb(255 255 255 / 0.08);
+  --border-strong: rgb(255 255 255 / 0.16);
+
+  --accent: #7c8cff;
+  --accent-hover: #93a1ff;
+  --accent-soft: rgb(124 140 255 / 0.14);
+  --accent-soft-strong: rgb(124 140 255 / 0.24);
+  --on-accent: #ffffff;
+  --focus-ring: rgb(124 140 255 / 0.55);
+  --gradient-brand: linear-gradient(135deg, #8b5cf6 0%, #6366f1 55%, #7c8cff 100%);
+
+  --success: #3fb68b;
+  --danger: #f0616d;
+  --warning: #d9a441;
+
+  --scrollbar-thumb: rgb(255 255 255 / 0.16);
+  --scrollbar-thumb-hover: rgb(255 255 255 / 0.3);
+
+  --overlay-shadow: 0 8px 24px rgb(0 0 0 / 0.45);
+  --win-close-hover: #e81123;
+}

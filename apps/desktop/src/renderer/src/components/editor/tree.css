@@ -1,0 +1,176 @@
+/* ===== 结构栏（文档树）===== */
+.tree-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg-panel);
+}
+
+.tree-search {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+
+.tree-search input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-input);
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  padding: 6px 10px;
+}
+
+.tree-search input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.tree-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-1);
+}
+
+.tree-root-row,
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: var(--radius-control);
+  cursor: default;
+  min-width: 0;
+}
+
+.tree-root-row {
+  font-weight: 650;
+  margin-bottom: 2px;
+  color: var(--text-1);
+}
+
+.tree-root-row:hover,
+.tree-row:hover {
+  background: var(--bg-hover);
+}
+
+.tree-row.is-selected,
+.tree-root-row.is-selected {
+  background: var(--accent-soft);
+}
+
+.tree-row.is-selected .tree-title,
+.tree-root-row.is-selected .tree-title {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.tree-caret {
+  width: 16px;
+  height: 20px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+  border-radius: 4px;
+}
+
+.tree-caret:not(.tree-caret-empty):hover {
+  background: var(--bg-active);
+  color: var(--text-1);
+}
+
+.tree-caret svg {
+  transition: transform var(--duration-fast) ease;
+}
+
+.tree-caret svg.open {
+  transform: rotate(90deg);
+}
+
+.tree-caret-empty {
+  flex: none;
+}
+
+.tree-badge {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: var(--bg-active);
+  color: var(--text-2);
+  font-size: 10.5px;
+  font-weight: 650;
+}
+
+.tree-badge-root {
+  background: var(--gradient-brand);
+  color: #fff;
+}
+
+.tree-badge-sub {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.tree-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  color: var(--text-1);
+}
+
+.tree-title.match {
+  color: var(--accent);
+}
+
+.tree-empty {
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  padding: var(--space-3);
+  text-align: center;
+}
+
+/* 右键菜单 */
+.tree-menu {
+  position: fixed;
+  z-index: 120;
+  min-width: 148px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-overlay);
+  box-shadow: var(--overlay-shadow);
+  padding: var(--space-1);
+  display: flex;
+  flex-direction: column;
+}
+
+.tree-menu button {
+  text-align: left;
+  padding: 7px 12px;
+  font-size: var(--text-sm);
+  border-radius: var(--radius-control);
+  color: var(--text-1);
+  width: 100%;
+}
+
+.tree-menu button:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.tree-menu button.danger {
+  color: var(--danger);
+}
+
+.tree-menu button:disabled {
+  color: var(--text-3);
+  cursor: not-allowed;
+}
