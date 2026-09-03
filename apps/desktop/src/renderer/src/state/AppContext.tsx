@@ -65,6 +65,13 @@ interface AppContextValue {
   /** NodePage 注册/注销其 flush（块编辑器挂起提交），保存/切换前调用 */
   registerFlushAll: (fn: () => void) => () => void
   flushAll: () => Promise<void>
+  /** 全局弹层（设置/导出）——由 App 壳层统一渲染，避免挂在标题栏 drag 区域内 */
+  settingsOpen: boolean
+  exportOpen: boolean
+  openSettings: () => void
+  closeSettings: () => void
+  openExport: () => void
+  closeExport: () => void
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -82,6 +89,8 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [toast, setToast] = useState<ToastItem | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
   const toastTimer = useRef<number | undefined>(undefined)
   const flushesRef = useRef(new Set<() => void>())
 
@@ -349,7 +358,13 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
       moveContentBlock,
       updateContentBlock,
       registerFlushAll,
-      flushAll
+      flushAll,
+      settingsOpen,
+      exportOpen,
+      openSettings: () => setSettingsOpen(true),
+      closeSettings: () => setSettingsOpen(false),
+      openExport: () => setExportOpen(true),
+      closeExport: () => setExportOpen(false)
     }),
     [
       session,
@@ -371,7 +386,9 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
       moveContentBlock,
       updateContentBlock,
       registerFlushAll,
-      flushAll
+      flushAll,
+      settingsOpen,
+      exportOpen
     ]
   )
 

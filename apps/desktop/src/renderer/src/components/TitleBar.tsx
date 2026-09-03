@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useApp } from '../state/AppContext'
 import { useTheme, type ThemePreference } from '../theme/ThemeProvider'
-import { SettingsModal } from '../pages/SettingsModal'
-import { ExportDialog } from '../pages/ExportDialog'
-import { CloseIcon, MaximizeIcon, MinimizeIcon, MonitorIcon, MoonIcon, RestoreIcon, SunIcon } from './icons'
+import { CloseIcon, MaximizeIcon, MinimizeIcon, MonitorIcon, MoonIcon, RestoreIcon, SunIcon, BrandDocGlyph } from './icons'
 import './titlebar.css'
 
 const CYCLE_ORDER: ThemePreference[] = ['system', 'dark', 'light']
@@ -64,26 +62,22 @@ function SaveButton(): React.JSX.Element | null {
 }
 
 function ExportButton(): React.JSX.Element | null {
-  const { session } = useApp()
-  const [open, setOpen] = useState(false)
+  const { session, openExport } = useApp()
   if (!session) return null
   return (
-    <>
-      <button
-        type="button"
-        className="tb-btn tb-action"
-        onClick={() => setOpen(true)}
-        title="导出 DOCX"
-        aria-label="导出 DOCX"
-      >
-        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 3.5v11M7.5 10.5 12 15l4.5-4.5" />
-          <path d="M4.5 19.5h15" />
-        </svg>
-        <span>导出</span>
-      </button>
-      {open && <ExportDialog onClose={() => setOpen(false)} />}
-    </>
+    <button
+      type="button"
+      className="tb-btn tb-action"
+      onClick={openExport}
+      title="导出 DOCX"
+      aria-label="导出 DOCX"
+    >
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 3.5v11M7.5 10.5 12 15l4.5-4.5" />
+        <path d="M4.5 19.5h15" />
+      </svg>
+      <span>导出</span>
+    </button>
   )
 }
 
@@ -102,6 +96,24 @@ function CloseProjectButton(): React.JSX.Element | null {
         <path d="M4 6.5h16M9.5 6.5V4.8A1.3 1.3 0 0 1 10.8 3.5h2.4a1.3 1.3 0 0 1 1.3 1.3v1.7M6.3 6.5 7 19.2a1.5 1.5 0 0 0 1.5 1.3h7a1.5 1.5 0 0 0 1.5-1.3l.7-12.7" />
       </svg>
       <span>关闭工程</span>
+    </button>
+  )
+}
+
+function SettingsButton(): React.JSX.Element {
+  const { openSettings } = useApp()
+  return (
+    <button
+      type="button"
+      className="tb-btn"
+      onClick={openSettings}
+      title="设置"
+      aria-label="设置"
+    >
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
+      </svg>
     </button>
   )
 }
@@ -158,7 +170,6 @@ function WindowControls(): React.JSX.Element {
 export default function TitleBar(): React.JSX.Element {
   const isMac = window.documentor.platform === 'darwin'
   const { session } = useApp()
-  const [settingsOpen, setSettingsOpen] = useState(false)
 
   useEffect(() => {
     document.title = session ? `Documentor - ${session.info.name}` : 'Documentor'
@@ -166,40 +177,26 @@ export default function TitleBar(): React.JSX.Element {
 
   return (
     <header className={`titlebar${isMac ? ' titlebar-mac' : ''}`}>
-      <div className="tb-brand">
+      <div className="tb-left">
         <span className="tb-logo" aria-hidden="true">
-          <span className="tb-logo-mark">D</span>
+          <BrandDocGlyph size={13} />
         </span>
         <span className="tb-appname">Documentor</span>
-        {session && <span className="tb-project">{session.info.name}</span>}
-        <span className="tb-divider" />
+      </div>
+
+      <div className="tb-center" aria-hidden={!session}>
+        {session ? session.info.name : ''}
+      </div>
+
+      <div className="tb-right">
         <SaveButton />
         <ExportButton />
         <CloseProjectButton />
-      </div>
-      <div className="tb-actions">
-        <button
-          type="button"
-          className="tb-btn"
-          onClick={() => setSettingsOpen(true)}
-          title="设置"
-          aria-label="设置"
-        >
-          <SettingsGlyph />
-        </button>
+        <span className="tb-divider" />
+        <SettingsButton />
         <ThemeSwitchButton />
         {!isMac && <WindowControls />}
       </div>
-      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
     </header>
-  )
-}
-
-function SettingsGlyph(): React.JSX.Element {
-  return (
-    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
-    </svg>
   )
 }

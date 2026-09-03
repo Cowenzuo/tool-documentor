@@ -80,3 +80,30 @@ export function SettingsIcon({ size = 16, className }: IconProps): JSX.Element {
     </svg>
   )
 }
+
+/** 品牌文档图标（渐变底上的白描文档，欢迎页/标题栏共用） */
+export function BrandDocGlyph({
+  size = 20,
+  color = '#fff',
+  className
+}: {
+  size?: number
+  color?: string
+  className?: string
+}): React.JSX.Element {
+  return (
+    <svg
+      {...base(size)}
+      className={className}
+      fill="none"
+      stroke={color}
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M6 3.5h8l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-16a1 1 0 0 1 1-1Z" />
+      <path d="M14 3.5v4h4M8.5 12h7M8.5 15.5h5" />
+    </svg>
+  )
+}

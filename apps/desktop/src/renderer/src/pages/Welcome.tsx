@@ -2,20 +2,36 @@ import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
 import type { AppConfigDto } from '../../../shared/project'
 import { useApp } from '../state/AppContext'
+import { BrandDocGlyph } from '../components/icons'
 import { CreateProjectWizard } from './CreateProjectWizard'
-import { SettingsModal } from './SettingsModal'
 import './welcome.css'
+
+const FALLBACK_VERSION = '0.1.0-alpha1'
+
+interface RecentItem {
+  path: string
+  /** 工程文件夹名（最近打开的主显示） */
+  folder: string
+}
 
 export default function Welcome(): JSX.Element {
   const { openProjectByPath, busy } = useApp()
   const [wizardOpen, setWizardOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [recents, setRecents] = useState<string[]>([])
+  const [recents, setRecents] = useState<RecentItem[]>([])
+  const [version, setVersion] = useState('')
 
   useEffect(() => {
     void window.documentor.settings.get().then((cfg: AppConfigDto) => {
-      setRecents(cfg.recents ?? [])
+      const items = (cfg.recents ?? []).map((path) => {
+        const parts = path.split(/[\\/]/).filter(Boolean)
+        return { path, folder: parts[parts.length - 2] ?? path }
+      })
+      setRecents(items)
     })
+    void window.documentor
+      .getAppInfo()
+      .then((info) => setVersion(info.version))
+      .catch(() => undefined)
   }, [])
 
   const openFile = async (): Promise<void> => {
@@ -23,79 +39,74 @@ export default function Welcome(): JSX.Element {
     if (path) await openProjectByPath(path)
   }
 
-  const recentNames = recents.map((p) => p.split(/[\\/]/).filter(Boolean).pop() ?? p)
-
   return (
     <main className="app-main welcome">
-      <div className="welcome-card">
-        <div className="welcome-hero">
-          <div className="welcome-logo" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#fff" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M6 3.5h8l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-16a1 1 0 0 1 1-1Z" />
-              <path d="M14 3.5v4h4M8.5 12h7M8.5 15.5h5" />
-            </svg>
-          </div>
-          <h1 className="welcome-title">Documentor</h1>
-          <p className="welcome-subtitle">模板驱动的结构化文档编辑器 · 输出标准 DOCX</p>
-        </div>
+      <div className="welcome-wrap">
+        <div className="welcome-split">
+          <aside className="welcome-brand">
+            <div className="welcome-logo" aria-hidden="true">
+              <BrandDocGlyph size={30} />
+            </div>
+            <div className="welcome-title-row">
+              <h1 className="welcome-title">Documentor</h1>
+              <span className="welcome-version">v{version || FALLBACK_VERSION}</span>
+            </div>
+            <p className="welcome-subtitle">模板驱动的结构化文档写作台</p>
+            <div className="welcome-actions">
+              <button
+                type="button"
+                className="btn-primary btn-xl"
+                disabled={busy}
+                onClick={() => setWizardOpen(true)}
+              >
+                新建工程
+              </button>
+              <button
+                type="button"
+                className="btn-secondary btn-xl"
+                disabled={busy}
+                onClick={() => void openFile()}
+              >
+                打开工程…
+              </button>
+            </div>
+          </aside>
 
-        <div className="welcome-actions">
-          <button
-            type="button"
-            className="btn-primary btn-xl"
-            disabled={busy}
-            onClick={() => setWizardOpen(true)}
-          >
-            新建工程
-          </button>
-          <button type="button" className="btn-secondary btn-xl" disabled={busy} onClick={() => void openFile()}>
-            打开工程…
-          </button>
-        </div>
-
-        {recents.length > 0 && (
-          <div className="welcome-recents">
-            <span className="welcome-recents-title">最近打开</span>
-            <ul>
-              {recents.map((path, i) => (
-                <li key={path}>
-                  <button
-                    type="button"
-                    title={path}
-                    disabled={busy}
-                    onClick={() => void openProjectByPath(path)}
-                  >
-                    <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.3">
-                      <path d="M2 4.5h4.2L8 6h6v6.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1Z" />
-                    </svg>
-                    {recentNames[i]}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        <div className="welcome-meta">
-          <span className="welcome-version">Documentor · 界面骨架与编辑功能</span>
+          <section className="welcome-recents welcome-recents-panel">
+            <div className="welcome-recents-title">最近打开</div>
+            {recents.length > 0 ? (
+              <ul>
+                {recents.map((item) => (
+                  <li key={item.path}>
+                    <button
+                      type="button"
+                      title={item.path}
+                      disabled={busy}
+                      onClick={() => void openProjectByPath(item.path)}
+                    >
+                      <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden="true">
+                        <path d="M2 4.5h4.2L8 6h6v6.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1Z" />
+                      </svg>
+                      <span className="recent-text">
+                        <span className="recent-main">{item.folder}</span>
+                        <span className="recent-sub">{item.path}</span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="welcome-recents-empty">暂无最近打开的工程</div>
+            )}
+          </section>
         </div>
       </div>
 
-      <button
-        type="button"
-        className="welcome-settings"
-        title="设置"
-        aria-label="设置"
-        onClick={() => setSettingsOpen(true)}
-      >
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="3" />
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
-        </svg>
-      </button>
+      <div className="welcome-footer">
+        <span className="welcome-copyright">© {new Date().getFullYear()} Documentor</span>
+      </div>
 
       {wizardOpen && <CreateProjectWizard onClose={() => setWizardOpen(false)} />}
-      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
     </main>
   )
 }

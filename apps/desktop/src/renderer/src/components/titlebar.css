@@ -1,4 +1,5 @@
 .titlebar {
+  position: relative;
   height: var(--titlebar-height);
   flex: none;
   display: flex;
@@ -11,16 +12,18 @@
 }
 
 /* macOS：左侧预留红绿灯空间 */
-.titlebar-mac .tb-brand {
+.titlebar-mac .tb-left {
   padding-left: 76px;
 }
 
-.tb-brand {
+/* 左：品牌（drag 区） */
+.tb-left {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   padding-left: var(--space-3);
-  overflow: hidden;
+  min-width: 0;
+  flex: 1 1 0;
 }
 
 .tb-logo {
@@ -34,13 +37,6 @@
   flex: none;
 }
 
-.tb-logo-mark {
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1;
-  color: #fff;
-}
-
 .tb-appname {
   font-size: var(--text-md);
   font-weight: 600;
@@ -48,11 +44,40 @@
   white-space: nowrap;
 }
 
-.tb-actions {
+/* 中：工程名（绝对居中，不参与拖拽命中） */
+.tb-center {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  height: 100%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: min(420px, 42%);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* 右：全部操作（no-drag，可交互） */
+.tb-right {
   display: flex;
   align-items: center;
   height: 100%;
+  flex: none;
   -webkit-app-region: no-drag;
+}
+
+.tb-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  margin: 0 var(--space-1);
+  flex: none;
 }
 
 .tb-btn {
@@ -75,6 +100,13 @@
 
 .tb-btn:active {
   background: var(--bg-active);
+}
+
+.tb-action {
+  width: auto;
+  padding: 0 10px;
+  gap: 6px;
+  font-size: var(--text-xs);
 }
 
 .tb-window-controls {
@@ -113,28 +145,4 @@
   background: var(--win-close-hover);
   color: #fff;
   opacity: 0.85;
-}
-
-/* 工程上下文（TitleBar） */
-.tb-project {
-  font-size: var(--text-sm);
-  color: var(--text-2);
-  max-width: 260px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.tb-divider {
-  width: 1px;
-  height: 18px;
-  background: var(--border);
-  margin: 0 var(--space-1);
-}
-
-.tb-action {
-  width: auto;
-  padding: 0 10px;
-  gap: 6px;
-  font-size: var(--text-xs);
 }

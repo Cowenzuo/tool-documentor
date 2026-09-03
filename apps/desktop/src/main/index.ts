@@ -148,12 +148,45 @@ function createMainWindow(): void {
             await sleep(300);
             out.backToEdit = !!document.querySelector('.np-blocks');
           }
+          // 标题栏设置弹层：应能打开（壳层渲染）并可关闭
+          const settingsBtn = await waitFor('.tb-btn[aria-label="设置"]');
+          settingsBtn.click();
+          await sleep(400);
+          out.settingsOpen = ((document.querySelector('.settings-dialog .wizard-head h2') || {}).textContent || '') === '设置';
+          const closeBtn = document.querySelector('.settings-dialog .wizard-head button');
+          if (closeBtn) closeBtn.click();
+          await sleep(350);
+          out.settingsClosed = !document.querySelector('.settings-dialog');
+          // 物理输入验证：返回保存按钮中心坐标，main 侧用 sendInputEvent 重放真实鼠标点击
+          const physSave = document.querySelector('.tb-action[aria-label="保存工程"]');
+          if (physSave) {
+            const r = physSave.getBoundingClientRect();
+            out.saveRect = { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+            out.saveToastBefore = (document.querySelector('.toast') || {}).textContent || null;
+          }
           return out;
         })()
       `
       void mainWindow?.webContents
         .executeJavaScript(probe)
-        .then((result) => console.log('[e2e]', JSON.stringify(result)))
+        .then(async (result) => {
+          const data = result as Record<string, unknown>
+          console.log('[e2e]', JSON.stringify(data))
+          const rect = data['saveRect'] as { x: number; y: number } | undefined
+          if (rect) {
+            const win = mainWindow
+            if (!win) return
+            // 重放真实鼠标点击（经过 drag 命中测试）
+            win.webContents.sendInputEvent({ type: 'mouseMove', x: rect.x, y: rect.y })
+            win.webContents.sendInputEvent({ type: 'mouseDown', x: rect.x, y: rect.y, button: 'left', clickCount: 1 })
+            win.webContents.sendInputEvent({ type: 'mouseUp', x: rect.x, y: rect.y, button: 'left', clickCount: 1 })
+            await new Promise((resolve) => setTimeout(resolve, 1400))
+            const toast = await win.webContents.executeJavaScript(
+              `(document.querySelector('.toast') || {}).textContent || null`
+            )
+            console.log('[e2e-phys]', 'toast=', toast)
+          }
+        })
         .catch((err) => console.error('[e2e] failed:', err))
     })
   }
