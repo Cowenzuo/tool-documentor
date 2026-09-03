@@ -110,7 +110,11 @@ const api: DesktopApi = {
         DesktopApi['templates']['listStructures']
       >,
     listStyles: () =>
-      invoke(ProjectIpc.TemplatesListStyles) as ReturnType<DesktopApi['templates']['listStyles']>
+      invoke(ProjectIpc.TemplatesListStyles) as ReturnType<DesktopApi['templates']['listStyles']>,
+    styleCandidates: (structureName: string) =>
+      invoke(ProjectIpc.TemplatesStyleCandidates, structureName) as ReturnType<
+        DesktopApi['templates']['styleCandidates']
+      >
   }
 }
 

@@ -315,9 +315,22 @@ export class ProjectService {
 
   // ================= 导出 =================
 
-  /** 先保存再导出 DOCX（样式模板按 fileKey 查找） */
+  /** 先保存再导出 DOCX（样式模板按 fileKey 查找；软校验候选可用性） */
   async exportDocx(input: ExportDocxInput): Promise<ExportDocxResult> {
     const tree = this.requireTree()
+    const def = this.managerValue.findStructureByName(this.store.templateName())
+    const candidates = def ? this.managerValue.styleCandidatesForStructure(def) : []
+    const target = candidates.find((c) => c.fileKey === input.styleFileKey)
+    if (!target) {
+      throw new ProjectServiceError(
+        `样式模板「${input.styleFileKey}」不属于当前结构模板的可用集合`
+      )
+    }
+    if (!target.available) {
+      throw new ProjectServiceError(
+        `样式模板「${target.name}」不可用于当前结构模板，缺少样式键：${target.missingKeys.join('、')}`
+      )
+    }
     const styleDef = this.managerValue.findStyleTemplate(input.styleFileKey)
     if (!styleDef) {
       throw new ProjectServiceError(`未找到样式模板：${input.styleFileKey}`)
@@ -328,7 +341,8 @@ export class ProjectService {
     return {
       outputPath: exported.outputPath,
       clonedGroups: exported.clonedGroups,
-      paragraphCount: exported.instructions.length
+      paragraphCount: exported.instructions.length,
+      warnings: exported.warnings
     }
   }
 

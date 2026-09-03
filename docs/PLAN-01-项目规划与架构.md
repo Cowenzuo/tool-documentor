@@ -20,7 +20,8 @@
 ### 1.1 总体目标
 
 用 **TypeScript + Electron + React** 重写 documentor——**模板驱动的结构化 DOCX 文档编辑器**
-（通用定位，内置 438C 等格式作为示例模板），**完整复刻现有能力**，同时**重新设计界面**
+（通用定位；438C 等格式模板不随软件内置——由用户/外部模板目录提供，版权边界见 §8），
+**完整复刻现有能力**，同时**重新设计界面**
 （不受 Qt 约束，深/浅双主题、现代文档工具观感）。
 
 ### 1.2 范围边界（本次决策）
@@ -44,9 +45,10 @@
 1. **工程文件兼容**：`documentor.dproj` 锚点 JSON、SQLite 表结构与 C++ 版一致
    （node / content_block / ui_state），新程序必须能直接打开旧版创建的工程。
    → 用 `D:\_dev\documentor\testproject\`（documentor.db + documentor.dproj）作兼容性回归夹具。
-2. **模板资产复用**：`D:\_dev\documentor\src\templates\builtin\`（manifest + 438c-srs/438c-sdd
-   结构模板 + 样式骨架目录）**原样搬入**本仓库 resources/。styles.xml/numbering.xml 等
-   骨架部件零改动，这是 DOCX 视觉保真的根本。
+2. **格式语义兼容，模板不外置**：文件格式（dproj/SQLite schema/OOXML 规则）与旧版完全
+   兼容；但模板资产（manifest + 结构模板 + 样式骨架）**不随软件分发**（版权考虑）——
+   由用户/外部模板目录提供（设置 → 模板目录，manifest 驱动）。本仓库仅含
+   resources/test-fixtures/sample-template（自建合成模板，无外部内容，供开发回归）。
 3. **实例 JSON 兼容**：`basedOn → styleTemplate → 首模板回退（告警）` 匹配链照旧，UTF-8。
 4. **导出等价**：同一骨架 + 同一数据应产生等价 document.xml（编号克隆、题注剥离、
    边框/边距规则与 04/05 文档一致）。
@@ -85,7 +87,7 @@ tool-rwdoc/
 ├── packages/
 │   ├── core/            # 模型+存储：DocumentTree/Node、ContentBlock×8、
 │   │                    #   ProjectStore(SQLite)、实例JSON、题注剥离、编号工具
-│   ├── templates/       # TemplateManager：manifest、结构实例化、样式定位、多目录+内置回退
+│   └── templates/       # 模板目录（外部提供，仅用户配置的多目录加载，无内置）
 │   └── docx/            # DocxSerializer(树→WriteInstruction)、DocxWriter(指令→OOXML 打包)
 ├── apps/
 │   └── desktop/         # Electron 壳（electron-vite 三段一体）：
@@ -95,8 +97,7 @@ tool-rwdoc/
 │                        #   src/shared（三段共享 IPC 契约）
 ├── packages/postprocess/#（后期 M6）OLE/CFB 嵌入、预览；tool-mmd2vsdx 集成点
 ├── resources/
-│   └── templates/       # 内置模板资产副本（自 documentor 原样复制）
-│   └── test-fixtures/   # 旧 testproject 工程、样例实例 JSON、样例导出 docx
+│   └── test-fixtures/   # 合成回归数据（示例模板/sample-project/样例实例——无外部版权内容）
 ├── docs/                # 本规划与设计文档
 └── scripts/             # 验证/对照脚本（Node，后续替代/镜像旧 Python 诊断）
 ```
@@ -128,7 +129,7 @@ tool-rwdoc/
 - 纯函数、无 I/O 依赖，可单测。
 
 ### packages/templates
-- `TemplateManager`：模板目录列表（用户配置多个 + 内置 resources/templates 回退，无效目录自动过滤）。
+- `TemplateManager`：模板目录列表（用户配置多个，manifest 驱动，无内置回退；无效目录自动过滤）。
 - 结构模板：解析 → 深拷贝实例化（语义与旧版一致：模板树即工程初始树）。
 - 样式模板：stylemap 逻辑名→styleId 映射表加载；样式骨架目录定位。
 
@@ -204,16 +205,19 @@ tool-rwdoc/
 
 ---
 
-## 8. 资产复制清单（M1 前置）
+## 8. 资产与模板来源（版权边界）
 
-| 源（documentor 仓库） | 目标 | 用途 |
+| 来源 | 是否入本仓库 | 用途/说明 |
 |---|---|---|
-| `src/templates/builtin/templates?`（manifest.json 所在整树） | `resources/templates/` | 内置模板资产，原样 |
-| `testproject/documentor.dproj + documentor.db` | `resources/test-fixtures/` | 兼容回归 |
+| 旧版 438C 模板资产（builtin/：manifest+结构+样式骨架） | **否**（仅作为规格/实现参考留在原仓库） | 版权内容剥离分发；新软件不内置模板 |
+| 自建合成模板 `resources/test-fixtures/sample-template/` | 是（仅自动化回归） | 单测/E2E 注入使用，无外部版权内容 |
+| **本地模板包 `localtest/templates/`** | **否（.gitignore 忽略，本地管理）** | 本地开发/使用的结构与样式模板（自旧仓库复制）；不入库、不随软件分发 |
+| 合成样例工程 `sample-project/`（dproj+db） | 是 | 存储兼容回归 |
 | （后期）`scripts/embed_vsdx.py、visio_ole.py` 及诊断脚本 | 参考实现 | M7 移植/对照 |
 | `docs/NodeJS路线资料/*` | 引用即可（不复制，防双份漂移） | 规格基线 |
 
-> 注：实施时先实地确认 builtin 目录的确切布局（含 manifest.json 位置与名称），以复制结果为准。
+> 模板目录由用户通过 设置 → 模板目录 提供（每个目录需含 manifest.json）；
+> 软件仅提供文档处理管线。剥离操作会保留在 git 历史中，如需彻底移除历史请另行处理。
 
 ---
 
@@ -230,6 +234,9 @@ tool-rwdoc/
 7. **产品定位修正**（§1 声明）：Documentor 是模板驱动的通用 docx 结构化文档编辑器，
    GJB 438C 仅是内置示例模板/测试案例；全部文案按通用定位书写，架构上通过
    structure + stylemap + 骨架扩展新文档格式（模板系统本就数据驱动，无需改代码）。
+8. **模板剥离分发（版权决策）**：结构/样式模板不再随软件内置，仅提供处理管线；
+   模板由外部目录提供（设置 → 模板目录，manifest 驱动）；仓库内仅保留自建
+   合成模板/样例工程供回归（无外部版权内容）；旧版 438C 资产与派生夹具/样例已移除。
 
 待定项结论（已定稿，原 T1–T4 全部闭合）：
 - T1 config.json → Electron userData（`%APPDATA%/Documentor/config.json`），字段沿用旧版
@@ -240,6 +247,18 @@ tool-rwdoc/
   mermaid/<sha16>.png）；CLI 无 UI 渲染需求（导出即占位段，无需渲染）。
 
 ## 10. 实施记录
+
+### 模板剥离（版权边界，本次修订）
+- 移除 `resources/templates/`（438C 结构/样式资产）与全部 438C 派生数据
+  （旧 testproject 工程、db 对照样本、导出样例 docx）。
+- 主进程不再内置模板：仅加载 设置 → 模板目录（manifest 驱动）；无模板时
+  console 提示并在新建向导展示空态指引。
+- CLI `--test-export` 要求外部模板目录（`DOC_TEMPLATES_DIR` 或 `--templates <dir>`）。
+- 自建合成模板 `resources/test-fixtures/sample-template/`（含最小 docx 骨架：
+  Content_Types/rels/styles/numbering/document）+ 合成样例工程 `sample-project/`；
+  全部测试/E2E/CLI 回归改挂合成数据（core 45 / templates 6 / docx 8 单测全绿，
+  E2E 含物理点击回归通过）。
+- 注意：git 历史仍包含被剥离资产（工作区已删除）；如需彻底清除历史另行处理。
 
 ### M0 骨架（完成）
 - 仓库骨架落地：pnpm workspace（`apps/*`、`packages/*`）+ TS strict base + 根脚本
@@ -263,8 +282,8 @@ tool-rwdoc/
   关键事实与规格文档的差异：node.id 为 TEXT（进程内自增数字串，非 int）；
   node 表含 node_type 列（root 专用）；content_block.block_type 为数字字符串 0..7；
   旧库 41 节点/31 块即 SRS 模板深拷贝（模板与 db 完全一致）。
-- 资产复制：`resources/templates/`（manifest 在根，manifest 驱动加载）、
-  `resources/test-fixtures/testproject/` + `reference/db_full.json`（UTF-8 对照样本）。
+- 回归数据：`resources/test-fixtures/sample-template/`（自建合成模板：manifest + 结构 +
+  最小 docx 骨架，无外部版权内容）与 `sample-project/`（合成样例工程）。
 - `@documentor/core`：blocks（8 型判别联合 + db props 往返）、tree（DocumentNode/
   DocumentTree 全语义：addChild 校验、deepClone 权限重置、SubTitle 编号链、id 自增）、
   store（ProjectStore：node:sqlite 内建驱动，schema/保存语义对齐旧版）、anchor（dproj
@@ -279,8 +298,8 @@ tool-rwdoc/
 
 ### M2a 主进程工程服务（完成）
 - shared/project.ts：工程/树/块/对话框/设置 IPC 契约 + DTO + DesktopApi 面。
-- 主进程：TemplateManager 装配（用户模板目录优先 → 内置兜底，dev 解析仓库
-  resources/templates）、ProjectService（create/open/saveAndClose、树变更 node:copy/
+- 主进程：TemplateManager 装配（仅用户模板目录，无内置兜底；无模板时给出配置指引）、
+  ProjectService（create/open/saveAndClose、树变更 node:copy/
   delete/title/description、块 add/remove/move/update、image 导入复制 images/uuid、
   writeProjectFile 路径安全校验、ui_state）、settings（userData config.json 含 recents）、
   ipc.ts 全通道注册（错误统一转 rejection message）；files 读 dataURL 通道（缩略图）。

@@ -40,9 +40,26 @@ export interface TemplateDef {
   category: string
   description: string
   version: string
-  /** 样式映射文件名（不含 .json），如 '438c-srs-stylemap' */
+  /** 默认样式映射文件名（不含 .json），如 'demo-stylemap'；必须 ∈ styleTemplates */
   styleTemplate: string
+  /** 可用样式模板集合（1:N）；缺省时兼容回退为 [styleTemplate] */
+  styleTemplates: string[]
   rootDef: TemplateNodeDef
+}
+
+/** 结构 × 样式配对候选（软校验：不可用不影响结构模板加载/编辑） */
+export interface StyleCandidate {
+  /** stylemap 文件名（不含 .json） */
+  fileKey: string
+  name: string
+  version: string
+  description: string
+  /** 校验是否通过（键齐全 + 骨架 styleId 均在） */
+  available: boolean
+  /** 缺失的逻辑样式键（含骨架 styleId 缺失项）明细 */
+  missingKeys: string[]
+  /** 是否为结构模板声明为默认样式 */
+  isDefault: boolean
 }
 
 /** 样式模板定义（stylemap + docx 骨架） */
@@ -52,7 +69,7 @@ export interface StyleTemplateDef {
   description: string
   /** stylemap 文件名（不含 .json），注册别名 */
   fileKey: string
-  /** 骨架文件夹名（stylemap 内 docxFolder，如 '438c-srs-style'） */
+  /** 骨架文件夹名（stylemap 内 docxFolder，如 'demo-style'） */
   docxFolder: string
   /** 骨架文件夹的父目录绝对路径（styles/<id>） */
   basePath: string

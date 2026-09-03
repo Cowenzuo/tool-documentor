@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { resetIdCounterForTest } from '@documentor/core/idgen'
 import { DocumentNode, DocumentTree } from '@documentor/core/tree'
-import { serializeToInstructions } from '../src/serializer'
+import { serializeToInstructions, serializeWithWarnings } from '../src/serializer'
 import type { StyleTemplateDef } from '@documentor/templates'
 import type { WriteInstruction } from '../src/instructions'
 
@@ -132,5 +132,19 @@ describe('DocxSerializer 指令序列', () => {
     expect(
       instructions.map((i) => (i.opType === 'InsertParagraph' ? i.content.text : ''))
     ).toEqual(['附录', 'E=mc^2', 'int main(){}'])
+  })
+
+  it('样式键缺失时 warnings 透出（指令仍生成，不静默）', () => {
+    resetIdCounterForTest()
+    const root = new DocumentNode(0)
+    const section = node(4, '四级标题')
+    // 测试 styleDef 缺 heading.4 / body
+    section.contentBlocks.push({ type: 'text', content: '正文' })
+    root.addChild(section)
+    const { instructions, warnings } = serializeWithWarnings(new DocumentTree(root), styleDef)
+    expect(instructions).toHaveLength(2)
+    expect(warnings.length).toBeGreaterThanOrEqual(1)
+    expect(warnings.some((w) => w.includes('heading.4'))).toBe(true)
+    // serializeToInstructions 行为不变（无 warnings 参数）
   })
 })

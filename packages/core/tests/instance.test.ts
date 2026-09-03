@@ -8,10 +8,10 @@ describe('实例 JSON → 文档树（对齐旧版 buildInstanceNode）', () => 
     resetIdCounterForTest()
     const instance: InstanceFile = {
       name: '样例',
-      basedOn: '438C-软件需求规格说明(SRS)',
-      styleTemplate: '438c-srs-stylemap',
+      basedOn: '示例文档模板 (Demo)',
+      styleTemplate: 'demo-stylemap',
       root: {
-        title: '软件需求规格说明',
+        title: '示例文档',
         children: [
           {
             title: '范围',
@@ -50,7 +50,7 @@ describe('实例 JSON → 文档树（对齐旧版 buildInstanceNode）', () => 
     const tree = buildTreeFromInstance(instance)
     const root = tree.root
     expect(root.isRoot()).toBe(true)
-    expect(root.title).toBe('软件需求规格说明')
+    expect(root.title).toBe('示例文档')
 
     const scope = root.children[0]!
     expect(scope.title).toBe('范围')

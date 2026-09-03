@@ -8,6 +8,9 @@ import { buildTemplateManager } from './services/template-host'
 let mainWindow: BrowserWindow | null = null
 let projectService: ProjectService | null = null
 
+// 关键：必须在 userData 路径解析前设置应用名（ready 前），否则配置目录错误
+app.setName('Documentor')
+
 function isDev(): boolean {
   return !app.isPackaged && Boolean(process.env['ELECTRON_RENDERER_URL'])
 }
@@ -220,7 +223,6 @@ function registerIpc(): void {
 }
 
 app.whenReady().then(() => {
-  app.setName('Documentor')
   // 自绘标题栏：移除默认菜单（macOS 保留原生应用菜单占位，窗口内无菜单栏）
   Menu.setApplicationMenu(null)
 

@@ -80,6 +80,17 @@ export interface StyleTemplateDto {
   fileKey: string
 }
 
+/** 结构 × 样式配对候选（软校验：不可用项带原因，导出入口据此收敛） */
+export interface StyleCandidateDto {
+  fileKey: string
+  name: string
+  version: string
+  description: string
+  available: boolean
+  missingKeys: string[]
+  isDefault: boolean
+}
+
 /** 应用配置（userData/config.json） */
 export interface AppConfigDto {
   version: number
@@ -130,6 +141,8 @@ export const ProjectIpc = {
   SettingsSet: 'settings:set',
   TemplatesListStructures: 'templates:list-structures',
   TemplatesListStyles: 'templates:list-styles',
+  /** 结构模板的样式候选（1:N + 校验可用性） */
+  TemplatesStyleCandidates: 'templates:style-candidates',
   /** 导出 DOCX */
   ExportDocx: 'export:docx',
   /** 另存对话框（导出路径） */
@@ -249,6 +262,8 @@ export interface DesktopSettingsApi {
 export interface DesktopTemplatesApi {
   listStructures(): Promise<StructureTemplateDto[]>
   listStyles(): Promise<StyleTemplateDto[]>
+  /** 结构模板的样式候选（含可用性校验） */
+  styleCandidates(structureName: string): Promise<StyleCandidateDto[]>
 }
 
 export interface ExportDocxInput {
@@ -261,6 +276,8 @@ export interface ExportDocxResult {
   outputPath: string
   clonedGroups: number
   paragraphCount: number
+  /** 样式键缺失明细（透明化兜底） */
+  warnings: string[]
 }
 
 export interface DesktopExportApi {

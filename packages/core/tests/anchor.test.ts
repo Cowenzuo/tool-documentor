@@ -17,7 +17,7 @@ describe('工程锚点 documentor.dproj', () => {
       const anchor = {
         version: 1,
         name: '测试工程',
-        template: '438C-软件设计说明(SDD)',
+        template: '示例模板',
         db_file: 'custom.db',
         created_at: '2026-07-23T15:35:47',
         updated_at: '2026-07-23T15:35:47'
@@ -30,7 +30,7 @@ describe('工程锚点 documentor.dproj', () => {
       // 文件为 UTF-8 JSON（中文完好）
       const raw = readFileSync(anchorPath(dir), 'utf8')
       expect(raw).toContain('测试工程')
-      expect(raw).toContain('438C-软件设计说明(SDD)')
+      expect(raw).toContain('示例模板')
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -54,15 +54,15 @@ describe('工程锚点 documentor.dproj', () => {
     }
   })
 
-  it('解析旧版 fixture 锚点', () => {
+  it('解析合成样例工程锚点', () => {
     const fixtureDir = join(
       __dirname,
-      '../../../resources/test-fixtures/testproject'
+      '../../../resources/test-fixtures/sample-project'
     )
     const anchor = readAnchor(fixtureDir)
     expect(anchor).not.toBeNull()
-    expect(anchor!.name).toBe('testproject')
-    expect(anchor!.template).toBe('438C-软件需求规格说明(SRS)')
+    expect(anchor!.name).toBe('示例工程')
+    expect(anchor!.template).toBe('示例文档模板 (Demo)')
     expect(anchor!.db_file).toBe('documentor.db')
     expect(anchor!.version).toBe(1)
     expect(anchor!.created_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/)

@@ -152,17 +152,17 @@ describe('ProjectStore ui_state 与 meta', () => {
   })
 })
 
-describe('legacy 兼容：打开旧版 testproject 工程', () => {
+describe('sample-project 兼容：打开合成样例工程', () => {
   const fixture = join(
     __dirname,
-    '../../../resources/test-fixtures/testproject/documentor.db'
+    '../../../resources/test-fixtures/sample-project'
   )
 
-  it('完整加载旧库（41 节点/31 块）且内容与参考样本一致', () => {
+  it('完整加载样例工程（6 节点/4 块）且内容正确', () => {
     const s = new ProjectStore()
-    s.open(fixture)
-    expect(s.projectName()).toBe('testproject')
-    expect(s.templateName()).toBe('438C-软件需求规格说明(SRS)')
+    s.open(join(fixture, 'documentor.db'))
+    expect(s.projectName()).toBe('示例工程')
+    expect(s.templateName()).toBe('示例文档模板 (Demo)')
     const tree = s.load()
 
     const nodes: string[] = []
@@ -171,28 +171,26 @@ describe('legacy 兼容：打开旧版 testproject 工程', () => {
       nodes.push(`${n.id}|${n.headingLevel}|${n.title}`)
       for (const b of n.contentBlocks) blocks.push(`${n.id}|${b.type}`)
     })
-    expect(nodes).toHaveLength(41)
-    expect(blocks).toHaveLength(31)
+    expect(nodes).toHaveLength(6)
+    expect(blocks).toHaveLength(4)
 
-    // 根与顶层（与 reference/db_full.json 抽样一致）
-    expect(tree.root.title).toBe('软件需求规格说明')
+    expect(tree.root.title).toBe('示例工程文档')
     const first = tree.root.children[0]!
     expect(first.title).toBe('范围')
-    expect(first.headingLevel).toBe(1)
-    expect(first.allowContentBlocks).toBe(false)
-    expect(first.children.map((c) => c.title)).toEqual(['标识', '系统概述', '文档概述'])
+    // 实例 JSON 不承载 allowContentBlocks（默认允许，同旧版 buildInstanceNode 语义）
+    expect(first.allowContentBlocks).toBe(true)
+    expect(first.children.map((c) => c.title)).toEqual(['标识', '概述'])
 
-    // 中文块 props 完好
     const biaoShi = first.children[0]!
     expect(biaoShi.contentBlocks[0]).toEqual({
       type: 'orderedList',
-      items: ['软件名称：', '软件标识：', '软件简称：', '软件版本：V']
+      items: ['条目一：示例', '条目二：示例', '条目三：示例']
     })
 
-    // 保存到新库后往返一致（旧库只读，写临时副本验证）
+    // 保存到新库后往返一致
     const copyPath = join(dir, 'legacy-copy.db')
     const copy = new ProjectStore()
-    copy.create(copyPath, 'testproject', '438C-软件需求规格说明(SRS)')
+    copy.create(copyPath, '示例工程', '示例文档模板 (Demo)')
     copy.save(tree)
     copy.close()
     copy.open(copyPath)
@@ -206,12 +204,11 @@ describe('legacy 兼容：打开旧版 testproject 工程', () => {
         if (b.type === 'table') tables.push(b)
       }
     })
-    expect(blockCount).toBe(31)
-    expect(tables.length).toBeGreaterThanOrEqual(1)
-    const refTable = tables.find((t) => t.caption.includes('引用文档'))
+    expect(blockCount).toBe(4)
+    const refTable = tables.find((t) => t.caption.includes('示例引用'))
     expect(refTable).toBeDefined()
     expect(refTable!.headers).toContain('序号')
-    expect(refTable!.data[0]![1]).toBe('GJB 438C-2021')
+    expect(refTable!.data[0]![1]).toBe('DEMO-001')
     copy.close()
     s.close()
   })

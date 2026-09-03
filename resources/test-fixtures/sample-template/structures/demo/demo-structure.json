@@ -1,0 +1,104 @@
+{
+  "name": "示例文档模板 (Demo)",
+  "category": "示例",
+  "description": "自建示例模板，仅用于开发与回归测试，不含任何外部版权内容",
+  "version": "1.0",
+  "styleTemplate": "demo-stylemap",
+  "styleTemplates": ["demo-stylemap", "demo-alt-full-stylemap", "demo-alt-missing-stylemap"],
+  "root": {
+    "nodeType": "root",
+    "title": "示例文档",
+    "headingLevel": 0,
+    "description": "文档根节点",
+    "children": [
+      {
+        "nodeType": "chapter",
+        "title": "范围",
+        "headingLevel": 1,
+        "description": "本章说明文档范围",
+        "allowContentBlocks": false,
+        "children": [
+          {
+            "nodeType": "section",
+            "title": "标识",
+            "headingLevel": 2,
+            "description": "示例说明：条目可直接替换",
+            "contentBlocks": [
+              {
+                "type": "orderedList",
+                "items": ["条目一：示例", "条目二：示例", "条目三：示例"]
+              }
+            ]
+          },
+          {
+            "nodeType": "section",
+            "title": "概述",
+            "headingLevel": 2,
+            "contentBlocks": [
+              { "type": "text", "content": "这是一段示例正文，用于验证文本块的编辑与导出。" }
+            ]
+          }
+        ]
+      },
+      {
+        "nodeType": "chapter",
+        "title": "引用文档",
+        "headingLevel": 1,
+        "contentBlocks": [
+          {
+            "type": "table",
+            "caption": "表1 示例引用",
+            "rows": 2,
+            "cols": 3,
+            "headers": ["序号", "标识", "标题"],
+            "data": [
+              ["1", "DEMO-001", "示例文档"],
+              ["2", "-", "示例参考"]
+            ]
+          }
+        ]
+      },
+      {
+        "nodeType": "chapter",
+        "title": "需求",
+        "headingLevel": 1,
+        "contentBlocks": [
+          {
+            "type": "mermaid",
+            "caption": "图1 示例流程",
+            "content": "graph TD\n  A[示例] --> B[流程]"
+          },
+          {
+            "type": "unorderedList",
+            "items": ["示例需求项一", "示例需求项二"]
+          },
+          {
+            "type": "code",
+            "language": "cpp",
+            "content": "int main() { return 0; }"
+          },
+          {
+            "type": "formula",
+            "content": "E = mc^2"
+          }
+        ]
+      },
+      {
+        "nodeType": "chapter",
+        "title": "附录",
+        "headingLevel": 3,
+        "children": [
+          {
+            "nodeType": "subTitle",
+            "title": "附录 A",
+            "headingLevel": 4,
+            "subTitleStyle": "alpha",
+            "contentBlocks": [
+              { "type": "text", "content": "示例附录正文。" }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

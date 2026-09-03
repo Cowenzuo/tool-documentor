@@ -1,0 +1,29 @@
+{
+  "name": "示例文档样式·完整备选",
+  "version": "1.0",
+  "description": "键集完整的备选样式（用于 1:N 关联验证）",
+  "docxFolder": "demo-style",
+  "styleMap": {
+    "heading.1": "49",
+    "heading.2": "50",
+    "heading.3": "52",
+    "heading.4": "54",
+    "heading.5": "56",
+    "heading.6": "58",
+    "heading.7": "109",
+    "subtitle.1": "65",
+    "subtitle.2": "67",
+    "subtitle.3": "94",
+    "body": "45",
+    "table.caption": "48",
+    "table.header": "88",
+    "table.body": "95",
+    "figure.caption": "60",
+    "list.unordered.1": "62",
+    "list.unordered.2": "63",
+    "list.unordered.3": "64",
+    "list.ordered.1": "65",
+    "list.ordered.2": "67",
+    "list.ordered.3": "94"
+  }
+}

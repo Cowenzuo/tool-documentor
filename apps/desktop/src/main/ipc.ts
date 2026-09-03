@@ -18,6 +18,7 @@ import type {
   NodeDeleteInput,
   NodeDescriptionInput,
   NodeTitleInput,
+  StyleCandidateDto,
   StyleTemplateDto,
   StructureTemplateDto,
   UiStateKeyInput
@@ -218,6 +219,20 @@ export function registerProjectIpc(service: ProjectService): void {
       fileKey: s.fileKey
     }))
   )
+
+  handle<string, StyleCandidateDto[]>(ProjectIpc.TemplatesStyleCandidates, (structureName) => {
+    const def = service.getManager().findStructureByName(structureName)
+    if (!def) return []
+    return service.getManager().styleCandidatesForStructure(def).map((c) => ({
+      fileKey: c.fileKey,
+      name: c.name,
+      version: c.version,
+      description: c.description,
+      available: c.available,
+      missingKeys: c.missingKeys,
+      isDefault: c.isDefault
+    }))
+  })
 
   // ---------- 导出 ----------
   handle<ExportDocxInput, Awaited<ReturnType<ProjectService['exportDocx']>>>(

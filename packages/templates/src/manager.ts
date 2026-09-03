@@ -12,6 +12,7 @@ import { createBlock, DocumentNode, DocumentTree } from '@documentor/core'
 import type { ContentBlock } from '@documentor/core'
 import type {
   LoadDirResult,
+  StyleCandidate,
   StyleTemplateDef,
   StyleValidationReport,
   TemplateContentBlockDef,
@@ -207,12 +208,20 @@ export class TemplateManager {
     const rootObj = root['root']
     if (!name || typeof rootObj !== 'object' || rootObj === null) return null
     const rootDef = this.parseNodeDef(rootObj as Record<string, unknown>)
+    const styleTemplate = String(root['styleTemplate'] ?? '')
+    const rawList = asArray(root['styleTemplates']).map((x) => String(x)).filter(Boolean)
+    // 兼容：缺 styleTemplates 时回退单元素集合
+    const styleTemplates = rawList.length > 0 ? rawList : styleTemplate ? [styleTemplate] : []
+    if (!styleTemplates.includes(styleTemplate) && styleTemplate) {
+      styleTemplates.unshift(styleTemplate)
+    }
     return {
       name,
       category: String(root['category'] ?? ''),
       description: String(root['description'] ?? ''),
       version: String(root['version'] ?? ''),
-      styleTemplate: String(root['styleTemplate'] ?? ''),
+      styleTemplate,
+      styleTemplates,
       rootDef
     }
   }
@@ -304,6 +313,100 @@ export class TemplateManager {
     }
     return { valid: missing.length === 0, missing }
   }
+
+  // ================= 结构 × 样式配对（软校验候选） =================
+
+  /**
+   * 结构模板的可用样式候选（1:N，含默认标记与不可用原因）。
+   * 软校验：不可用的候选不影响结构模板加载/编辑，仅导出入口据此收敛。
+   */
+  styleCandidatesForStructure(def: TemplateDef): StyleCandidate[] {
+    const required = requiredStyleKeys(def)
+    const candidates: StyleCandidate[] = []
+    for (const fileKey of def.styleTemplates) {
+      const style = this.styles.get(fileKey)
+      if (!style) {
+        candidates.push({
+          fileKey,
+          name: fileKey,
+          version: '',
+          description: '',
+          available: false,
+          missingKeys: ['（样式未注册）'],
+          isDefault: fileKey === def.styleTemplate
+        })
+        continue
+      }
+      const missing = required.filter((key) => !(key in style.styleMap))
+      const report = this.validateStyleTemplate(style)
+      for (const miss of report.missing) {
+        if (!missing.includes(miss.logicalName)) {
+          missing.push(`${miss.logicalName}(styleId ${miss.styleId})`)
+        }
+      }
+      candidates.push({
+        fileKey,
+        name: style.name,
+        version: style.version,
+        description: style.description,
+        available: missing.length === 0,
+        missingKeys: [...missing],
+        isDefault: fileKey === def.styleTemplate
+      })
+    }
+    return candidates
+  }
+
+  /** 结构模板的默认样式候选（不可用时仍返回，由调用方按 available 处理） */
+  defaultStyleCandidate(def: TemplateDef): StyleCandidate | null {
+    return this.styleCandidatesForStructure(def).find((c) => c.isDefault) ?? null
+  }
+}
+
+/**
+ * 静态推导结构模板所需的逻辑样式键集合（用于样式配对校验）。
+ * 规则见 PLAN-03 §2.2：heading.L / subtitle.1..D / body / table.* / figure.caption / list.*
+ */
+export function requiredStyleKeys(def: TemplateDef): string[] {
+  const keys = new Set<string>()
+  const walk = (node: TemplateNodeDef, subDepth: number): void => {
+    if (node.isSubTitle) {
+      const depth = subDepth + 1
+      for (let d = 1; d <= depth; d++) keys.add(`subtitle.${d}`)
+    } else if (node.headingLevel > 0) {
+      keys.add(`heading.${node.headingLevel}`)
+    }
+    for (const block of node.contentBlocks) {
+      switch (block.type) {
+        case 'text':
+        case 'formula':
+        case 'code':
+          keys.add('body')
+          break
+        case 'image':
+        case 'mermaid':
+          keys.add('body')
+          keys.add('figure.caption')
+          break
+        case 'table':
+          keys.add('table.caption')
+          keys.add('table.header')
+          keys.add('table.body')
+          break
+        case 'orderedList':
+          keys.add('list.ordered.1')
+          break
+        case 'unorderedList':
+          keys.add('list.unordered.1')
+          break
+      }
+    }
+    for (const child of node.defaultChildren) {
+      walk(child, node.isSubTitle ? subDepth + 1 : 0)
+    }
+  }
+  walk(def.rootDef, 0)
+  return [...keys].sort()
 }
 
 function asArray(value: unknown): unknown[] {

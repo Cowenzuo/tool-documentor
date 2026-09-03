@@ -1,13 +1,15 @@
 /**
- * 导出对话框：DOCX 导出（Markdown 预留禁用）、样式模板选择、输出路径。
+ * 导出对话框：DOCX 导出（Markdown 预留禁用）。
+ * 样式模板下拉 = 该结构模板声明的候选集合（软校验：不可用项禁用并显示原因；
+ * 全部不可用 → 导出禁用 + 提示）。
  */
 import { useEffect, useMemo, useState } from 'react'
-import type { StyleTemplateDto } from '../../../shared/project'
+import type { StyleCandidateDto } from '../../../shared/project'
 import { useApp } from '../state/AppContext'
 
 export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.Element {
   const { session, showToast } = useApp()
-  const [styles, setStyles] = useState<StyleTemplateDto[]>([])
+  const [candidates, setCandidates] = useState<StyleCandidateDto[]>([])
   const [styleFileKey, setStyleFileKey] = useState('')
   const [outputPath, setOutputPath] = useState('')
   const [format, setFormat] = useState<'docx' | 'md'>('docx')
@@ -16,29 +18,29 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
   const info = session?.info
 
   useEffect(() => {
-    void window.documentor.templates.listStyles().then((list) => {
-      setStyles(list)
-      if (!info) return
-      // 默认选中与工程模板关联的样式
-      void window.documentor.templates.listStructures().then((structures) => {
-        const match = structures.find((s) => s.name === info.templateName)
-        const initial = match?.styleFileKey || list[0]?.fileKey || ''
-        setStyleFileKey(initial)
-      })
+    if (!info) return
+    void window.documentor.templates.styleCandidates(info.templateName).then((list) => {
+      setCandidates(list)
+      const preferred =
+        list.find((c) => c.isDefault && c.available) ?? list.find((c) => c.available)
+      setStyleFileKey(preferred?.fileKey ?? '')
     })
-    if (info) {
-      setOutputPath(`${info.projectDir.replace(/\\/g, '/')}/${info.name}.docx`)
-    }
+    setOutputPath(`${info.projectDir.replace(/\\/g, '/')}/${info.name}.docx`)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const selectedStyle = useMemo(
-    () => styles.find((s) => s.fileKey === styleFileKey) ?? null,
-    [styles, styleFileKey]
+  const selected = useMemo(
+    () => candidates.find((c) => c.fileKey === styleFileKey) ?? null,
+    [candidates, styleFileKey]
   )
+  const anyAvailable = candidates.some((c) => c.available)
 
   const canExport =
-    !!styleFileKey && outputPath.trim().length > 0 && !busy && !!info
+    !!selected &&
+    selected.available &&
+    outputPath.trim().length > 0 &&
+    !busy &&
+    !!info
 
   const doExport = async (): Promise<void> => {
     if (!canExport) return
@@ -48,9 +50,10 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
         styleFileKey,
         outputPath: outputPath.trim()
       })
+      const warnText = result.warnings.length > 0 ? `；${result.warnings.length} 处样式键缺失` : ''
       showToast({
-        kind: 'info',
-        text: `已导出 DOCX（${result.paragraphCount} 条指令 · 克隆列表组 ${result.clonedGroups}）`
+        kind: result.warnings.length > 0 ? 'error' : 'info',
+        text: `已导出 DOCX（${result.paragraphCount} 条指令 · 克隆列表组 ${result.clonedGroups}）${warnText}`
       })
       onClose()
     } catch (err) {
@@ -91,19 +94,37 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
 
           <section className="settings-group">
             <h3>样式模板</h3>
-            <select
-              className="be-select export-style-select"
-              value={styleFileKey}
-              onChange={(e) => setStyleFileKey(e.target.value)}
-            >
-              {styles.map((s) => (
-                <option key={s.fileKey} value={s.fileKey}>
-                  {s.name} · v{s.version || '1.0'}
-                </option>
-              ))}
-            </select>
-            {selectedStyle?.description && (
-              <p className="settings-hint export-style-desc">{selectedStyle.description}</p>
+            <div className="export-style-row">
+              <select
+                className="be-select export-style-select"
+                value={styleFileKey}
+                onChange={(e) => setStyleFileKey(e.target.value)}
+                disabled={candidates.length === 0}
+              >
+                {candidates.map((c) => (
+                  <option
+                    key={c.fileKey}
+                    value={c.fileKey}
+                    disabled={!c.available}
+                    title={c.available ? c.description : `不可用：${c.missingKeys.join('、')}`}
+                  >
+                    {c.name} · v{c.version || '1.0'}
+                    {c.isDefault ? '（默认）' : ''}
+                    {c.available ? '' : `（不可用：缺 ${c.missingKeys.join('、')}）`}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {!anyAvailable && (
+              <p className="settings-hint export-style-desc">
+                该结构模板没有可用的样式模板，无法导出。
+                {candidates.length > 0
+                  ? `缺失明细：${candidates.map((c) => `${c.name}(${c.missingKeys.join('、')})`).join('；')}`
+                  : '请检查结构模板声明的 styleTemplates。'}
+              </p>
+            )}
+            {anyAvailable && selected?.description && (
+              <p className="settings-hint export-style-desc">{selected.description}</p>
             )}
           </section>
 
@@ -131,7 +152,11 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
         </div>
         <footer className="wizard-foot">
           <span className="wizard-error">
-            {format === 'docx' ? '导出为 Word 可直接打开的标准 DOCX' : ''}
+            {canExport
+              ? '导出为 Word 可直接打开的标准 DOCX'
+              : !anyAvailable
+                ? '无可用样式模板，导出已禁用'
+                : ''}
           </span>
           <button
             type="button"
