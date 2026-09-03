@@ -102,7 +102,7 @@ function createMainWindow(): void {
           await waitFor('.editor-workspace', 10000);
           await sleep(600);
           out.editor = !!document.querySelector('.editor-workspace');
-          out.titlebarProject = (document.querySelector('.tb-project') || {}).textContent || null;
+          out.titlebarProject = (document.querySelector('.tb-center') || {}).textContent || null;
           out.treeRows = document.querySelectorAll('.tree-row').length + 1;
           // 选中根节点
           document.querySelector('.tree-root-row').click();
@@ -118,7 +118,8 @@ function createMainWindow(): void {
           await sleep(350);
           out.biaoShi = {
             title: document.querySelector('.np-title') ? document.querySelector('.np-title').value : null,
-            blockCards: document.querySelectorAll('.block-card').length
+            blockCards: document.querySelectorAll('.block-card').length,
+            chips: [...document.querySelectorAll('.np-chip')].map((c) => c.textContent.trim())
           };
           // 清空搜索恢复全树
           setNative(q, '');
@@ -137,13 +138,13 @@ function createMainWindow(): void {
           await sleep(1500);
           out.exportToast = document.querySelector('.toast') ? document.querySelector('.toast').textContent : null;
           // 预览视图切换
-          const previewTab = [...document.querySelectorAll('.insp-view-toggle button')].find((b) => b.textContent === '预览');
+          const previewTab = [...document.querySelectorAll('.status-view-toggle button')].find((b) => b.textContent === '预览');
           if (previewTab) {
             previewTab.click();
             await sleep(900);
             out.previewPage = !!document.querySelector('.pv-article');
             out.previewListItems = document.querySelectorAll('.pv-list li').length;
-            const editTab = [...document.querySelectorAll('.insp-view-toggle button')].find((b) => b.textContent === '编辑');
+            const editTab = [...document.querySelectorAll('.status-view-toggle button')].find((b) => b.textContent === '编辑');
             if (editTab) editTab.click();
             await sleep(300);
             out.backToEdit = !!document.querySelector('.np-blocks');

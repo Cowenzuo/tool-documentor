@@ -1,5 +1,6 @@
 /**
- * 节点文档页：标题行内编辑 + 内容块流（编辑缓存 → 防抖提交 + 切换/保存 flush）。
+ * 节点文档页：标题行内编辑 + 节点信息徽标区 + 编制说明（可编辑）+ 内容块流。
+ * 块编辑器挂起值经防抖提交；切换/保存前统一 flush（复刻 collectEdits 语义）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ContentBlock } from '@documentor/core/blocks'
@@ -19,45 +20,76 @@ export default function NodePage(): React.JSX.Element {
     moveContentBlock,
     updateContentBlock,
     setNodeTitle,
-    registerFlushAll,
-    flushAll
+    setNodeDescription,
+    registerFlushAll
   } = useApp()
 
   const [blocks, setBlocks] = useState<ContentBlock[]>(node?.contentBlocks ?? [])
+  const [desc, setDesc] = useState(node?.description ?? '')
   const [lightbox, setLightbox] = useState<LightboxRequest | null>(null)
   const [addOpen, setAddOpen] = useState(false)
 
   const pendingRef = useRef(new Map<number, ContentBlock>())
   const timersRef = useRef(new Map<number, number>())
   const nodeIdRef = useRef<string | null>(null)
+  const descValueRef = useRef(desc)
+  const descDirtyRef = useRef(false)
+  const descTimerRef = useRef<number | undefined>(undefined)
+
+  useEffect(() => {
+    descValueRef.current = desc
+  }, [desc])
 
   // 切换节点/挂载：重建缓存视图
   useEffect(() => {
     nodeIdRef.current = node?.id ?? null
+    const initialDesc = node?.description ?? ''
     setBlocks(node?.contentBlocks ?? [])
+    setDesc(initialDesc === '无' ? '' : initialDesc)
+    descDirtyRef.current = false
     pendingRef.current.clear()
     for (const timer of timersRef.current.values()) window.clearTimeout(timer)
     timersRef.current.clear()
+    window.clearTimeout(descTimerRef.current)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node?.id])
 
+  /** 提交全部挂起编辑（块 + 编制说明） */
   const flushPending = useCallback(() => {
+    // 编制说明
+    window.clearTimeout(descTimerRef.current)
+    const nodeId = nodeIdRef.current
+    if (descDirtyRef.current && nodeId) {
+      descDirtyRef.current = false
+      void setNodeDescription(nodeId, descValueRef.current)
+    }
+    // 内容块
     for (const [index, block] of [...pendingRef.current]) {
       const timer = timersRef.current.get(index)
       if (timer !== undefined) window.clearTimeout(timer)
       pendingRef.current.delete(index)
       timersRef.current.delete(index)
-      const nodeId = nodeIdRef.current
       if (nodeId) void updateContentBlock(nodeId, index, block)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [updateContentBlock])
+  }, [setNodeDescription, updateContentBlock])
 
   // 向 store 注册本页 flush（保存/关闭/切换节点前调用）
   useEffect(() => registerFlushAll(flushPending), [registerFlushAll, flushPending])
 
   // 卸载时提交挂起编辑
   useEffect(() => () => flushPending(), [flushPending])
+
+  const onDescChange = useCallback(
+    (value: string) => {
+      setDesc(value)
+      descValueRef.current = value
+      descDirtyRef.current = true
+      window.clearTimeout(descTimerRef.current)
+      descTimerRef.current = window.setTimeout(flushPending, DEBOUNCE_MS)
+    },
+    [flushPending]
+  )
 
   const handleChange = useCallback(
     (index: number, block: ContentBlock) => {
@@ -115,12 +147,6 @@ export default function NodePage(): React.JSX.Element {
   }
 
   const canEditBlocks = node.allowContentBlocks
-  const flags = {
-    copyable: node.copyable,
-    deletable: node.deletable,
-    allowContentBlocks: node.allowContentBlocks,
-    isSubTitle: node.isSubTitle
-  }
 
   return (
     <main className="node-page">
@@ -139,25 +165,42 @@ export default function NodePage(): React.JSX.Element {
             <div className="np-badges">
               {node.headingLevel === 0 ? (
                 <span className="np-badge">文档根</span>
-              ) : flags.isSubTitle ? (
+              ) : node.isSubTitle ? (
                 <span className="np-badge np-badge-sub">子标题</span>
               ) : (
                 <span className="np-badge">标题级别 {node.headingLevel}</span>
               )}
-              <span className="np-flag" title="允许复制">
-                {flags.copyable ? '可复制' : ''}
+              <span className="np-chip" title={`节点标识 ${node.id}`}>
+                #{node.id}
               </span>
-              <span className="np-flag" title="允许删除">
-                {flags.deletable ? '可删除' : ''}
+              <span
+                className={`np-chip${node.copyable ? ' np-chip-ok' : ''}`}
+                title="模板定义的复制权限"
+              >
+                {node.copyable ? '可复制' : '不可复制'}
+              </span>
+              <span
+                className={`np-chip${node.deletable ? ' np-chip-ok' : ''}`}
+                title="模板定义的删除权限"
+              >
+                {node.deletable ? '可删除' : '不可删除'}
+              </span>
+              <span
+                className={`np-chip${canEditBlocks ? ' np-chip-ok' : ''}`}
+                title="允许挂载和编辑内容块"
+              >
+                {canEditBlocks ? '可编辑' : '锁定'}
               </span>
             </div>
           </div>
 
-          {node.description && node.description !== '无' && (
-            <p className="np-description" title="模板编制说明">
-              {node.description}
-            </p>
-          )}
+          <textarea
+            className="np-desc-editor"
+            value={desc}
+            onChange={(e) => onDescChange(e.target.value)}
+            placeholder="编制说明（可选）…"
+            aria-label="编制说明"
+          />
 
           {!canEditBlocks && node.contentBlocks.length === 0 ? (
             <div className="np-block-hint">该模板节点不允许挂内容块</div>

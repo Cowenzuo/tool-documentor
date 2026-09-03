@@ -1043,3 +1043,148 @@ html[data-theme='light'] {
     scroll-behavior: auto !important;
   }
 }
+/* ===== 编辑器外壳与可拖分隔 ===== */
+.editor-shell {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.split-handle {
+  cursor: col-resize;
+  background: transparent;
+  border-left: 1px solid var(--border);
+  transition: background-color var(--duration-fast) ease;
+}
+
+.split-handle:hover,
+body.is-splitting .split-handle {
+  background: var(--accent-soft-strong);
+}
+
+body.is-splitting {
+  cursor: col-resize;
+  user-select: none;
+}
+
+/* ===== 状态栏 ===== */
+.statusbar {
+  flex: none;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-3);
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+.statusbar-view {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+
+.statusbar-label {
+  color: var(--text-3);
+}
+
+.status-view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+}
+
+.status-view-toggle button {
+  padding: 2px 12px;
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  background: transparent;
+}
+
+.status-view-toggle button.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.statusbar-stats {
+  flex: none;
+  color: var(--text-2);
+}
+
+.statusbar-meta {
+  margin-left: auto;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.statusbar-meta-main {
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.statusbar-meta-path {
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 46ch;
+}
+
+/* ===== 节点页头部信息与编制说明编辑器 ===== */
+.np-chip {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-3);
+  background: var(--bg-panel);
+  white-space: nowrap;
+}
+
+.np-desc-editor {
+  width: 100%;
+  min-height: 44px;
+  margin-bottom: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border-left: 2px solid var(--accent-soft-strong);
+  background: var(--bg-panel);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  resize: vertical;
+  border-radius: 0 var(--radius-card) var(--radius-card) 0;
+}
+
+.np-desc-editor:focus {
+  outline: none;
+  border-left-color: var(--accent);
+  background: var(--bg-raised);
+}
+.np-chip {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  color: var(--text-2);
+  background: var(--bg-input);
+  white-space: nowrap;
+  opacity: 0.92;
+}
+
+.np-chip-ok {
+  color: var(--accent);
+  border-color: var(--accent-soft-strong);
+  background: var(--accent-soft);
+  opacity: 1;
+}
