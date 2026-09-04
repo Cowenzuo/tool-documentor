@@ -22,7 +22,7 @@ import {
 } from '@documentor/core'
 import type { DocumentTree, DocumentNode } from '@documentor/core/tree'
 import { createBlock, type BlockTypeName, type ContentBlock } from '@documentor/core/blocks'
-import { exportTreeToDocx } from '@documentor/docx'
+import { exportTreeToDocxWithFigures, collectMermaidFigures } from '@documentor/docx'
 import type { TemplateManager } from '@documentor/templates'
 import type {
   BlockAddInput,
@@ -305,6 +305,12 @@ export class ProjectService {
 
   // ================= UI 状态 =================
 
+  /** 当前文档树中的 Mermaid 图块数（导出对话框提示/诊断） */
+  countMermaidFigures(): number {
+    if (!this.treeValue) return 0
+    return collectMermaidFigures(this.treeValue).length
+  }
+
   saveUiState(key: string, value: string): void {
     this.store.saveUiState(key, value)
   }
@@ -337,12 +343,15 @@ export class ProjectService {
     }
     // 导出前先落库，保证导出内容与当前编辑一致
     this.store.save(tree)
-    const exported = await exportTreeToDocx(tree, styleDef, input.outputPath)
+    // 图块链路自动执行（无“占位/预览”用户选项）：Mermaid → VSDX → OLE 嵌入；
+    // 预览 = 上游转换附带物（无则为无预览嵌入）；mmd2vsdx 不可用自动降级为文本占位 + 警告
+    const withFigs = await exportTreeToDocxWithFigures(tree, styleDef, input.outputPath, {})
     return {
-      outputPath: exported.outputPath,
-      clonedGroups: exported.clonedGroups,
-      paragraphCount: exported.instructions.length,
-      warnings: exported.warnings
+      outputPath: withFigs.outputPath,
+      clonedGroups: withFigs.clonedGroups,
+      paragraphCount: withFigs.instructions.length,
+      warnings: withFigs.warnings,
+      figures: withFigs.figureStats
     }
   }
 

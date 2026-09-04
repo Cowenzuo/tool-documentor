@@ -1,7 +1,14 @@
-export { serializeToInstructions, serializeWithWarnings } from './serializer'
-export type { SerializeOptions, SerializeResult } from './serializer'
+export { serializeToInstructions, serializeWithWarnings, collectMermaidFigures } from './serializer'
+export type { SerializeOptions, SerializeResult, MermaidFigureInfo } from './serializer'
 export { writeDocx } from './writer'
 export type { WriteDocxResult } from './writer'
+export { attachFiguresToDocx, exportTreeToDocxWithFigures } from './figure-export'
+export type {
+  FigurePipelineOptions,
+  FigurePipelineStats,
+  FigurePipelineResult,
+  TreeDocxWithFiguresResult
+} from './figure-export'
 export type { WriteInstruction } from './instructions'
 export { escapeXmlText, escapeXmlAttr } from './instructions'
 

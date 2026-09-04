@@ -70,6 +70,9 @@ describe('DocxWriter 端到端（合成示例模板骨架）', () => {
     expect(documentXml).toContain('<w:sectPr')
     expect(documentXml.trim().endsWith('</w:document>')).toBe(true)
     expect(documentXml.match(/<w:document /g)).toHaveLength(1)
+    // mc:Ignorable 引用的前缀必须已声明（否则 Word 拒绝打开）
+    expect(documentXml).toContain('xmlns:wp14="http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing"')
+    expect(documentXml).toContain('mc:Ignorable="w14 w15 wp14"')
 
     // numbering 克隆
     const numberingXml = await zip.file('word/numbering.xml')!.async('string')

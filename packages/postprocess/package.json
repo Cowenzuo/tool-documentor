@@ -1,8 +1,8 @@
 {
-  "name": "@documentor/docx",
+  "name": "@documentor/postprocess",
   "version": "0.1.0",
   "private": true,
-  "description": "Documentor DOCX 导出：DocxSerializer（树→写入指令）+ DocxWriter（指令→OOXML 打包）",
+  "description": "Documentor DOCX 后处理：VSDX 嵌入（OLE/CF 容器）+ Visio EMF 预览渲染 + OOXML 图对象装配",
   "main": "./dist/index.js",
   "types": "./src/index.ts",
   "exports": {
@@ -12,11 +12,7 @@
     }
   },
   "dependencies": {
-    "@documentor/core": "workspace:*",
-    "@documentor/templates": "workspace:*",
-    "@documentor/postprocess": "workspace:*",
-    "jszip": "^3.10.1",
-    "mmd2vsdx": "link:../../../tool-mmd2vsdx"
+    "jszip": "^3.10.1"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
@@ -24,7 +20,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "set NODE_OPTIONS=--experimental-sqlite&& vitest run",
+    "test": "vitest run",
     "build": "tsc -p tsconfig.build.json"
   }
 }

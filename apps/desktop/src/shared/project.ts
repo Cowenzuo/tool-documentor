@@ -145,6 +145,8 @@ export const ProjectIpc = {
   TemplatesStyleCandidates: 'templates:style-candidates',
   /** 导出 DOCX */
   ExportDocx: 'export:docx',
+  /** 当前文档的 Mermaid 图块数（导出对话框提示用） */
+  ExportFiguresCount: 'export:figures-count',
   /** 另存对话框（导出路径） */
   DialogSavePath: 'dialog:save-path'
 } as const
@@ -266,6 +268,21 @@ export interface DesktopTemplatesApi {
   styleCandidates(structureName: string): Promise<StyleCandidateDto[]>
 }
 
+export type FigureEmbedMode = 'embed' | 'embed-preview'
+
+export interface ExportFigureStats {
+  /** 文档中 Mermaid 图块总数 */
+  total: number
+  /** 成功转成 vsdx 的数量 */
+  converted: number
+  /** 嵌入 docx 的对象数 */
+  embedded: number
+  /** 预览图（EMF/PNG）生成数 */
+  previewCount: number
+  /** 失败明细（题注 + 原因） */
+  failed: Array<{ caption: string; reason: string }>
+}
+
 export interface ExportDocxInput {
   /** 样式模板 fileKey（stylemap 文件名） */
   styleFileKey: string
@@ -276,12 +293,16 @@ export interface ExportDocxResult {
   outputPath: string
   clonedGroups: number
   paragraphCount: number
-  /** 样式键缺失明细（透明化兜底） */
+  /** 样式键缺失/嵌入降级等明细（透明化兜底） */
   warnings: string[]
+  /** 图嵌入统计（图块链路自动执行；无图块时 total=0） */
+  figures?: ExportFigureStats
 }
 
 export interface DesktopExportApi {
   docx(input: ExportDocxInput): Promise<ExportDocxResult>
+  /** 当前文档的 Mermaid 图块数（导出对话框提示；未打开工程返回 0） */
+  figuresCount(): Promise<number>
 }
 
 export interface SavePathDialogOptions {

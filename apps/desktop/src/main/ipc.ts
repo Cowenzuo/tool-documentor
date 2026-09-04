@@ -239,4 +239,5 @@ export function registerProjectIpc(service: ProjectService): void {
     ProjectIpc.ExportDocx,
     (input) => service.exportDocx(input)
   )
+  handle<void, number>(ProjectIpc.ExportFiguresCount, () => service.countMermaidFigures())
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { resetIdCounterForTest } from '@documentor/core/idgen'
 import { DocumentNode, DocumentTree } from '@documentor/core/tree'
-import { serializeToInstructions, serializeWithWarnings } from '../src/serializer'
+import { serializeToInstructions, serializeWithWarnings, collectMermaidFigures } from '../src/serializer'
 import type { StyleTemplateDef } from '@documentor/templates'
 import type { WriteInstruction } from '../src/instructions'
 
@@ -148,3 +148,43 @@ describe('DocxSerializer 指令序列', () => {
     // serializeToInstructions 行为不变（无 warnings 参数）
   })
 })
+
+describe('collectMermaidFigures（M7 图嵌入收集）', () => {
+  it('按文档顺序收集 code 非空的 Mermaid 块（跳过空代码）', () => {
+    resetIdCounterForTest()
+    const root = new DocumentNode(0)
+    const a = node(1, '范围')
+    a.contentBlocks.push(
+      { type: 'mermaid', caption: '图1 结构', code: 'graph TD\nA-->B' },
+      { type: 'mermaid', caption: '图2 空', code: '' } // 无占位段，不收集
+    )
+    const b = node(2, '标识')
+    b.contentBlocks.push({ type: 'mermaid', caption: '图3 流程', code: 'flowchart LR\nA-->B' })
+    const c = node(1, '附录')
+    c.addChild(b) // 子节点在块之后
+    root.addChild(a)
+    root.addChild(c)
+
+    const figures = collectMermaidFigures(new DocumentTree(root))
+    expect(figures).toEqual([
+      { nodeTitle: '范围', caption: '图1 结构', code: 'graph TD\nA-->B' },
+      { nodeTitle: '标识', caption: '图3 流程', code: 'flowchart LR\nA-->B' }
+    ])
+  })
+
+  it('与非收集路径的占位段一一对应（文本前缀 [Mermaid）', () => {
+    resetIdCounterForTest()
+    const root = new DocumentNode(0)
+    const s = node(2, '标识')
+    s.contentBlocks.push({ type: 'mermaid', caption: '图1 数据流', code: 'graph TD\nA-->B' })
+    root.addChild(s)
+    const instructions = serializeToInstructions(new DocumentTree(root), styleDef)
+    const placeholders = instructions.filter(
+      (i): i is Extract<WriteInstruction, { opType: 'InsertParagraph' }> =>
+        i.opType === 'InsertParagraph' && i.content.text.startsWith('[Mermaid')
+    )
+    expect(placeholders).toHaveLength(1)
+    expect(collectMermaidFigures(new DocumentTree(root))).toHaveLength(1)
+  })
+})
+

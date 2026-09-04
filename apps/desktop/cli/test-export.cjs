@@ -6,7 +6,8 @@
  *  - 输出缺省：当前工作目录 test_output.docx
  *  - **模板目录必须外部提供**（软件不内置模板）：
  *      环境变量 DOC_TEMPLATES_DIR <dir> 或参数 --templates <dir>
- * 用法：node cli/test-export.cjs <instance.json> [输出.docx] [--templates <dir>]
+ *  - 图表嵌入（M7）：--embed-visio（OLE 嵌入；预览为上游 mmd2vsdx 转换附带物，自动生效）
+ * 用法：node cli/test-export.cjs <instance.json> [输出.docx] [--templates <dir>] [--embed-visio]
  */
 const { existsSync, readFileSync, statSync } = require('node:fs')
 const path = require('node:path')
@@ -23,21 +24,27 @@ function parseArgs(args) {
   let instancePath = ''
   let outputPath = ''
   let templatesDir = process.env.DOC_TEMPLATES_DIR || ''
+  let figureMode = '' // '' | 'embed'
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--templates' && args[i + 1]) {
       templatesDir = args[i + 1]
       i++
+    } else if (args[i] === '--embed-visio') {
+      figureMode = 'embed'
+    } else if (args[i] === '--preview-emf') {
+      console.warn('WARN: --preview-emf 已移除（预览由上游 mmd2vsdx 转换附带物提供，无需本机 Visio）')
+      figureMode = 'embed'
     } else if (args[i].toLowerCase().endsWith('.json')) {
       instancePath = args[i]
     } else if (!outputPath) {
       outputPath = args[i]
     }
   }
-  return { instancePath, outputPath, templatesDir }
+  return { instancePath, outputPath, templatesDir, figureMode }
 }
 
 async function main() {
-  const { instancePath, outputPath: _out, templatesDir } = parseArgs(process.argv.slice(2))
+  const { instancePath, outputPath: _out, templatesDir, figureMode } = parseArgs(process.argv.slice(2))
   const outputPath = _out && _out.length > 0 ? _out : path.join(process.cwd(), 'test_output.docx')
 
   console.log('=== DOCX Export Test ===')
@@ -122,9 +129,28 @@ async function main() {
 
   const instructions = docx.serializeToInstructions(tree, styleDef)
   console.log('Instructions generated:', instructions.length)
-  const result = await docx.writeDocx(instructions, styleDef, outputPath)
-  console.log('Cloned list groups:', result.clonedGroups)
-  console.log('SUCCESS:', result.outputPath)
+
+  let finalPath = outputPath
+  if (figureMode) {
+    console.log('Figure embed mode:', figureMode)
+    const fig = await docx.exportTreeToDocxWithFigures(tree, styleDef, outputPath, {
+      mode: figureMode
+    })
+    finalPath = fig.outputPath
+    const s = fig.figureStats
+    console.log('Cloned list groups:', fig.clonedGroups)
+    console.log(
+      `Figures: total=${s.total} converted=${s.converted} embedded=${s.embedded} preview=${s.previewCount}`
+    )
+    for (const f of s.failed) console.log(`  FAILED 图「${f.caption}」: ${f.reason}`)
+    for (const w of fig.warnings) console.warn('WARN:', w)
+  } else {
+    const result = await docx.writeDocx(instructions, styleDef, outputPath)
+    console.log('Cloned list groups:', result.clonedGroups)
+    finalPath = result.outputPath
+  }
+
+  console.log('SUCCESS:', finalPath)
 }
 
 main().catch((err) => {

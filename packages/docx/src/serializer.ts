@@ -187,3 +187,33 @@ function blockText(block: ContentBlock): string {
 function blockLabel(block: ContentBlock): string {
   return block.type === 'formula' ? '公式块' : '代码块'
 }
+
+// ================= Mermaid 收集（M7 图嵌入链路） =================
+
+export interface MermaidFigureInfo {
+  /** 所属节点标题（诊断用） */
+  nodeTitle: string
+  /** 图题注（可自动编号前缀，原样） */
+  caption: string
+  /** Mermaid 源码 */
+  code: string
+}
+
+/**
+ * 按 DOCX 序列化顺序收集全部 Mermaid 块（与 serializeToInstructions 的遍历同构：
+ * 节点标题 → 内容块 → 递归子节点；仅收集 code 非空的块——即会被写成占位段的块）。
+ * 图嵌入链路据此把收集结果与占位段按槽位对齐。
+ */
+export function collectMermaidFigures(tree: DocumentTree): MermaidFigureInfo[] {
+  const out: MermaidFigureInfo[] = []
+  const walk = (node: DocumentNode): void => {
+    for (const block of node.contentBlocks) {
+      if (block.type === 'mermaid' && block.code.length > 0) {
+        out.push({ nodeTitle: node.title, caption: block.caption, code: block.code })
+      }
+    }
+    for (const child of node.children) walk(child)
+  }
+  walk(tree.root)
+  return out
+}

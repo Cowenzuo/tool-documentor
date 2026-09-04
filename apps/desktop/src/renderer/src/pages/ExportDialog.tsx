@@ -13,6 +13,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
   const [styleFileKey, setStyleFileKey] = useState('')
   const [outputPath, setOutputPath] = useState('')
   const [format, setFormat] = useState<'docx' | 'md'>('docx')
+  const [figureCount, setFigureCount] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
 
   const info = session?.info
@@ -25,6 +26,10 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
         list.find((c) => c.isDefault && c.available) ?? list.find((c) => c.available)
       setStyleFileKey(preferred?.fileKey ?? '')
     })
+    void window.documentor.export.figuresCount().then(
+      (n) => setFigureCount(n),
+      () => setFigureCount(-1) // 主进程未重启等导致查询失败：隐藏提示但不阻塞
+    )
     setOutputPath(`${info.projectDir.replace(/\\/g, '/')}/${info.name}.docx`)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -50,10 +55,26 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
         styleFileKey,
         outputPath: outputPath.trim()
       })
-      const warnText = result.warnings.length > 0 ? `；${result.warnings.length} 处样式键缺失` : ''
+      const warnText = result.warnings.length > 0 ? `；${result.warnings.length} 处警告` : ''
+      let figureText = ''
+      if (result.figures) {
+        const f = result.figures
+        figureText =
+          f.total === 0
+            ? '（无 Mermaid 图块）'
+            : `（图块 ${f.total} · 转换 ${f.converted} · 嵌入 ${f.embedded}` +
+              (f.previewCount > 0 ? ` · 预览 ${f.previewCount}` : '') + `）`
+      }
+      const failText =
+        result.figures && result.figures.failed.length > 0
+          ? `；失败：${result.figures.failed.slice(0, 3).map((x) => `${x.caption}(${x.reason})`).join('、')}`
+          : ''
       showToast({
-        kind: result.warnings.length > 0 ? 'error' : 'info',
-        text: `已导出 DOCX（${result.paragraphCount} 条指令 · 克隆列表组 ${result.clonedGroups}）${warnText}`
+        kind: result.warnings.length > 0 || (result.figures && result.figures.failed.length > 0) ? 'error' : 'info',
+        text:
+          `已导出 DOCX（${result.paragraphCount} 条指令 · 克隆列表组 ${result.clonedGroups}）` +
+          figureText + warnText + failText +
+          `\n${result.outputPath}`
       })
       onClose()
     } catch (err) {
@@ -125,6 +146,23 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
             )}
             {anyAvailable && selected?.description && (
               <p className="settings-hint export-style-desc">{selected.description}</p>
+            )}
+          </section>
+
+          <section className="settings-group">
+            <h3>图表嵌入</h3>
+            <p className="settings-hint export-style-desc">
+              Mermaid 图块自动转换并嵌入为可编辑 Visio 对象（双击编辑）；预览图在机器具备能力时自动附加（缺少数块能力时自动跳过，不影响交付）。
+            </p>
+            {figureCount !== null && figureCount > 0 && (
+              <p className="settings-hint export-style-desc">
+                当前文档检测到 <strong>{figureCount}</strong> 个 Mermaid 图块，将全部嵌入。
+              </p>
+            )}
+            {figureCount === 0 && (
+              <p className="settings-hint export-style-desc">
+                当前文档没有 Mermaid 图块（导出为普通文档）。
+              </p>
             )}
           </section>
 

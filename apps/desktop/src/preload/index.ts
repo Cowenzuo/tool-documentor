@@ -94,7 +94,9 @@ const api: DesktopApi = {
   },
   export: {
     docx: (input: ExportDocxInput) =>
-      invoke(ProjectIpc.ExportDocx, input) as ReturnType<DesktopApi['export']['docx']>
+      invoke(ProjectIpc.ExportDocx, input) as ReturnType<DesktopApi['export']['docx']>,
+    figuresCount: () =>
+      invoke(ProjectIpc.ExportFiguresCount) as ReturnType<DesktopApi['export']['figuresCount']>
   },
   files: {
     readAsDataUrl: (relPath: string) =>

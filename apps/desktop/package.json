@@ -17,6 +17,7 @@
     "@documentor/templates": "workspace:*",
     "katex": "^0.18.5",
     "mermaid": "^11.17.2",
+    "mmd2vsdx": "link:../../../tool-mmd2vsdx",
     "prismjs": "^1.30.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"

@@ -29,6 +29,9 @@ importers:
       mermaid:
         specifier: ^11.17.2
         version: 11.17.2
+      mmd2vsdx:
+        specifier: link:../../../tool-mmd2vsdx
+        version: link:../../../tool-mmd2vsdx
       prismjs:
         specifier: ^1.30.0
         version: 1.30.0
@@ -81,9 +84,28 @@ importers:
       '@documentor/core':
         specifier: workspace:*
         version: link:../core
+      '@documentor/postprocess':
+        specifier: workspace:*
+        version: link:../postprocess
       '@documentor/templates':
         specifier: workspace:*
         version: link:../templates
+      jszip:
+        specifier: ^3.10.1
+        version: 3.10.1
+      mmd2vsdx:
+        specifier: link:../../../tool-mmd2vsdx
+        version: link:../../../tool-mmd2vsdx
+    devDependencies:
+      '@types/node':
+        specifier: ^22.20.1
+        version: 22.20.1
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@22.20.1)(vite@7.3.6(@types/node@22.20.1))
+
+  packages/postprocess:
+    dependencies:
       jszip:
         specifier: ^3.10.1
         version: 3.10.1

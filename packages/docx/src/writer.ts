@@ -25,6 +25,7 @@ const XML_HEAD =
   'xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup" ' +
   'xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape" ' +
   'xmlns:wpsCustomData="http://www.wps.cn/officeDocument/2013/wpsCustomData" ' +
+  'xmlns:wp14="http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing" ' +
   'mc:Ignorable="w14 w15 wp14"><w:body>'
 
 // 列表 styleId → 骨架 numbering.xml 中的 abstractNumId（实测映射）
