@@ -1,5 +1,5 @@
 /**
- * 主编辑界面：结构栏(可拖宽) + 节点页/预览 + 底部状态栏。
+ * 主编辑界面：结构栏(可拖宽) + 节点页/预览（视图开关在节点页顶部右侧）+ 底部状态栏。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useApp } from '../state/AppContext'
@@ -7,6 +7,7 @@ import TreePanel from '../components/editor/TreePanel'
 import NodePage from '../components/editor/NodePage'
 import StatusBar from '../components/editor/StatusBar'
 import { PreviewPage } from '../components/editor/PreviewPage'
+import { ViewToggle } from '../components/editor/ViewToggle'
 import '../components/editor/editor.css'
 
 export type EditorView = 'edit' | 'preview'
@@ -69,7 +70,12 @@ export default function Editor(): React.JSX.Element {
           aria-label="调整结构栏宽度"
           onMouseDown={onDragStart}
         />
-        {view === 'edit' ? <NodePage /> : <PreviewPage />}
+        <div className="editor-stage">
+          <div className="stage-toolbar">
+            <ViewToggle view={view} onViewChange={setView} />
+          </div>
+          {view === 'edit' ? <NodePage /> : <PreviewPage />}
+        </div>
         {busy && (
           <div className="busy-overlay" role="status" aria-live="polite">
             <div className="busy-spinner" />
@@ -78,7 +84,7 @@ export default function Editor(): React.JSX.Element {
         )}
         <span className="sr-only">{session ? `已打开工程：${session.info.name}` : ''}</span>
       </div>
-      <StatusBar view={view} onViewChange={setView} />
+      <StatusBar />
     </div>
   )
 }

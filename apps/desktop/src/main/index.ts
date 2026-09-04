@@ -141,13 +141,13 @@ function createMainWindow(): void {
           await sleep(1500);
           out.exportToast = document.querySelector('.toast') ? document.querySelector('.toast').textContent : null;
           // 预览视图切换
-          const previewTab = [...document.querySelectorAll('.status-view-toggle button')].find((b) => b.textContent === '预览');
+          const previewTab = [...document.querySelectorAll('.view-toggle button')].find((b) => b.textContent === '预览');
           if (previewTab) {
             previewTab.click();
             await sleep(900);
             out.previewPage = !!document.querySelector('.pv-article');
             out.previewListItems = document.querySelectorAll('.pv-list li').length;
-            const editTab = [...document.querySelectorAll('.status-view-toggle button')].find((b) => b.textContent === '编辑');
+            const editTab = [...document.querySelectorAll('.view-toggle button')].find((b) => b.textContent === '编辑');
             if (editTab) editTab.click();
             await sleep(300);
             out.backToEdit = !!document.querySelector('.np-blocks');
