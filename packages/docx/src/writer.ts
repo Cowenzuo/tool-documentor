@@ -20,6 +20,8 @@ const XML_HEAD =
   'xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" ' +
   'xmlns:v="urn:schemas-microsoft-com:vml" ' +
   'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" ' +
+  'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" ' +
+  'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" ' +
   'xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" ' +
   'xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml" ' +
   'xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup" ' +
@@ -75,11 +77,72 @@ export async function writeDocx(
     groupToNumId = cloned.groupToNumId
   }
 
-  // ---------- 2. document.xml 正文重建 ----------
+  // ---------- 2. document.xml 正文重建（含图片嵌入） ----------
   const originalDocumentXml = readSkeleton('word/document.xml').toString('utf8')
   const sectPr = extractSectPr(originalDocumentXml)
-  const bodyXml = renderInstructions(instructions, groupToNumId)
+  const images: EmbeddedImage[] = []
+  const imageByPath = new Map<string, EmbeddedImage>()
+  const relsPath = 'word/_rels/document.xml.rels'
+  let relsXml = files.includes(relsPath)
+    ? readSkeleton(relsPath).toString('utf8')
+    : '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>'
+  let nextRid = maxRid(relsXml) + 1
+  let nextMedia = maxMediaIndex(files) + 1
+
+  const addImage = (srcPath: string): EmbeddedImage | null => {
+    const cached = imageByPath.get(srcPath)
+    if (cached) return cached
+    if (!existsSync(srcPath)) return null
+    const data = readFileSync(srcPath)
+    const ext = extOf(srcPath)
+    const { w, h } = imageSizePx(data, ext)
+    const { cx, cy } = fitEmu(w, h)
+    const idx = nextMedia++
+    const entry: EmbeddedImage = {
+      srcPath,
+      ext,
+      relId: `rId${nextRid++}`,
+      mediaPath: `word/media/image${idx}${ext}`,
+      name: `image${idx}${ext}`,
+      data,
+      widthEmu: cx,
+      heightEmu: cy
+    }
+    images.push(entry)
+    imageByPath.set(srcPath, entry)
+    return entry
+  }
+
+  const bodyXml = renderInstructions(instructions, groupToNumId, addImage)
   const documentXml = `${XML_HEAD}${bodyXml}${sectPr}</w:body></w:document>`
+
+  // ---------- 2b. 图片部件：rels / Content_Types ----------
+  let contentTypesXml: string | null = null
+  if (images.length > 0) {
+    const newRels = images
+      .map(
+        (e) =>
+          `<Relationship Id="${e.relId}" ` +
+          'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" ' +
+          `Target="${e.mediaPath.slice('word/'.length)}"/>`
+      )
+      .join('')
+    relsXml = relsXml.replace('</Relationships>', newRels + '</Relationships>')
+
+    const ctPath = '[Content_Types].xml'
+    if (files.includes(ctPath)) {
+      contentTypesXml = readSkeleton(ctPath).toString('utf8')
+      const exts = [...new Set(images.map((e) => e.ext.slice(1).toLowerCase()))]
+      let extra = ''
+      for (const x of exts) {
+        if (!new RegExp(`Extension="${x}"`, 'i').test(contentTypesXml)) {
+          extra += `<Default Extension="${x}" ContentType="${imageMime(x)}"/>`
+        }
+      }
+      if (extra) contentTypesXml = contentTypesXml.replace(/(<Types\b[^>]*>)/, `$1${extra}`)
+    }
+  }
 
   // ---------- 3. 打包 ----------
   const zip = new JSZip()
@@ -89,10 +152,19 @@ export async function writeDocx(
       content = Buffer.from(documentXml, 'utf8')
     } else if (rel === 'word/numbering.xml' && numberingXml !== null) {
       content = Buffer.from(numberingXml, 'utf8')
+    } else if (rel === relsPath && images.length > 0) {
+      content = Buffer.from(relsXml, 'utf8')
+    } else if (rel === '[Content_Types].xml' && contentTypesXml !== null) {
+      content = Buffer.from(contentTypesXml, 'utf8')
     } else {
       content = readSkeleton(rel)
     }
     zip.file(rel, content)
+  }
+  for (const e of images) zip.file(e.mediaPath, e.data)
+  // 骨架本身没有 document.xml.rels 时（极简骨架），按需补一份
+  if (images.length > 0 && !files.includes(relsPath)) {
+    zip.file(relsPath, Buffer.from(relsXml, 'utf8'))
   }
 
   mkdirSync(dirname(outputPath), { recursive: true })
@@ -187,6 +259,114 @@ function uniqueHex(nowMs: number, seed: number): string {
   return value.toString(16).toUpperCase().slice(-8)
 }
 
+// ================= 图片嵌入 =================
+
+interface EmbeddedImage {
+  srcPath: string
+  ext: string
+  relId: string
+  mediaPath: string
+  name: string
+  data: Buffer
+  widthEmu: number
+  heightEmu: number
+}
+
+const EMU_PER_PX = 9525 // 96 DPI
+/** 正文可用宽度上限（6 英寸），超出按比例缩放 */
+const MAX_WIDTH_EMU = 5486400
+
+function extOf(p: string): string {
+  const m = /\.[a-z0-9]+$/i.exec(p)
+  return (m ? m[0] : '.png').toLowerCase()
+}
+
+function imageMime(ext: string): string {
+  const map: Record<string, string> = {
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    bmp: 'image/bmp',
+    tif: 'image/tiff',
+    tiff: 'image/tiff',
+    emf: 'image/x-emf',
+    wmf: 'image/x-wmf'
+  }
+  return map[ext.toLowerCase()] ?? 'application/octet-stream'
+}
+
+/** 从文件头读取像素尺寸（png/jpeg/gif；其它类型回退 800×520） */
+function imageSizePx(buf: Buffer, ext: string): { w: number; h: number } {
+  const e = ext.toLowerCase()
+  if (e === '.png' && buf.length >= 24 && buf.toString('ascii', 12, 16) === 'IHDR') {
+    return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) }
+  }
+  if (e === '.jpg' || e === '.jpeg') {
+    let i = 2
+    while (i + 9 < buf.length) {
+      if (buf[i] !== 0xff) {
+        i++
+        continue
+      }
+      const marker = buf[i + 1]!
+      if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+        return { w: buf.readUInt16BE(i + 7), h: buf.readUInt16BE(i + 5) }
+      }
+      i += 2 + buf.readUInt16BE(i + 2)
+    }
+  }
+  if (e === '.gif' && buf.length >= 10) {
+    return { w: buf.readUInt16LE(6), h: buf.readUInt16LE(8) }
+  }
+  return { w: 800, h: 520 }
+}
+
+function fitEmu(w: number, h: number): { cx: number; cy: number } {
+  let cx = Math.max(1, Math.round(w * EMU_PER_PX))
+  let cy = Math.max(1, Math.round(h * EMU_PER_PX))
+  if (cx > MAX_WIDTH_EMU) {
+    cy = Math.max(1, Math.round((cy * MAX_WIDTH_EMU) / cx))
+    cx = MAX_WIDTH_EMU
+  }
+  return { cx, cy }
+}
+
+function maxRid(relsXml: string): number {
+  let max = 0
+  for (const m of relsXml.matchAll(/Id="rId(\d+)"/g)) max = Math.max(max, Number(m[1]))
+  return max
+}
+
+function maxMediaIndex(files: string[]): number {
+  let max = 0
+  for (const f of files) {
+    const m = /^word\/media\/image(\d+)\./.exec(f)
+    if (m) max = Math.max(max, Number(m[1]))
+  }
+  return max
+}
+
+function renderImageParagraph(e: EmbeddedImage, docPrId: number): string {
+  const cx = e.widthEmu
+  const cy = e.heightEmu
+  return (
+    '<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:drawing>' +
+    '<wp:inline distT="0" distB="0" distL="0" distR="0">' +
+    `<wp:extent cx="${cx}" cy="${cy}"/>` +
+    '<wp:effectExtent l="0" t="0" r="0" b="0"/>' +
+    `<wp:docPr id="${docPrId}" name="Picture ${docPrId}"/>` +
+    '<wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>' +
+    '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+    `<pic:pic><pic:nvPicPr><pic:cNvPr id="${docPrId}" name="${escapeXmlAttr(e.name)}"/>` +
+    '<pic:cNvPicPr/></pic:nvPicPr>' +
+    `<pic:blipFill><a:blip r:embed="${e.relId}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>` +
+    `<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>` +
+    '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>' +
+    '</a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>'
+  )
+}
+
 // ================= document.xml 渲染 =================
 
 function extractSectPr(documentXml: string): string {
@@ -199,14 +379,19 @@ function extractSectPr(documentXml: string): string {
 
 function renderInstructions(
   instructions: WriteInstruction[],
-  listNumIds: Map<number, number>
+  listNumIds: Map<number, number>,
+  addImage: (srcPath: string) => EmbeddedImage | null
 ): string {
   const parts: string[] = []
+  let docPrId = 1
   for (const ins of instructions) {
     if (ins.opType === 'InsertParagraph') {
       const text = ins.content.text
       if (text.length === 0) continue
       parts.push(renderParagraph(ins.styleName, text, ins.listGroupId, listNumIds))
+    } else if (ins.opType === 'InsertImage') {
+      const img = addImage(ins.content.srcPath)
+      if (img) parts.push(renderImageParagraph(img, docPrId++))
     } else if (ins.opType === 'InsertTable') {
       parts.push(renderTable(ins.content))
     } else if (ins.opType === 'InsertPageBreak') {

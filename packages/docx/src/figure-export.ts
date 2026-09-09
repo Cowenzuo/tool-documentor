@@ -54,6 +54,8 @@ export interface FigurePipelineOptions {
   stagingDir?: string
   /** 覆盖 figure.caption 样式 ID（缺省取 styleDef.styleMap['figure.caption']） */
   captionStyleId?: string
+  /** 工程目录：用于把图片块的 imagePath 解析为绝对路径并嵌入（缺省则输出占位文本） */
+  imageBaseDir?: string
   /** 最终输出路径（缺省 = <docxPath 去 .docx>-嵌入.docx；调用方显式给 = 交付即所给路径） */
   outputPath?: string
 }
@@ -248,7 +250,9 @@ export async function exportTreeToDocxWithFigures(
 ): Promise<TreeDocxWithFiguresResult> {
   const plainPath = outputPath.replace(/\.docx$/i, '') + '-占位.tmp.docx'
   try {
-    const { instructions, warnings } = serializeWithWarnings(tree, styleDef)
+    const { instructions, warnings } = serializeWithWarnings(tree, styleDef, {
+      imageBaseDir: options.imageBaseDir
+    })
     const base = await writeDocx(instructions, styleDef, plainPath)
     const fig = await attachFiguresToDocx(plainPath, tree, styleDef, {
       ...options,

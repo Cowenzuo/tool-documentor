@@ -345,7 +345,9 @@ export class ProjectService {
     this.store.save(tree)
     // 图块链路自动执行（无“占位/预览”用户选项）：Mermaid → VSDX → OLE 嵌入；
     // 预览 = 上游转换附带物（无则为无预览嵌入）；mmd2vsdx 不可用自动降级为文本占位 + 警告
-    const withFigs = await exportTreeToDocxWithFigures(tree, styleDef, input.outputPath, {})
+    const withFigs = await exportTreeToDocxWithFigures(tree, styleDef, input.outputPath, {
+      imageBaseDir: this.projectDirValue
+    })
     return {
       outputPath: withFigs.outputPath,
       clonedGroups: withFigs.clonedGroups,

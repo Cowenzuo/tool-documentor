@@ -12,6 +12,13 @@ export type WriteInstruction =
       listGroupId: number
     }
   | {
+      opType: 'InsertImage'
+      content: {
+        /** 图片文件绝对路径（由序列化器按工程目录解析） */
+        srcPath: string
+      }
+    }
+  | {
       opType: 'InsertTable'
       content: {
         rows: number

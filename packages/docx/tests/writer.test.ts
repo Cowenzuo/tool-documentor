@@ -1,13 +1,14 @@
-import { mkdtempSync, readFileSync, rmSync, existsSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, existsSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { deflateSync } from 'node:zlib'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import JSZip from 'jszip'
 import { resetIdCounterForTest } from '@documentor/core/idgen'
-import type { DocumentTree } from '@documentor/core/tree'
+import type { DocumentTree, DocumentNode } from '@documentor/core/tree'
 import { TemplateManager } from '@documentor/templates'
-import { serializeToInstructions } from '../src/serializer'
+import { serializeToInstructions, serializeWithWarnings } from '../src/serializer'
 import { writeDocx } from '../src/writer'
 
 const SAMPLE = fileURLToPath(new URL('../../../resources/test-fixtures/sample-template/', import.meta.url))
@@ -20,6 +21,46 @@ beforeAll(() => {
 afterAll(() => {
   rmSync(dir, { recursive: true, force: true })
 })
+
+function crc32(buf: Buffer): number {
+  let c = ~0
+  for (const b of buf) {
+    c ^= b
+    for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1))
+  }
+  return ~c >>> 0
+}
+
+/** 生成一张合法的最小 PNG（指定像素尺寸），用于验证图片嵌入 */
+function makePng(w: number, h: number): Buffer {
+  const sig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(w, 0)
+  ihdr.writeUInt32BE(h, 4)
+  ihdr[8] = 8 // bit depth
+  ihdr[9] = 2 // truecolor
+  const chunk = (type: string, data: Buffer): Buffer => {
+    const len = Buffer.alloc(4)
+    len.writeUInt32BE(data.length, 0)
+    const t = Buffer.from(type, 'ascii')
+    const crc = Buffer.alloc(4)
+    crc.writeUInt32BE(crc32(Buffer.concat([t, data])), 0)
+    return Buffer.concat([len, t, data, crc])
+  }
+  // 每行：1 字节滤波 + w*3 字节 RGB
+  const raw = Buffer.alloc(h * (1 + w * 3))
+  const idat = deflateSync(raw)
+  return Buffer.concat([sig, chunk('IHDR', ihdr), chunk('IDAT', idat), chunk('IEND', Buffer.alloc(0))])
+}
+
+function firstContentNode(tree: DocumentTree): DocumentNode {
+  let found: DocumentNode | null = null
+  tree.traverse((n) => {
+    if (!found && n.allowContentBlocks && n.headingLevel > 0) found = n
+  })
+  if (!found) throw new Error('无可用内容节点')
+  return found
+}
 
 function loadDemo(): { manager: TemplateManager; tree: DocumentTree } {
   const manager = new TemplateManager()
@@ -106,5 +147,55 @@ describe('DocxWriter 端到端（合成示例模板骨架）', () => {
     const zip = await JSZip.loadAsync(readFileSync(outputPath))
     const documentXml = await zip.file('word/document.xml')!.async('string')
     expect(documentXml).toContain('<w:sectPr')
+  })
+
+  it('图片块：嵌入 media + rels + Content_Types + drawing（按像素计算显示尺寸）', async () => {
+    resetIdCounterForTest()
+    const { tree, manager } = loadDemo()
+    const demo = manager.findStructureByName('示例文档模板 (Demo)')!
+    const style = manager.styleForStructure(demo)!
+
+    // 2×3 像素 → 19050×28575 EMU（96 DPI）
+    writeFileSync(join(dir, 'pic.png'), makePng(2, 3))
+    const target = firstContentNode(tree)
+    target.contentBlocks.push({ type: 'image', imagePath: 'pic.png', caption: '图1 测试图' })
+
+    const { instructions } = serializeWithWarnings(tree, style, { imageBaseDir: dir })
+    expect(instructions.some((i) => i.opType === 'InsertImage')).toBe(true)
+
+    const outputPath = join(dir, 'out-img.docx')
+    await writeDocx(instructions, style, outputPath)
+    const zip = await JSZip.loadAsync(readFileSync(outputPath))
+    expect(Object.keys(zip.files)).toContain('word/media/image1.png')
+
+    const documentXml = await zip.file('word/document.xml')!.async('string')
+    expect(documentXml).toContain('<a:blip r:embed="rId1"/>')
+    expect(documentXml).toContain('<wp:extent cx="19050" cy="28575"/>')
+    expect(documentXml).toContain('<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">')
+    // 图题仍在图下方
+    expect(documentXml).toContain('测试图')
+
+    const rels = await zip.file('word/_rels/document.xml.rels')!.async('string')
+    expect(rels).toContain(
+      'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"'
+    )
+    const ct = await zip.file('[Content_Types].xml')!.async('string')
+    expect(ct).toContain('<Default Extension="png" ContentType="image/png"/>')
+  })
+
+  it('无工程目录时回退占位文本（CLI/实例 JSON 路径）', () => {
+    resetIdCounterForTest()
+    const { tree, manager } = loadDemo()
+    const demo = manager.findStructureByName('示例文档模板 (Demo)')!
+    const style = manager.styleForStructure(demo)!
+    const target = firstContentNode(tree)
+    target.contentBlocks.push({ type: 'image', imagePath: 'pic.png', caption: '图1 测试图' })
+    const { instructions } = serializeWithWarnings(tree, style)
+    expect(instructions.some((i) => i.opType === 'InsertImage')).toBe(false)
+    expect(
+      instructions.some(
+        (i) => i.opType === 'InsertParagraph' && i.content.text.includes('[图片: pic.png]')
+      )
+    ).toBe(true)
   })
 })

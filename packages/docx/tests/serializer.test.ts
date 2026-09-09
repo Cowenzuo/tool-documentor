@@ -85,7 +85,9 @@ describe('DocxSerializer 指令序列', () => {
     const kinds = instructions.map((i) =>
       i.opType === 'InsertParagraph'
         ? `P:${i.styleName}:${i.content.text}`
-        : `T:${i.content.rows}x${i.content.cols}`
+        : i.opType === 'InsertTable'
+          ? `T:${i.content.rows}x${i.content.cols}`
+          : 'IMG'
     )
     expect(kinds).toEqual([
       'P:50:标识',

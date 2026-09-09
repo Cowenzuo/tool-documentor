@@ -6,6 +6,8 @@
  *   列表 → 每项一段 + 独立列表组 id（重新编号）
  * - warnings：样式键缺失时透出（配对软校验的兜底，不静默）
  */
+import { existsSync } from 'node:fs'
+import { isAbsolute, resolve } from 'node:path'
 import type { DocumentTree, DocumentNode } from '@documentor/core'
 import { stripCaptionNumber } from '@documentor/core'
 import type { ContentBlock } from '@documentor/core'
@@ -15,6 +17,8 @@ import type { WriteInstruction } from './instructions'
 export interface SerializeOptions {
   /** 样式查找函数（默认用 styleDef.styleMap） */
   lookup?: (key: string) => string
+  /** 工程目录（用于把 imagePath 解析为绝对路径并真正嵌入图片；缺省则输出占位文本） */
+  imageBaseDir?: string
 }
 
 export interface SerializeResult {
@@ -49,8 +53,15 @@ export function serializeWithWarnings(
   const staticFigure = styleDef?.captionNumbering?.figure === 'static'
   const caption = (kind: 'table' | 'figure', raw: string): string =>
     (kind === 'table' ? staticTable : staticFigure) ? raw.trim() : stripCaptionNumber(raw)
+  // 图片：工程目录可用且文件存在 → 输出真实图片指令；否则回退占位文本
+  const resolveImage = (imagePath: string): string | null => {
+    const base = options?.imageBaseDir
+    if (!base || !imagePath) return null
+    const abs = isAbsolute(imagePath) ? imagePath : resolve(base, imagePath)
+    return existsSync(abs) ? abs : null
+  }
   for (const child of tree.root.children) {
-    serializeNode(child, lookup, out, warnings, () => nextListGroupId++, caption)
+    serializeNode(child, lookup, out, warnings, () => nextListGroupId++, caption, resolveImage)
   }
   return { instructions: out, warnings }
 }
@@ -61,7 +72,8 @@ function serializeNode(
   out: WriteInstruction[],
   warnings: string[],
   nextGroupId: () => number,
-  caption: (kind: 'table' | 'figure', raw: string) => string
+  caption: (kind: 'table' | 'figure', raw: string) => string,
+  resolveImage: (imagePath: string) => string | null
 ): void {
   const look = (key: string, context: string): string => {
     const value = lookup(key)
@@ -125,7 +137,10 @@ function serializeNode(
         break
       }
       case 'image': {
-        if (block.imagePath.length > 0) {
+        const abs = block.imagePath.length > 0 ? resolveImage(block.imagePath) : null
+        if (abs) {
+          out.push({ opType: 'InsertImage', content: { srcPath: abs } })
+        } else if (block.imagePath.length > 0) {
           out.push(paragraph(look('body', `“${node.title}”的图片`), `[图片: ${block.imagePath}]`, 0))
         }
         if (block.caption.length > 0) {
@@ -171,7 +186,7 @@ function serializeNode(
 
   // === 3. 递归子节点 ===
   for (const child of node.children) {
-    serializeNode(child, lookup, out, warnings, nextGroupId, caption)
+    serializeNode(child, lookup, out, warnings, nextGroupId, caption, resolveImage)
   }
 }
 
