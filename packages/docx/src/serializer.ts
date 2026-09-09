@@ -44,8 +44,13 @@ export function serializeWithWarnings(
     if (options?.lookup) return options.lookup(key)
     return styleDef ? (styleDef.styleMap[key] ?? '') : ''
   }
+  // 题注编号方式：auto=剥离手写序号（Word 按样式编号）；static=原样保留（样式不编号）
+  const staticTable = styleDef?.captionNumbering?.table === 'static'
+  const staticFigure = styleDef?.captionNumbering?.figure === 'static'
+  const caption = (kind: 'table' | 'figure', raw: string): string =>
+    (kind === 'table' ? staticTable : staticFigure) ? raw.trim() : stripCaptionNumber(raw)
   for (const child of tree.root.children) {
-    serializeNode(child, lookup, out, warnings, () => nextListGroupId++)
+    serializeNode(child, lookup, out, warnings, () => nextListGroupId++, caption)
   }
   return { instructions: out, warnings }
 }
@@ -55,7 +60,8 @@ function serializeNode(
   lookup: (key: string) => string,
   out: WriteInstruction[],
   warnings: string[],
-  nextGroupId: () => number
+  nextGroupId: () => number,
+  caption: (kind: 'table' | 'figure', raw: string) => string
 ): void {
   const look = (key: string, context: string): string => {
     const value = lookup(key)
@@ -100,7 +106,7 @@ function serializeNode(
           out.push(
             paragraph(
               look('table.caption', `“${node.title}”的表格题注`),
-              stripCaptionNumber(block.caption),
+              caption('table', block.caption),
               0
             )
           )
@@ -126,7 +132,7 @@ function serializeNode(
           out.push(
             paragraph(
               look('figure.caption', `“${node.title}”的图片题注`),
-              stripCaptionNumber(block.caption),
+              caption('figure', block.caption),
               0
             )
           )
@@ -147,7 +153,7 @@ function serializeNode(
           out.push(
             paragraph(
               look('figure.caption', `“${node.title}”的图片题注`),
-              stripCaptionNumber(block.caption),
+              caption('figure', block.caption),
               0
             )
           )
@@ -165,7 +171,7 @@ function serializeNode(
 
   // === 3. 递归子节点 ===
   for (const child of node.children) {
-    serializeNode(child, lookup, out, warnings, nextGroupId)
+    serializeNode(child, lookup, out, warnings, nextGroupId, caption)
   }
 }
 

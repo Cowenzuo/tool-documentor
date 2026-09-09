@@ -9,7 +9,6 @@ import { renderMermaidSvg } from '../../utils/mermaid'
 import { highlightCode } from '../../utils/highlight'
 import { Lightbox } from '../Lightbox'
 import { CODE_LANGUAGE_LABELS } from './blockTypes'
-import { stripCaptionNumber } from '@documentor/core/captions'
 
 export function PreviewPage(): React.JSX.Element {
   const node = useSelectedNode()
@@ -90,7 +89,7 @@ function PreviewBlock({
     case 'table':
       return (
         <div className="pv-table-wrap">
-          {block.caption && <div className="pv-table-caption">{stripCaptionNumber(block.caption)}</div>}
+          {block.caption && <div className="pv-table-caption">{block.caption}</div>}
           <table className="pv-table">
             {block.headers.length > 0 && (
               <thead>
@@ -162,7 +161,7 @@ function ImagePreview({
         <img src={src} alt={block.caption} />
       </button>
       {block.caption && (
-        <figcaption className="pv-figure-caption">{stripCaptionNumber(block.caption)}</figcaption>
+        <figcaption className="pv-figure-caption">{block.caption}</figcaption>
       )}
     </figure>
   )
@@ -210,7 +209,7 @@ function MermaidPreview({
         <div className="pv-hint">渲染中…</div>
       )}
       {block.caption && (
-        <figcaption className="pv-figure-caption">{stripCaptionNumber(block.caption)}</figcaption>
+        <figcaption className="pv-figure-caption">{block.caption}</figcaption>
       )}
     </figure>
   )

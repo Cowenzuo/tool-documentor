@@ -75,6 +75,14 @@ export interface StyleTemplateDef {
   basePath: string
   /** 逻辑样式名 → styles.xml styleId */
   styleMap: Record<string, string>
+  /**
+   * 题注编号方式（缺省 auto）：
+   * - auto：由 Word 按样式编号，导出时剥离题注文本中的手写序号（避免双重编号）
+   * - static：序号由文本自带（导出时原样保留，样式不再编号）
+   * 场景：表题需与图表章节号一致、但表出现在标题 3 之前时，Word 多级列表会顶高标题计数，
+   * 此时改用 static 由数据侧给出准确编号。
+   */
+  captionNumbering?: { table?: 'auto' | 'static'; figure?: 'auto' | 'static' }
   /** 骨架目录绝对路径（basePath + '/' + docxFolder） */
   skeletonPath: string
 }

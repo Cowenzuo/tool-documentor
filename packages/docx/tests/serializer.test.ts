@@ -149,6 +149,47 @@ describe('DocxSerializer 指令序列', () => {
   })
 })
 
+describe('题注编号方式（captionNumbering）', () => {
+  const buildTree = (): DocumentTree => {
+    resetIdCounterForTest()
+    const root = new DocumentNode(0)
+    const n = node(1, '范围')
+    n.contentBlocks.push({
+      type: 'table',
+      caption: '表4.1-1 示例表',
+      rows: 1,
+      cols: 1,
+      headers: ['A'],
+      data: [['1']]
+    })
+    n.contentBlocks.push({ type: 'image', imagePath: 'images/x.png', caption: '图4.1-1 示例图' })
+    root.addChild(n)
+    return new DocumentTree(root)
+  }
+  const captionTexts = (style: StyleTemplateDef): string[] =>
+    serializeToInstructions(buildTree(), style)
+      .filter(
+        (i): i is Extract<WriteInstruction, { opType: 'InsertParagraph' }> =>
+          i.opType === 'InsertParagraph'
+      )
+      .filter(
+        (i) =>
+          i.styleName === style.styleMap['table.caption'] ||
+          i.styleName === style.styleMap['figure.caption']
+      )
+      .map((i) => i.content.text)
+
+  it('默认 auto：剥离手写序号，交由 Word 样式编号', () => {
+    expect(captionTexts(styleDef)).toEqual(['示例表', '示例图'])
+  })
+
+  it('static：题注文本原样保留（样式不再编号）', () => {
+    expect(
+      captionTexts({ ...styleDef, captionNumbering: { table: 'static', figure: 'static' } })
+    ).toEqual(['表4.1-1 示例表', '图4.1-1 示例图'])
+  })
+})
+
 describe('collectMermaidFigures（M7 图嵌入收集）', () => {
   it('按文档顺序收集 code 非空的 Mermaid 块（跳过空代码）', () => {
     resetIdCounterForTest()

@@ -277,6 +277,15 @@ export class TemplateManager {
       styleMap[key] = String(value)
     }
     const docxFolder = String(root['docxFolder'] ?? '')
+    // 题注编号方式（可选；缺省 auto）
+    const cnRaw = root['captionNumbering']
+    let captionNumbering: StyleTemplateDef['captionNumbering']
+    if (cnRaw && typeof cnRaw === 'object') {
+      const r = cnRaw as Record<string, unknown>
+      const pick = (v: unknown): 'auto' | 'static' | undefined =>
+        v === 'static' ? 'static' : v === 'auto' ? 'auto' : undefined
+      captionNumbering = { table: pick(r['table']), figure: pick(r['figure']) }
+    }
     return {
       name,
       version: String(root['version'] ?? ''),
@@ -285,6 +294,7 @@ export class TemplateManager {
       docxFolder,
       basePath,
       styleMap,
+      captionNumbering,
       skeletonPath: join(basePath, docxFolder)
     }
   }
