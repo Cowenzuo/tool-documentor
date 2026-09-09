@@ -1,0 +1,48 @@
+# electron-builder 配置（PLAN-05 P1-2）
+#
+# 分发边界（决策 C1，见 docs/M7-合规说明.md §3.2）：
+#   发行包**不含** mmd2vsdx（其产物内嵌官方 Visio 母版 XML，属 Microsoft 许可内容）。
+#   运行时缺少该能力时导出自动降级为文本占位，并给出用户提示。
+#
+# 用法（仓库根）：
+#   pnpm package:dir   # 免安装包，产出 release/win-unpacked（快速验证配置/内容）
+#   pnpm package       # NSIS 安装包，产出 release/Documentor-<version>-setup.exe
+
+appId: com.documentor.desktop
+productName: Documentor
+copyright: Copyright © 2026 Documentor
+
+directories:
+  output: release
+
+# 复用本地已安装的 Electron（路径相对本配置文件所在目录）。
+# 正常安装时 electron 的 postinstall 会产出该目录；离线环境若缺失，
+# 可先执行 electron 的 install.js 或从已有缓存补齐，再打包（避免重复下载）。
+electronDist: node_modules/electron/dist
+
+asar: true
+
+files:
+  - out/**/*
+  - package.json
+  # C1：发行包不含上游 mmd2vsdx（链接依赖，且其产物含官方母版 XML）
+  - '!node_modules/mmd2vsdx/**'
+  - '!node_modules/.pnpm/mmd2vsdx*/**'
+  - '!node_modules/.bin/**'
+  - '!node_modules/.vite/**'
+  - '!**/*.map'
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: ${productName}-${version}-setup.${ext}
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Documentor

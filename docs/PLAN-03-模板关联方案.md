@@ -1,6 +1,7 @@
-# Documentor 结构模板 ⇄ 样式模板关联方案（待实施）
+# Documentor 结构模板 ⇄ 样式模板关联方案（已实施）
 
-> 状态：**方案评审稿**（本轮不实施）。目标：消除"导出时任意选样式 → 结构无对应样式 → 成品格式错乱"的隐患，
+> 状态：**已实施**（commit `9dfb16a refactor: 模板体系——外部分发 + 结构-样式 1:N 配对软校验`）。
+> 目标：消除"导出时任意选样式 → 结构无对应样式 → 成品格式错乱"的隐患，
 > 并显式支持「结构模板 1:N 样式模板」与「多结构共享同一样式」。
 
 ---
@@ -125,16 +126,16 @@
 
 ---
 
-## 4. 实施清单（待批准后执行）
+## 4. 实施清单（已落地）
 
-1. **templates 包**：结构模板解析 `styleTemplates` + 兼容回退；新增 `structureStyleCandidates(def)`、
+1. ✅ **templates 包**：结构模板解析 `styleTemplates` + 兼容回退；`styleCandidatesForStructure(def)`、
    `requiredStyleKeys(structDef)`、配对校验（复用 validateStyleTemplate 骨架校验）；
    加载流程计算候选可用性（软校验，不拒载）；导出相关入口按候选可用性收敛。
-2. **docx 包**：`serializeToInstructions` 增 `warnings` 输出（lookup 空键收集）。
-3. **desktop**：
+2. ✅ **docx 包**：`serializeToInstructions` 增 `warnings` 输出（lookup 空键收集）。
+3. ✅ **desktop**：
    - 导出对话框样式下拉改按结构集合（含默认选中与空态禁用）；
    - `ExportDocxResult.warnings` 接入 toast/对话框提示。
    - CLI 按集合校验（不匹配 → 回退默认 + WARN）。
-4. **测试**：配对校验单测（键缺失剔除 / 1:N 可用 / 旧格式回退 / 全部失败不加载）；
-   合成测试模板增加一个"键不全的备选样式"与一个"完整备选样式"两条路径。
-5. **文档**：PLAN-01 §4 模板定义说明更新 + 本方案归档。
+4. ✅ **测试**：配对校验单测（键缺失剔除 / 1:N 可用 / 旧格式回退 / 全部失败不加载）；
+   合成测试模板含"键不全的备选样式"与"完整备选样式"两条路径。
+5. ✅ **文档**：PLAN-01 §4 模板定义说明已随模板剥离一并更新；本方案归档。

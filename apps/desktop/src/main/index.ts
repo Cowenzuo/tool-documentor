@@ -34,7 +34,8 @@ function createMainWindow(): void {
       preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      // 预加载产物只 require('electron')（contextBridge/ipcRenderer），可安全启用沙箱
+      sandbox: true
     }
   })
 
@@ -65,7 +66,8 @@ function createMainWindow(): void {
   }
 
   // E2E 冒烟（DOC_E2E=<workspaceDir> 时执行）：DOM 驱动 新建工程→选中→编辑→保存
-  if (isDev() && process.env['DOC_E2E']) {
+  // 开发（electron-vite dev）与预览（electron-vite preview，生产产物 + CSP）两种模式均可用
+  if (process.env['DOC_E2E']) {
     const ws = process.env['DOC_E2E']
     mainWindow.webContents.on('did-finish-load', () => {
       const probe = `

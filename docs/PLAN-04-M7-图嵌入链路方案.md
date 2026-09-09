@@ -94,15 +94,19 @@
 
 ---
 
-## 附：实施状态（M7a–M7e 已完成）
+## 附：实施状态（M7a–M7e 已实现；2026-09-09 接口漂移后待重验）
+
+> **状态修订**：上游 mmd2vsdx 于 2026-09-09 完成"结构收敛"重构（入口与 API 变更），
+> 我方对接失效并静默降级为文本占位。下表"✅"为**实现完成**状态，
+> 真 E2E / Word 真机结论**待 P0-1 对齐后重验**；门禁与合规边界见 `docs/PLAN-05-修复方案.md`。
 
 | 里程碑 | 状态 | 说明 |
 |---|---|---|
 | M7a 工具集成 | ✅ | `mmd2vsdx` 以 `link:` 装入 `packages/docx` + `apps/desktop`；动态 `import()` 接入；`convertText` 冒烟（35KB VSDX，自动发现本机 Visio） |
 | M7b VSDX 产出与命名 | ✅ | `collectMermaidFigures(tree)`（docx 包，与序列化同构遍历）；暂存 `<staging>/sdd-NNN-<图名>.vsdx` |
-| M7c 后处理嵌入 | ✅ | 新包 `@documentor/postprocess`：自研 MS-CFB 写入/解析（`cfb.ts`，无第三方 CFB 库）、OLE 辅助流合成常量（`ole-streams.ts`，**不依赖 Word 样本**）、vsdx 包围盒/页面修补、`w:object` OOXML 嵌入、Visio COM EMF 预览（临时 ps1）。单测 13 例；与旧版 python（visio_ole.py）双向互操作验证通过 |
-| M7d 界面/配置/CLI | ✅ | 导出对话框“图表嵌入”三档（文本占位/嵌入/嵌入+EMF 预览）；IPC 类型扩展；CLI `--embed-visio` / `--preview-emf` |
-| M7e 交付验证 | ✅ | 两个真 E2E（demo 夹具 1 图、本地 438C SDD 12 图，真实 mmd2vsdx + Visio COM 预览）；**Word 真机打开通过**：12 OLE InlineShape + ProgID=Visio.Drawing.15，0 修复；合规文档 `docs/M7-合规说明.md` |
+| M7c 后处理嵌入 | ✅ | 新包 `@documentor/postprocess`：自研 MS-CFB 写入/解析（`cfb.ts`，无第三方 CFB 库）、OLE 辅助流合成常量（`ole-streams.ts`，**不依赖 Word 样本**）、vsdx 包围盒/页面修补、`w:object` OOXML 嵌入（预览改为上游附带物后已移除 Visio COM 渲染）。单测 13 例；与旧版 python（visio_ole.py）双向互操作验证通过 |
+| M7d 界面/配置/CLI | ✅ | 单一路径自动嵌入（mmd2vsdx 不可用自动降级占位 + 用户提示，见文末"与方案的差异"）；CLI `--embed-visio` |
+| M7e 交付验证 | ⚠ 待重验 | 2026-09-04 旧接口下：两个真 E2E（demo 夹具 1 图、本地 438C SDD 12 图）+ **Word 真机打开通过**（12 OLE InlineShape + ProgID=Visio.Drawing.15，0 修复）；上游重构后需按 PLAN-05 P0-1 重跑 |
 
 **验证中发现并修复的 pre-existing 缺陷**（详见 `docs/M7-合规说明.md` §5）：
 

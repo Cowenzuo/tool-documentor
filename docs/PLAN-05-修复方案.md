@@ -122,38 +122,60 @@
 2. 换机验证：干净目录 `pnpm install && pnpm verify` 通过（当前 `link:../../../tool-mmd2vsdx` 在别的机器上必然失败）。
 3. 运行时前置文档化：`npx playwright install chromium`；打包场景下 `PLAYWRIGHT_BROWSERS_PATH` 与浏览器目录的处理方式。
 
-### P1-2 打包与安全加固
+### P1-2 打包与安全加固 ✅ 已完成（2026-09-09）
 
-1. **electron-builder**：`apps/desktop` 增 devDependency + `build` 配置（`appId`、`productName`、`directories.output: release`、`files: out/**/*`、`asar: true`、`win.target: nsis`、`nsis.oneClick: false`）；先出可安装包，不做签名。
-2. **CSP**：
-   - 把 `index.html` 中防闪烁内联脚本抽到 `apps/desktop/src/renderer/public/theme-boot.js`（保持 head 同步执行、先于样式），从而允许 `script-src 'self'`；
-   - 主进程对生产环境（`app.isPackaged`）通过 `session.defaultSession.webRequest.onHeadersReceived` 注入 CSP：
-     `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'`（Mermaid/KaTeX 需 inline style 与 data/blob 图）；
-   - 开发环境保持宽松（HMR 需 ws/eval），仅生产收紧。
-3. **sandbox 试验**：`preload` 仅用 `contextBridge`/`ipcRenderer`，可尝试 `sandbox: true`，用 `DOC_E2E` 冒烟回归；不通过则记录原因并保留 `false`。
-4. **打包回归**：安装包启动 → 新建/打开/编辑/保存/导出（含图嵌入，视 D2 结论）→ 设置读写 `%APPDATA%/Documentor/config.json` 正常。
+**已交付**
+
+1. **electron-builder 26**（`apps/desktop` devDependency + `electron-builder.yml`）：
+   `appId`/`productName`/`directories.output: release`/`asar`/`win.target: nsis`/`nsis.oneClick: false`；
+   `files` 按 **C1 排除** `mmd2vsdx`；复用本地 Electron 二进制（`electronDist`，避免重复下载）。
+   根脚本：`pnpm package:dir`（免安装）/ `pnpm package`（NSIS）。
+2. **生产 CSP**（`electron.vite.config.ts`，仅构建期注入 `<meta>`）：
+   - 防闪烁内联脚本以 **sha256 哈希**放行（比原方案的"抽文件"更严格：`script-src` 无 `'unsafe-inline'`）；
+   - `file:` 来源显式列入（`loadFile` 下 Chromium 不匹配 `'self'`）；
+   - `style-src 'unsafe-inline'`（Mermaid/KaTeX 运行期注入样式）、`img-src data: blob:`；
+   - 开发环境不注入（HMR 需内联脚本与 ws）。
+3. **sandbox: true**（预加载产物仅 `require('electron')`，验证通过）。
+4. **产物内容校验** `scripts/verify-package.cjs`：必需项齐全 / `mmd2vsdx` 0 条 / 无开发依赖 / 无 source map。
+5. **打包回归**：`win-unpacked` 冒烟（新建工程 → 落库 → 导出）通过。
+
+**实测结果**
+
+| 检查 | 结果 |
+|---|---|
+| `electron-vite preview` 生产产物 E2E（DOC_E2E 全流程 + 物理点击重放） | ✅ 通过（CSP 未阻断、sandbox 生效、导出降级提示正确） |
+| `pnpm package:dir` + `node scripts/verify-package.cjs` | ✅ asar 80.2 MB；`mmd2vsdx` 0 条；必需项齐全 |
+| `win-unpacked/Documentor.exe` 冒烟 | ✅ 进程存活；工作区产出 `documentor.dproj` + `documentor.db` + 导出 docx |
+| `electron-builder --win`（NSIS） | ✅ `release/Documentor-0.1.0-alpha1-setup.exe`（125.1 MB） |
+
+**遗留**：无 GitHub 网络时 `winCodeSign` 下载会失败（本地验证用 `--config.win.signAndEditExecutable=false` 绕过）；
+应用图标与代码签名属发布阶段事项；**安装包未在本机实际安装**（避免改动系统，安装行为待用户验收）。
 
 ---
 
 ## 4. P2 阶段（收尾）
 
-### P2-1 文档校正
+### P2-1 文档校正 ✅ 已完成（2026-09-09）
 
-| 文件 | 改动 |
-|---|---|
-| `docs/PLAN-01-项目规划与架构.md` | §6 M2 行状态改「✅（M6 收尾）」；§6 M7 行补状态与后续指向 PLAN-05；§10 增"接口漂移与修复"记录 |
-| `docs/PLAN-03-模板关联方案.md` | 标题去掉「（待实施）」；§4 清单勾选并注明落地 commit |
-| `docs/PLAN-04-M7-图嵌入链路方案.md` | 附录同步"单一路径自动嵌入"与本次重验结果 |
-| `docs/M7-合规说明.md` | 见 P0-3 |
-| `README.md` | 增运行时前置条件、`pnpm verify`、当前图嵌入状态 |
-| `docs/产品文案口径.md` | 增"能力缺失时的提示语"条目（面向人、不暴露内部） |
+| 文件 | 改动 | 状态 |
+|---|---|---|
+| `docs/PLAN-01-项目规划与架构.md` | §6 M2 行改「✅（M6 收尾）」；M7 行补「⚠ 实现已完成、接口待对齐」；§10 增 P0-2/P0-3/P1-2 实施记录 | ✅ |
+| `docs/PLAN-03-模板关联方案.md` | 标题去「（待实施）」；§4 清单勾选并注明落地 commit | ✅ |
+| `docs/PLAN-04-M7-图嵌入链路方案.md` | 附录标注"接口漂移后待重验"；M7d 同步"单一路径自动嵌入"；M7e 改 ⚠ | ✅ |
+| `docs/M7-合规说明.md` | 见 P0-3 | ✅ |
+| `README.md` | 运行时前置条件、`pnpm verify`、打包与安全、当前图嵌入状态 | ✅ |
+| `docs/产品文案口径.md` | "能力缺失时的提示语"条目（面向人、不暴露内部） | 待补 |
 
-### P2-2 工程卫生
+### P2-2 工程卫生（部分完成）
 
-1. `scripts/` 落地 P0-2 的 `check-upstream.cjs`（目录当前为空）。
-2. 最小 CI（或本地 `pnpm verify` 作为提交门禁）：typecheck + 单测 + build + 上游检查；真实契约测试作为可选 job。
-3. 清理 `backup/2026-09-09-pre-integrate`（与 main 内容一致）。
-4. 在 README/合规文档保留"git 历史仍含已剥离资产"的说明；如需彻底清除另做 `filter-repo`。
+1. ✅ `scripts/` 落地 `check-upstream.cjs`（P0-2）与 `verify-package.cjs`（P1-2）。
+2. ⏸ **CI 阻塞于 P1-1**：`pnpm install` 需要本机 `link:../../../tool-mmd2vsdx`，CI 环境不存在该目录；
+   依赖形态固化（submodule/registry）完成前无法建立可用流水线。当前提交门禁为本地 `pnpm verify:local`
+   （+ 打包后 `node scripts/verify-package.cjs`）。
+3. ⏸ `backup/2026-09-09-pre-integrate` **保留**：内容与 main 一致（`git diff` 为空），
+   但历史不同（rebase 前的提交指针），删除需 `-D` 强删并丢失该指针。作为安全网保留；
+   如需清理：`git branch -D backup/2026-09-09-pre-integrate`。
+4. ✅ "git 历史仍含已剥离资产"的说明保留在 `docs/PLAN-01` §8/§10 与 `docs/M7-合规说明.md`。
 
 ---
 
@@ -206,14 +228,14 @@ P0-1 上游门面 + 我方适配 ──→ P0-1 真实回归（12 图 + Word）
 
 | 阶段 | 估算 | 状态 |
 |---|---|---|
-| P0-1 接口修复 + 真实回归 | 0.5–1 天 | 待执行 |
+| P0-1 接口修复 + 真实回归 | 0.5–1 天 | 待执行（上游门面在另一会话推进中） |
 | P0-2 门禁与锚定 | 0.5 天 | ✅ 完成 |
 | P0-3 合规复核与文档 | 0.5 天 | ✅ 完成 |
 | P1-1 依赖固化 | 顺延（发布前） | 顺延 |
-| P1-2 打包与安全 | 1–1.5 天 | 待执行 |
-| P2 收尾 | 0.5 天 | 待执行 |
+| P1-2 打包与安全 | 1–1.5 天 | ✅ 完成 |
+| P2 收尾 | 0.5 天 | 主体完成（CI 阻塞于 P1-1） |
 
-> 当前批次剩余约 2–3 天（不含上游门面改造与等待）。
+> 剩余：P0-1（依赖上游门面）+ P2-2 的两项收尾。
 
 ---
 
@@ -232,13 +254,22 @@ P0-1 上游门面 + 我方适配 ──→ P0-1 真实回归（12 图 + Word）
 - P0-2：`scripts/check-upstream.cjs`、`packages/docx/tests/mmd2vsdx.contract.test.ts`（+`test:real`）、
   根 `verify`/`verify:local`、`docs/UPSTREAM-mmd2vsdx.md`。
 - P0-3：`docs/M7-合规说明.md`（C1 分发边界 + 待重验标注）、README「运行时前置条件与边界」。
+- P1-2：electron-builder（NSIS/免安装两档，C1 排除上游）、生产 CSP（哈希放行内联脚本）、
+  `sandbox: true`、`scripts/verify-package.cjs`；生产产物 E2E + 打包应用冒烟均通过。
+- P2-1：PLAN-01/03/04、README、产品文案口径校正。
+- P2-2：`scripts/` 落地；CI 阻塞于 P1-1（记录原因）。
 
-**下一步（按顺序）**
+**下一步**
 
-1. P0-1：上游门面（`convertText`/`shutdown` + `types` + 子路径导出）+ 我方适配 + 12 图真实回归。
-2. P1-2：electron-builder + 生产 CSP + `sandbox` 试验。
-3. P2：文档校正与工程卫生（PLAN-01/03/04、CI、backup 分支）。
+1. **P0-1**（阻塞于上游）：上游门面 `convertText`/`shutdown` + `types` + 子路径导出就绪后，
+   切换 `loadMmd2vsdxConverter()` → 跑 `pnpm verify`（上游检查与真实契约测试转绿）→ 12 图真实回归 + Word 验收。
+2. P2-2 收尾：清理 `backup/2026-09-09-pre-integrate`；P1-1 完成后补 CI。
 
-**待决策**
+**当前门禁状态**
 
-- P0-1 的上游改动时机与范围（涉及 `D:\_dev\tool-mmd2vsdx` 仓库）。
+| 命令 | 状态 |
+|---|---|
+| `pnpm verify:local` | ✅ 绿 |
+| `node scripts/verify-package.cjs` | ✅ 绿（打包后） |
+| `node scripts/check-upstream.cjs` | ✗ 红灯（预期，P0-1 后转绿） |
+| `pnpm --filter @documentor/docx test:real` | ✗ 红灯（预期，P0-1 后转绿） |

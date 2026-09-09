@@ -4,4 +4,6 @@ packages:
 
 allowBuilds:
   electron: true
+  # Squirrel.Windows 目标不用（我们走 NSIS）；显式拒绝以通过 pnpm 构建白名单校验
+  electron-winstaller: false
   esbuild: true

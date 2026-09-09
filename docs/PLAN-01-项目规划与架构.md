@@ -182,12 +182,12 @@ tool-rwdoc/
 |---|---|---|
 | **M0 骨架** ✅ | pnpm workspace + TS strict + Electron 44 + Vite7/React19 壳、preload 桥、主题切换（深浅双主题 token 层）、无边框自绘标题栏 | **已完成**：typecheck/build 通过；dev 运行自检通过（主题 system⇄dark⇄light 切换、token 色值、IPC 版本桥、组件挂载） |
 | **M1 数据层** ✅ | core + templates 全量；SQLite 建/读（含旧 testproject 夹具）；模板实例化 | **已完成**：42+6 单测全绿；打开旧库 41 节点/31 块兼容；模板实例化与旧库一致 |
-| **M2 编辑界面** 🔨 | 欢迎页（含最近工程）/新建向导/主界面（结构栏+节点页+检查器）；树搜索；8 块编辑器**按 PLAN-02 §4.1 最终交互一次到位**（含 Mermaid 左右分栏、表格就地编辑+键迁移、代码高亮、图片拖拽导入、Lightbox）；collectEdits | 主体完成（E2E 通过）；待补：代码高亮、公式即时预览（M6 前收尾） |
+| **M2 编辑界面** ✅ | 欢迎页（含最近工程）/新建向导/主界面（结构栏+节点页+检查器）；树搜索；8 块编辑器**按 PLAN-02 §4.1 最终交互一次到位**（含 Mermaid 左右分栏、表格就地编辑+键迁移、代码高亮、图片拖拽导入、Lightbox）；collectEdits | **已完成**：主体随 M2 落地，遗留的代码高亮与公式即时预览由 M6 收尾 |
 | **M3 存储与设置** ✅ | 保存/恢复选中/设置对话框/config；最近工程列表持久化 | **已完成**：设置对话框双入口、模板目录热重载；保存/恢复选中此前随 M2 落地 |
 | **M4 DOCX 导出** ✅ | Serializer/Writer/编号克隆；导出对话框；**与旧版产物对照验证** | **已完成**：docx 包 8 单测、E2E 导出 105 指令/4 克隆组、python XML 校验、与旧交付物同构对照 |
 | **M5 实例 JSON + 验证链** ✅ | --test-export；Node 对照/检查脚本（镜像旧 check_* 用途） | **已完成**：core instance 3 单测；CLI 全链路验证（样例实例 15 指令/2 组克隆 + python 断言） |
 | **M6 界面收尾** ✅ | 中区预览视图（编辑⇄预览）、主题/对比度/动效走查、可访问性走查、全流程打磨 | **已完成**：静态预览/公式预览/代码高亮全部落地；最终 E2E 全流程回归通过 |
-| **M7 图嵌入链路（后期）** | 后处理 OLE/CFB 嵌入移植（或调 Python 脚本）+ tool-mmd2vsdx 集成 | 交付 docx 双击激活/画布一致 |
+| **M7 图嵌入链路（后期）** ⚠ | 后处理 OLE/CFB 嵌入移植（或调 Python 脚本）+ tool-mmd2vsdx 集成 | **实现已完成，接口待对齐**：上游 2026-09-09 重构致对接失效（静默降级为文本占位）；验收基准不变（交付 docx 双击激活/画布一致）；修复方案见 `docs/PLAN-05-修复方案.md`（P0-1 待执行，门禁已立） |
 
 ---
 
@@ -361,3 +361,27 @@ tool-rwdoc/
   （titlebarProject=e2e工程、树 41 行全展开、根标题、选中"标识"块卡片 1）→ 保存 toast
   成功；磁盘产物 dproj + documentor.db 验证正确。
 - 待补（登记）：代码块语法高亮、公式块即时预览、M6 预览视图与全界面走查。
+
+### PLAN-05 修复：门禁与合规边界（P0-2/P0-3 完成）
+- **背景**：上游 mmd2vsdx 2026-09-09 完成"结构收敛"重构（入口 `dist/app/application.js`
+  → `dist/convert.js`，不再导出 `application`），我方 M7 对接随之失效；失败被"假转换器 +
+  手写 `.d.ts` + 优雅降级"三重掩盖，直到本次实测才暴露。
+- **P0-2 门禁**：`scripts/check-upstream.cjs`（静态契约检查）、
+  `packages/docx/tests/mmd2vsdx.contract.test.ts`（`DOC_REAL_MMD=1` 真实链路）、
+  根 `verify`（fail-fast）/`verify:local`；锚定记录 `docs/UPSTREAM-mmd2vsdx.md`。
+  实测：`verify:local` 绿；上游检查与真实契约测试按预期红灯（P0-1 完成后转绿）。
+- **P0-3 合规**：上游新形态把官方 Visio 母版 XML 内嵌进 `dist`（含 MS 版权 Cell），
+  分发边界收紧为 **C1（发行包不含 mmd2vsdx）**；`docs/M7-合规说明.md` §2/§3.2/§6/§7 相应改写。
+
+### PLAN-05 修复：打包与安全加固（P1-2 完成）
+- **electron-builder 26 接入**（`apps/desktop/electron-builder.yml`，NSIS/免安装两档）；
+  发行包按 C1 排除 mmd2vsdx；复用本地 Electron 二进制（`electronDist`）避免重复下载。
+- **生产 CSP**：仅构建期注入 `<meta>`；防闪烁内联脚本以 **sha256 哈希**放行（非
+  `'unsafe-inline'`）；`file:` 来源显式列入；Mermaid/KaTeX 运行期注入样式故保留
+  `style-src 'unsafe-inline'`。
+- **sandbox: true**：预加载产物仅 `require('electron')`（contextBridge/ipcRenderer），可安全启用。
+- **验证**：`electron-vite preview` 生产产物 E2E 全流程通过（含物理点击重放）；
+  `win-unpacked` 打包应用冒烟通过（新建工程/落库/导出）；
+  `scripts/verify-package.cjs` 校验 asar：必需项齐全、`mmd2vsdx` 0 条、无开发依赖。
+- **遗留**：NSIS 安装包在无 GitHub 网络环境受阻（winCodeSign 下载），需联网环境补跑；
+  应用图标与代码签名属发布阶段事项。

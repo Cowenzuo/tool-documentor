@@ -17,6 +17,8 @@
     "dev": "pnpm build:libs && pnpm --filter @documentor/desktop dev",
     "build": "pnpm build:libs && pnpm --filter @documentor/desktop build",
     "start": "pnpm --filter @documentor/desktop start",
+    "package:dir": "pnpm build && pnpm --filter @documentor/desktop package:dir",
+    "package": "pnpm build && pnpm --filter @documentor/desktop package",
     "typecheck": "pnpm -r typecheck",
     "verify": "node scripts/check-upstream.cjs && pnpm typecheck && pnpm -r test && pnpm build",
     "verify:local": "pnpm typecheck && pnpm -r test && pnpm build",

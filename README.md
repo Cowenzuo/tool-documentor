@@ -39,6 +39,9 @@ pnpm verify     # 门禁：上游契约检查 + typecheck + 全量单测 + build
 pnpm verify:local  # 同上但跳过上游检查（上游改造期间日常用）
 pnpm cli:test-export -- <instance.json> [out.docx] --templates <模板目录>   # 无界面导出
 pnpm --filter @documentor/docx test:real   # 真实图转换契约测试（需 Chromium）
+pnpm package:dir  # 免安装包：release/win-unpacked（含产物内容校验见下）
+pnpm package      # NSIS 安装包：release/Documentor-<version>-setup.exe
+node scripts/verify-package.cjs   # 校验 asar 内容（必需项齐全 / mmd2vsdx 不入包 / 无开发依赖）
 ```
 
 > 模板：软件不内置，由外部目录提供。
@@ -56,3 +59,14 @@ pnpm --filter @documentor/docx test:real   # 真实图转换契约测试（需 C
 | 图转换（可选能力） | Mermaid → Visio 对象嵌入依赖上游 `mmd2vsdx`（开发期为 `link:` 本机依赖）+ 本机 Chromium；**发行包不包含上游**（版权边界，见 `docs/M7-合规说明.md` §3.2）；上游缺失时导出仍成功，图以文本形式呈现 |
 | 上游接口 | 唯一消费点 `packages/docx/src/figure-export.ts`；契约与同步清单见 `docs/UPSTREAM-mmd2vsdx.md` |
 | 已知状态 | 上游 2026-09-09 重构后接口已变，图嵌入待修复（`docs/PLAN-05-修复方案.md` P0-1）；`pnpm verify` 的上游检查当前为预期红灯 |
+
+## 打包与安全
+
+- **打包**：`pnpm package`（NSIS 安装包）/ `pnpm package:dir`（免安装目录）；配置见 `apps/desktop/electron-builder.yml`。
+- **分发边界（C1）**：发行包**不含** `mmd2vsdx`——其产物内嵌官方 Visio 母版 XML（Microsoft 许可内容），
+  见 `docs/M7-合规说明.md` §3.2；打包后用 `node scripts/verify-package.cjs` 复核。
+- **生产 CSP**：构建期注入 `<meta http-equiv="Content-Security-Policy">`；防闪烁内联脚本以
+  **sha256 哈希**放行；开发环境不注入（HMR 需要内联脚本与 ws）。
+- **沙箱**：`webPreferences.sandbox: true`（预加载产物仅 `require('electron')`）。
+- **已知限制**：无 GitHub 网络时 electron-builder 的 `winCodeSign` 下载会失败；
+  可复用本地 Electron 二进制（`electronDist`）并跳过可执行文件编辑以完成本地验证。
