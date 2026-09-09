@@ -273,15 +273,21 @@ P0-1 上游门面 + 我方适配 ──→ P0-1 真实回归（12 图 + Word）
   根 `verify`/`verify:local`、`docs/UPSTREAM-mmd2vsdx.md`。
 - P0-3：`docs/M7-合规说明.md`（C1 分发边界 + 待重验标注）、README「运行时前置条件与边界」。
 - P1-2：electron-builder（NSIS/免安装两档，C1 排除上游）、生产 CSP（哈希放行内联脚本）、
-  `sandbox: true`、`scripts/verify-package.cjs`；生产产物 E2E + 打包应用冒烟均通过。
+  `sandbox: true`、主进程防护面收敛（外链协议白名单 / `will-navigate` 守卫 /
+  `will-attach-webview` 拒绝 / 权限默认拒绝）、`scripts/verify-package.cjs`；
+  生产产物 E2E + 打包应用冒烟均通过。
 - P2-1：PLAN-01/03/04、README、产品文案口径校正。
 - P2-2：`scripts/` 落地；CI 阻塞于 P1-1（记录原因）。
+- **P0-1 我方侧准备**：`resolveMmdFacade()` 兼容新/旧/default 三形态（6 例单测）；
+  真实契约测试参数化（`DOC_REAL_MMD_TEMPLATE` / `DOC_REAL_MMD_STRUCTURE`），
+  已实测本地 SDD 结构含 **11** 个图块，作为上游就绪后的验收夹具。
 
 **下一步**
 
 1. **P0-1**（阻塞于上游）：上游门面 `convertText`/`shutdown` + `types` + 子路径导出就绪后，
-   切换 `loadMmd2vsdxConverter()` → 跑 `pnpm verify`（上游检查与真实契约测试转绿）→ 12 图真实回归 + Word 验收。
-2. P2-2 收尾：清理 `backup/2026-09-09-pre-integrate`；P1-1 完成后补 CI。
+   我方无需改码即可对接 → 跑 `pnpm verify`（上游检查与真实契约测试转绿）→
+   `DOC_REAL_MMD_STRUCTURE="438C-软件设计说明(SDD)"` 真实回归 + Word 验收。
+2. P2-2 收尾：`backup` 分支保留为安全网（强删需 `-D`）；P1-1 完成后补 CI。
 
 **当前门禁状态**
 
