@@ -25,7 +25,7 @@ export function blockTypeIndex(name: BlockTypeName): number {
 export function blockTypeName(index: number | string): BlockTypeName {
   const i = typeof index === 'string' ? Number.parseInt(index, 10) : index
   const name = BLOCK_TYPE_NAMES[i]
-  if (!name) throw new Error(`invalid block type index: ${index}`)
+  if (!name) throw new Error(`未知内容块类型: ${index}`)
   return name
 }
 

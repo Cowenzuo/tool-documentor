@@ -59,20 +59,19 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
       let figureText = ''
       if (result.figures) {
         const f = result.figures
-        figureText =
-          f.total === 0
-            ? '（无 Mermaid 图块）'
-            : `（图块 ${f.total} · 转换 ${f.converted} · 嵌入 ${f.embedded}` +
-              (f.previewCount > 0 ? ` · 预览 ${f.previewCount}` : '') + `）`
+        figureText = f.total === 0 ? '' : `（含 ${f.total} 张图）`
       }
       const failText =
         result.figures && result.figures.failed.length > 0
-          ? `；失败：${result.figures.failed.slice(0, 3).map((x) => `${x.caption}(${x.reason})`).join('、')}`
+          ? `；${result.figures.failed.length} 张图嵌入失败：${result.figures.failed
+              .slice(0, 3)
+              .map((x) => `${x.caption}`)
+              .join('、')}`
           : ''
       showToast({
         kind: result.warnings.length > 0 || (result.figures && result.figures.failed.length > 0) ? 'error' : 'info',
         text:
-          `已导出 DOCX（${result.paragraphCount} 条指令 · 克隆列表组 ${result.clonedGroups}）` +
+          `已导出 DOCX` +
           figureText + warnText + failText +
           `\n${result.outputPath}`
       })
@@ -151,18 +150,13 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
 
           <section className="settings-group">
             <h3>图表嵌入</h3>
-            <p className="settings-hint export-style-desc">
-              Mermaid 图块自动转换并嵌入为可编辑 Visio 对象（双击编辑）；预览图在机器具备能力时自动附加（缺少数块能力时自动跳过，不影响交付）。
-            </p>
             {figureCount !== null && figureCount > 0 && (
               <p className="settings-hint export-style-desc">
-                当前文档检测到 <strong>{figureCount}</strong> 个 Mermaid 图块，将全部嵌入。
+                导出时将一并嵌入 <strong>{figureCount}</strong> 张图。
               </p>
             )}
             {figureCount === 0 && (
-              <p className="settings-hint export-style-desc">
-                当前文档没有 Mermaid 图块（导出为普通文档）。
-              </p>
+              <p className="settings-hint export-style-desc">当前文档没有图表。</p>
             )}
           </section>
 

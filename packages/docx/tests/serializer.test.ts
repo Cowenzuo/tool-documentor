@@ -144,7 +144,7 @@ describe('DocxSerializer 指令序列', () => {
     const { instructions, warnings } = serializeWithWarnings(new DocumentTree(root), styleDef)
     expect(instructions).toHaveLength(2)
     expect(warnings.length).toBeGreaterThanOrEqual(1)
-    expect(warnings.some((w) => w.includes('heading.4'))).toBe(true)
+    expect(warnings.some((w) => w.includes('标题的样式未生效'))).toBe(true)
     // serializeToInstructions 行为不变（无 warnings 参数）
   })
 })

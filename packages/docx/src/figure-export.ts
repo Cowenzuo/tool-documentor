@@ -105,8 +105,8 @@ export async function attachFiguresToDocx(
     failed: []
   }
   if (figures.length === 0) {
-    warnings.push('文档中没有 Mermaid 图块，跳过图嵌入')
-    // 显式 outputPath 时：无图块也把（占位版）交付到用户路径，避免“选哪看哪”错位
+    warnings.push('文档中没有图表')
+    // 显式 outputPath 时：无图也把文档交付到用户路径
     const finalPath =
       options.outputPath && options.outputPath !== docxPath ? options.outputPath : docxPath
     if (finalPath !== docxPath) copyFileSync(docxPath, finalPath)
@@ -120,10 +120,8 @@ export async function attachFiguresToDocx(
         ? await options.loadConverter()
         : await loadMmd2vsdxConverter(options.useConnectorMaster ?? true)
     } catch (err) {
-      // 单一路径降级：mmd2vsdx 不可用 → 交付占位版 + 明确警告（不中断导出）
-      warnings.push(
-        `图嵌入不可用（${err instanceof Error ? err.message : String(err)}），已回退为文本占位导出`
-      )
+      // 单一路径降级：图表嵌入服务不可用 → 交付文本版（不中断导出）
+      warnings.push('图表嵌入服务不可用，图表以文本形式导出')
       const finalPath =
         options.outputPath && options.outputPath !== docxPath ? options.outputPath : docxPath
       if (finalPath !== docxPath) copyFileSync(docxPath, finalPath)
@@ -198,12 +196,12 @@ export async function attachFiguresToDocx(
     stats.embedded = embedResult.embeddedCount
     warnings.push(...embedResult.warnings)
     warnings.push(
-      ...embedResult.nameMisses.map((m) => `图「${m}」与文件名不一致（已按槽位嵌入）`)
+      ...embedResult.nameMisses.map((m) => `「${m}」题注与文件不一致，已按顺序嵌入`)
     )
     if (stats.failed.length > 0) {
       warnings.push(
-        `${stats.failed.length} 个图块未转换，已保留文本占位：` +
-        stats.failed.map((f) => `「${f.caption}」(${f.reason})`).join('；')
+        `${stats.failed.length} 张图未能嵌入，已按文本导出：` +
+        stats.failed.map((f) => `「${f.caption}」`).join('、')
       )
     }
 

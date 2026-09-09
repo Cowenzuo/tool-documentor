@@ -57,7 +57,7 @@ export async function writeDocx(
 ): Promise<WriteDocxResult> {
   const skeletonDir = styleDef.skeletonPath
   if (!skeletonDir || !existsSync(join(skeletonDir, 'word', 'document.xml'))) {
-    throw new Error(`DocxWriter: 骨架目录无效: ${skeletonDir}`)
+    throw new Error(`样式骨架目录无效: ${skeletonDir}`)
   }
 
   const files = listFilesRecursive(skeletonDir)

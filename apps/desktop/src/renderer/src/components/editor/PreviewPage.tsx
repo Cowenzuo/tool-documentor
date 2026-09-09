@@ -207,7 +207,7 @@ function MermaidPreview({
           <div dangerouslySetInnerHTML={{ __html: svg }} />
         </button>
       ) : (
-        <div className="pv-hint">Mermaid 渲染中…</div>
+        <div className="pv-hint">渲染中…</div>
       )}
       {block.caption && (
         <figcaption className="pv-figure-caption">{stripCaptionNumber(block.caption)}</figcaption>

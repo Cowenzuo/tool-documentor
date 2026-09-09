@@ -152,7 +152,7 @@ export function ImageEditor(props: EditorBaseProps<ImageBlock>): React.JSX.Eleme
           <img src={thumb} alt={block.caption || '图片'} />
         </button>
       ) : (
-        <div className="be-image-placeholder">拖拽图片到此处，或点击「导入图片」（将复制到工程 images/ 目录）</div>
+        <div className="be-image-placeholder">拖拽图片到此处，或点击「导入图片」</div>
       )}
     </div>
   )
@@ -348,14 +348,14 @@ export function FormulaEditor(props: EditorBaseProps<FormulaBlock>): React.JSX.E
           className="be-textarea be-mono"
           value={props.block.latexCode}
           onChange={(e) => props.onChange({ ...props.block, latexCode: e.target.value })}
-          placeholder="LaTeX 公式源码，如 E = mc^2"
+          placeholder="公式源码，如 E = mc^2"
           spellCheck={false}
         />
       ) : (
         <div className="be-formula-preview">
           {!html && !error && (
             <div className="be-mermaid-hint">
-              {props.block.latexCode.trim() ? '渲染中…' : '输入 LaTeX 源码预览'}
+              {props.block.latexCode.trim() ? '渲染中…' : '输入公式源码预览'}
             </div>
           )}
           {error && <div className="be-mermaid-error">渲染失败：{error}</div>}
@@ -492,7 +492,7 @@ export function MermaidEditor(props: EditorBaseProps<MermaidBlock>): React.JSX.E
         <div className="be-mermaid-preview">
           {!ready && <div className="be-mermaid-hint">加载渲染引擎…</div>}
           {ready && !preview && !error && (
-            <div className="be-mermaid-hint">{block.code.trim() ? '渲染中…' : '输入 Mermaid 源码预览'}</div>
+            <div className="be-mermaid-hint">{block.code.trim() ? '渲染中…' : '输入流程图源码预览'}</div>
           )}
           {error && <div className="be-mermaid-error">渲染失败：{error}</div>}
           {preview && (
@@ -503,7 +503,7 @@ export function MermaidEditor(props: EditorBaseProps<MermaidBlock>): React.JSX.E
                 preview &&
                 props.onPreview?.({
                   src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(preview)}`,
-                  title: block.caption || 'Mermaid 图'
+                  title: block.caption || '流程图'
                 })
               }
             >

@@ -237,7 +237,7 @@ export class ProjectStore {
     const db = this.requireDb()
     const rootRow = db.prepare('SELECT id, title FROM node WHERE parent_id IS NULL LIMIT 1').get()
     if (!rootRow) {
-      throw new Error('ProjectStore: no root node found')
+      throw new Error('工程数据异常：缺少根节点')
     }
     const root = new DocumentNode(0, str(rootRow['id']))
     root.title = str(rootRow['title'])
@@ -335,7 +335,7 @@ export class ProjectStore {
   // ================= 内部 =================
 
   private requireDb(): DatabaseSync {
-    if (!this.db) throw new Error('ProjectStore: no database open')
+    if (!this.db) throw new Error('工程数据库未打开')
     return this.db
   }
 }

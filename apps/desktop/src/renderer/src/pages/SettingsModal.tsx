@@ -27,7 +27,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
         default_project_dir: cfg.default_project_dir,
         template_dirs: cfg.template_dirs
       })
-      showToast({ kind: 'info', text: '设置已保存（模板目录已即时生效）' })
+      showToast({ kind: 'info', text: '设置已保存' })
       onClose()
     } catch (err) {
       showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
@@ -69,8 +69,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
             <section className="settings-group">
               <h3>模板目录</h3>
               <p className="settings-hint">
-                每个目录需含 manifest.json（结构与样式模板注册表）。同名模板先加载优先；
-                内置模板始终作为兜底。
+                模板目录需包含 manifest.json；多个目录存在同名模板时，靠前的目录优先。
               </p>
               <div className="settings-dirs">
                 {cfg.template_dirs.map((dir, i) => (

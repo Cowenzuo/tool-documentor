@@ -9,7 +9,7 @@ export const BLOCK_TYPE_LABELS: Record<BlockTypeName, string> = {
   table: '表格',
   formula: '公式',
   code: '代码',
-  mermaid: 'Mermaid',
+  mermaid: '流程图',
   orderedList: '有序列表',
   unorderedList: '无序列表'
 }
@@ -67,15 +67,15 @@ export function describeBlockType(type: BlockTypeName): string {
     case 'text':
       return '多行文本段落'
     case 'image':
-      return '插入图片（导入后复制到工程目录，导出为图 + 图题注）'
+      return '插入图片（自动生成图题注）'
     case 'table':
       return '表格（表题注显示在表上方）'
     case 'formula':
-      return 'LaTeX 公式'
+      return '数学公式'
     case 'code':
       return '代码（带语言标注）'
     case 'mermaid':
-      return 'Mermaid 图（导出为占位，后处理嵌入）'
+      return '流程图/关系图（自动渲染）'
     case 'orderedList':
       return '有序列表（每行一项）'
     case 'unorderedList':

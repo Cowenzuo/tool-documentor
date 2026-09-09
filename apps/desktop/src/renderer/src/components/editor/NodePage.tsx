@@ -170,24 +170,21 @@ export default function NodePage(): React.JSX.Element {
               ) : (
                 <span className="np-badge">标题级别 {node.headingLevel}</span>
               )}
-              <span className="np-chip" title={`节点标识 ${node.id}`}>
-                #{node.id}
-              </span>
               <span
                 className={`np-chip${node.copyable ? ' np-chip-ok' : ''}`}
-                title="模板定义的复制权限"
+                title="该节点允许复制"
               >
                 {node.copyable ? '可复制' : '不可复制'}
               </span>
               <span
                 className={`np-chip${node.deletable ? ' np-chip-ok' : ''}`}
-                title="模板定义的删除权限"
+                title="该节点允许删除"
               >
                 {node.deletable ? '可删除' : '不可删除'}
               </span>
               <span
                 className={`np-chip${canEditBlocks ? ' np-chip-ok' : ''}`}
-                title="允许挂载和编辑内容块"
+                title="该节点允许添加内容块"
               >
                 {canEditBlocks ? '可编辑' : '锁定'}
               </span>

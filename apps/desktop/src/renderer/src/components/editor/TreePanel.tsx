@@ -189,7 +189,9 @@ function TreeNodeRow(props: {
         {node.isSubTitle ? (
           <span className="tree-badge tree-badge-sub">子</span>
         ) : (
-          <span className="tree-badge">{node.headingLevel}</span>
+          <span className="tree-badge">
+            {node.headingLevel === 1 ? '章' : node.headingLevel === 2 ? '节' : node.headingLevel === 3 ? '条' : `${node.headingLevel}级`}
+          </span>
         )}
         <span className={`tree-title${matchedTitle ? ' match' : ''}`}>{node.title || '·'}</span>
       </div>

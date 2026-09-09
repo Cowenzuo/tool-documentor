@@ -133,7 +133,7 @@ export async function embedVsdxIntoDocx(
     const fig = figures[k]
     if (!fig || !fig.vsdx) continue // 转换失败的槽位：保留占位文本
     if (seen.has(fig.name)) {
-      warnings.push(`嵌入：文件名重复（${fig.name}），槽位 ${k + 1} 跳过`)
+      warnings.push(`「${fig.name}」文件名重复，已跳过嵌入`)
       continue
     }
     seen.add(fig.name)

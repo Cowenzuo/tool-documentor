@@ -228,7 +228,7 @@ describe('attachFiguresToDocx（注入转换器）', () => {
     await exportTreeToDocx(tree, style, basePath)
     const result = await attachFiguresToDocx(basePath, tree, style, {})
     expect(result.outputPath).toBe(basePath)
-    expect(result.warnings.some((w) => w.includes('没有 Mermaid 图块'))).toBe(true)
+    expect(result.warnings.some((w) => w.includes('文档中没有图表'))).toBe(true)
   })
 })
 
@@ -270,7 +270,7 @@ describe('exportTreeToDocxWithFigures（一键导出，交付=所给路径）', 
 
     expect(result.outputPath).toBe(finalPath)
     expect(result.figureStats.total).toBe(0)
-    expect(result.warnings.some((w) => w.includes('没有 Mermaid 图块'))).toBe(true)
+    expect(result.warnings.some((w) => w.includes('文档中没有图表'))).toBe(true)
     expect(existsSync(finalPath)).toBe(true)
     expect(existsSync(join(dir, 'one-shot-empty-占位.tmp.docx'))).toBe(false)
   })
@@ -293,7 +293,7 @@ describe('exportTreeToDocxWithFigures（一键导出，交付=所给路径）', 
     expect(existsSync(finalPath)).toBe(true)
     expect(result.figureStats.converted).toBe(0)
     expect(result.figureStats.embedded).toBe(0)
-    expect(result.warnings.some((w) => w.includes('图嵌入不可用'))).toBe(true)
+    expect(result.warnings.some((w) => w.includes('图表嵌入服务不可用'))).toBe(true)
     // 产物为占位版（仍含 [Mermaid 文本段，可继续导出）
     const zip = await JSZip.loadAsync(readFileSync(finalPath))
     const doc = await zip.file('word/document.xml')!.async('string')

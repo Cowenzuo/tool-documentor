@@ -93,7 +93,7 @@ export function buildCompoundFile(
     for (let k = 1; k < 4096; k++) {
       if (k * (sectorSize / 4) >= nDataSectors + miniFatSectors + k + dirSectors) return k
     }
-    throw new Error('CFB: too many sectors')
+    throw new Error('图表文件解析失败：扇区数过多')
   }
   const nFat = fatNeed(totalRegular)
   const totalSecs = totalRegular + miniFatSectors + nFat + dirSectors
@@ -253,7 +253,7 @@ export function buildCompoundFile(
 /** 解析 CFB，返回 {stream_name: bytes}（仅存储流，type==2） */
 export function parseCompoundFile(data: Uint8Array): Record<string, Uint8Array> {
   if (data.length < 512 || !equalBytes(data.subarray(0, 8), CFB_SIGNATURE)) {
-    throw new Error('CFB: 非 Compound File 数据（签名不符）')
+    throw new Error('图表文件非 Compound File 格式')
   }
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength)
   const sectorShift = rdU16(view, 30)
@@ -316,7 +316,7 @@ export function parseCompoundFile(data: Uint8Array): Record<string, Uint8Array> 
   }
 
   const root = entries.find((e) => e.type === 5)
-  if (!root) throw new Error('CFB: 缺少 Root Entry')
+  if (!root) throw new Error('图表文件解析失败：缺少 Root Entry')
   const miniFatParts: Uint8Array[] = []
   for (const s of chain(firstMiniFat)) {
     if (s >= fatSectors.length * (sectorSize / 4)) break

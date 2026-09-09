@@ -19,7 +19,7 @@ export interface SerializeOptions {
 
 export interface SerializeResult {
   instructions: WriteInstruction[]
-  /** 样式键缺失明细（如：节点“附录”标题：缺少样式 subtitle.1） */
+  /** 样式未生效明细（如：“附录”标题的样式未生效） */
   warnings: string[]
 }
 
@@ -59,7 +59,7 @@ function serializeNode(
 ): void {
   const look = (key: string, context: string): string => {
     const value = lookup(key)
-    if (!value) warnings.push(`${context}：缺少样式 ${key}`)
+    if (!value) warnings.push(`${context}的样式未生效，已按默认样式输出`)
     return value
   }
 
@@ -67,10 +67,10 @@ function serializeNode(
   if (!node.isRoot() && node.title.length > 0) {
     if (node.isSubTitle) {
       out.push(
-        paragraph(look(`subtitle.${node.subTitleDepth()}`, `节点“${node.title}”标题`), node.title, 0)
+        paragraph(look(`subtitle.${node.subTitleDepth()}`, `“${node.title}”标题`), node.title, 0)
       )
     } else {
-      out.push(paragraph(look(`heading.${node.headingLevel}`, `节点“${node.title}”标题`), node.title, 0))
+      out.push(paragraph(look(`heading.${node.headingLevel}`, `“${node.title}”标题`), node.title, 0))
     }
   }
 
@@ -79,7 +79,7 @@ function serializeNode(
     switch (block.type) {
       case 'text': {
         if (block.content.length > 0) {
-          out.push(paragraph(look('body', `节点“${node.title}”文本块`), block.content, 0))
+          out.push(paragraph(look('body', `“${node.title}”的正文段落`), block.content, 0))
         }
         break
       }
@@ -87,7 +87,7 @@ function serializeNode(
       case 'unorderedList': {
         const listKey =
           block.type === 'orderedList' ? 'list.ordered.1' : 'list.unordered.1'
-        const styleName = look(listKey, `节点“${node.title}”列表块`)
+        const styleName = look(listKey, `“${node.title}”的列表`)
         const groupId = nextGroupId()
         for (const item of block.items) {
           if (item.length === 0) continue
@@ -99,7 +99,7 @@ function serializeNode(
         if (block.caption.length > 0) {
           out.push(
             paragraph(
-              look('table.caption', `节点“${node.title}”表题注`),
+              look('table.caption', `“${node.title}”的表格题注`),
               stripCaptionNumber(block.caption),
               0
             )
@@ -112,20 +112,20 @@ function serializeNode(
             cols: block.cols,
             headers: [...block.headers],
             rowsData: block.data.map((row) => [...row]),
-            headerStyle: look('table.header', `节点“${node.title}”表格`),
-            bodyStyle: look('table.body', `节点“${node.title}”表格`)
+            headerStyle: look('table.header', `“${node.title}”的表格`),
+            bodyStyle: look('table.body', `“${node.title}”的表格`)
           }
         })
         break
       }
       case 'image': {
         if (block.imagePath.length > 0) {
-          out.push(paragraph(look('body', `节点“${node.title}”图片占位`), `[图片: ${block.imagePath}]`, 0))
+          out.push(paragraph(look('body', `“${node.title}”的图片`), `[图片: ${block.imagePath}]`, 0))
         }
         if (block.caption.length > 0) {
           out.push(
             paragraph(
-              look('figure.caption', `节点“${node.title}”图题注`),
+              look('figure.caption', `“${node.title}”的图片题注`),
               stripCaptionNumber(block.caption),
               0
             )
@@ -137,7 +137,7 @@ function serializeNode(
         if (block.code.length > 0) {
           out.push(
             paragraph(
-              look('body', `节点“${node.title}”Mermaid 占位`),
+              look('body', `“${node.title}”的流程图`),
               `[Mermaid 图表: ${block.code.slice(0, 60)}]`,
               0
             )
@@ -146,7 +146,7 @@ function serializeNode(
         if (block.caption.length > 0) {
           out.push(
             paragraph(
-              look('figure.caption', `节点“${node.title}”图题注`),
+              look('figure.caption', `“${node.title}”的图片题注`),
               stripCaptionNumber(block.caption),
               0
             )
