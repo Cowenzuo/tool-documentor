@@ -153,7 +153,9 @@
      （开发判定 dev server origin，生产判定 renderer 产物目录）；
    - `will-attach-webview` 一律拒绝（本应用不使用 webview）；
    - `setPermissionRequestHandler` / `setPermissionCheckHandler` 默认拒绝一切权限请求
-     （摄像头/麦克风/通知/定位等）。
+     （摄像头/麦克风/通知/定位等）；
+   - E2E 下转发渲染层「警告/错误/CSP 违规」控制台消息（`[renderer:*]`），
+     使"页面看似正常但被 CSP 拦截"可观测。
 5. **产物内容校验** `scripts/verify-package.cjs`：必需项齐全 / `mmd2vsdx` 0 条 / 无开发依赖 / 无 source map。
 6. **打包回归**：`win-unpacked` 冒烟（新建工程 → 落库 → 导出）通过。
 
@@ -162,6 +164,7 @@
 | 检查 | 结果 |
 |---|---|
 | `electron-vite preview` 生产产物 E2E（DOC_E2E 全流程 + 物理点击重放） | ✅ 通过（CSP 未阻断、sandbox 生效、导出降级提示正确） |
+| E2E 期间的渲染层控制台转发（新增：警告/错误/CSP 违规） | ✅ 无任何 `[renderer:*]` 输出 → 生产 CSP 下**零违规** |
 | `pnpm package:dir` + `node scripts/verify-package.cjs` | ✅ asar 80.2 MB；`mmd2vsdx` 0 条；必需项齐全 |
 | `win-unpacked/Documentor.exe` 冒烟 | ✅ 进程存活；工作区产出 `documentor.dproj` + `documentor.db` + 导出 docx |
 | `electron-builder --win`（NSIS） | ✅ `release/Documentor-0.1.0-alpha1-setup.exe`（125.1 MB） |

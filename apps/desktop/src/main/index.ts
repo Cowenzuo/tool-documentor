@@ -103,6 +103,20 @@ function createMainWindow(): void {
     event.preventDefault()
   })
 
+  // E2E 诊断：转发渲染层「警告/错误」与 CSP 违规，使无头验收能观察到
+  // "页面看似正常但被 CSP 拦截"的情况。
+  if (process.env['DOC_E2E']) {
+    mainWindow.webContents.on('console-message', (details) => {
+      const isCsp = /content security policy/i.test(details.message)
+      if (details.level === 'warning' || details.level === 'error' || isCsp) {
+        console.log(
+          `[renderer:${details.level}${isCsp ? '/csp' : ''}] ${details.message} ` +
+            `(${details.sourceId}:${details.lineNumber})`
+        )
+      }
+    })
+  }
+
   if (isDev()) {
     void mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] as string)
   } else {
