@@ -34,29 +34,33 @@
 
 ## 2. P0 阶段（阻塞级，必须先做）
 
-### P0-1 M7 接口修复
+### P0-1 M7 接口修复（我方侧准备已完成，等待上游门面）
 
 **目标**：`pnpm cli:test-export -- … --embed-visio` 真实产出含 OLE 对象的 docx，且 GUI 导出同样生效。
 
-**步骤（路线 A，已拍板）**
+**我方侧准备 ✅（2026-09-09，不依赖上游）**
+- `packages/docx/src/figure-export.ts` 新增导出 `resolveMmdFacade()`，同时兼容三种形态：
+  ① 新门面（包根导出 `convertText`/`shutdown`）、② 旧形态（`application` 对象承载）、
+  ③ CJS/ESM 互操作（`default` 包裹）；方法调用保留 `this`；均不匹配时抛含期望契约与
+  `docs/UPSTREAM-mmd2vsdx.md` 指针的可读错误（触发既有的文本占位降级）。
+- 单测 `packages/docx/tests/mmd-facade.test.ts`（6 例）覆盖上述形态与失败诊断。
+- 效果：上游门面一旦落地，我方**无需改代码**即可对接；`test:real` 的失败信息也从原始
+  TypeError 变为"expected +0 to be 1" + P0-1 指引。
+
+**上游侧（进行中，另一会话）**
 1. 上游 `tool-mmd2vsdx`：
    - 新增门面 `dist/index.js`（或 `application` 对象），导出 `convertText(text, opts) → {ok, vsdxBase64, previewPngBase64?, error?}` 与 `shutdown()`；
    - `package.json` 补 `"types": "./dist/index.d.ts"`，并把 `exports` 扩为 `{".": …}` + 可选子路径（`./parser`、`./convert`、`./xml-parts`、`./squeeze`）；
    - README 的用法示例与 `exports` 对齐。
-2. 我方 `packages/docx/src/figure-export.ts`：
-   - `loadMmd2vsdxConverter()` 改为消费新门面（保留现有 `MmdConverter` 形状，调用方零改动）；
-   - 删除/忽略 `useConnectorMaster`（新 API 无此概念）；
-   - `shutdown()` 映射到上游 `Parser.shutdown()`，并保留 5s 超时外壳。
-3. 类型：删除两份手写 `.d.ts`（`packages/docx/src/mmd2vsdx.d.ts`、`apps/desktop/src/main/mmd2vsdx.d.ts`），改用上游真实类型；若上游暂未提供，则只保留一份并标注"必须随上游同步"。
-4. 清理：`apps/desktop/cli/test-export.cjs` 中已失效的 `{ mode: figureMode }` 传参。
+2. 我方收尾（上游就绪后）：
+   - 类型改由上游提供后，删除/精简两份手写 `.d.ts`；
+   - `shutdown()` 保留 5s 超时外壳（已具备）；确认 `useConnectorMaster` 传参被上游忽略；
+   - 清理 `apps/desktop/cli/test-export.cjs` 中已失效的 `{ mode: figureMode }` 传参。
+3. 真实链路回归：用 `localtest/templates` 的 438C SDD 模板跑 12 图 E2E（`--embed-visio` + GUI 各一遍），Word 打开验收（OLE 双击激活、画布一致）。
+4. 记录结果：更新 `docs/M7-合规说明.md` §6 验证表与 `docs/PLAN-04-…md` 附录状态。
 
-**共同步骤**
-5. 真实链路回归：用 `localtest/templates` 的 438C SDD 模板跑 12 图 E2E（`--embed-visio` + GUI 各一遍），Word 打开验收（OLE 双击激活、画布一致）。
-6. 记录结果：更新 `docs/M7-合规说明.md` §6 验证表与 `docs/PLAN-04-…md` 附录状态。
-
-**涉及文件**：`packages/docx/src/figure-export.ts`、`packages/docx/src/mmd2vsdx.d.ts`、`apps/desktop/src/main/mmd2vsdx.d.ts`、`apps/desktop/src/main/services/project-service.ts`、`apps/desktop/cli/test-export.cjs`、上游 `package.json` + 门面模块。
-
-**验收**：CLI 输出 `Figures: total=N converted=N embedded=N`；产物含 `w:object`/`o:OLEObject`/`oleObjectN.bin`；Word 无修复提示。
+**验收**：`pnpm verify`（上游检查 + 真实契约测试）转绿；CLI 输出 `Figures: total=N converted=N embedded=N`；
+产物含 `w:object`/`o:OLEObject`/`oleObjectN.bin`；Word 无修复提示。
 
 ### P0-2 真实链路门禁与上游锚定 ✅ 已完成（2026-09-09）
 

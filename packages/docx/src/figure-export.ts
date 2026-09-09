@@ -273,41 +273,105 @@ interface MmdConverter {
   shutdown: () => Promise<void>
 }
 
+/**
+ * 上游门面契约（PLAN-05 P0-1 / docs/UPSTREAM-mmd2vsdx.md §3.1）。
+ * 新形态：包根导出 `convertText` / `shutdown`；旧形态：`application` 对象承载同名方法。
+ */
+export interface MmdFacade {
+  convertText: (text: string, opts?: Record<string, unknown>) => Promise<FigureConvertResult>
+  shutdown?: () => Promise<void>
+}
+
+function pickFacade(source: unknown): MmdFacade | null {
+  if (!source || typeof source !== 'object') return null
+  const s = source as Record<string, unknown>
+  if (typeof s['convertText'] === 'function') {
+    // bind：保留 this（上游方法可能依赖实例状态）
+    return {
+      convertText: (s['convertText'] as (...a: unknown[]) => unknown).bind(s) as MmdFacade['convertText'],
+      shutdown:
+        typeof s['shutdown'] === 'function'
+          ? ((s['shutdown'] as (...a: unknown[]) => unknown).bind(s) as () => Promise<void>)
+          : undefined
+    }
+  }
+  const app = s['application']
+  if (app && typeof app === 'object') {
+    const a = app as Record<string, unknown>
+    if (typeof a['convertText'] === 'function') {
+      return {
+        convertText: (a['convertText'] as (...x: unknown[]) => unknown).bind(app) as MmdFacade['convertText'],
+        shutdown:
+          typeof a['shutdown'] === 'function'
+            ? ((a['shutdown'] as (...x: unknown[]) => unknown).bind(app) as () => Promise<void>)
+            : undefined
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * 从上游模块命名空间解析门面，兼容三种形态：
+ *   1) 新门面：模块根导出 `convertText` / `shutdown`
+ *   2) 旧形态：`application` 对象承载同名方法
+ *   3) CJS/ESM 互操作：`default` 包裹以上任一形态
+ * 均不匹配 → 抛可读错误（含期望契约与文档指针），由调用方降级为文本占位。
+ */
+export function resolveMmdFacade(mod: unknown): MmdFacade {
+  const direct = pickFacade(mod)
+  if (direct) return direct
+  if (mod && typeof mod === 'object') {
+    const wrapped = pickFacade((mod as Record<string, unknown>)['default'])
+    if (wrapped) return wrapped
+  }
+  const keys =
+    mod && typeof mod === 'object' ? Object.keys(mod as object).join(', ') : `typeof ${typeof mod}`
+  throw new Error(
+    '上游未提供可用门面（期望 convertText/shutdown，或 application 对象承载）' +
+      `；当前导出：${keys || '（无）'}。见 docs/UPSTREAM-mmd2vsdx.md`
+  )
+}
+
 async function loadMmd2vsdxConverter(
   useConnectorMaster: boolean
 ): Promise<MmdConverter> {
+  let facade: MmdFacade
   try {
     const mod = await import('mmd2vsdx')
-    return {
-      convert: async (code) => {
-        const r = await mod.application.convertText(code, {
-          diagramType: 'auto',
-          useConnectorMaster
-        })
-        // 预览为上游可选附带物：建议字段 previewBase64 + previewExt('png'|'emf')；
-        // 上游未提供（undefined）→ 回退无预览嵌入，不报错。
-        const anyR = r as unknown as {
-          previewBase64?: string
-          previewExt?: string
-          previewPngBase64?: string
-        }
-        const previewBase64 = anyR.previewBase64 ?? anyR.previewPngBase64
-        const previewExt = (anyR.previewExt ?? 'png') === 'emf' ? 'emf' : 'png'
-        return {
-          ok: r.ok,
-          vsdxBase64: r.ok ? r.vsdxBase64 : undefined,
-          error: r.error,
-          previewBase64: previewBase64 && previewBase64.length > 0 ? previewBase64 : undefined,
-          previewExt: previewBase64 && previewBase64.length > 0 ? previewExt : undefined
-        }
-      },
-      shutdown: () => mod.application.shutdown()
-    }
+    facade = resolveMmdFacade(mod)
   } catch (err) {
     throw new Error(
       `mmd2vsdx 模块不可用（请确认已安装 @documentor/desktop 的 link: 依赖）：` +
       (err instanceof Error ? err.message : String(err))
     )
+  }
+  return {
+    convert: async (code) => {
+      const r = await facade.convertText(code, {
+        diagramType: 'auto',
+        useConnectorMaster
+      })
+      // 预览为上游可选附带物：建议字段 previewBase64 + previewExt('png'|'emf')；
+      // 上游未提供（undefined）→ 回退无预览嵌入，不报错。
+      const anyR = r as unknown as {
+        previewBase64?: string
+        previewExt?: string
+        previewPngBase64?: string
+      }
+      const previewBase64 = anyR.previewBase64 ?? anyR.previewPngBase64
+      const previewExt = (anyR.previewExt ?? 'png') === 'emf' ? 'emf' : 'png'
+      return {
+        ok: r.ok,
+        vsdxBase64: r.ok ? r.vsdxBase64 : undefined,
+        error: r.error,
+        previewBase64: previewBase64 && previewBase64.length > 0 ? previewBase64 : undefined,
+        previewExt: previewBase64 && previewBase64.length > 0 ? previewExt : undefined
+      }
+    },
+    shutdown: async () => {
+      if (facade.shutdown) await facade.shutdown()
+    }
   }
 }
 
