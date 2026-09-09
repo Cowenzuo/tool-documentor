@@ -29,7 +29,8 @@ import {
 } from './treeUtils'
 
 export interface ToastItem {
-  kind: 'info' | 'error'
+  /** info=中性成功提示；warn=成功但有需注意之处；error=失败 */
+  kind: 'info' | 'warn' | 'error'
   text: string
 }
 

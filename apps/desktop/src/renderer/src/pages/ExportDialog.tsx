@@ -68,8 +68,10 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
               .map((x) => `${x.caption}`)
               .join('、')}`
           : ''
+      const failCount = result.figures?.failed.length ?? 0
       showToast({
-        kind: result.warnings.length > 0 || (result.figures && result.figures.failed.length > 0) ? 'error' : 'info',
+        // 只有"确有失败"才用红色；成功但有提醒用琥珀色；一切正常用中性色
+        kind: failCount > 0 ? 'error' : result.warnings.length > 0 ? 'warn' : 'info',
         text:
           `已导出 DOCX` +
           figureText + warnText + failText +

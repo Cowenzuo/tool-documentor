@@ -105,7 +105,7 @@ export async function attachFiguresToDocx(
     failed: []
   }
   if (figures.length === 0) {
-    warnings.push('文档中没有图表')
+    // 无图块不是"警告"：导出对话框已提示"当前文档没有图表"，此处再报会让成功提示变色。
     // 显式 outputPath 时：无图也把文档交付到用户路径
     const finalPath =
       options.outputPath && options.outputPath !== docxPath ? options.outputPath : docxPath

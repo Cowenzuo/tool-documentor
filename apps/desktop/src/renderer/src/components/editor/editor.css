@@ -728,6 +728,11 @@
   animation: toast-in var(--duration-enter) var(--ease-out);
 }
 
+.toast-warn {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
 .toast-error {
   border-color: var(--danger);
   color: var(--danger);

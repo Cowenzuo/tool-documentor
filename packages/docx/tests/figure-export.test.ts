@@ -228,7 +228,9 @@ describe('attachFiguresToDocx（注入转换器）', () => {
     await exportTreeToDocx(tree, style, basePath)
     const result = await attachFiguresToDocx(basePath, tree, style, {})
     expect(result.outputPath).toBe(basePath)
-    expect(result.warnings.some((w) => w.includes('文档中没有图表'))).toBe(true)
+    // 无图块不是警告（导出对话框已提示），避免成功提示被染成告警色
+    expect(result.warnings).toEqual([])
+    expect(result.figureStats.total).toBe(0)
   })
 })
 
@@ -270,7 +272,7 @@ describe('exportTreeToDocxWithFigures（一键导出，交付=所给路径）', 
 
     expect(result.outputPath).toBe(finalPath)
     expect(result.figureStats.total).toBe(0)
-    expect(result.warnings.some((w) => w.includes('文档中没有图表'))).toBe(true)
+    expect(result.warnings).toEqual([])
     expect(existsSync(finalPath)).toBe(true)
     expect(existsSync(join(dir, 'one-shot-empty-占位.tmp.docx'))).toBe(false)
   })
