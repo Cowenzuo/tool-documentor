@@ -25,6 +25,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "set NODE_OPTIONS=--experimental-sqlite&& vitest run",
+    "test:real": "set DOC_REAL_MMD=1&& set NODE_OPTIONS=--experimental-sqlite&& vitest run tests/mmd2vsdx.contract.test.ts",
     "build": "tsc -p tsconfig.build.json"
   }
 }

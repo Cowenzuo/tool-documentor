@@ -18,6 +18,8 @@
     "build": "pnpm build:libs && pnpm --filter @documentor/desktop build",
     "start": "pnpm --filter @documentor/desktop start",
     "typecheck": "pnpm -r typecheck",
+    "verify": "node scripts/check-upstream.cjs && pnpm typecheck && pnpm -r test && pnpm build",
+    "verify:local": "pnpm typecheck && pnpm -r test && pnpm build",
     "cli:test-export": "pnpm --filter @documentor/desktop cli:test-export"
   }
 }

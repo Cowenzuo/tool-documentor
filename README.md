@@ -35,7 +35,10 @@ pnpm install
 pnpm dev        # electron-vite dev：渲染层 HMR（需先在 设置→模板目录 配置模板或经 DOC_E2E_TEMPLATES 注入开发模板）
 pnpm typecheck  # 全仓 TS strict 检查
 pnpm build      # 产物 apps/desktop/out/
+pnpm verify     # 门禁：上游契约检查 + typecheck + 全量单测 + build
+pnpm verify:local  # 同上但跳过上游检查（上游改造期间日常用）
 pnpm cli:test-export -- <instance.json> [out.docx] --templates <模板目录>   # 无界面导出
+pnpm --filter @documentor/docx test:real   # 真实图转换契约测试（需 Chromium）
 ```
 
 > 模板：软件不内置，由外部目录提供。
@@ -43,4 +46,13 @@ pnpm cli:test-export -- <instance.json> [out.docx] --templates <模板目录>   
 > 自动化回归使用 `resources/test-fixtures/sample-template/`（自建合成模板）。
 
 > 注：pnpm 11 将构建脚本白名单放在 `pnpm-workspace.yaml` 的 `allowBuilds`。
-> Electron 44 起二进制为首次运行懒下载（无 postinstall），首次 `pnpm dev` 会自动拉取。
+> Electron 44 起二进制为首次运行懒启动下载（无 postinstall），首次 `pnpm dev` 会自动拉取。
+
+## 运行时前置条件与边界
+
+| 项 | 说明 |
+|---|---|
+| 模板目录 | 由用户提供（设置 → 模板目录，每个目录含 manifest.json）；软件不内置模板 |
+| 图转换（可选能力） | Mermaid → Visio 对象嵌入依赖上游 `mmd2vsdx`（开发期为 `link:` 本机依赖）+ 本机 Chromium；**发行包不包含上游**（版权边界，见 `docs/M7-合规说明.md` §3.2）；上游缺失时导出仍成功，图以文本形式呈现 |
+| 上游接口 | 唯一消费点 `packages/docx/src/figure-export.ts`；契约与同步清单见 `docs/UPSTREAM-mmd2vsdx.md` |
+| 已知状态 | 上游 2026-09-09 重构后接口已变，图嵌入待修复（`docs/PLAN-05-修复方案.md` P0-1）；`pnpm verify` 的上游检查当前为预期红灯 |
