@@ -11,7 +11,7 @@ import { isAbsolute, resolve } from 'node:path'
 import type { DocumentTree, DocumentNode } from '@documentor/core'
 import { stripCaptionNumber } from '@documentor/core'
 import type { ContentBlock } from '@documentor/core'
-import type { StyleTemplateDef } from '@documentor/templates'
+import type { StyleTemplateDef, CaptionNumberingMode } from '@documentor/templates'
 import type { WriteInstruction } from './instructions'
 
 export interface SerializeOptions {
@@ -48,33 +48,6 @@ export function serializeWithWarnings(
     if (options?.lookup) return options.lookup(key)
     return styleDef ? (styleDef.styleMap[key] ?? '') : ''
   }
-  // 题注编号方式：auto=剥离手写序号（Word 按样式编号）；static=原样保留（样式不编号）
-  const staticTable = styleDef?.captionNumbering?.table === 'static'
-  const staticFigure = styleDef?.captionNumbering?.figure === 'static'
-  const caption = (kind: 'table' | 'figure', raw: string): string =>
-    (kind === 'table' ? staticTable : staticFigure) ? raw.trim() : stripCaptionNumber(raw)
-  // 图片：工程目录可用且文件存在 → 输出真实图片指令；否则回退占位文本
-  const resolveImage = (imagePath: string): string | null => {
-    const base = options?.imageBaseDir
-    if (!base || !imagePath) return null
-    const abs = isAbsolute(imagePath) ? imagePath : resolve(base, imagePath)
-    return existsSync(abs) ? abs : null
-  }
-  for (const child of tree.root.children) {
-    serializeNode(child, lookup, out, warnings, () => nextListGroupId++, caption, resolveImage)
-  }
-  return { instructions: out, warnings }
-}
-
-function serializeNode(
-  node: DocumentNode,
-  lookup: (key: string) => string,
-  out: WriteInstruction[],
-  warnings: string[],
-  nextGroupId: () => number,
-  caption: (kind: 'table' | 'figure', raw: string) => string,
-  resolveImage: (imagePath: string) => string | null
-): void {
   const look = (key: string, context: string): string => {
     const value = lookup(key)
     if (!value) warnings.push(`${context}的样式未生效，已按默认样式输出`)
@@ -85,117 +58,188 @@ function serializeNode(
     const value = lookup('figure')
     return value || look('body', context)
   }
+  // 图片：工程目录可用且文件存在 → 输出真实图片指令；否则回退占位文本
+  const resolveImage = (imagePath: string): string | null => {
+    const base = options?.imageBaseDir
+    if (!base || !imagePath) return null
+    const abs = isAbsolute(imagePath) ? imagePath : resolve(base, imagePath)
+    return existsSync(abs) ? abs : null
+  }
 
-  // === 1. 节点标题 ===
-  if (!node.isRoot() && node.title.length > 0) {
-    if (node.isSubTitle) {
-      out.push(
-        paragraph(look(`subtitle.${node.subTitleDepth()}`, `“${node.title}”标题`), node.title, 0)
-      )
-    } else {
-      out.push(paragraph(look(`heading.${node.headingLevel}`, `“${node.title}”标题`), node.title, 0))
+  // ---------- 题注编号状态 ----------
+  const cn = styleDef?.captionNumbering
+  const modeOf = (kind: CaptionKind): CaptionNumberingMode => cn?.[kind] ?? 'auto'
+  const starts = styleDef?.headingStarts ?? []
+  const startOf = (level: number): number => starts[level - 1] ?? 1
+  const chapterNames = cn?.chapterStyleNames ?? {}
+  /** 各标题层级当前编号（下标=层级，1 起） */
+  const counters: number[] = []
+  /** 题注序号计数：key = `${kind}:${level}` */
+  const seqCounters = new Map<string, number>()
+
+  /** 进入标题节点：推进本层计数、重置更深层与相应题注序号（与 Word 多级列表语义一致） */
+  const enterHeading = (level: number): void => {
+    counters[level] = (counters[level] ?? startOf(level) - 1) + 1
+    for (let d = level + 1; d <= MAX_HEADING_LEVEL; d++) counters[d] = startOf(d) - 1
+    for (const key of [...seqCounters.keys()]) {
+      if (Number(key.split(':')[1]) >= level) seqCounters.delete(key)
     }
   }
 
-  // === 2. 内容块 ===
-  for (const block of node.contentBlocks) {
-    switch (block.type) {
-      case 'text': {
-        if (block.content.length > 0) {
-          out.push(paragraph(look('body', `“${node.title}”的正文段落`), block.content, 0))
-        }
-        break
+  /**
+   * 题注（表题/图题）：
+   * - auto  → 剥离手写序号，序号由样式多级列表给出
+   * - static→ 原样保留（数据侧给出的准确编号）
+   * - field → STYLEREF(章节号) + SEQ(本节序号) 域，章节号随标题走且不占用标题列表
+   */
+  const emitCaption = (
+    node: DocumentNode,
+    kind: CaptionKind,
+    rawCaption: string,
+    styleKey: string,
+    context: string
+  ): void => {
+    const style = look(styleKey, context)
+    const mode = modeOf(kind)
+    if (mode === 'static') {
+      out.push(paragraph(style, rawCaption.trim(), 0))
+      return
+    }
+    const title = stripCaptionNumber(rawCaption)
+    if (mode === 'auto') {
+      out.push(paragraph(style, title, 0))
+      return
+    }
+    const level = Math.max(1, Math.min(MAX_HEADING_LEVEL, node.headingLevel || 1))
+    const seqKey = `${kind}:${level}`
+    const seqText = String((seqCounters.get(seqKey) ?? 0) + 1)
+    seqCounters.set(seqKey, Number(seqText))
+    const configured = chapterNames[String(level)]
+    out.push({
+      opType: 'InsertCaption',
+      styleName: style,
+      content: {
+        label: kind === 'table' ? '表' : '图',
+        // 模板未配置（undefined）= 按中文 Word 惯例「标题 N」；显式空串 = 不写域，用算好的章节号文本
+        chapterStyleName: configured === undefined ? `标题 ${level}` : configured,
+        chapterText: counters.slice(1, level + 1).join('.'),
+        seqName: kind === 'table' ? '表' : '图',
+        seqRestartLevel: level,
+        seqText,
+        title
       }
-      case 'orderedList':
-      case 'unorderedList': {
-        const listKey =
-          block.type === 'orderedList' ? 'list.ordered.1' : 'list.unordered.1'
-        const styleName = look(listKey, `“${node.title}”的列表`)
-        const groupId = nextGroupId()
-        for (const item of block.items) {
-          if (item.length === 0) continue
-          out.push(paragraph(styleName, item, groupId))
-        }
-        break
+    })
+  }
+
+  const serializeNode = (node: DocumentNode): void => {
+    const isHeading = !node.isRoot() && !node.isSubTitle && node.headingLevel > 0
+    if (isHeading) enterHeading(node.headingLevel)
+
+    // === 1. 节点标题 ===
+    if (!node.isRoot() && node.title.length > 0) {
+      if (node.isSubTitle) {
+        out.push(
+          paragraph(look(`subtitle.${node.subTitleDepth()}`, `“${node.title}”标题`), node.title, 0)
+        )
+      } else {
+        out.push(
+          paragraph(look(`heading.${node.headingLevel}`, `“${node.title}”标题`), node.title, 0)
+        )
       }
-      case 'table': {
-        if (block.caption.length > 0) {
-          out.push(
-            paragraph(
-              look('table.caption', `“${node.title}”的表格题注`),
-              caption('table', block.caption),
-              0
-            )
-          )
-        }
-        out.push({
-          opType: 'InsertTable',
-          content: {
-            rows: block.rows,
-            cols: block.cols,
-            headers: [...block.headers],
-            rowsData: block.data.map((row) => [...row]),
-            headerStyle: look('table.header', `“${node.title}”的表格`),
-            bodyStyle: look('table.body', `“${node.title}”的表格`),
-            mergeVertical: block.mergeVertical === true
+    }
+
+    // === 2. 内容块 ===
+    for (const block of node.contentBlocks) {
+      switch (block.type) {
+        case 'text': {
+          if (block.content.length > 0) {
+            out.push(paragraph(look('body', `“${node.title}”的正文段落`), block.content, 0))
           }
-        })
-        break
-      }
-      case 'image': {
-        const abs = block.imagePath.length > 0 ? resolveImage(block.imagePath) : null
-        const style = figureStyle(`“${node.title}”的图片`)
-        if (abs) {
-          out.push({ opType: 'InsertImage', content: { srcPath: abs, styleName: style } })
-        } else if (block.imagePath.length > 0) {
-          out.push(paragraph(style, `[图片: ${block.imagePath}]`, 0))
+          break
         }
-        if (block.caption.length > 0) {
-          out.push(
-            paragraph(
-              look('figure.caption', `“${node.title}”的图片题注`),
-              caption('figure', block.caption),
-              0
+        case 'orderedList':
+        case 'unorderedList': {
+          const listKey = block.type === 'orderedList' ? 'list.ordered.1' : 'list.unordered.1'
+          const styleName = look(listKey, `“${node.title}”的列表`)
+          const groupId = nextListGroupId++
+          for (const item of block.items) {
+            if (item.length === 0) continue
+            out.push(paragraph(styleName, item, groupId))
+          }
+          break
+        }
+        case 'table': {
+          if (block.caption.length > 0) {
+            emitCaption(
+              node,
+              'table',
+              block.caption,
+              'table.caption',
+              `“${node.title}”的表格题注`
             )
-          )
+          }
+          out.push({
+            opType: 'InsertTable',
+            content: {
+              rows: block.rows,
+              cols: block.cols,
+              headers: [...block.headers],
+              rowsData: block.data.map((row) => [...row]),
+              headerStyle: look('table.header', `“${node.title}”的表格`),
+              bodyStyle: look('table.body', `“${node.title}”的表格`),
+              mergeVertical: block.mergeVertical === true
+            }
+          })
+          break
         }
-        break
-      }
-      case 'mermaid': {
-        if (block.code.length > 0) {
-          out.push(
-            paragraph(
-              figureStyle(`“${node.title}”的流程图`),
-              `[Mermaid 图表: ${block.code.slice(0, 60)}]`,
-              0
+        case 'image': {
+          const abs = block.imagePath.length > 0 ? resolveImage(block.imagePath) : null
+          const style = figureStyle(`“${node.title}”的图片`)
+          if (abs) {
+            out.push({ opType: 'InsertImage', content: { srcPath: abs, styleName: style } })
+          } else if (block.imagePath.length > 0) {
+            out.push(paragraph(style, `[图片: ${block.imagePath}]`, 0))
+          }
+          if (block.caption.length > 0) {
+            emitCaption(node, 'figure', block.caption, 'figure.caption', `“${node.title}”的图片题注`)
+          }
+          break
+        }
+        case 'mermaid': {
+          if (block.code.length > 0) {
+            out.push(
+              paragraph(
+                figureStyle(`“${node.title}”的流程图`),
+                `[Mermaid 图表: ${block.code.slice(0, 60)}]`,
+                0
+              )
             )
-          )
+          }
+          if (block.caption.length > 0) {
+            emitCaption(node, 'figure', block.caption, 'figure.caption', `“${node.title}”的图片题注`)
+          }
+          break
         }
-        if (block.caption.length > 0) {
-          out.push(
-            paragraph(
-              look('figure.caption', `“${node.title}”的图片题注`),
-              caption('figure', block.caption),
-              0
-            )
-          )
+        case 'formula':
+        case 'code': {
+          const text = blockText(block)
+          out.push(paragraph(look('body', `节点“${node.title}”${blockLabel(block)}`), text, 0))
+          break
         }
-        break
-      }
-      case 'formula':
-      case 'code': {
-        const text = blockText(block)
-        out.push(paragraph(look('body', `节点“${node.title}”${blockLabel(block)}`), text, 0))
-        break
       }
     }
+
+    // === 3. 递归子节点 ===
+    for (const child of node.children) serializeNode(child)
   }
 
-  // === 3. 递归子节点 ===
-  for (const child of node.children) {
-    serializeNode(child, lookup, out, warnings, nextGroupId, caption, resolveImage)
-  }
+  for (const child of tree.root.children) serializeNode(child)
+  return { instructions: out, warnings }
 }
+
+/** Word 多级列表最多 9 级（ilvl 0..8） */
+const MAX_HEADING_LEVEL = 9
+type CaptionKind = 'table' | 'figure'
 
 function paragraph(styleName: string, text: string, listGroupId: number): WriteInstruction {
   return {

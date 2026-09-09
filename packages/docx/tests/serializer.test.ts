@@ -217,6 +217,94 @@ describe('题注编号方式（captionNumbering）', () => {
       captionTexts({ ...styleDef, captionNumbering: { table: 'static', figure: 'static' } })
     ).toEqual(['表4.1-1 示例表', '图4.1-1 示例图'])
   })
+
+  it('field：输出题注域指令（章节号 STYLEREF + 本节序号 SEQ），剥离手写序号', () => {
+    const style: StyleTemplateDef = {
+      ...styleDef,
+      headingStarts: [4, 1, 1, 1, 1],
+      captionNumbering: {
+        table: 'field',
+        figure: 'field',
+        chapterStyleNames: { '1': '标题 1', '2': '标题 2' }
+      }
+    }
+    const caps = serializeToInstructions(buildTree(), style).filter(
+      (i): i is Extract<WriteInstruction, { opType: 'InsertCaption' }> =>
+        i.opType === 'InsertCaption'
+    )
+    // 节点为标题 1：章节号取「4」，序号按标题 1 重启
+    expect(caps).toHaveLength(2)
+    expect(caps[0]).toEqual({
+      opType: 'InsertCaption',
+      styleName: '48',
+      content: {
+        label: '表',
+        chapterStyleName: '标题 1',
+        chapterText: '4',
+        seqName: '表',
+        seqRestartLevel: 1,
+        seqText: '1',
+        title: '示例表'
+      }
+    })
+    expect(caps[1]!.content.label).toBe('图')
+    expect(caps[1]!.content.seqName).toBe('图')
+    expect(caps[1]!.content.title).toBe('示例图')
+  })
+
+  it('field：多级标题下章节号与每节序号正确（4.1 / 4.1.1）', () => {
+    resetIdCounterForTest()
+    const root = new DocumentNode(0)
+    const h1 = node(1, '第四章')
+    const h2 = node(2, '第一节')
+    const h3 = node(3, '第一小节')
+    h2.contentBlocks.push({
+      type: 'table',
+      caption: '表4.1-1 工况表',
+      rows: 1,
+      cols: 1,
+      headers: ['A'],
+      data: [['1']]
+    })
+    h3.contentBlocks.push({
+      type: 'table',
+      caption: '表4.1.1-1 特征值',
+      rows: 1,
+      cols: 1,
+      headers: ['A'],
+      data: [['1']]
+    })
+    h3.contentBlocks.push({
+      type: 'table',
+      caption: '表4.1.1-2 特征值二',
+      rows: 1,
+      cols: 1,
+      headers: ['A'],
+      data: [['1']]
+    })
+    h2.addChild(h3)
+    h1.addChild(h2)
+    root.addChild(h1)
+    const style: StyleTemplateDef = {
+      ...styleDef,
+      headingStarts: [4, 1, 1, 1, 1],
+      captionNumbering: {
+        table: 'field',
+        chapterStyleNames: { '2': '标题 2', '3': '标题 3' }
+      }
+    }
+    const caps = serializeToInstructions(new DocumentTree(root), style).filter(
+      (i): i is Extract<WriteInstruction, { opType: 'InsertCaption' }> =>
+        i.opType === 'InsertCaption'
+    )
+    expect(
+      caps.map((c) => [c.content.chapterText, c.content.seqRestartLevel, c.content.seqText])
+    ).toEqual([
+      ['4.1', 2, '1'],
+      ['4.1.1', 3, '1'],
+      ['4.1.1', 3, '2']
+    ])
+  })
 })
 
 describe('collectMermaidFigures（M7 图嵌入收集）', () => {

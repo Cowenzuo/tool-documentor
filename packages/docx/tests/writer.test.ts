@@ -6,7 +6,7 @@ import { deflateSync } from 'node:zlib'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import JSZip from 'jszip'
 import { resetIdCounterForTest } from '@documentor/core/idgen'
-import type { DocumentTree, DocumentNode } from '@documentor/core/tree'
+import { DocumentTree, DocumentNode } from '@documentor/core/tree'
 import { TemplateManager } from '@documentor/templates'
 import { serializeToInstructions, serializeWithWarnings } from '../src/serializer'
 import type { WriteInstruction } from '../src/instructions'
@@ -278,6 +278,78 @@ describe('DocxWriter 端到端（合成示例模板骨架）', () => {
     const zip = await JSZip.loadAsync(readFileSync(outputPath))
     const documentXml = await zip.file('word/document.xml')!.async('string')
     expect(documentXml).not.toContain('<w:vMerge')
+  })
+
+  it('题注域：STYLEREF + SEQ 并写入缓存值（field 模式）', async () => {
+    resetIdCounterForTest()
+    const { manager } = loadDemo()
+    const demo = manager.findStructureByName('示例文档模板 (Demo)')!
+    const base = manager.styleForStructure(demo)!
+    const style = {
+      ...base,
+      headingStarts: [4, 1, 1, 1, 1],
+      captionNumbering: { table: 'field' as const, chapterStyleNames: { '1': '标题 1' } }
+    }
+    // 受控树：一个标题 1 节点 + 一张带手写表号的表
+    const root = new DocumentNode(0)
+    const h1 = new DocumentNode(1)
+    h1.title = '第四章'
+    h1.contentBlocks.push({
+      type: 'table',
+      caption: '表4.1-1 试验工况表',
+      rows: 1,
+      cols: 1,
+      headers: ['A'],
+      data: [['1']]
+    })
+    root.addChild(h1)
+
+    const outputPath = join(dir, 'out-caption-field.docx')
+    await writeDocx(serializeToInstructions(new DocumentTree(root), style), style, outputPath)
+    const zip = await JSZip.loadAsync(readFileSync(outputPath))
+    const documentXml = await zip.file('word/document.xml')!.async('string')
+
+    expect(documentXml).toContain(
+      '<w:r><w:t>表</w:t></w:r>' +
+        '<w:fldSimple w:instr=" STYLEREF &quot;标题 1&quot; \\n "><w:r><w:t>4</w:t></w:r></w:fldSimple>' +
+        '<w:r><w:t>-</w:t></w:r>' +
+        '<w:fldSimple w:instr=" SEQ 表 \\* ARABIC \\s 1 "><w:r><w:t>1</w:t></w:r></w:fldSimple>'
+    )
+    // 手写表号已剥离，题注样式沿用 table.caption
+    expect(documentXml).toContain('<w:pStyle w:val="48"/>')
+    expect(documentXml).not.toContain('表4.1-1')
+    expect(documentXml).toContain('<w:t xml:space="preserve"> 试验工况表</w:t>')
+  })
+
+  it('题注域：chapterStyleNames 显式空串时章节号写成文本（不做 STYLEREF）', async () => {
+    resetIdCounterForTest()
+    const { manager } = loadDemo()
+    const demo = manager.findStructureByName('示例文档模板 (Demo)')!
+    const base = manager.styleForStructure(demo)!
+    const style = {
+      ...base,
+      headingStarts: [4, 1, 1, 1, 1],
+      captionNumbering: { table: 'field' as const, chapterStyleNames: { '1': '' } }
+    }
+    const root = new DocumentNode(0)
+    const h1 = new DocumentNode(1)
+    h1.title = '第四章'
+    h1.contentBlocks.push({
+      type: 'table',
+      caption: '表4.1-1 试验工况表',
+      rows: 1,
+      cols: 1,
+      headers: ['A'],
+      data: [['1']]
+    })
+    root.addChild(h1)
+    const outputPath = join(dir, 'out-caption-plain.docx')
+    await writeDocx(serializeToInstructions(new DocumentTree(root), style), style, outputPath)
+    const zip = await JSZip.loadAsync(readFileSync(outputPath))
+    const documentXml = await zip.file('word/document.xml')!.async('string')
+    expect(documentXml).not.toContain('STYLEREF')
+    expect(documentXml).toMatch(/<w:r><w:t>表<\/w:t><\/w:r><w:r><w:t>4<\/w:t><\/w:r>/)
+    expect(documentXml).toContain('SEQ 表')
   })
 
   it('无工程目录时回退占位文本（CLI/实例 JSON 路径）', () => {

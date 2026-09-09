@@ -64,6 +64,9 @@ export interface StyleCandidate {
   isDefault: boolean
 }
 
+/** 题注编号方式：auto=样式多级列表；static=文本自带；field=STYLEREF+SEQ 域 */
+export type CaptionNumberingMode = 'auto' | 'static' | 'field'
+
 /** 样式模板定义（stylemap + docx 骨架） */
 export interface StyleTemplateDef {
   name: string
@@ -79,12 +82,28 @@ export interface StyleTemplateDef {
   styleMap: Record<string, string>
   /**
    * 题注编号方式（缺省 auto）：
-   * - auto：由 Word 按样式编号，导出时剥离题注文本中的手写序号（避免双重编号）
+   * - auto：由 Word 按样式编号（样式带 numPr 多级列表），导出时剥离题注文本中的手写序号
    * - static：序号由文本自带（导出时原样保留，样式不再编号）
+   * - field：导出为题注域——`{ STYLEREF 章节样式 \n }-{ SEQ 标签 \s 层级 }`，章节号随标题走、
+   *   序号按所在节重启，不占用标题多级列表（避免"表在标题 3 之前"把标题计数顶高）
    * 场景：表题需与图表章节号一致、但表出现在标题 3 之前时，Word 多级列表会顶高标题计数，
-   * 此时改用 static 由数据侧给出准确编号。
+   * 此时用 static（数据侧给出准确编号）或 field（域方式自动编号）。
    */
-  captionNumbering?: { table?: 'auto' | 'static'; figure?: 'auto' | 'static' }
+  captionNumbering?: {
+    table?: CaptionNumberingMode
+    figure?: CaptionNumberingMode
+    /**
+     * field 模式下 STYLEREF 引用的标题样式名（按标题层级，如 { "2": "标题 2", "3": "标题 3" }）。
+     * Word 的 STYLEREF 只认样式在界面上的本地化名称（中文 Word 为「标题 N」），故由模板显式给出；
+     * 缺省按 `标题 N` 推断，仍解析不到时该部分退化为导出时算好的静态文本。
+     */
+    chapterStyleNames?: Record<string, string>
+  }
+  /**
+   * 骨架 numbering.xml 中各标题层级（ilvl 0..N）的起始编号，用于 field 模式算题注章节号缓存值。
+   * 缺省全 1。
+   */
+  headingStarts?: number[]
   /** 骨架目录绝对路径（basePath + '/' + docxFolder） */
   skeletonPath: string
 }

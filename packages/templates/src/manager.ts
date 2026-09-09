@@ -11,6 +11,7 @@ import { join } from 'node:path'
 import { createBlock, DocumentNode, DocumentTree } from '@documentor/core'
 import type { ContentBlock } from '@documentor/core'
 import type {
+  CaptionNumberingMode,
   LoadDirResult,
   StyleCandidate,
   StyleTemplateDef,
@@ -282,10 +283,23 @@ export class TemplateManager {
     let captionNumbering: StyleTemplateDef['captionNumbering']
     if (cnRaw && typeof cnRaw === 'object') {
       const r = cnRaw as Record<string, unknown>
-      const pick = (v: unknown): 'auto' | 'static' | undefined =>
-        v === 'static' ? 'static' : v === 'auto' ? 'auto' : undefined
-      captionNumbering = { table: pick(r['table']), figure: pick(r['figure']) }
+      const pick = (v: unknown): CaptionNumberingMode | undefined =>
+        v === 'static' ? 'static' : v === 'auto' ? 'auto' : v === 'field' ? 'field' : undefined
+      const namesRaw = r['chapterStyleNames']
+      let chapterStyleNames: Record<string, string> | undefined
+      if (namesRaw && typeof namesRaw === 'object') {
+        chapterStyleNames = {}
+        for (const [k, v] of Object.entries(namesRaw as Record<string, unknown>)) {
+          chapterStyleNames[String(k)] = String(v)
+        }
+      }
+      captionNumbering = {
+        table: pick(r['table']),
+        figure: pick(r['figure']),
+        chapterStyleNames
+      }
     }
+    const skeletonPath = join(basePath, docxFolder)
     return {
       name,
       version: String(root['version'] ?? ''),
@@ -295,7 +309,8 @@ export class TemplateManager {
       basePath,
       styleMap,
       captionNumbering,
-      skeletonPath: join(basePath, docxFolder)
+      headingStarts: parseHeadingStarts(skeletonPath),
+      skeletonPath
     }
   }
 
@@ -370,6 +385,27 @@ export class TemplateManager {
   /** 结构模板的默认样式候选（不可用时仍返回，由调用方按 available 处理） */
   defaultStyleCandidate(def: TemplateDef): StyleCandidate | null {
     return this.styleCandidatesForStructure(def).find((c) => c.isDefault) ?? null
+  }
+}
+
+/**
+ * 从骨架 numbering.xml 的第一个 abstractNum 读取各层级起始编号（ilvl → start）。
+ * field 模式算题注章节号缓存值需要它（如报告从第 4 章起编号）。
+ */
+function parseHeadingStarts(skeletonPath: string): number[] | undefined {
+  try {
+    const xml = readFileSync(join(skeletonPath, 'word', 'numbering.xml'), 'utf8')
+    const abstract = /<w:abstractNum[\s\S]*?<\/w:abstractNum>/.exec(xml)
+    if (!abstract) return undefined
+    const starts: number[] = []
+    for (const m of abstract[0].matchAll(/<w:lvl [^>]*w:ilvl="(\d+)"[^>]*>([\s\S]*?)<\/w:lvl>/g)) {
+      const ilvl = Number(m[1])
+      const start = /<w:start w:val="(\d+)"/.exec(m[2] ?? '')
+      if (start) starts[ilvl] = Number(start[1])
+    }
+    return starts.length > 0 ? starts : undefined
+  } catch {
+    return undefined
   }
 }
 

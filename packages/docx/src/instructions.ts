@@ -34,6 +34,27 @@ export type WriteInstruction =
       }
     }
   | {
+      opType: 'InsertCaption'
+      /** 题注段落样式 styleId（如 capT / capF） */
+      styleName: string
+      content: {
+        /** 标签文字（'表' / '图'），写在域前 */
+        label: string
+        /** 章节号：STYLEREF 目标样式名（空 = 直接写 chapterText） */
+        chapterStyleName: string
+        /** 章节号缓存值（如 '4.1.1'） */
+        chapterText: string
+        /** 序号：SEQ 名称（'表' / '图'） */
+        seqName: string
+        /** SEQ 重启层级（1..9，对应标题层级） */
+        seqRestartLevel: number
+        /** 序号缓存值（如 '1'） */
+        seqText: string
+        /** 题注标题（编号后的文字） */
+        title: string
+      }
+    }
+  | {
       opType: 'InsertPageBreak'
       content: Record<string, never>
     }

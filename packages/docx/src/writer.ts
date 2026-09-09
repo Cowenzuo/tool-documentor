@@ -370,6 +370,53 @@ function renderImageParagraph(e: EmbeddedImage, docPrId: number, styleName: stri
   )
 }
 
+// ================= 题注域 =================
+
+/**
+ * 题注段落：标签 + 章节号 + '-' + 序号 + 标题。
+ * 章节号/序号用域实现（STYLEREF / SEQ），并写入导出时算好的缓存值——
+ * Word 打开即显示正确，F9 或改结构后可自动更新；不占用标题多级列表，故不会顶高标题编号。
+ * instr 中的样式名按 Word 惯例用双引号包裹（中文 Word 的标题样式名为「标题 N」）。
+ */
+function renderCaption(
+  styleName: string,
+  content: Extract<WriteInstruction, { opType: 'InsertCaption' }>['content']
+): string {
+  const pPr =
+    styleName.length > 0
+      ? `<w:pPr><w:pStyle w:val="${escapeXmlAttr(styleName)}"/></w:pPr>`
+      : '<w:pPr/>'
+  const chapter =
+    content.chapterStyleName.length > 0
+      ? field(
+          ` STYLEREF "${content.chapterStyleName}" \\n `,
+          content.chapterText
+        )
+      : run(content.chapterText)
+  const seq = field(
+    ` SEQ ${content.seqName} \\* ARABIC \\s ${content.seqRestartLevel} `,
+    content.seqText
+  )
+  const title = content.title.length > 0 ? run(` ${content.title}`, true) : ''
+  return `<w:p>${pPr}${run(content.label)}${chapter}${run('-')}${seq}${title}</w:p>`
+}
+
+/** 普通文本 run（保留首尾空格） */
+function run(text: string, preserveSpace = false): string {
+  if (text.length === 0) return ''
+  const space = preserveSpace || /^\s|\s$/.test(text) ? ' xml:space="preserve"' : ''
+  return `<w:r><w:t${space}>${escapeXmlText(text)}</w:t></w:r>`
+}
+
+/** 简单域（w:fldSimple）+ 缓存结果 */
+function field(instr: string, cached: string): string {
+  return (
+    `<w:fldSimple w:instr="${escapeXmlAttr(instr)}">` +
+    `<w:r><w:t>${escapeXmlText(cached)}</w:t></w:r>` +
+    '</w:fldSimple>'
+  )
+}
+
 // ================= document.xml 渲染 =================
 
 function extractSectPr(documentXml: string): string {
@@ -392,6 +439,8 @@ function renderInstructions(
       const text = ins.content.text
       if (text.length === 0) continue
       parts.push(renderParagraph(ins.styleName, text, ins.listGroupId, listNumIds))
+    } else if (ins.opType === 'InsertCaption') {
+      parts.push(renderCaption(ins.styleName, ins.content))
     } else if (ins.opType === 'InsertImage') {
       const img = addImage(ins.content.srcPath)
       if (img) parts.push(renderImageParagraph(img, docPrId++, ins.content.styleName))

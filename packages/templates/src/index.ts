@@ -4,6 +4,7 @@ export type {
   TemplateNodeDef,
   TemplateContentBlockDef,
   StyleTemplateDef,
+  CaptionNumberingMode,
   StyleCandidate,
   StyleValidationReport,
   LoadDirResult

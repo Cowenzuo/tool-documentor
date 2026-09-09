@@ -224,4 +224,67 @@ describe('结构 × 样式配对（软校验候选）', () => {
       rmSync(dir, { recursive: true, force: true })
     }
   })
+
+  it('stylemap 解析 field 题注模式、章节样式名与骨架标题起始编号', async () => {
+    const { mkdirSync, mkdtempSync, writeFileSync, rmSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const dir = mkdtempSync(join(tmpdir(), 'tpl-field-'))
+    try {
+      const base = join(dir, 'templates')
+      mkdirSync(join(base, 'styles', 'f', 'f-style', 'word'), { recursive: true })
+      writeFileSync(
+        join(base, 'manifest.json'),
+        JSON.stringify({
+          styles: [
+            {
+              id: 'f',
+              name: '域样式',
+              stylemap_file: 'f-stylemap.json',
+              style_folder: 'f-style'
+            }
+          ]
+        }),
+        'utf8'
+      )
+      writeFileSync(
+        join(base, 'styles', 'f', 'f-stylemap.json'),
+        JSON.stringify({
+          name: '域样式',
+          docxFolder: 'f-style',
+          captionNumbering: {
+            table: 'field',
+            figure: 'field',
+            chapterStyleNames: { '2': '标题 2', '3': '标题 3' }
+          },
+          styleMap: { body: '1' }
+        }),
+        'utf8'
+      )
+      writeFileSync(
+        join(base, 'styles', 'f', 'f-style', 'word', 'styles.xml'),
+        '<w:styles><w:style w:styleId="1"/></w:styles>',
+        'utf8'
+      )
+      // 第一个 abstractNum：标题 1 从 4 起，其余从 1 起
+      writeFileSync(
+        join(base, 'styles', 'f', 'f-style', 'word', 'numbering.xml'),
+        '<w:numbering><w:abstractNum w:abstractNumId="0">' +
+          '<w:lvl w:ilvl="0"><w:start w:val="4"/></w:lvl>' +
+          '<w:lvl w:ilvl="1"><w:start w:val="1"/></w:lvl>' +
+          '</w:abstractNum></w:numbering>',
+        'utf8'
+      )
+      const mgr = new TemplateManager()
+      mgr.loadTemplateDir(base)
+      const style = mgr.findStyleTemplate('f-stylemap')!
+      expect(style.captionNumbering?.table).toBe('field')
+      expect(style.captionNumbering?.figure).toBe('field')
+      expect(style.captionNumbering?.chapterStyleNames).toEqual({ '2': '标题 2', '3': '标题 3' })
+      expect(style.headingStarts?.[0]).toBe(4)
+      expect(style.headingStarts?.[1]).toBe(1)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })
