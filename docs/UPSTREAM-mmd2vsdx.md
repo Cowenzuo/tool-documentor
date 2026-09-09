@@ -73,6 +73,7 @@ README 展示的深路径导入会被 `exports` 白名单拦截（`ERR_PACKAGE_P
 | 命令 | 作用 | 成本 |
 |---|---|---|
 | `node scripts/check-upstream.cjs` | 静态契约检查（入口/门面导出/类型） | 毫秒级 |
-| `pnpm --filter @documentor/docx test:real` | 真实转换 + OLE 嵌入契约测试 | 需 Chromium，数十秒 |
+| `pnpm --filter @documentor/docx test:real` | 真实转换 + OLE 嵌入契约测试（缺省合成夹具 1 图） | 需 Chromium，数十秒 |
+| `DOC_REAL_MMD=1 DOC_REAL_MMD_TEMPLATE=localtest/templates DOC_REAL_MMD_STRUCTURE="438C-软件设计说明(SDD)" pnpm --filter @documentor/docx test:real` | 同上，但跑本地真实模板（SDD 结构实测 11 图） | 同上 |
 | `pnpm verify` | 上述静态检查 + typecheck + 全量单测 + build | 分钟级 |
 | `pnpm verify:local` | 跳过上游检查的本地门禁（上游改造期间日常用） | 分钟级 |

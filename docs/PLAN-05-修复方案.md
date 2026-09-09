@@ -56,7 +56,14 @@
    - 类型改由上游提供后，删除/精简两份手写 `.d.ts`；
    - `shutdown()` 保留 5s 超时外壳（已具备）；确认 `useConnectorMaster` 传参被上游忽略；
    - 清理 `apps/desktop/cli/test-export.cjs` 中已失效的 `{ mode: figureMode }` 传参。
-3. 真实链路回归：用 `localtest/templates` 的 438C SDD 模板跑 12 图 E2E（`--embed-visio` + GUI 各一遍），Word 打开验收（OLE 双击激活、画布一致）。
+3. **真实链路回归（夹具已就绪，一条命令）**：
+   ```bash
+   DOC_REAL_MMD=1 DOC_REAL_MMD_TEMPLATE=localtest/templates \
+   DOC_REAL_MMD_STRUCTURE="438C-软件设计说明(SDD)" \
+   pnpm --filter @documentor/docx test:real
+   ```
+   实测该结构模板含 **11** 个图块（旧记录为 12，以实测为准）；上游就绪后应输出
+   `converted=11 embedded=11` 且断言全过。另跑 GUI 导出 + Word 打开验收（OLE 双击激活、画布一致）。
 4. 记录结果：更新 `docs/M7-合规说明.md` §6 验证表与 `docs/PLAN-04-…md` 附录状态。
 
 **验收**：`pnpm verify`（上游检查 + 真实契约测试）转绿；CLI 输出 `Figures: total=N converted=N embedded=N`；
@@ -140,8 +147,15 @@
    - `style-src 'unsafe-inline'`（Mermaid/KaTeX 运行期注入样式）、`img-src data: blob:`；
    - 开发环境不注入（HMR 需内联脚本与 ws）。
 3. **sandbox: true**（预加载产物仅 `require('electron')`，验证通过）。
-4. **产物内容校验** `scripts/verify-package.cjs`：必需项齐全 / `mmd2vsdx` 0 条 / 无开发依赖 / 无 source map。
-5. **打包回归**：`win-unpacked` 冒烟（新建工程 → 落库 → 导出）通过。
+4. **主进程防护面收敛**（2026-09-09 补）：
+   - `setWindowOpenHandler` 仅放行 `http:`/`https:`/`mailto:`（其余协议拦截并记录）；
+   - `will-navigate` 守卫：渲染层被导航到应用自身以外地址时阻止并转交系统浏览器
+     （开发判定 dev server origin，生产判定 renderer 产物目录）；
+   - `will-attach-webview` 一律拒绝（本应用不使用 webview）；
+   - `setPermissionRequestHandler` / `setPermissionCheckHandler` 默认拒绝一切权限请求
+     （摄像头/麦克风/通知/定位等）。
+5. **产物内容校验** `scripts/verify-package.cjs`：必需项齐全 / `mmd2vsdx` 0 条 / 无开发依赖 / 无 source map。
+6. **打包回归**：`win-unpacked` 冒烟（新建工程 → 落库 → 导出）通过。
 
 **实测结果**
 

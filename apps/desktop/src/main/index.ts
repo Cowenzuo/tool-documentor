@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain, Menu, nativeTheme, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, nativeTheme, session, shell } from 'electron'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { IPC } from '../shared/contract'
 import { registerProjectIpc } from './ipc'
 import { ProjectService } from './services/project-service'
@@ -13,6 +14,36 @@ app.setName('Documentor')
 
 function isDev(): boolean {
   return !app.isPackaged && Boolean(process.env['ELECTRON_RENDERER_URL'])
+}
+
+/** 允许交给系统浏览器打开的外链协议（其余一律拦截） */
+const SAFE_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:'])
+
+function openExternalSafely(rawUrl: string): void {
+  try {
+    const url = new URL(rawUrl)
+    if (!SAFE_EXTERNAL_PROTOCOLS.has(url.protocol)) {
+      console.warn('[security] 已拦截非安全协议外链:', url.protocol)
+      return
+    }
+    void shell.openExternal(rawUrl)
+  } catch {
+    console.warn('[security] 已拦截无法解析的外链')
+  }
+}
+
+/** 渲染层是否停留在应用自身页面（开发：dev server origin；生产：renderer 产物目录） */
+function isInternalUrl(rawUrl: string): boolean {
+  const devUrl = process.env['ELECTRON_RENDERER_URL']
+  if (devUrl) {
+    try {
+      return new URL(rawUrl).origin === new URL(devUrl).origin
+    } catch {
+      return false
+    }
+  }
+  const appRoot = pathToFileURL(join(__dirname, '../renderer')).href
+  return rawUrl.startsWith(appRoot)
 }
 
 function createMainWindow(): void {
@@ -53,10 +84,23 @@ function createMainWindow(): void {
     mainWindow = null
   })
 
-  // 外部链接一律交给系统浏览器
+  // 外链：仅安全协议交给系统浏览器，窗口内一律不打开
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url)
+    openExternalSafely(url)
     return { action: 'deny' }
+  })
+
+  // 导航守卫：阻止渲染层被导航到应用自身以外的地址（点击链接/脚本跳转）
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (!isInternalUrl(url)) {
+      event.preventDefault()
+      openExternalSafely(url)
+    }
+  })
+
+  // 本应用不使用 webview，一律拒绝挂载
+  mainWindow.webContents.on('will-attach-webview', (event) => {
+    event.preventDefault()
   })
 
   if (isDev()) {
@@ -227,6 +271,13 @@ function registerIpc(): void {
 app.whenReady().then(() => {
   // 自绘标题栏：移除默认菜单（macOS 保留原生应用菜单占位，窗口内无菜单栏）
   Menu.setApplicationMenu(null)
+
+  // 权限收敛：本应用不需要摄像头/麦克风/通知/定位等能力，一律拒绝
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    console.info('[security] 拒绝权限请求:', permission)
+    callback(false)
+  })
+  session.defaultSession.setPermissionCheckHandler(() => false)
 
   const manager = buildTemplateManager()
   projectService = new ProjectService(manager)
