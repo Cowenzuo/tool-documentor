@@ -347,11 +347,13 @@ function maxMediaIndex(files: string[]): number {
   return max
 }
 
-function renderImageParagraph(e: EmbeddedImage, docPrId: number): string {
+function renderImageParagraph(e: EmbeddedImage, docPrId: number, styleName: string): string {
   const cx = e.widthEmu
   const cy = e.heightEmu
+  const pStyle =
+    styleName.length > 0 ? `<w:pStyle w:val="${escapeXmlAttr(styleName)}"/>` : ''
   return (
-    '<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:drawing>' +
+    `<w:p><w:pPr>${pStyle}<w:jc w:val="center"/></w:pPr><w:r><w:drawing>` +
     '<wp:inline distT="0" distB="0" distL="0" distR="0">' +
     `<wp:extent cx="${cx}" cy="${cy}"/>` +
     '<wp:effectExtent l="0" t="0" r="0" b="0"/>' +
@@ -391,7 +393,7 @@ function renderInstructions(
       parts.push(renderParagraph(ins.styleName, text, ins.listGroupId, listNumIds))
     } else if (ins.opType === 'InsertImage') {
       const img = addImage(ins.content.srcPath)
-      if (img) parts.push(renderImageParagraph(img, docPrId++))
+      if (img) parts.push(renderImageParagraph(img, docPrId++, ins.content.styleName))
     } else if (ins.opType === 'InsertTable') {
       parts.push(renderTable(ins.content))
     } else if (ins.opType === 'InsertPageBreak') {

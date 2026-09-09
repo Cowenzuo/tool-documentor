@@ -74,7 +74,7 @@ describe('embedVsdxIntoDocx', () => {
       vsdx,
       preview: new Uint8Array([0x01, 0x02, 0x03]),
       previewExt: 'emf'
-    }], { captionStyleId: '60', patchPageSize: true })
+    }], { captionStyleId: '60', figureStyleId: '12', patchPageSize: true })
 
     expect(result.embeddedCount).toBe(1)
     expect(result.warnings).toEqual([])
@@ -87,7 +87,8 @@ describe('embedVsdxIntoDocx', () => {
     expect(doc).toContain('<o:OLEObject Type="Embed" ProgID="Visio.Drawing.15"')
     expect(doc).toContain('<v:imagedata r:id="rId3" o:title=""/>')
     expect(doc).toContain('r:id="rId2"') // OLE 关系
-    expect(doc).toContain('<w:jc w:val="center"/>')
+    // 对象段落套 figure 样式并居中（pStyle 在 pPr 首位）
+    expect(doc).toContain('<w:p><w:pPr><w:pStyle w:val="12"/><w:jc w:val="center"/></w:pPr>')
     expect(doc).toContain('结构图') // 图题注段保留
 
     const rels = await zip.file('word/_rels/document.xml.rels')!.async('string')

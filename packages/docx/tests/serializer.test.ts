@@ -111,6 +111,33 @@ describe('DocxSerializer 指令序列', () => {
     expect(listParas.map((p) => p.listGroupId)).toEqual([1, 1, 2])
   })
 
+  it('图片/图形段落样式：figure 键优先，缺省回退 body（向后兼容）', () => {
+    resetIdCounterForTest()
+    const root = new DocumentNode(0)
+    const section = node(2, '标识')
+    section.contentBlocks.push(
+      { type: 'image', imagePath: 'x.png', caption: '图1 示例' },
+      { type: 'mermaid', code: 'graph TD\nA-->B', caption: '图2 流程' }
+    )
+    root.addChild(section)
+    const tree = new DocumentTree(root)
+    const paraStyles = (s: typeof styleDef): string[] =>
+      serializeToInstructions(tree, s)
+        .filter((i) => i.opType === 'InsertParagraph')
+        .map((i) => i.styleName)
+
+    // 样式表无 figure 键 → 图片/图形占位段落仍用 body（老样式表行为不变）
+    expect(paraStyles(styleDef)).toEqual(['50', '45', '60', '45', '60'])
+    // 提供 figure 键 → 图片/图形段落用它，题注仍用 figure.caption
+    expect(paraStyles({ ...styleDef, styleMap: { ...styleDef.styleMap, figure: '70' } })).toEqual([
+      '50',
+      '70',
+      '60',
+      '70',
+      '60'
+    ])
+  })
+
   it('空的文本/标题不产出段落', () => {
     resetIdCounterForTest()
     const root = new DocumentNode(0)

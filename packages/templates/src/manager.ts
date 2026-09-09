@@ -376,6 +376,8 @@ export class TemplateManager {
 /**
  * 静态推导结构模板所需的逻辑样式键集合（用于样式配对校验）。
  * 规则见 PLAN-03 §2.2：heading.L / subtitle.1..D / body / table.* / figure.caption / list.*
+ * 说明：图片/图形的段落样式键 `figure` 为**可选**键——样式表未提供时按 body 输出（向后兼容），
+ * 因此不列入必需键，避免老样式表被判为不可用。
  */
 export function requiredStyleKeys(def: TemplateDef): string[] {
   const keys = new Set<string>()

@@ -80,6 +80,11 @@ function serializeNode(
     if (!value) warnings.push(`${context}的样式未生效，已按默认样式输出`)
     return value
   }
+  /** 图片/图形段落样式：figure（可选键）→ 缺省回退 body（老样式表向后兼容，不报警） */
+  const figureStyle = (context: string): string => {
+    const value = lookup('figure')
+    return value || look('body', context)
+  }
 
   // === 1. 节点标题 ===
   if (!node.isRoot() && node.title.length > 0) {
@@ -138,10 +143,11 @@ function serializeNode(
       }
       case 'image': {
         const abs = block.imagePath.length > 0 ? resolveImage(block.imagePath) : null
+        const style = figureStyle(`“${node.title}”的图片`)
         if (abs) {
-          out.push({ opType: 'InsertImage', content: { srcPath: abs } })
+          out.push({ opType: 'InsertImage', content: { srcPath: abs, styleName: style } })
         } else if (block.imagePath.length > 0) {
-          out.push(paragraph(look('body', `“${node.title}”的图片`), `[图片: ${block.imagePath}]`, 0))
+          out.push(paragraph(style, `[图片: ${block.imagePath}]`, 0))
         }
         if (block.caption.length > 0) {
           out.push(
@@ -158,7 +164,7 @@ function serializeNode(
         if (block.code.length > 0) {
           out.push(
             paragraph(
-              look('body', `“${node.title}”的流程图`),
+              figureStyle(`“${node.title}”的流程图`),
               `[Mermaid 图表: ${block.code.slice(0, 60)}]`,
               0
             )

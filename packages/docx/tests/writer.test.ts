@@ -9,6 +9,7 @@ import { resetIdCounterForTest } from '@documentor/core/idgen'
 import type { DocumentTree, DocumentNode } from '@documentor/core/tree'
 import { TemplateManager } from '@documentor/templates'
 import { serializeToInstructions, serializeWithWarnings } from '../src/serializer'
+import type { WriteInstruction } from '../src/instructions'
 import { writeDocx } from '../src/writer'
 
 const SAMPLE = fileURLToPath(new URL('../../../resources/test-fixtures/sample-template/', import.meta.url))
@@ -181,6 +182,34 @@ describe('DocxWriter 端到端（合成示例模板骨架）', () => {
     )
     const ct = await zip.file('[Content_Types].xml')!.async('string')
     expect(ct).toContain('<Default Extension="png" ContentType="image/png"/>')
+  })
+
+  it('图片段落套 figure 样式（样式表提供 figure 键时）', async () => {
+    resetIdCounterForTest()
+    const { tree, manager } = loadDemo()
+    const demo = manager.findStructureByName('示例文档模板 (Demo)')!
+    const base = manager.styleForStructure(demo)!
+    const style = { ...base, styleMap: { ...base.styleMap, figure: '119' } }
+
+    writeFileSync(join(dir, 'pic-style.png'), makePng(2, 3))
+    const target = firstContentNode(tree)
+    target.contentBlocks.push({ type: 'image', imagePath: 'pic-style.png', caption: '图1 测试图' })
+
+    const { instructions } = serializeWithWarnings(tree, style, { imageBaseDir: dir })
+    const img = instructions.find(
+      (i): i is Extract<WriteInstruction, { opType: 'InsertImage' }> => i.opType === 'InsertImage'
+    )
+    expect(img).toBeDefined()
+    expect(img!.content.styleName).toBe('119')
+
+    const outputPath = join(dir, 'out-img-style.docx')
+    await writeDocx(instructions, style, outputPath)
+    const zip = await JSZip.loadAsync(readFileSync(outputPath))
+    const documentXml = await zip.file('word/document.xml')!.async('string')
+    // pStyle 必须是 pPr 首个子元素，否则 Word 会忽略
+    expect(documentXml).toContain(
+      '<w:p><w:pPr><w:pStyle w:val="119"/><w:jc w:val="center"/></w:pPr><w:r><w:drawing>'
+    )
   })
 
   it('无工程目录时回退占位文本（CLI/实例 JSON 路径）', () => {

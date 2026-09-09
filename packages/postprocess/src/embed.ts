@@ -34,6 +34,8 @@ export interface FigureInput {
 export interface EmbedVsdxOptions {
   /** figure.caption 的样式 ID（document.xml 中 w:pStyle val）；缺省=取占位后首个非空段 */
   captionStyleId?: string
+  /** figure（图片/图形所在段落）的样式 ID；缺省不加 pStyle（仅居中） */
+  figureStyleId?: string
   /** 是否修补 VSDX 页面尺寸为内容包围盒（默认 true） */
   patchPageSize?: boolean
   /** 内容比例上下限（默认 0.1 / 3.0） */
@@ -218,9 +220,12 @@ export async function embedVsdxIntoDocx(
     const objectId = String(maxObjId + k)
     const block = buildObjectBlock(shapeId, objectId, ridOle, plan.widthPt, plan.heightPt, ridImg, plan.previewExt)
     const m = paras[plan.holderIndex]!
-    // w:object 是 run 级元素，必须包在 w:r 内（否则 Word 不激活 OLE）；对象段落居中
+    // w:object 是 run 级元素，必须包在 w:r 内（否则 Word 不激活 OLE）；对象段落套 figure 样式并居中
+    const figStyle = options.figureStyleId
+      ? `<w:pStyle w:val="${escapeAttr(options.figureStyleId)}"/>`
+      : ''
     const replacement =
-      '<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r>' + block + '</w:r></w:p>'
+      `<w:p><w:pPr>${figStyle}<w:jc w:val="center"/></w:pPr><w:r>` + block + '</w:r></w:p>'
     docXml = docXml.slice(0, m.index) + replacement + docXml.slice(m.index + m[0].length)
   }
 
@@ -278,6 +283,11 @@ function hasStyle(paraXml: string, styleId: string): boolean {
 
 function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/** XML 属性值转义（样式 ID 注入 pStyle 用） */
+function escapeAttr(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
 /** 名称归一化：/ 与 - 互认，去空白 */

@@ -16,6 +16,8 @@ export type WriteInstruction =
       content: {
         /** 图片文件绝对路径（由序列化器按工程目录解析） */
         srcPath: string
+        /** 图片所在段落样式（figure 键；缺省用样式表 body） */
+        styleName: string
       }
     }
   | {

@@ -193,7 +193,8 @@ export async function attachFiguresToDocx(
       previewExt: s.previewExt
     }))
     const embedResult = await embedVsdxIntoDocx(docxBytes, figuresForEmbed, {
-      captionStyleId: options.captionStyleId ?? styleDef.styleMap['figure.caption'] ?? undefined
+      captionStyleId: options.captionStyleId ?? styleDef.styleMap['figure.caption'] ?? undefined,
+      figureStyleId: styleDef.styleMap['figure'] ?? undefined
     })
     stats.embedded = embedResult.embeddedCount
     warnings.push(...embedResult.warnings)
