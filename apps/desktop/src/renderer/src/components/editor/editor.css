@@ -359,6 +359,33 @@
   padding: 3px 6px;
 }
 
+.be-table-merge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--space-3);
+  color: var(--text-2);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  user-select: none;
+}
+
+.be-table-merge input {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.be-table-merge-hint {
+  color: var(--text-3);
+}
+
+/* 被上方合并覆盖的续格：编辑时仍可改，但提示导出后不重复显示 */
+.be-table-cell-merged {
+  background: var(--bg-panel);
+  color: var(--text-3);
+  font-style: italic;
+}
+
 .be-table-grid {
   display: flex;
   flex-direction: column;

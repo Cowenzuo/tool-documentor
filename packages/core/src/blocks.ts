@@ -46,6 +46,11 @@ export interface TableBlockProps {
   headers: string[]
   /** 每行一个单元格数组（行数可与 rows 不同步，以实际为准） */
   data: string[][]
+  /**
+   * 纵向自动合并（默认关闭）：同一列中**连续**且 trim 后非空、内容完全相同的单元格
+   * 合并为一个；表头行不参与。判定规则见 core/table-merge.ts，编辑/预览/导出三处共用。
+   */
+  mergeVertical?: boolean
 }
 
 export interface FormulaBlockProps {
@@ -156,8 +161,8 @@ export function blockFromDb(type: string | number, props: Record<string, unknown
     }
     case 'image':
       return { type: name, imagePath: str(rest['imagePath']), caption: str(rest['caption']) }
-    case 'table':
-      return {
+    case 'table': {
+      const block: TableBlock = {
         type: name,
         caption: str(rest['caption']),
         rows: num(rest['rows']),
@@ -167,6 +172,10 @@ export function blockFromDb(type: string | number, props: Record<string, unknown
           Array.isArray(row) ? row.map((c) => str(c)) : []
         )
       }
+      // 仅在开启时写入属性，保持既有工程 JSON 精简（老数据缺键=关闭）
+      if (rest['mergeVertical'] === true) block.mergeVertical = true
+      return block
+    }
     case 'formula':
       return { type: name, latexCode: str(rest['latexCode']) }
     case 'code':

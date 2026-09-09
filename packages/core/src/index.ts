@@ -33,6 +33,8 @@ export { ProjectStore } from './store'
 export type { ProjectMeta } from './store'
 export { nextNodeId, seedIdCounter, resetIdCounterForTest } from './idgen'
 export { stripCaptionNumber } from './captions'
+export { computeVerticalMerges, countVerticalMerges } from './table-merge'
+export type { TableMergeCell } from './table-merge'
 export { localIsoNow, toLocalIso } from './time'
 export {
   readAnchor,

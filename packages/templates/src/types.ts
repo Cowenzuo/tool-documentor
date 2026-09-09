@@ -14,6 +14,8 @@ export interface TemplateContentBlockDef {
   cols?: number
   headers?: string[]
   data?: string[][]
+  /** 表格纵向自动合并开关（缺省 false），语义见 core TableBlockProps.mergeVertical */
+  mergeVertical?: boolean
   items?: string[]
 }
 

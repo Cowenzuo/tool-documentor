@@ -136,7 +136,8 @@ function serializeNode(
             headers: [...block.headers],
             rowsData: block.data.map((row) => [...row]),
             headerStyle: look('table.header', `“${node.title}”的表格`),
-            bodyStyle: look('table.body', `“${node.title}”的表格`)
+            bodyStyle: look('table.body', `“${node.title}”的表格`),
+            mergeVertical: block.mergeVertical === true
           }
         })
         break

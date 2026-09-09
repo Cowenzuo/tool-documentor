@@ -2,6 +2,7 @@
  * 8 种内容块编辑器（受控组件：value 由父层 NodePage 提供，onChange 即时回传）。
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { computeVerticalMerges, countVerticalMerges } from '@documentor/core/table-merge'
 import type {
   CodeBlock,
   ContentBlock,
@@ -191,6 +192,10 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
     gridRef.current?.querySelector<HTMLElement>(`[data-cell="${rowId}"]`)?.focus()
   }
 
+  // 开关开启时给编辑网格标注：与上方内容相同的续格将被合并（导出/预览不重复显示）
+  const merges = block.mergeVertical === true ? computeVerticalMerges(block.data) : null
+  const mergeCount = merges ? countVerticalMerges(merges) : 0
+
   return (
     <div className="be-table">
       <div className="be-table-top">
@@ -223,6 +228,29 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
           </label>
         </div>
       </div>
+
+      <label
+        className="be-table-merge"
+        title="同一列中连续且内容相同的单元格，预览与导出时合并为一个（表头不参与，空单元格不合并）"
+      >
+        <input
+          type="checkbox"
+          checked={block.mergeVertical === true}
+          onChange={(e) =>
+            onChange(
+              e.target.checked
+                ? { ...block, mergeVertical: true }
+                : { ...block, mergeVertical: undefined }
+            )
+          }
+        />
+        相同内容自动合并（纵向）
+        {block.mergeVertical === true && (
+          <span className="be-table-merge-hint">
+            {mergeCount > 0 ? `已检测到 ${mergeCount} 处合并` : '当前没有可合并的相邻单元格'}
+          </span>
+        )}
+      </label>
 
       <div className="be-table-grid" ref={gridRef}>
         <div className="be-table-row be-table-head">
@@ -261,7 +289,12 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
               <input
                 key={`${r}:${c}`}
                 data-cell={`${r}:${c}`}
-                className="be-table-cell"
+                className={
+                  merges?.[r]?.[c]?.covered === true
+                    ? 'be-table-cell be-table-cell-merged'
+                    : 'be-table-cell'
+                }
+                title={merges?.[r]?.[c]?.covered === true ? '与上方相同，预览/导出时合并' : undefined}
                 value={block.data[r]?.[c] ?? ''}
                 onChange={(e) => setCell(r, c, e.target.value)}
                 onKeyDown={(e) => {

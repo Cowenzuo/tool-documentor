@@ -212,6 +212,74 @@ describe('DocxWriter 端到端（合成示例模板骨架）', () => {
     )
   })
 
+  it('表格纵向合并：同列连续相同内容 → vMerge restart/续格，表头不合并', async () => {
+    resetIdCounterForTest()
+    const { tree, manager } = loadDemo()
+    const demo = manager.findStructureByName('示例文档模板 (Demo)')!
+    const style = manager.styleForStructure(demo)!
+
+    const target = firstContentNode(tree)
+    target.contentBlocks.push({
+      type: 'table',
+      caption: '表1 试验工况表',
+      rows: 5,
+      cols: 3,
+      headers: ['序号', '工况模型', '试验工况'],
+      data: [
+        ['1', '上游1.5m-下游0.5m', '开度30%'],
+        ['2', '上游1.5m-下游0.5m', '开度40%'],
+        ['3', '上游1.5m-下游0.5m', '开度50%'],
+        ['4', '上游1.5m-下游1m', '开度30%'],
+        ['5', '上游1.5m-下游1m', '开度40%']
+      ],
+      mergeVertical: true
+    })
+
+    const instructions = serializeToInstructions(tree, style)
+    const tbl = instructions.find(
+      (i): i is Extract<WriteInstruction, { opType: 'InsertTable' }> => i.opType === 'InsertTable'
+    )
+    expect(tbl!.content.mergeVertical).toBe(true)
+
+    const outputPath = join(dir, 'out-merge.docx')
+    await writeDocx(instructions, style, outputPath)
+    const zip = await JSZip.loadAsync(readFileSync(outputPath))
+    const documentXml = await zip.file('word/document.xml')!.async('string')
+
+    // 两组合并（3 行 + 2 行）：restart 2 个、续格 3 个、合并起点垂直居中 2 个
+    expect(documentXml.match(/<w:vMerge w:val="restart"\/>/g)!).toHaveLength(2)
+    expect(documentXml.match(/<w:vMerge\/>/g)!).toHaveLength(3)
+    expect(documentXml.match(/<w:vAlign w:val="center"\/>/g)!).toHaveLength(2)
+    // 合并内容只出现一次（续格留空段）
+    expect(documentXml.match(/上游1\.5m-下游0\.5m/g)!).toHaveLength(1)
+    // 表头行不参与合并：表头单元格里没有 vMerge
+    const headerRow = /<w:tr>(?:(?!<\/w:tr>)[\s\S])*序号[\s\S]*?<\/w:tr>/.exec(documentXml)!
+    expect(headerRow[0]).not.toContain('vMerge')
+    // vMerge 必须在 tcW 之后
+    expect(documentXml).toContain('<w:tcW w:w="3024" w:type="dxa"/><w:vMerge w:val="restart"/>')
+  })
+
+  it('表格未开启合并时不输出 vMerge', async () => {
+    resetIdCounterForTest()
+    const { tree, manager } = loadDemo()
+    const demo = manager.findStructureByName('示例文档模板 (Demo)')!
+    const style = manager.styleForStructure(demo)!
+    const target = firstContentNode(tree)
+    target.contentBlocks.push({
+      type: 'table',
+      caption: '表1 重复值',
+      rows: 2,
+      cols: 1,
+      headers: [],
+      data: [['同值'], ['同值']]
+    })
+    const outputPath = join(dir, 'out-nomerge.docx')
+    await writeDocx(serializeToInstructions(tree, style), style, outputPath)
+    const zip = await JSZip.loadAsync(readFileSync(outputPath))
+    const documentXml = await zip.file('word/document.xml')!.async('string')
+    expect(documentXml).not.toContain('<w:vMerge')
+  })
+
   it('无工程目录时回退占位文本（CLI/实例 JSON 路径）', () => {
     resetIdCounterForTest()
     const { tree, manager } = loadDemo()

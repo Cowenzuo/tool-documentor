@@ -452,6 +452,7 @@ export function templateBlockToContentBlock(
       block.cols = def.cols ?? 0
       block.headers = [...(def.headers ?? [])]
       block.data = (def.data ?? []).map((row) => [...row])
+      if (def.mergeVertical === true) block.mergeVertical = true
       return block
     }
     case 'formula': {

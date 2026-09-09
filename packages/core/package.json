@@ -22,6 +22,10 @@
       "import": "./src/captions.ts",
       "require": "./dist/captions.js"
     },
+    "./table-merge": {
+      "import": "./src/table-merge.ts",
+      "require": "./dist/table-merge.js"
+    },
     "./time": {
       "import": "./src/time.ts",
       "require": "./dist/time.js"

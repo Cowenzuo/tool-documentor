@@ -29,6 +29,8 @@ export type WriteInstruction =
         rowsData: string[][]
         headerStyle: string
         bodyStyle: string
+        /** 纵向自动合并（同列连续相同内容） */
+        mergeVertical: boolean
       }
     }
   | {

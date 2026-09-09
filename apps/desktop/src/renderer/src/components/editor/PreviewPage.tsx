@@ -3,6 +3,7 @@
  * 排版规则对齐导出：表题注在上、图题注在下且居中；代码/公式高亮渲染。
  */
 import { useEffect, useState } from 'react'
+import { computeVerticalMerges } from '@documentor/core/table-merge'
 import type { ContentBlock } from '@documentor/core/blocks'
 import { useSelectedNode } from '../../state/AppContext'
 import { renderMermaidSvg } from '../../utils/mermaid'
@@ -86,7 +87,9 @@ function PreviewBlock({
           ))}
         </ul>
       )
-    case 'table':
+    case 'table': {
+      // 纵向合并与导出同规则：同列连续相同内容 → rowSpan（被覆盖格不渲染）
+      const merges = block.mergeVertical === true ? computeVerticalMerges(block.data) : null
       return (
         <div className="pv-table-wrap">
           {block.caption && <div className="pv-table-caption">{block.caption}</div>}
@@ -103,15 +106,22 @@ function PreviewBlock({
             <tbody>
               {block.data.map((row, r) => (
                 <tr key={r}>
-                  {row.map((cell, c) => (
-                    <td key={c}>{cell}</td>
-                  ))}
+                  {row.map((cell, c) => {
+                    const m = merges?.[r]?.[c]
+                    if (m?.covered === true) return null
+                    return (
+                      <td key={c} rowSpan={m && m.rowSpan > 1 ? m.rowSpan : undefined}>
+                        {cell}
+                      </td>
+                    )
+                  })}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )
+    }
     case 'image':
       return (
         <ImagePreview block={block} onImageClick={onImageClick} />

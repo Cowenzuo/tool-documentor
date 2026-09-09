@@ -6,6 +6,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import JSZip from 'jszip'
+import { computeVerticalMerges } from '@documentor/core'
 import type { StyleTemplateDef } from '@documentor/templates'
 import type { WriteInstruction } from './instructions'
 import { escapeXmlAttr, escapeXmlText } from './instructions'
@@ -448,17 +449,29 @@ function renderTable(
 
   const grid = `<w:tblGrid>${Array.from({ length: cols }, () => `<w:gridCol w:w="${colWidth}"/>`).join('')}</w:tblGrid>`
 
-  const cell = (text: string, style: string): string => {
+  const merges = c.mergeVertical ? computeVerticalMerges(c.rowsData) : null
+
+  const cell = (text: string, style: string, merge?: 'start' | 'continue'): string => {
     const pPr = style.length > 0 ? `<w:pPr><w:pStyle w:val="${escapeXmlAttr(style)}"/></w:pPr>` : '<w:pPr/>'
+    // vMerge 需排在 tcW 之后；合并块起点加 vAlign=center，续格留空段（Word 约定）
+    const vMergeXml =
+      merge === 'start' ? '<w:vMerge w:val="restart"/>' : merge === 'continue' ? '<w:vMerge/>' : ''
+    const vAlignXml = merge === 'start' ? '<w:vAlign w:val="center"/>' : ''
+    const inner =
+      merge === 'continue'
+        ? `<w:p>${pPr}</w:p>`
+        : `<w:p>${pPr}<w:r><w:t>${escapeXmlText(text)}</w:t></w:r></w:p>`
     return (
       '<w:tc><w:tcPr>' +
       `<w:tcW w:w="${colWidth}" w:type="dxa"/>` +
-      `</w:tcPr><w:p>${pPr}<w:r><w:t>${escapeXmlText(text)}</w:t></w:r></w:p></w:tc>`
+      vMergeXml +
+      vAlignXml +
+      `</w:tcPr>${inner}</w:tc>`
     )
   }
 
   let body = ''
-  // 表头行（仅当表头非空）
+  // 表头行（仅当表头非空；表头不参与纵向合并）
   if (c.headers.length > 0) {
     body += '<w:tr>'
     for (let col = 0; col < cols && col < c.headers.length; col++) {
@@ -471,7 +484,9 @@ function renderTable(
     const row = c.rowsData[r] ?? []
     body += '<w:tr>'
     for (let col = 0; col < cols && col < row.length; col++) {
-      body += cell(row[col] ?? '', c.bodyStyle)
+      const m = merges?.[r]?.[col]
+      const mergeArg = m === undefined || (m.rowSpan <= 1 && !m.covered) ? undefined : m.covered ? 'continue' : 'start'
+      body += cell(row[col] ?? '', c.bodyStyle, mergeArg)
     }
     body += '</w:tr>'
   }
