@@ -41,8 +41,12 @@ pnpm cli:test-export -- <instance.json> [out.docx] --templates <模板目录>   
 pnpm --filter @documentor/docx test:real   # 真实图转换契约测试（需 Chromium）
 pnpm package:dir  # 免安装包：release/win-unpacked（含产物内容校验见下）
 pnpm package      # NSIS 安装包：release/Documentor-<version>-setup.exe
+pnpm e2e          # 生产产物 E2E 冒烟（工作区落 temp/，见下）
 node scripts/verify-package.cjs   # 校验 asar 内容（必需项齐全 / mmd2vsdx 不入包 / 无开发依赖）
 ```
+
+> **临时产物约定**：E2E 工作区、冒烟导出、打包调试等一律放仓库根 `temp/`（.gitignore 忽略），
+> 不写入系统临时目录；`pnpm e2e` 默认跑完即清理，`node scripts/e2e-smoke.cjs --keep` 可保留。
 
 > 模板：软件不内置，由外部目录提供。
 > 本地开发/使用模板放 `localtest/templates/`（.gitignore 忽略、不入库）；

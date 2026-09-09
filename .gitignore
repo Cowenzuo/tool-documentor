@@ -12,6 +12,8 @@ release/
 .probe/
 .tmp*
 *~
+# 统一临时目录（E2E 工作区、冒烟导出、打包调试等；不放系统临时目录）
+temp/
 
 # logs
 *.log
