@@ -8,12 +8,14 @@
  *
  * 运行：
  *   pnpm --filter @documentor/docx test:real                       # 合成夹具（1 图）
- *   DOC_REAL_MMD_TEMPLATE=../tool-documentor-template \
- *   DOC_REAL_MMD_STRUCTURE="<结构模板名>" \
+ *   DOC_REAL_MMD_TEMPLATE="D:\_dev\tool-documentor-template\packages" \
+ *   DOC_REAL_MMD_STRUCTURE="438C-软件设计说明(SDD)" \
  *   pnpm --filter @documentor/docx test:real                       # 本地真实模板（如 438C SDD 12 图）
  *
  * 可选环境变量：
- *   DOC_REAL_MMD_TEMPLATE   模板目录（缺省 = samples/sample-template）
+ *   DOC_REAL_MMD_TEMPLATE   模板目录（缺省 = samples/sample-template）；
+ *                           外部模板包要指到含 manifest.json 的那层，
+ *                           即 tool-documentor-template 的 packages/ 子目录
  *   DOC_REAL_MMD_STRUCTURE  结构模板名（缺省 = 该目录第一个结构模板）
  */
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'

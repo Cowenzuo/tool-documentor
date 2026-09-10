@@ -50,8 +50,10 @@ node scripts/verify-package.cjs   # 校验 asar 内容（必需项齐全 / mmd2v
 > 不写入系统临时目录。`pnpm e2e` 默认跑完即清理，加 `--keep` 可以保留。
 
 > 模板由外部目录提供，软件不内置。
-> 真身在仓库外，由同级目录 `../tool-documentor-template/`（结构与样式两个模板包）单独管理，不属本仓库。
+> 真身在仓库外，由同级目录 `../tool-documentor-template/` 单独管理，不属本仓库；
+> **配置模板目录时要选到它下面的 `packages/`**（`manifest.json` 在那里），不是仓库根。
 > 本仓库的自动化回归与演示只用 `samples/sample-template/`，那是自建的合成模板。
+> 配错一层不会报错，软件只是静默跳过该目录，界面上一片空白——排查先看这里。
 
 > 注：pnpm 11 把构建脚本白名单放在 `pnpm-workspace.yaml` 的 `allowBuilds`。
 > Electron 44 起二进制改为首次运行懒下载，没有 postinstall，第一次 `pnpm dev` 会自动拉取。
