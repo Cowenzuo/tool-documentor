@@ -1,7 +1,7 @@
 {
   "name": "示例文档样式",
   "version": "1.0",
-  "description": "示例样式映射（逻辑样式名 → styles.xml styleId），样式 Id 为通用数字命名",
+  "description": "示例样式映射：逻辑样式名指向 styles.xml 的 styleId，样式 Id 用通用数字命名",
   "docxFolder": "demo-style",
   "styleMap": {
     "heading.1": "49",

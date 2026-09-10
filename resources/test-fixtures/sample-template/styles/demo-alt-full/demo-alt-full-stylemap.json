@@ -1,7 +1,7 @@
 {
   "name": "示例文档样式·完整备选",
   "version": "1.0",
-  "description": "键集完整的备选样式（用于 1:N 关联验证）",
+  "description": "键集完整的备选样式，用于一对多关联验证",
   "docxFolder": "demo-style",
   "styleMap": {
     "heading.1": "49",

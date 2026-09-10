@@ -279,7 +279,7 @@ interface MmdConverter {
 }
 
 /**
- * 上游门面契约（PLAN-05 P0-1 / docs/UPSTREAM-mmd2vsdx.md §3.1）。
+ * 上游门面契约：新形态在包根导出 convertText 与 shutdown，旧形态用 application 对象承载同名方法。
  * 新形态：包根导出 `convertText` / `shutdown`；旧形态：`application` 对象承载同名方法。
  */
 export interface MmdFacade {
@@ -321,7 +321,7 @@ function pickFacade(source: unknown): MmdFacade | null {
  *   1) 新门面：模块根导出 `convertText` / `shutdown`
  *   2) 旧形态：`application` 对象承载同名方法
  *   3) CJS/ESM 互操作：`default` 包裹以上任一形态
- * 均不匹配 → 抛可读错误（含期望契约与文档指针），由调用方降级为文本占位。
+ * 均不匹配 → 抛可读错误（含期望契约与排查入口），由调用方降级为文本导出。
  */
 export function resolveMmdFacade(mod: unknown): MmdFacade {
   const direct = pickFacade(mod)
@@ -334,7 +334,7 @@ export function resolveMmdFacade(mod: unknown): MmdFacade {
     mod && typeof mod === 'object' ? Object.keys(mod as object).join(', ') : `typeof ${typeof mod}`
   throw new Error(
     '上游未提供可用门面（期望 convertText/shutdown，或 application 对象承载）' +
-      `；当前导出：${keys || '（无）'}。见 docs/UPSTREAM-mmd2vsdx.md`
+      `；当前导出：${keys || '无'}。可运行 node scripts/check-upstream.cjs 查看契约差异`
   )
 }
 

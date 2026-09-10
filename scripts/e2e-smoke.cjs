@@ -1,5 +1,5 @@
 /**
- * e2e-smoke.cjs — 生产产物 E2E 冒烟（PLAN-05 P1-2 验收）
+ * e2e-smoke.cjs — 生产产物 E2E 冒烟：起真实 Electron，跑一遍打开工程到导出的主流程。
  *
  * 约定：**所有临时产物落在仓库 `temp/`**（gitignored），不写入系统临时目录。
  * 流程：构建后的渲染层产物 → electron-vite preview 启动 Electron →

@@ -1,3 +1,5 @@
+/** anchor.test.ts — 工程锚点文件读写与目录推导的单测。 */
+
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'

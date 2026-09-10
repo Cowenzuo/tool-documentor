@@ -110,7 +110,7 @@ export async function embedVsdxIntoDocx(
   }
   if (holderIdx.length !== figures.length) {
     warnings.push(
-      `嵌入：占位段 ${holderIdx.length} 个，figure 槽位 ${figures.length} 个，按 min 处理`
+      `图与插入位置数量不一致：文档中 ${holderIdx.length} 处，待嵌入 ${figures.length} 张，按 ${Math.min(holderIdx.length, figures.length)} 张处理`
     )
   }
 

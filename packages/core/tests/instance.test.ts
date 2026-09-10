@@ -1,3 +1,5 @@
+/** instance.test.ts — 实例 JSON 还原成文档树的单测。 */
+
 import { describe, expect, it } from 'vitest'
 import { resetIdCounterForTest } from '../src/idgen'
 import { buildTreeFromInstance } from '../src/instance'

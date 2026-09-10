@@ -1,7 +1,7 @@
 /**
  * ole-streams.ts — Visio OLE 嵌入容器的辅助流常量与构造。
  *
- * 合规背景（详见 docs/PLAN-04 的 M7 合规小节）：
+ * 合规背景：
  *   旧版 visio_ole.py 从“Word 原生嵌入样本”docx（含甲方文档内容的对照文档）中提取
  *   三个辅助流字节。本实现不再依赖任何样本文件：\x01Ole / \x03ObjInfo 是 MS-CFB /
  *   OLE 公共格式的固定结构字节（公开规范可推导）；\x01CompObj 按 [MS-OLEDS] 的

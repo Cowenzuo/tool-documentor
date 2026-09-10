@@ -1,3 +1,8 @@
+/**
+ * contract.ts — 主进程、预加载与渲染层共享的 IPC 契约与数据形状。
+ * 三端引用同一份类型，避免通道名与 DTO 漂移。
+ */
+
 import type {
   DesktopBlockApi,
   DesktopDialogApi,
@@ -17,13 +22,13 @@ import type {
 export type DesktopPlatform = 'win32' | 'darwin' | 'linux'
 
 export const IPC = {
-  /** invoke → AppInfo */
+  /** 调用返回应用信息 */
   AppGetInfo: 'app:get-info',
-  /** send */
+  /** 单向发送，不需要回执 */
   WindowMinimize: 'window:minimize',
   WindowToggleMaximize: 'window:toggle-maximize',
   WindowClose: 'window:close',
-  /** invoke → boolean */
+  /** 调用返回布尔值 */
   WindowIsMaximized: 'window:is-maximized',
   /** main → renderer 推送 */
   WindowMaximizedChanged: 'window:maximized-changed'

@@ -1,3 +1,5 @@
+/** main.tsx — 渲染层入口：挂载 React 根节点与主题 Provider。 */
+
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'

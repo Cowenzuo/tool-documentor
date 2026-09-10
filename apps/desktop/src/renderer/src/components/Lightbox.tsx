@@ -51,7 +51,7 @@ export function Lightbox({
     >
       <div className="lightbox-toolbar">
         <span>{request.title ?? ''}</span>
-        <button type="button" onClick={onClose} aria-label="关闭预览">
+        <button type="button" onClick={onClose} aria-label="关闭">
           <svg viewBox="0 0 16 16" width="14" height="14">
             <path d="m3.5 3.5 9 9M12.5 3.5l-9 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
           </svg>

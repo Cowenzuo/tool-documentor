@@ -71,8 +71,8 @@ export default function TreePanel(): React.JSX.Element {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="搜索节点…"
-          aria-label="搜索节点"
+          placeholder="搜索章节…"
+          aria-label="搜索章节"
         />
       </div>
       <div className="tree-scroll">
@@ -99,7 +99,7 @@ export default function TreePanel(): React.JSX.Element {
             }}
           />
         ))}
-        {root.children.length === 0 && <div className="tree-empty">（模板无章节节点）</div>}
+        {root.children.length === 0 && <div className="tree-empty">模板里还没有章节</div>}
       </div>
 
       {menu && menuNode && (
@@ -117,7 +117,7 @@ export default function TreePanel(): React.JSX.Element {
               setMenu(null)
             }}
           >
-            复制节点
+            复制章节
           </button>
           <button
             role="menuitem"
@@ -128,7 +128,7 @@ export default function TreePanel(): React.JSX.Element {
               setMenu(null)
             }}
           >
-            删除节点
+            删除章节
           </button>
         </div>
       )}

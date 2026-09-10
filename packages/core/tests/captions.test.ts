@@ -1,3 +1,5 @@
+/** captions.test.ts — 题注手写序号剥离规则的单测。 */
+
 import { describe, expect, it } from 'vitest'
 import { stripCaptionNumber } from '../src/captions'
 

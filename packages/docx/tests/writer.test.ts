@@ -1,3 +1,5 @@
+/** writer.test.ts — 写入指令打包成 docx 的端到端单测。 */
+
 import { mkdtempSync, readFileSync, rmSync, existsSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'

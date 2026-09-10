@@ -22,7 +22,7 @@ export function PreviewPage(): React.JSX.Element {
   if (!node) {
     return (
       <main className="node-page node-page-empty">
-        <div className="np-hint">从左侧结构树选择节点进行预览</div>
+        <div className="np-hint">从左侧结构树选择章节查看排版</div>
       </main>
     )
   }
@@ -50,7 +50,7 @@ export function PreviewPage(): React.JSX.Element {
             />
           ))}
           {node.contentBlocks.length === 0 && (
-            <div className="pv-empty">该节点没有内容块</div>
+            <div className="pv-empty">该章节还没有内容</div>
           )}
         </article>
       </div>

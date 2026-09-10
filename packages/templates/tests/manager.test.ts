@@ -1,3 +1,5 @@
+/** manager.test.ts — 模板加载、配对校验与实例化的单测。 */
+
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { resetIdCounterForTest } from '@documentor/core'

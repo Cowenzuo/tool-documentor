@@ -21,7 +21,7 @@ function readTreeWidth(): number {
     const v = Number.parseInt(localStorage.getItem(TREE_WIDTH_KEY) ?? '', 10)
     if (Number.isFinite(v)) return Math.min(TREE_MAX, Math.max(TREE_MIN, v))
   } catch {
-    /* ignore */
+    /* 忽略：读不到宽度就用默认值 */
   }
   return 272
 }
@@ -49,7 +49,7 @@ export default function Editor(): React.JSX.Element {
       try {
         localStorage.setItem(TREE_WIDTH_KEY, String(treeWidthRef.current))
       } catch {
-        /* ignore */
+        /* 忽略：写不进去也不影响本次使用 */
       }
     }
     document.addEventListener('mousemove', onMove)

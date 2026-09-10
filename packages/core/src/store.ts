@@ -75,7 +75,7 @@ export class ProjectStore {
       try {
         this.db.close()
       } catch {
-        /* already closed */
+        /* 已经关闭，忽略 */
       }
       this.db = null
     }
@@ -104,7 +104,7 @@ export class ProjectStore {
     return { name: this.mName, templateName: this.mTemplateName }
   }
 
-  // ================= schema =================
+  // ================= 表结构 =================
 
   private createSchema(): void {
     const db = this.requireDb()
@@ -179,7 +179,7 @@ export class ProjectStore {
       try {
         db.exec('ROLLBACK')
       } catch {
-        /* ignore */
+        /* 忽略：清理失败不影响关闭 */
       }
       throw err
     }

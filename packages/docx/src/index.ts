@@ -1,3 +1,8 @@
+/**
+ * @documentor/docx 对外出口：指令序列化、OOXML 打包与图表嵌入链路。
+ * 这里只做转发。
+ */
+
 export { serializeToInstructions, serializeWithWarnings, collectMermaidFigures } from './serializer'
 export type { SerializeOptions, SerializeResult, MermaidFigureInfo } from './serializer'
 export { writeDocx } from './writer'

@@ -1,3 +1,5 @@
+/** App.tsx — 渲染层根组件，按启动状态在欢迎页、创建向导与编辑器之间切换。 */
+
 import type { JSX } from 'react'
 import TitleBar from './components/TitleBar'
 import { ToastHost } from './components/Toast'

@@ -12,7 +12,7 @@ export default function StatusBar(): React.JSX.Element | null {
   return (
     <footer className="statusbar">
       <div className="statusbar-stats">
-        {stats.nodes} 节点 · {stats.blocks} 内容块
+        {stats.nodes} 章节 · {stats.blocks} 项内容
       </div>
       <div
         className="statusbar-meta"

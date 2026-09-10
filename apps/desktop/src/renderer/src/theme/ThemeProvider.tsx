@@ -1,3 +1,5 @@
+/** ThemeProvider.tsx — 主题上下文：亮色与暗色 token 切换，选择结果写回应用配置。 */
+
 import {
   createContext,
   useCallback,
@@ -78,7 +80,7 @@ export function ThemeProvider({ children }: { children: ReactNode }): JSX.Elemen
         localStorage.setItem(STORAGE_KEY, preference)
       }
     } catch {
-      /* ignore */
+      /* 忽略：读不到配置就回退默认主题 */
     }
   }, [preference])
 

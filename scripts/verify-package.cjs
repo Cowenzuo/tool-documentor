@@ -1,5 +1,5 @@
 /**
- * verify-package.cjs — 打包产物内容校验（PLAN-05 P1-2）
+ * verify-package.cjs — 打包产物内容校验：必需项齐全、上游不入包、无开发依赖泄漏。
  *
  * 校验两件事：
  *   1. 运行必需项存在（out 三段产物 + workspace 库 dist + jszip）；
@@ -7,7 +7,7 @@
  *      同时排除 source map 与开发依赖，避免体积与合规问题）。
  *
  * 前置：先产出解包目录（仓库根执行）
- *   pnpm package:dir        # 需要网络可用（否则见 docs/PLAN-05-修复方案.md P1-2 说明）
+ *   pnpm package:dir        # 需要网络可用；离线时复用本地 Electron 二进制
  * 用法：
  *   node scripts/verify-package.cjs
  */
@@ -52,7 +52,7 @@ function loadAsar() {
 function main() {
   if (!existsSync(ASAR)) {
     console.error(`[verify-package] ✗ 未找到产物：${ASAR}`)
-    console.error('  先执行 pnpm package:dir（详见 docs/PLAN-05-修复方案.md P1-2）')
+    console.error('  先执行 pnpm package:dir，再回来跑本脚本')
     process.exit(1)
   }
   const asar = loadAsar()

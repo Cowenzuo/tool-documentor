@@ -1,3 +1,5 @@
+/** store.test.ts — SQLite 工程存储读写与全量重写的单测。 */
+
 import { mkdtempSync, existsSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'

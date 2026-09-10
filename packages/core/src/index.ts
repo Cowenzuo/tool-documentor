@@ -1,3 +1,8 @@
+/**
+ * @documentor/core 对外出口：内容块模型、文档树、SQLite 工程存储、题注与时间工具。
+ * 这里只做转发，具体实现留在各自文件里。
+ */
+
 export {
   BLOCK_TYPE_NAMES,
   blockTypeIndex,

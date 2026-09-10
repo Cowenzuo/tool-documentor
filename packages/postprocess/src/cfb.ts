@@ -230,7 +230,7 @@ export function buildCompoundFile(
   for (let i = 0; i < dirSectors; i++) {
     putSector(dirStart + i, dirData.subarray(i * sectorSize, (i + 1) * sectorSize))
   }
-  // miniFAT
+  // miniFAT 表：每 mini 扇区 4 字节
   if (nMini > 0) {
     const mf = new Uint8Array(miniFat.length * 4)
     miniFat.forEach((v, i) => setU32(mf, i * 4, v))

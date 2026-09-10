@@ -1,3 +1,5 @@
+/** serializer.test.ts — 文档树转写入指令的序列化单测。 */
+
 import { describe, expect, it } from 'vitest'
 import { resetIdCounterForTest } from '@documentor/core/idgen'
 import { DocumentNode, DocumentTree } from '@documentor/core/tree'

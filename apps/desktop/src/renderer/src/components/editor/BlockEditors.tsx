@@ -145,7 +145,7 @@ export function ImageEditor(props: EditorBaseProps<ImageBlock>): React.JSX.Eleme
         <button
           type="button"
           className="be-image-thumb"
-          title="点击全屏预览"
+          title="点击查看大图"
           onClick={() =>
             props.onPreview?.({ src: thumb, title: block.caption || block.imagePath })
           }
@@ -231,7 +231,7 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
 
       <label
         className="be-table-merge"
-        title="同一列中连续且内容相同的单元格，预览与导出时合并为一个（表头不参与，空单元格不合并）"
+        title="同一列中连续且内容相同的单元格会合并成一个，表头不参与，空单元格不合并"
       >
         <input
           type="checkbox"

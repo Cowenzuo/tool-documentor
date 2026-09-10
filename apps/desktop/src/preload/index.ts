@@ -1,3 +1,8 @@
+/**
+ * preload — contextBridge 类型化桥，把主进程 IPC 暴露成 window.desktopApi。
+ * 沙箱开启时这里只能 require electron，不做其它导入。
+ */
+
 import { contextBridge, ipcRenderer } from 'electron'
 import type { AppInfo, DesktopApi } from '../shared/contract'
 import { IPC } from '../shared/contract'

@@ -1,3 +1,5 @@
+/** table-merge.test.ts — 表格纵向合并判定规则的单测。 */
+
 import { describe, expect, it } from 'vitest'
 import { computeVerticalMerges, countVerticalMerges } from '../src/table-merge'
 

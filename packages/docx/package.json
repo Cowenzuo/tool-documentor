@@ -2,7 +2,7 @@
   "name": "@documentor/docx",
   "version": "0.1.0",
   "private": true,
-  "description": "Documentor DOCX 导出：DocxSerializer（树→写入指令）+ DocxWriter（指令→OOXML 打包）",
+  "description": "Documentor DOCX 导出：序列化器把文档树转成写入指令，writer 把指令打成 OOXML 包",
   "main": "./dist/index.js",
   "types": "./src/index.ts",
   "exports": {

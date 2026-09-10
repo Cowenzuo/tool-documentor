@@ -67,18 +67,18 @@ export function describeBlockType(type: BlockTypeName): string {
     case 'text':
       return '多行文本段落'
     case 'image':
-      return '插入图片（自动生成图题注）'
+      return '插入图片，题注自动生成'
     case 'table':
-      return '表格（表题注显示在表上方）'
+      return '表格，表名显示在表上方'
     case 'formula':
       return '数学公式'
     case 'code':
-      return '代码（带语言标注）'
+      return '代码，带语言标注'
     case 'mermaid':
-      return '流程图/关系图（自动渲染）'
+      return '流程图或关系图，自动渲染'
     case 'orderedList':
-      return '有序列表（每行一项）'
+      return '有序列表，每行一项'
     case 'unorderedList':
-      return '无序列表（每行一项）'
+      return '无序列表，每行一项'
   }
 }

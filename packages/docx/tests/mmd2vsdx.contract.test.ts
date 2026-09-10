@@ -1,5 +1,5 @@
 /**
- * mmd2vsdx.contract.test.ts — 上游真实契约测试（PLAN-05 P0-2 / P0-1 验收夹具）
+ * mmd2vsdx.contract.test.ts — 上游真实契约测试。默认跳过，设 DOC_REAL_MMD=1 才跑。
  *
  * 默认跳过；`DOC_REAL_MMD=1` 时运行（需本机 Chromium，无需 Visio）。
  * 与 figure-export.test.ts 的分工：那里的转换器是**注入的假实现**（覆盖编排分支），
@@ -42,7 +42,7 @@ const TEMPLATE_DIR = (() => {
 })()
 const STRUCTURE_NAME = process.env['DOC_REAL_MMD_STRUCTURE'] || ''
 const HINT =
-  '图嵌入服务不可用——上游 mmd2vsdx 接口可能已变化，见 docs/UPSTREAM-mmd2vsdx.md 与 docs/PLAN-05-修复方案.md P0-1'
+  '图嵌入服务不可用：上游 mmd2vsdx 的接口可能已经变化，先跑 node scripts/check-upstream.cjs 看契约差异'
 
 let dir: string
 

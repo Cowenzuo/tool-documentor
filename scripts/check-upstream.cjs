@@ -1,12 +1,12 @@
 /**
- * check-upstream.cjs — 上游 mmd2vsdx 契约锚定检查（PLAN-05 P0-2）
+ * check-upstream.cjs — 上游 mmd2vsdx 契约锚定检查。上游接口一变，这里就红灯。
  *
  * 目的：让"上游接口漂移"在提交/发布前立刻红灯，而不是被假转换器与优雅降级掩盖。
  * 做法：只做静态检查（读 package.json 与入口文件文本），不 import 上游模块，
  *       因此可在 `pnpm verify` 里快速运行；真实转换行为由
  *       `packages/docx/tests/mmd2vsdx.contract.test.ts`（DOC_REAL_MMD=1）负责。
  *
- * 期望契约（P0-1 完成后的目标形态，见 docs/UPSTREAM-mmd2vsdx.md）：
+ * 期望契约（上游改造完成后应达到的形态）：
  *   - 包根导出可解析，且声明类型（package.json "types" 或 exports["."].types）
  *   - 入口模块导出门面 convertText / shutdown（或导出 application 对象承载两者）
  *
@@ -127,8 +127,8 @@ function main() {
   for (const p of problems) console.error(`  - ${p}`)
   console.error('')
   console.error('  这是"接口已变化"的信号，不是构建故障。')
-  console.error('  处理：按 docs/PLAN-05-修复方案.md P0-1 对齐门面，')
-  console.error('        并更新 docs/UPSTREAM-mmd2vsdx.md 的锚定记录。')
+  console.error('  处理：对齐 packages/docx/src/figure-export.ts 里的门面解析，')
+  console.error('        再按本脚本第 9 行起的期望契约更新。')
   console.error('  注意：当前红灯为预期状态（P0-1 尚未执行）。')
   process.exit(1)
 }

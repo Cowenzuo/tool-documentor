@@ -22,7 +22,7 @@ export function ViewToggle({
       <button
         type="button"
         className={view === 'preview' ? 'active' : ''}
-        title="以文档排版渲染当前节点"
+        title="以文档排版显示当前章节"
         onClick={() => onViewChange('preview')}
       >
         预览

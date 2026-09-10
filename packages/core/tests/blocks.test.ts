@@ -1,3 +1,5 @@
+/** blocks.test.ts — 内容块创建、属性解析与克隆的单测。 */
+
 import { describe, expect, it } from 'vitest'
 import {
   BLOCK_TYPE_NAMES,

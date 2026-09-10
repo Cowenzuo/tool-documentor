@@ -1,3 +1,5 @@
+/** tree.test.ts — 文档树节点增删改查与遍历的单测。 */
+
 import { beforeEach, describe, expect, it } from 'vitest'
 import { resetIdCounterForTest } from '../src/idgen'
 import { DocumentNode, DocumentTree } from '../src/tree'

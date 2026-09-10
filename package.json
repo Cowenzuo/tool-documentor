@@ -3,7 +3,7 @@
   "version": "0.1.0-alpha1",
   "private": true,
   "license": "MIT",
-  "description": "Documentor（模板驱动的结构化 DOCX 文档编辑器）Node.js + Electron 重写版",
+  "description": "Documentor：模板驱动的结构化 DOCX 文档编辑器，Node.js 与 Electron 重写版",
   "engines": {
     "node": ">=22.12.0",
     "pnpm": ">=11"

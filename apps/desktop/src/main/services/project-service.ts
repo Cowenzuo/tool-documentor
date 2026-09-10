@@ -209,10 +209,10 @@ export class ProjectService {
 
   copyNode(input: NodeCopyInput): CopyNodeResult {
     const node = this.requireNode(input.nodeId)
-    if (node.isRoot()) throw new ProjectServiceError('根节点不可复制')
-    if (!node.copyable) throw new ProjectServiceError('该节点不允许复制')
+    if (node.isRoot()) throw new ProjectServiceError('根章节不能复制')
+    if (!node.copyable) throw new ProjectServiceError('该章节不允许复制')
     const parent = node.parent
-    if (!parent) throw new ProjectServiceError('节点无父节点')
+    if (!parent) throw new ProjectServiceError('找不到上级章节')
     const clone = node.deepClone()
     const index = parent.children.indexOf(node) + 1
     parent.insertChildAt(index, clone)
@@ -221,10 +221,10 @@ export class ProjectService {
 
   deleteNode(input: NodeDeleteInput): void {
     const node = this.requireNode(input.nodeId)
-    if (node.isRoot()) throw new ProjectServiceError('根节点不可删除')
-    if (!node.deletable) throw new ProjectServiceError('该节点不允许删除')
+    if (node.isRoot()) throw new ProjectServiceError('根章节不能删除')
+    if (!node.deletable) throw new ProjectServiceError('该章节不允许删除')
     const parent = node.parent
-    if (!parent) throw new ProjectServiceError('节点无父节点')
+    if (!parent) throw new ProjectServiceError('找不到上级章节')
     parent.removeChild(node)
   }
 
@@ -240,7 +240,7 @@ export class ProjectService {
   removeBlock(input: BlockIndexInput): number {
     const node = this.requireNode(input.nodeId)
     if (!node.removeContentBlockAt(input.index)) {
-      throw new ProjectServiceError('内容块索引越界')
+      throw new ProjectServiceError('内容位置不对，请刷新后重试')
     }
     return node.contentBlocks.length
   }
@@ -253,9 +253,9 @@ export class ProjectService {
   updateBlock(input: BlockUpdateInput): void {
     const node = this.requireNode(input.nodeId)
     const existing = node.contentBlocks[input.index]
-    if (!existing) throw new ProjectServiceError('内容块索引越界')
+    if (!existing) throw new ProjectServiceError('内容位置不对，请刷新后重试')
     if (existing.type !== input.block.type) {
-      throw new ProjectServiceError('内容块类型不可变更（请删除后重新添加）')
+      throw new ProjectServiceError('内容类型不能直接改，请删除后重新添加')
     }
     node.contentBlocks[input.index] = structuredClone(input.block)
   }
@@ -366,13 +366,13 @@ export class ProjectService {
 
   private requireNode(nodeId: string): DocumentNode {
     const node = this.requireTree().nodeById(nodeId)
-    if (!node) throw new ProjectServiceError(`节点不存在：${nodeId}`)
+    if (!node) throw new ProjectServiceError('找不到该章节，可能已被删除')
     return node
   }
 
   private assertBlocksAllowed(node: DocumentNode): void {
     if (!node.allowContentBlocks) {
-      throw new ProjectServiceError('该节点不允许内容块')
+      throw new ProjectServiceError('该章节不能添加内容')
     }
   }
 }

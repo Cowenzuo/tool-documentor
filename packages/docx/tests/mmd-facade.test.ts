@@ -1,5 +1,5 @@
 /**
- * mmd-facade.test.ts — 上游门面解析（PLAN-05 P0-1 我方侧准备）
+ * mmd-facade.test.ts — 上游门面解析：三种导出形态都要认，认不出来要给可读错误。
  *
  * 覆盖三种兼容形态与失败诊断，确保上游门面无论以
  * 「新包根导出 / 旧 application 对象 / default 包裹」哪种形式出现，
@@ -48,7 +48,7 @@ describe('resolveMmdFacade', () => {
 
   it('无可用门面：抛出含期望契约与文档指针的错误', () => {
     expect(() => resolveMmdFacade({ renderContract: () => {}, kImplementedKinds: new Set() })).toThrow(
-      /未提供可用门面[\s\S]*UPSTREAM-mmd2vsdx\.md/
+      /未提供可用门面[\s\S]*check-upstream\.cjs/
     )
   })
 

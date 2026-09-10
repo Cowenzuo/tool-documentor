@@ -69,7 +69,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
             <section className="settings-group">
               <h3>模板目录</h3>
               <p className="settings-hint">
-                模板目录需包含 manifest.json；多个目录存在同名模板时，靠前的目录优先。
+                选择包含模板的目录；多个目录存在同名模板时，靠前的目录优先。
               </p>
               <div className="settings-dirs">
                 {cfg.template_dirs.map((dir, i) => (

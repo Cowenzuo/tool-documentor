@@ -1,7 +1,7 @@
 {
   "name": "示例文档样式·缺图题注",
   "version": "1.0",
-  "description": "键集不完整的样式（缺少 figure.caption，用于校验剔除路径验证）",
+  "description": "键集不完整的样式，缺少 figure.caption，用于验证校验剔除路径",
   "docxFolder": "demo-style",
   "styleMap": {
     "heading.1": "49",

@@ -1,3 +1,5 @@
+/** TitleBar.tsx — 无边框窗口标题栏：工程名居中，操作区标 no-drag 保证可点击。 */
+
 import { useEffect, useState } from 'react'
 import { useApp } from '../state/AppContext'
 import { useTheme, type ThemePreference } from '../theme/ThemeProvider'

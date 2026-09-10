@@ -141,7 +141,7 @@ export default function NodePage(): React.JSX.Element {
   if (!node) {
     return (
       <main className="node-page node-page-empty">
-        <div className="np-hint">从左侧结构树选择节点进行编辑</div>
+        <div className="np-hint">从左侧结构树选择章节开始编辑</div>
       </main>
     )
   }
@@ -157,7 +157,7 @@ export default function NodePage(): React.JSX.Element {
               className="np-title"
               defaultValue={node.title}
               key={node.id}
-              aria-label="节点标题"
+              aria-label="章节标题"
               onBlur={(e) => {
                 void setNodeTitle(node.id, e.target.value)
               }}
@@ -172,19 +172,19 @@ export default function NodePage(): React.JSX.Element {
               )}
               <span
                 className={`np-chip${node.copyable ? ' np-chip-ok' : ''}`}
-                title="该节点允许复制"
+                title="该章节允许复制"
               >
                 {node.copyable ? '可复制' : '不可复制'}
               </span>
               <span
                 className={`np-chip${node.deletable ? ' np-chip-ok' : ''}`}
-                title="该节点允许删除"
+                title="该章节允许删除"
               >
                 {node.deletable ? '可删除' : '不可删除'}
               </span>
               <span
                 className={`np-chip${canEditBlocks ? ' np-chip-ok' : ''}`}
-                title="该节点允许添加内容块"
+                title="该章节可添加内容"
               >
                 {canEditBlocks ? '可编辑' : '锁定'}
               </span>
@@ -200,7 +200,7 @@ export default function NodePage(): React.JSX.Element {
           />
 
           {!canEditBlocks && node.contentBlocks.length === 0 ? (
-            <div className="np-block-hint">该模板节点不允许挂内容块</div>
+            <div className="np-block-hint">该模板的章节不能添加内容</div>
           ) : (
             <div className="np-blocks">
               {blocks.map((block, index) => (
@@ -225,7 +225,7 @@ export default function NodePage(): React.JSX.Element {
                     onClick={() => setAddOpen((v) => !v)}
                     aria-expanded={addOpen}
                   >
-                    ＋ 添加内容块
+                    ＋ 添加内容
                   </button>
                   {addOpen && (
                     <div className="np-add-menu">

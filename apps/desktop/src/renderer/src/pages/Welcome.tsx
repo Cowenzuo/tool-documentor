@@ -1,3 +1,5 @@
+/** Welcome.tsx — 欢迎页：品牌区与最近工程面板左右分栏。 */
+
 import { useEffect, useState } from 'react'
 import type { JSX } from 'react'
 import type { AppConfigDto } from '../../../shared/project'

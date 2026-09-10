@@ -43,7 +43,7 @@ export function BlockCard(props: BlockCardProps): React.JSX.Element {
             type="button"
             className="be-icon-btn"
             title="上移"
-            aria-label="上移内容块"
+            aria-label="上移此内容"
             disabled={!canMoveUp}
             onClick={() => onMove(index, -1)}
           >
@@ -55,7 +55,7 @@ export function BlockCard(props: BlockCardProps): React.JSX.Element {
             type="button"
             className="be-icon-btn"
             title="下移"
-            aria-label="下移内容块"
+            aria-label="下移此内容"
             disabled={!canMoveDown}
             onClick={() => onMove(index, 1)}
           >
@@ -66,8 +66,8 @@ export function BlockCard(props: BlockCardProps): React.JSX.Element {
           <button
             type="button"
             className="be-icon-btn danger"
-            title="删除内容块"
-            aria-label="删除内容块"
+            title="删除此内容"
+            aria-label="删除此内容"
             onClick={() => onRemove(index)}
           >
             <svg viewBox="0 0 16 16" width="13" height="13">
