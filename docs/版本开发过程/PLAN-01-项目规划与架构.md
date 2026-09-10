@@ -1,7 +1,7 @@
 # Documentor 重写 · 项目规划与架构（Node.js + Electron 路线）
 
-> 仓库根：`D:\_dev\tool-rwdoc`（全新空仓库）
-> 规格基线：`D:\_dev\documentor\docs\NodeJS路线资料\01~06`（7 份，已通读）
+> 仓库根：本仓库（全新空仓库）
+> 规格基线：旧版 C++/Qt 实现的实测规格 01 到 06（7 份，已通读）
 > 决策记录见文末 §9。
 
 ---
@@ -44,7 +44,7 @@
 
 1. **工程文件兼容**：`documentor.dproj` 锚点 JSON、SQLite 表结构与 C++ 版一致
    （node / content_block / ui_state），新程序必须能直接打开旧版创建的工程。
-   → 用 `D:\_dev\documentor\testproject\`（documentor.db + documentor.dproj）作兼容性回归夹具。
+   → 用旧版工程的测试工程（documentor.db 与 documentor.dproj）作兼容性回归夹具。
 2. **格式语义兼容，模板不外置**：文件格式（dproj/SQLite schema/OOXML 规则）与旧版完全
    兼容；但模板资产（manifest + 结构模板 + 样式骨架）**不随软件分发**（版权考虑）——
    由用户/外部模板目录提供（设置 → 模板目录，manifest 驱动）。本仓库仅含
@@ -224,7 +224,7 @@ tool-rwdoc/
 ## 9. 决策记录
 
 已定（用户拍板）：
-1. 工程落点 = `D:\_dev\tool-rwdoc`（本仓库根，空仓起步）。
+1. 工程落点 = 本仓库根，空仓起步。
 2. 语言 = TypeScript；UI = React + Vite；主题 = 深/浅双主题。
 3. vsdx 后处理与 mmd2vsdx 顺延后期；阶段一止于 DOCX 导出（Mermaid 占位）。
 4. 主布局 = 结构栏 + 节点文档页 + 检查器（PLAN-02 §2 定稿）。

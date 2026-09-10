@@ -6,10 +6,10 @@
 > 样式模板是一份 stylemap 加一个 docx 骨架。出于版权考虑，模板不随软件分发，
 > 由用户提供模板目录，目录里带 manifest.json，软件只提供处理管线。
 > 新增一种文档格式等于新增一套模板注册，不用改代码。
-> 详情见 `docs/PLAN-01-项目规划与架构.md` §1 与 §8。
+> 详情见 `docs/版本开发过程/PLAN-01-项目规划与架构.md` §1 与 §8。
 
-- 规格基线：`D:\_dev\documentor\docs\NodeJS路线资料` 01 到 06，来自 C++/Qt 版的实测规格
-- 设计规划：`docs/PLAN-01-项目规划与架构.md`、`docs/PLAN-02-界面重设计方案.md`
+- 规格基线：旧版 C++/Qt 实现的实测规格 01 到 06，已通读
+- 设计规划：`docs/版本开发过程/PLAN-01-项目规划与架构.md`、`docs/版本开发过程/PLAN-02-界面重设计方案.md`
 - 里程碑：见 PLAN-01 §6，从 M0 骨架一路到 M7 图嵌入链路，mmd2vsdx 最后做
 
 ## 技术栈
@@ -60,15 +60,15 @@ node scripts/verify-package.cjs   # 校验 asar 内容（必需项齐全 / mmd2v
 | 项 | 说明 |
 |---|---|
 | 模板目录 | 由用户提供，每个目录含 manifest.json；软件不内置模板 |
-| 图转换 | Mermaid 转 Visio 对象嵌入依赖上游 `mmd2vsdx` 与本机 Chromium，开发期用 `link:` 指到本机目录。发行包不含上游，版权边界见 `docs/M7-合规说明.md` §3.2；上游缺失时导出照常成功，图以文本形式呈现 |
-| 上游接口 | 唯一消费点是 `packages/docx/src/figure-export.ts`，契约与同步清单见 `docs/UPSTREAM-mmd2vsdx.md` |
-| 已知状态 | 上游 2026-09-09 重构后接口已变，图嵌入待修复，见 `docs/PLAN-05-修复方案.md`；`pnpm verify` 的上游检查当前是预期红灯 |
+| 图转换 | Mermaid 转 Visio 对象嵌入依赖上游 `mmd2vsdx` 与本机 Chromium，开发期用 `link:` 指到本机目录。发行包不含上游，版权边界见 `docs/版本开发过程/M7-合规说明.md` §3.2；上游缺失时导出照常成功，图以文本形式呈现 |
+| 上游接口 | 唯一消费点是 `packages/docx/src/figure-export.ts`，契约与同步清单见 `docs/版本开发过程/UPSTREAM-mmd2vsdx.md` |
+| 已知状态 | 上游 2026-09-09 重构后接口已变，图嵌入待修复，见 `docs/版本开发过程/PLAN-05-修复方案.md`；`pnpm verify` 的上游检查当前是预期红灯 |
 
 ## 打包与安全
 
 - **打包**：`pnpm package` 出 NSIS 安装包，`pnpm package:dir` 出免安装目录，配置在 `apps/desktop/electron-builder.yml`。
 - **分发边界**：发行包不含 `mmd2vsdx`。它的产物内嵌官方 Visio 母版 XML，属 Microsoft 许可内容，
-  见 `docs/M7-合规说明.md` §3.2。打包后用 `node scripts/verify-package.cjs` 复核。
+  见 `docs/版本开发过程/M7-合规说明.md` §3.2。打包后用 `node scripts/verify-package.cjs` 复核。
 - **生产 CSP**：构建期注入 `<meta http-equiv="Content-Security-Policy">`，防闪烁的那段内联脚本用
   sha256 哈希放行。开发环境不注入，因为 HMR 需要内联脚本与 ws。
 - **沙箱**：`webPreferences.sandbox: true`，预加载产物只 `require('electron')`。

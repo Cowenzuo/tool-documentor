@@ -1,13 +1,13 @@
 # M7 图嵌入链路实施方案（mmd2vsdx 集成 · 评审稿）
 
-> 状态：**方案评审稿**——用户偏好"把 D:\_dev\tool-mmd2vsdx 的包直接安装过来"（对方已预留导入机制）。
+> 状态：**方案评审稿**，采纳"把上游 mmd2vsdx 的包直接安装过来"的做法，上游已预留导入机制。
 > 目标：Mermaid 图 → VSDX →（预览图）→ OLE 嵌入 docx，产出最终交付文档；纯文件格式操作，不依赖 Word/Visio COM（EMF 预览可选 Visio COM，另有零依赖兜底）。
 
 ---
 
 ## 1. 上游工具现状（已核实）
 
-`D:\_dev\tool-mmd2vsdx`（纯 Node/TS 版 mmd2vsdx）：
+上游 mmd2vsdx，纯 Node/TS 版：
 
 - 包名 `mmd2vsdx`（**private: true 未发布 npm**），ESM 包（type: module），node ≥22.2；
   `main=dist/app/application.js`、`bin=dist/cli.js`、类型齐全（`import { application } from 'mmd2vsdx'` 有完整 TS 类型）；
@@ -29,7 +29,7 @@
 | 方案 | 做法 | 优点 | 缺点 |
 |---|---|---|---|
 | **A. pnpm `file:` 依赖（推荐起步）** | desktop `"mmd2vsdx": "file:../../../tool-mmd2vsdx"`（符号链接式） | 文件级共享、上游改码即生效；其 dist 已 build（不依赖 prepare）；pnpm 统一装其依赖到我们 lock | 绑定本机路径；**不可随包分发**（需在分发阶段改用 B/发布） |
-| **B. git submodule（vendor 化，推荐长期）** | `git submodule add D:/_dev/tool-mmd2vsdx vendor/mmd2vsdx` + pnpm workspace 纳入 | 版本指针可追踪、可随我们仓库分发（其官方模具资产本就不入上游 git） | 多一步 submodule 管理；并入后其测试/资产进入我们工作树（可 .gitignore 其 tests/assets 不打包） |
+| **B. git submodule（vendor 化，推荐长期）** | `git submodule add <上游仓库> vendor/mmd2vsdx` 加 pnpm workspace 纳入 | 版本指针可追踪、可随我们仓库分发（其官方模具资产本就不入上游 git） | 多一步 submodule 管理；并入后其测试/资产进入我们工作树（可 .gitignore 其 tests/assets 不打包） |
 | **C. 私有 registry 发布** | 上游 `private:true` 放开为私有 npm 发布 | 最正规 | 需对方发布流程；现阶段不必要 |
 
 > ★ 建议：**A 起步跑通全链路 → B（submodule）固化**；任一方案下**官方模具资产都不入我们仓库**——运行时按上游分级供给（本机 Visio / stencil-dir / 私有 asset 文件）或纯本地模式。

@@ -227,7 +227,7 @@ P0-1 上游门面 + 我方适配 ──→ P0-1 真实回归（12 图 + Word）
 | P0-2 | `DOC_REAL_MMD=1 pnpm --filter @documentor/docx test` | 真实转换契约测试通过 |
 | P0-2 | `pnpm verify`（人为改坏上游 exports 后） | 非零退出且指出差异 |
 | P0-3 | 发行包清单核对 | 不含上游 dist / 官方母版内容 |
-| P1-1 | 干净目录 `pnpm install && pnpm verify` | 全绿（无需本机 `D:\_dev\tool-mmd2vsdx`） |
+| P1-1 | 干净目录 `pnpm install && pnpm verify` | 全绿（无需本机上游检出） |
 | P1-2 | 安装包启动 + `DOC_E2E` 冒烟 | 主流程通过；生产 CSP 生效且页面无告警阻断 |
 | P2 | 文档一致性走查 | 无与现状矛盾的断言；`pnpm verify` 全绿 |
 
