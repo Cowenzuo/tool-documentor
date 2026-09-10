@@ -14,7 +14,7 @@ import { serializeToInstructions, serializeWithWarnings } from '../src/serialize
 import type { WriteInstruction } from '../src/instructions'
 import { writeDocx } from '../src/writer'
 
-const SAMPLE = fileURLToPath(new URL('../../../resources/test-fixtures/sample-template/', import.meta.url))
+const SAMPLE = fileURLToPath(new URL('../../../samples/sample-template/', import.meta.url))
 let dir: string
 
 beforeAll(() => {

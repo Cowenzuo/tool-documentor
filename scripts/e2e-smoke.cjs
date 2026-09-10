@@ -18,7 +18,7 @@ const { join, resolve } = require('node:path')
 
 const ROOT = resolve(__dirname, '..')
 const TEMP_ROOT = join(ROOT, 'temp')
-const FIXTURE = join(ROOT, 'resources', 'test-fixtures', 'sample-template')
+const FIXTURE = join(ROOT, 'samples', 'sample-template')
 const TIMEOUT_MS = 180_000
 
 function parseArgs(argv) {

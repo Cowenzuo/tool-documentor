@@ -157,7 +157,7 @@ describe('ProjectStore ui_state 与 meta', () => {
 describe('sample-project 兼容：打开合成样例工程', () => {
   const fixture = join(
     __dirname,
-    '../../../resources/test-fixtures/sample-project'
+    '../../../samples/sample-project'
   )
 
   it('完整加载样例工程（6 节点/4 块）且内容正确', () => {

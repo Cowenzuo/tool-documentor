@@ -13,7 +13,7 @@ import type { DocumentTree, DocumentNode } from '@documentor/core/tree'
 import { parseCompoundFile } from '@documentor/postprocess'
 import { exportTreeToDocx, attachFiguresToDocx, exportTreeToDocxWithFigures } from '../src/index'
 
-const SAMPLE = fileURLToPath(new URL('../../../resources/test-fixtures/sample-template/', import.meta.url))
+const SAMPLE = fileURLToPath(new URL('../../../samples/sample-template/', import.meta.url))
 let dir: string
 
 beforeAll(() => {

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { resetIdCounterForTest } from '@documentor/core'
 import { TemplateManager, requiredStyleKeys } from '../src/manager'
 
-const SAMPLE = fileURLToPath(new URL('../../../resources/test-fixtures/sample-template/', import.meta.url))
+const SAMPLE = fileURLToPath(new URL('../../../samples/sample-template/', import.meta.url))
 
 function createManager(): TemplateManager {
   const mgr = new TemplateManager()
@@ -13,7 +13,7 @@ function createManager(): TemplateManager {
   return mgr
 }
 
-describe('示例模板资产加载（resources/test-fixtures/sample-template，合成无版权数据）', () => {
+describe('示例模板资产加载（samples/sample-template，合成无版权数据）', () => {
   it('加载 1 结构 + 3 样式（双 key 注册）', () => {
     const mgr = createManager()
     const structures = mgr.listStructures()

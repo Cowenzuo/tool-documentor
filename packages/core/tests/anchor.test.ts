@@ -59,7 +59,7 @@ describe('工程锚点 documentor.dproj', () => {
   it('解析合成样例工程锚点', () => {
     const fixtureDir = join(
       __dirname,
-      '../../../resources/test-fixtures/sample-project'
+      '../../../samples/sample-project'
     )
     const anchor = readAnchor(fixtureDir)
     expect(anchor).not.toBeNull()

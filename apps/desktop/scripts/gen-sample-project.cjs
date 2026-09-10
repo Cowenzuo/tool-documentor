@@ -6,7 +6,7 @@ const { mkdirSync, rmSync } = require('node:fs')
 const { join } = require('node:path')
 const core = require('@documentor/core')
 
-const dir = join(__dirname, '..', '..', '..', 'resources', 'test-fixtures', 'sample-project')
+const dir = join(__dirname, '..', '..', '..', 'samples', 'sample-project')
 rmSync(dir, { recursive: true, force: true })
 mkdirSync(dir, { recursive: true })
 

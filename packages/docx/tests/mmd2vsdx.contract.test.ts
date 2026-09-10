@@ -8,12 +8,12 @@
  *
  * 运行：
  *   pnpm --filter @documentor/docx test:real                       # 合成夹具（1 图）
- *   DOC_REAL_MMD_TEMPLATE=localtest/templates \
+ *   DOC_REAL_MMD_TEMPLATE=../tool-documentor-template \
  *   DOC_REAL_MMD_STRUCTURE="<结构模板名>" \
  *   pnpm --filter @documentor/docx test:real                       # 本地真实模板（如 438C SDD 12 图）
  *
  * 可选环境变量：
- *   DOC_REAL_MMD_TEMPLATE   模板目录（缺省 = resources/test-fixtures/sample-template）
+ *   DOC_REAL_MMD_TEMPLATE   模板目录（缺省 = samples/sample-template）
  *   DOC_REAL_MMD_STRUCTURE  结构模板名（缺省 = 该目录第一个结构模板）
  */
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
@@ -31,9 +31,7 @@ import { exportTreeToDocxWithFigures } from '../src/index'
 
 const REAL = process.env['DOC_REAL_MMD'] === '1'
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
-const FIXTURE = fileURLToPath(
-  new URL('../../../resources/test-fixtures/sample-template/', import.meta.url)
-)
+const FIXTURE = fileURLToPath(new URL('../../../samples/sample-template/', import.meta.url))
 /** 相对路径按仓库根解析（测试 cwd 是 packages/docx，不是仓库根） */
 const TEMPLATE_DIR = (() => {
   const raw = process.env['DOC_REAL_MMD_TEMPLATE']
