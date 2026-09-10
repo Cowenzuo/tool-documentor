@@ -293,7 +293,7 @@ app.whenReady().then(() => {
   })
   session.defaultSession.setPermissionCheckHandler(() => false)
 
-  const manager = buildTemplateManager()
+  const { manager } = buildTemplateManager()
   projectService = new ProjectService(manager)
   registerProjectIpc(projectService)
   registerIpc()

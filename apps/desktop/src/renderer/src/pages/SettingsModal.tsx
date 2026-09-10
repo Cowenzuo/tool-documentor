@@ -1,23 +1,38 @@
 /**
  * 设置对话框：默认工程目录 + 模板目录列表（增删/浏览；保存后主进程即时重载模板）。
+ * 同时显示每个模板目录的加载结果——配错一层目录时，这里要说清为什么没加载到。
  */
 import { useEffect, useState } from 'react'
-import type { AppConfigDto } from '../../../shared/project'
+import type { AppConfigDto, TemplateLoadReport } from '../../../shared/project'
 import { useApp } from '../state/AppContext'
 
 export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.Element {
   const { showToast } = useApp()
   const [cfg, setCfg] = useState<AppConfigDto | null>(null)
   const [saving, setSaving] = useState(false)
+  const [report, setReport] = useState<TemplateLoadReport | null>(null)
+
+  const refreshReport = async (): Promise<void> => {
+    try {
+      setReport(await window.documentor.templates.diagnose())
+    } catch {
+      setReport(null)
+    }
+  }
 
   useEffect(() => {
     void window.documentor.settings.get().then(setCfg)
+    void refreshReport()
   }, [])
 
   const browseDir = async (onPick: (path: string) => void): Promise<void> => {
     const dir = await window.documentor.dialog.selectDirectory()
     if (dir) onPick(dir)
   }
+
+  /** 找出某个目录的加载结果（按路径原样比对；大小写与斜杠差异交给主进程侧） */
+  const reportFor = (dir: string): TemplateLoadReport['dirs'][number] | undefined =>
+    report?.dirs.find((d) => d.dir === dir)
 
   const save = async (): Promise<void> => {
     if (!cfg) return
@@ -27,6 +42,8 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
         default_project_dir: cfg.default_project_dir,
         template_dirs: cfg.template_dirs
       })
+      // 保存后主进程已重载模板，立刻刷新加载结果
+      await refreshReport()
       showToast({ kind: 'info', text: '设置已保存' })
       onClose()
     } catch (err) {
@@ -70,40 +87,72 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
               <h3>模板目录</h3>
               <p className="settings-hint">
                 选择包含模板的目录；多个目录存在同名模板时，靠前的目录优先。
+                <br />
+                要选到<b>含 manifest.json 的那一层</b>——模板仓库里是 packages/ 子目录，不是仓库根。
               </p>
               <div className="settings-dirs">
-                {cfg.template_dirs.map((dir, i) => (
-                  <div key={`${dir}-${i}`} className="w-row">
-                    <input
-                      value={dir}
-                      onChange={(e) => {
-                        const next = [...cfg.template_dirs]
-                        next[i] = e.target.value
-                        setCfg({ ...cfg, template_dirs: next })
-                      }}
-                    />
-                    <button
-                      type="button"
-                      className="be-btn"
-                      onClick={() => void browseDir((d) => {
-                        const next = [...cfg.template_dirs]
-                        next[i] = d
-                        setCfg({ ...cfg, template_dirs: next })
-                      })}
-                    >
-                      浏览…
-                    </button>
-                    <button
-                      type="button"
-                      className="be-btn danger-text"
-                      onClick={() =>
-                        setCfg({ ...cfg, template_dirs: cfg.template_dirs.filter((_, j) => j !== i) })
-                      }
-                    >
-                      移除
-                    </button>
-                  </div>
-                ))}
+                {cfg.template_dirs.map((dir, i) => {
+                  const r = dir.trim() ? reportFor(dir) : undefined
+                  let status: string | null = null
+                  let bad = false
+                  if (r) {
+                    if (!r.exists) {
+                      status = '目录不存在'
+                      bad = true
+                    } else if (!r.hasManifest) {
+                      status = '没有 manifest.json，该目录会被整个跳过'
+                      bad = true
+                    } else if (r.loadFailed) {
+                      status = '未加载到任何模板'
+                      bad = true
+                    } else {
+                      status = `已加载 ${r.structures} 套结构、${r.styles} 套样式`
+                    }
+                  }
+                  return (
+                    <div key={`${dir}-${i}`}>
+                      <div className="w-row">
+                        <input
+                          value={dir}
+                          onChange={(e) => {
+                            const next = [...cfg.template_dirs]
+                            next[i] = e.target.value
+                            setCfg({ ...cfg, template_dirs: next })
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="be-btn"
+                          onClick={() => void browseDir((d) => {
+                            const next = [...cfg.template_dirs]
+                            next[i] = d
+                            setCfg({ ...cfg, template_dirs: next })
+                          })}
+                        >
+                          浏览…
+                        </button>
+                        <button
+                          type="button"
+                          className="be-btn danger-text"
+                          onClick={() =>
+                            setCfg({ ...cfg, template_dirs: cfg.template_dirs.filter((_, j) => j !== i) })
+                          }
+                        >
+                          移除
+                        </button>
+                      </div>
+                      {status && (
+                        <p
+                          className="settings-hint"
+                          style={{ margin: '2px 0 0 0', color: bad ? 'var(--danger)' : undefined }}
+                        >
+                          {status}
+                          {r && r.reasons.length > 0 ? `：${r.reasons.slice(0, 3).join('；')}` : ''}
+                        </p>
+                      )}
+                    </div>
+                  )
+                })}
                 <button
                   type="button"
                   className="be-btn"
@@ -112,6 +161,11 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
                   ＋ 添加模板目录
                 </button>
               </div>
+              {report && !report.loadedAny && cfg.template_dirs.some((d) => d.trim()) && (
+                <p className="settings-hint" style={{ color: 'var(--danger)' }}>
+                  当前一套模板都没加载到，新建工程向导会是空的。
+                </p>
+              )}
             </section>
           </div>
         )}

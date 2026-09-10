@@ -21,6 +21,7 @@ import type {
   StyleCandidateDto,
   StyleTemplateDto,
   StructureTemplateDto,
+  TemplateLoadReport,
   UiStateKeyInput
 } from '../shared/project'
 import { ProjectIpc } from '../shared/project'
@@ -185,14 +186,16 @@ export function registerProjectIpc(service: ProjectService): void {
   })
 
   handle<Partial<AppConfigDto>, void>(ProjectIpc.SettingsSet, (patch) => {
-    // 模板目录变更即时生效：重建 TemplateManager 并替换服务引用
-    service.setManager(buildTemplateManager())
+    // 先落盘再重建：buildTemplateManager 读的是 settings.template_dirs，
+    // 顺序反了会让新加的目录到下一次保存才生效
     const current = loadAppSettings()
     saveAppSettings({
       ...current,
       default_project_dir: patch.default_project_dir ?? current.default_project_dir,
       template_dirs: patch.template_dirs ?? current.template_dirs
     })
+    // 模板目录变更即时生效：重建 TemplateManager 并替换服务引用
+    service.setManager(buildTemplateManager().manager)
   })
 
   handle<void, StructureTemplateDto[]>(ProjectIpc.TemplatesListStructures, () =>
@@ -219,6 +222,8 @@ export function registerProjectIpc(service: ProjectService): void {
       fileKey: s.fileKey
     }))
   )
+
+  handle<void, TemplateLoadReport>(ProjectIpc.TemplatesDiagnose, () => buildTemplateManager().report)
 
   handle<string, StyleCandidateDto[]>(ProjectIpc.TemplatesStyleCandidates, (structureName) => {
     const def = service.getManager().findStructureByName(structureName)

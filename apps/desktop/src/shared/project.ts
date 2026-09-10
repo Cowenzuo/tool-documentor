@@ -99,6 +99,27 @@ export interface AppConfigDto {
   recents: string[]
 }
 
+/** 单个模板目录的加载结果（供设置界面与新建向导显示「为什么没加载到」） */
+export interface TemplateDirReport {
+  dir: string
+  exists: boolean
+  hasManifest: boolean
+  structures: number
+  styles: number
+  /** 该目录一套都没加载到 */
+  loadFailed: boolean
+  /** 已经翻译成用户可读的原因；空数组表示没被跳过任何条目 */
+  reasons: string[]
+}
+
+/** 模板加载总览 */
+export interface TemplateLoadReport {
+  dirs: TemplateDirReport[]
+  structures: number
+  styles: number
+  loadedAny: boolean
+}
+
 export interface UiStateSave {
   key: string
   value: string
@@ -143,6 +164,8 @@ export const ProjectIpc = {
   TemplatesListStyles: 'templates:list-styles',
   /** 结构模板的样式候选（1:N + 校验可用性） */
   TemplatesStyleCandidates: 'templates:style-candidates',
+  /** 模板加载总览：配了哪些目录、各自加载到几套、没加载到的原因 */
+  TemplatesDiagnose: 'templates:diagnose',
   /** 导出 DOCX */
   ExportDocx: 'export:docx',
   /** 当前文档的 Mermaid 图块数（导出对话框提示用） */
@@ -266,6 +289,8 @@ export interface DesktopTemplatesApi {
   listStyles(): Promise<StyleTemplateDto[]>
   /** 结构模板的样式候选（含可用性校验） */
   styleCandidates(structureName: string): Promise<StyleCandidateDto[]>
+  /** 模板加载总览：配了哪些目录、各自加载到几套、没加载到的原因 */
+  diagnose(): Promise<TemplateLoadReport>
 }
 
 export type FigureEmbedMode = 'embed' | 'embed-preview'
