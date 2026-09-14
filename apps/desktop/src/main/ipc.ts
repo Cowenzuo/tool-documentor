@@ -13,6 +13,7 @@ import type {
   CreateProjectInput,
   ExportDocxInput,
   FileWriteBytesInput,
+  FigureCountsDto,
   ImageImportInput,
   NodeCopyInput,
   NodeDeleteInput,
@@ -244,5 +245,5 @@ export function registerProjectIpc(service: ProjectService): void {
     ProjectIpc.ExportDocx,
     (input) => service.exportDocx(input)
   )
-  handle<void, number>(ProjectIpc.ExportFiguresCount, () => service.countMermaidFigures())
+  handle<void, FigureCountsDto>(ProjectIpc.ExportFigureCounts, () => service.figureCounts())
 }

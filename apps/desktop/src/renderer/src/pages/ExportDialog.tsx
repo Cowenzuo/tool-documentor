@@ -4,7 +4,7 @@
  * 全部不可用 → 导出禁用 + 提示）。
  */
 import { useEffect, useMemo, useState } from 'react'
-import type { StyleCandidateDto } from '../../../shared/project'
+import type { FigureCountsDto, StyleCandidateDto } from '../../../shared/project'
 import { useApp } from '../state/AppContext'
 
 export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.Element {
@@ -13,7 +13,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
   const [styleFileKey, setStyleFileKey] = useState('')
   const [outputPath, setOutputPath] = useState('')
   const [format, setFormat] = useState<'docx' | 'md'>('docx')
-  const [figureCount, setFigureCount] = useState<number | null>(null)
+  const [figures, setFigures] = useState<FigureCountsDto | null>(null)
   const [busy, setBusy] = useState(false)
 
   const info = session?.info
@@ -26,10 +26,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
         list.find((c) => c.isDefault && c.available) ?? list.find((c) => c.available)
       setStyleFileKey(preferred?.fileKey ?? '')
     })
-    void window.documentor.export.figuresCount().then(
-      (n) => setFigureCount(n),
-      () => setFigureCount(-1) // 主进程未重启等导致查询失败：隐藏提示但不阻塞
-    )
+    void window.documentor.export.figureCounts().then(setFigures, () => setFigures(null))
     setOutputPath(`${info.projectDir.replace(/\\/g, '/')}/${info.name}.docx`)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -55,27 +52,34 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
         styleFileKey,
         outputPath: outputPath.trim()
       })
+      const f = result.figures
+      const failCount = f?.failed.length ?? 0
       const warnText = result.warnings.length > 0 ? `；${result.warnings.length} 处警告` : ''
+      // 只有"确有失败"才用红色；成功但有提醒用琥珀色；一切正常用中性色
+      const kind = failCount > 0 ? 'error' : result.warnings.length > 0 ? 'warn' : 'info'
       let figureText = ''
-      if (result.figures) {
-        const f = result.figures
-        figureText = f.total === 0 ? '' : `（含 ${f.total} 张图）`
+      if (f && f.total > 0) {
+        if (f.unavailable) {
+          // 转换服务整体不可用：total 张全都没嵌进去，不能让人以为正文里有图
+          figureText = f.total === 1 ? '（流程图已按文本导出）' : `（${f.total} 张图已按文本导出）`
+        } else if (failCount === f.total) {
+          figureText = f.total === 1 ? '（流程图已按文本导出）' : `（${f.total} 张图已按文本导出）`
+        } else if (failCount > 0) {
+          figureText = `（含 ${f.embedded} 张图，另有 ${failCount} 张失败）`
+        } else if (f.embedded > 0) {
+          figureText = `（含 ${f.embedded} 张图）`
+        }
       }
       const failText =
-        result.figures && result.figures.failed.length > 0
-          ? `；${result.figures.failed.length} 张图嵌入失败：${result.figures.failed
+        failCount > 0
+          ? `；未能嵌入：${f!.failed
               .slice(0, 3)
               .map((x) => `${x.caption}`)
               .join('、')}`
           : ''
-      const failCount = result.figures?.failed.length ?? 0
       showToast({
-        // 只有"确有失败"才用红色；成功但有提醒用琥珀色；一切正常用中性色
-        kind: failCount > 0 ? 'error' : result.warnings.length > 0 ? 'warn' : 'info',
-        text:
-          `已导出 DOCX` +
-          figureText + warnText + failText +
-          `\n${result.outputPath}`
+        kind,
+        text: `已导出 DOCX` + figureText + warnText + failText + `\n${result.outputPath}`
       })
       onClose()
     } catch (err) {
@@ -110,7 +114,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
             </label>
             <label className="export-radio export-radio-disabled">
               <input type="radio" disabled checked={false} />
-              Markdown <span className="settings-hint">（功能预留）</span>
+              Markdown
             </label>
           </section>
 
@@ -128,7 +132,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
                     key={c.fileKey}
                     value={c.fileKey}
                     disabled={!c.available}
-                    title={c.available ? c.description : `不可用：${c.missingKeys.join('、')}`}
+                    title={c.available ? c.name : `不可用：${c.missingKeys.join('、')}`}
                   >
                     {c.name} · v{c.version || '1.0'}
                     {c.isDefault ? '（默认）' : ''}
@@ -139,26 +143,29 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
             </div>
             {!anyAvailable && (
               <p className="settings-hint export-style-desc">
-                该结构模板没有可用的样式模板，无法导出。
                 {candidates.length > 0
-                  ? `缺失明细：${candidates.map((c) => `${c.name}(${c.missingKeys.join('、')})`).join('；')}`
-                  : '请检查结构模板声明的 styleTemplates。'}
+                  ? `样式与结构不匹配，缺少：${candidates
+                      .map((c) => c.missingKeys.join('、'))
+                      .join('；')}`
+                  : '结构模板未声明样式模板，请检查其 styleTemplates。'}
               </p>
-            )}
-            {anyAvailable && selected?.description && (
-              <p className="settings-hint export-style-desc">{selected.description}</p>
             )}
           </section>
 
           <section className="settings-group">
             <h3>图表嵌入</h3>
-            {figureCount !== null && figureCount > 0 && (
+            {figures && (figures.images > 0 || figures.mermaid > 0) ? (
               <p className="settings-hint export-style-desc">
-                导出时将一并嵌入 <strong>{figureCount}</strong> 张图。
+                文档含 {figures.images} 张图片、{figures.mermaid} 幅流程图。
+                {figures.mermaid > 0 && !figures.mermaidAvailable && (
+                  <span style={{ color: 'var(--danger)' }}>
+                    {' '}
+                    流程图转换组件不可用，将按文本导出。
+                  </span>
+                )}
               </p>
-            )}
-            {figureCount === 0 && (
-              <p className="settings-hint export-style-desc">当前文档没有图表。</p>
+            ) : (
+              <p className="settings-hint export-style-desc">文档中没有图片或流程图。</p>
             )}
           </section>
 

@@ -71,6 +71,11 @@ export interface FigurePipelineStats {
   previewCount: number
   /** 失败明细（题注 + 原因） */
   failed: Array<{ caption: string; reason: string }>
+  /**
+   * 转换服务整体不可用（上游加载/门面解析失败，一张都没转就返回）。
+   * 与"逐张失败"不同：这时 failed 是空的，调用方靠这个字段才知道 total 张全都没嵌进去。
+   */
+  unavailable?: boolean
 }
 
 export interface FigurePipelineResult {
@@ -123,6 +128,7 @@ export async function attachFiguresToDocx(
         : await loadMmd2vsdxConverter(options.useConnectorMaster ?? true)
     } catch (err) {
       // 单一路径降级：图表嵌入服务不可用 → 交付文本版（不中断导出）
+      stats.unavailable = true
       warnings.push('图表嵌入服务不可用，图表以文本形式导出')
       const finalPath =
         options.outputPath && options.outputPath !== docxPath ? options.outputPath : docxPath

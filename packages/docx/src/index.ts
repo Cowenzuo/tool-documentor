@@ -7,7 +7,7 @@ export { serializeToInstructions, serializeWithWarnings, collectMermaidFigures }
 export type { SerializeOptions, SerializeResult, MermaidFigureInfo } from './serializer'
 export { writeDocx } from './writer'
 export type { WriteDocxResult } from './writer'
-export { attachFiguresToDocx, exportTreeToDocxWithFigures } from './figure-export'
+export { attachFiguresToDocx, exportTreeToDocxWithFigures, resolveMmdFacade } from './figure-export'
 export type {
   FigurePipelineOptions,
   FigurePipelineStats,

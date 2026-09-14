@@ -168,8 +168,8 @@ export const ProjectIpc = {
   TemplatesDiagnose: 'templates:diagnose',
   /** 导出 DOCX */
   ExportDocx: 'export:docx',
-  /** 当前文档的 Mermaid 图块数（导出对话框提示用） */
-  ExportFiguresCount: 'export:figures-count',
+  /** 导出前的图表统计：图片数 / 流程图数 / 流程图转换是否可用 */
+  ExportFigureCounts: 'export:figure-counts',
   /** 另存对话框（导出路径） */
   DialogSavePath: 'dialog:save-path'
 } as const
@@ -306,12 +306,24 @@ export interface ExportFigureStats {
   previewCount: number
   /** 失败明细（题注 + 原因） */
   failed: Array<{ caption: string; reason: string }>
+  /** 转换服务整体不可用（此时 failed 为空，但 total 张全都没嵌入） */
+  unavailable?: boolean
 }
 
 export interface ExportDocxInput {
   /** 样式模板 fileKey（stylemap 文件名） */
   styleFileKey: string
   outputPath: string
+}
+
+/** 导出前统计：文档里有几张图片、几幅流程图，以及流程图转换能力是否可用 */
+export interface FigureCountsDto {
+  /** image 块数：导出时直接嵌入，不依赖上游 */
+  images: number
+  /** mermaid 块数：需经上游转成 Visio 对象 */
+  mermaid: number
+  /** 上游 mmd2vsdx 门面是否可用；false 时流程图会降级为文本导出 */
+  mermaidAvailable: boolean
 }
 
 export interface ExportDocxResult {
@@ -326,8 +338,8 @@ export interface ExportDocxResult {
 
 export interface DesktopExportApi {
   docx(input: ExportDocxInput): Promise<ExportDocxResult>
-  /** 当前文档的 Mermaid 图块数（导出对话框提示；未打开工程返回 0） */
-  figuresCount(): Promise<number>
+  /** 导出前的图表统计（未打开工程时全 0） */
+  figureCounts(): Promise<FigureCountsDto>
 }
 
 export interface SavePathDialogOptions {

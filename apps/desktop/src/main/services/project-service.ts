@@ -22,7 +22,7 @@ import {
 } from '@documentor/core'
 import type { DocumentTree, DocumentNode } from '@documentor/core/tree'
 import { createBlock, type BlockTypeName, type ContentBlock } from '@documentor/core/blocks'
-import { exportTreeToDocxWithFigures, collectMermaidFigures } from '@documentor/docx'
+import { exportTreeToDocxWithFigures, collectMermaidFigures, resolveMmdFacade } from '@documentor/docx'
 import type { TemplateManager } from '@documentor/templates'
 import type {
   BlockAddInput,
@@ -311,6 +311,25 @@ export class ProjectService {
     return collectMermaidFigures(this.treeValue).length
   }
 
+  /**
+   * 导出前的图表统计。
+   * 注意口径：图片块（image）与流程图块（mermaid）走的是两条链路——
+   * 前者由 writer 直接嵌入，后者要经上游 mmd2vsdx 转成 Visio 对象。
+   * 只数 mermaid 会把"文档里有 6 张图"说成"没有图表"。
+   */
+  async figureCounts(): Promise<{ images: number; mermaid: number; mermaidAvailable: boolean }> {
+    let images = 0
+    if (this.treeValue) {
+      this.treeValue.traverse((n) => {
+        for (const b of n.contentBlocks) {
+          if (b.type === 'image') images += 1
+        }
+      })
+    }
+    const mermaid = this.countMermaidFigures()
+    return { images, mermaid, mermaidAvailable: await isMermaidConversionAvailable() }
+  }
+
   saveUiState(key: string, value: string): void {
     this.store.saveUiState(key, value)
   }
@@ -390,4 +409,19 @@ const IMAGE_MIME: Record<string, string> = {
 
 function mimeOf(ext: string): string {
   return IMAGE_MIME[ext.toLowerCase()] ?? 'application/octet-stream'
+}
+
+/**
+ * 上游 mmd2vsdx 的门面是否可用（只探测，不转换）。
+ * 用于导出对话框提前告知：不可用时流程图会按文本导出，而不是交付可双击的对象。
+ * 不复用导出链路里的加载函数——那个会带上"安装指引"这类面向失败场景的长文案。
+ */
+async function isMermaidConversionAvailable(): Promise<boolean> {
+  try {
+    const mod = await import('mmd2vsdx')
+    resolveMmdFacade(mod)
+    return true
+  } catch {
+    return false
+  }
 }
