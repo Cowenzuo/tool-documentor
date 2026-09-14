@@ -5,12 +5,14 @@
  *
  * 1. **显式跨度** `rowSpans`（推荐，新数据）：`{ 列号: [[起始行, 跨几行], ...] }`。
  *    跨行是数据本身的一部分，不靠内容推断——因此值可以照常保留、取消合并即可恢复。
- * 2. **兼容判定**（老数据/老模板）：`mergeVertical: true` 时，同列**连续**若干行内容
- *    trim 后非空且完全相同 → 合并；空串不合并；不连续各自成组。
+ * 2. **兼容判定**（老数据/老模板）：`mergeVertical: true` 时，同列按下述两种形态合并：
+ *    - **连续相同**：连续若干行 trim 后非空且完全相同 → 合成一格（老写法，保留）；
+ *    - **空串向上合并**：非空值后面跟的**连续空串**并入上面那一格——这正是"留空 = 续格"
+ *      的写法，也是合并后的形态。组延续到下一个非空值为止。
+ *    列首的空串没有可并入的对象，跳过（不把开头整片空白并成一格）。
  *
- * 第 2 条是为既有工程保留的。它有个固有缺陷：扁平二维数组表达不了跨行，
- * 只能靠内容推断；因此"首行有值、其余留空"这种**合并后的形态**它认不出来，
- * 值一被清空就再也合不上（丢信息）。新数据一律用 rowSpans。
+ * 第 2 条是为既有工程保留的。它靠内容推断，因此**只认得上述两种形态**；
+ * 想把跨行与内容彻底解耦（值随你怎么填、合并都成立），用第 1 条的 rowSpans。
  *
  * 输出与 data 同形状：起点格 rowSpan>1，被覆盖格 covered=true（导出写空续格、预览不渲染）。
  */
@@ -47,6 +49,7 @@ function legacyMerges(data: readonly (readonly string[])[]): TableMergeCell[][] 
   for (let c = 0; c < cols; c++) {
     let start = -1
     let key = ''
+    let sawBlank = false
     const close = (end: number): void => {
       if (start < 0) return
       const span = end - start
@@ -55,11 +58,15 @@ function legacyMerges(data: readonly (readonly string[])[]): TableMergeCell[][] 
         for (let k = start + 1; k < end; k++) out[k]![c] = { rowSpan: 1, covered: true }
       }
       start = -1
+      key = ''
+      sawBlank = false
     }
     for (let r = 0; r < rows; r++) {
       const cur = (data[r]?.[c] ?? '').trim()
       if (cur.length === 0) {
-        close(r)
+        // 空串并入上方那一格（"留空 = 续格"的写法），组延续到下一个非空值
+        if (start < 0) continue // 列首的空串没有可并入的对象，跳过
+        sawBlank = true
         continue
       }
       if (start < 0) {
@@ -67,11 +74,12 @@ function legacyMerges(data: readonly (readonly string[])[]): TableMergeCell[][] 
         key = cur
         continue
       }
-      if (cur !== key) {
-        close(r)
-        start = r
-        key = cur
-      }
+      // 遇到新的非空值：同值且中间没夹空串 → 仍在同一组（兼容"重复写值"的老写法）；
+      // 否则收束当前组——中间的连续空串已随这一组一起合并。
+      if (cur === key && !sawBlank) continue
+      close(r)
+      start = r
+      key = cur
     }
     close(rows)
   }
