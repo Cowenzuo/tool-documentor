@@ -61,9 +61,9 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
       if (f && f.total > 0) {
         if (f.unavailable) {
           // 转换服务整体不可用：total 张全都没嵌进去，不能让人以为正文里有图
-          figureText = f.total === 1 ? '（流程图已按文本导出）' : `（${f.total} 张图已按文本导出）`
+          figureText = f.total === 1 ? '（mmd-visio 已按文本导出）' : `（${f.total} 张图已按文本导出）`
         } else if (failCount === f.total) {
-          figureText = f.total === 1 ? '（流程图已按文本导出）' : `（${f.total} 张图已按文本导出）`
+          figureText = f.total === 1 ? '（mmd-visio 已按文本导出）' : `（${f.total} 张图已按文本导出）`
         } else if (failCount > 0) {
           figureText = `（含 ${f.embedded} 张图，另有 ${failCount} 张失败）`
         } else if (f.embedded > 0) {
@@ -156,17 +156,26 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
             <h3>图表嵌入</h3>
             {figures && (figures.images > 0 || figures.mermaid > 0) ? (
               <p className="settings-hint export-style-desc">
-                文档含 {figures.images} 张图片、{figures.mermaid} 幅流程图。
+                文档含 {figures.images} 张图片、{figures.mermaid} 幅 mmd-visio。
                 {figures.mermaid > 0 && !figures.mermaidAvailable && (
                   <span style={{ color: 'var(--danger)' }}>
                     {' '}
-                    流程图转换组件不可用，将按文本导出。
+                    转换组件不可用，mmd-visio 将按文本导出。
                   </span>
                 )}
               </p>
             ) : (
-              <p className="settings-hint export-style-desc">文档中没有图片或流程图。</p>
+              <p className="settings-hint export-style-desc">文档中没有图片或 mmd-visio。</p>
             )}
+          </section>
+
+          <section className="settings-group">
+            <h3>表格</h3>
+            <p className="settings-hint export-style-desc">
+              {figures && figures.tables > 0
+                ? `文档含 ${figures.tables} 个表格，导出为 Word 原生表格（不需要嵌入，不依赖外部组件）。`
+                : '文档中没有表格。'}
+            </p>
           </section>
 
           <section className="settings-group">

@@ -312,22 +312,30 @@ export class ProjectService {
   }
 
   /**
-   * 导出前的图表统计。
-   * 注意口径：图片块（image）与流程图块（mermaid）走的是两条链路——
-   * 前者由 writer 直接嵌入，后者要经上游 mmd2vsdx 转成 Visio 对象。
-   * 只数 mermaid 会把"文档里有 6 张图"说成"没有图表"。
+   * 导出前的图表与表格统计。
+   * 口径分三类：图片块（image）与 mmd-visio 块（mermaid）走的是两条嵌入链路——
+   * 前者由 writer 直接嵌入，后者要经上游 mmd2vsdx 转成 Visio 对象；
+   * 表格则是原生内容，由 writer 直接写成 Word 表格，不经过嵌入。
+   * 只数 mermaid 会把"文档里有 131 张图、46 个表"说成"没有图表"。
    */
-  async figureCounts(): Promise<{ images: number; mermaid: number; mermaidAvailable: boolean }> {
+  async figureCounts(): Promise<{
+    images: number
+    mermaid: number
+    mermaidAvailable: boolean
+    tables: number
+  }> {
     let images = 0
+    let tables = 0
     if (this.treeValue) {
       this.treeValue.traverse((n) => {
         for (const b of n.contentBlocks) {
           if (b.type === 'image') images += 1
+          else if (b.type === 'table') tables += 1
         }
       })
     }
     const mermaid = this.countMermaidFigures()
-    return { images, mermaid, mermaidAvailable: await isMermaidConversionAvailable() }
+    return { images, mermaid, mermaidAvailable: await isMermaidConversionAvailable(), tables }
   }
 
   saveUiState(key: string, value: string): void {
@@ -413,7 +421,7 @@ function mimeOf(ext: string): string {
 
 /**
  * 上游 mmd2vsdx 的门面是否可用（只探测，不转换）。
- * 用于导出对话框提前告知：不可用时流程图会按文本导出，而不是交付可双击的对象。
+ * 用于导出对话框提前告知：不可用时 mmd-visio 会按文本导出，而不是交付可双击的对象。
  * 不复用导出链路里的加载函数——那个会带上"安装指引"这类面向失败场景的长文案。
  */
 async function isMermaidConversionAvailable(): Promise<boolean> {

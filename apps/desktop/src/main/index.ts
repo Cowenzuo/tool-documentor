@@ -196,13 +196,15 @@ function createMainWindow(): void {
           exportBtn.click();
           await sleep(400);
           out.exportDialogOpen = ((document.querySelector('.wizard .wizard-head h2') || {}).textContent || '') === '导出文档';
-          // 图表嵌入统计：必须反映文档里真实存在的块（图片与流程图分开计数）
-          const figureSection = [...document.querySelectorAll('.settings-group')].find(
-            (s) => ((s.querySelector('h3') || {}).textContent || '') === '图表嵌入'
-          );
-          out.exportFigureText = figureSection
-            ? (figureSection.querySelector('p') || {}).textContent || null
-            : null;
+          // 图表与表格统计：必须反映文档里真实存在的块（图片 / mmd-visio / 表格分开计数）
+          const sectionText = (title) => {
+            const sec = [...document.querySelectorAll('.settings-group')].find(
+              (s) => ((s.querySelector('h3') || {}).textContent || '') === title
+            )
+            return sec ? ((sec.querySelector('p') || {}).textContent || null) : null
+          }
+          out.exportFigureText = sectionText('图表嵌入')
+          out.exportTableText = sectionText('表格')
           const doExport = await waitFor('.wizard-foot .be-btn-primary');
           doExport.click();
           await sleep(1500);

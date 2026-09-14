@@ -168,7 +168,7 @@ export const ProjectIpc = {
   TemplatesDiagnose: 'templates:diagnose',
   /** 导出 DOCX */
   ExportDocx: 'export:docx',
-  /** 导出前的图表统计：图片数 / 流程图数 / 流程图转换是否可用 */
+  /** 导出前的图表与表格统计 */
   ExportFigureCounts: 'export:figure-counts',
   /** 另存对话框（导出路径） */
   DialogSavePath: 'dialog:save-path'
@@ -316,14 +316,20 @@ export interface ExportDocxInput {
   outputPath: string
 }
 
-/** 导出前统计：文档里有几张图片、几幅流程图，以及流程图转换能力是否可用 */
+/**
+ * 导出前统计。
+ * 口径分三类：图片与 mmd-visio 是"要嵌入的对象"（后者依赖上游转换），
+ * 表格是原生内容——由 writer 直接写成 Word 表格，不经过任何嵌入链路。
+ */
 export interface FigureCountsDto {
   /** image 块数：导出时直接嵌入，不依赖上游 */
   images: number
-  /** mermaid 块数：需经上游转成 Visio 对象 */
+  /** mermaid 块数（mmd-visio）：需经上游转成 Visio 对象 */
   mermaid: number
-  /** 上游 mmd2vsdx 门面是否可用；false 时流程图会降级为文本导出 */
+  /** 上游 mmd2vsdx 门面是否可用；false 时 mmd-visio 会降级为文本导出 */
   mermaidAvailable: boolean
+  /** table 块数：导出为原生 Word 表格 */
+  tables: number
 }
 
 export interface ExportDocxResult {
