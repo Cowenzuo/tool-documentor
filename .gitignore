@@ -6,6 +6,8 @@ out/
 dist/
 release/
 *.tsbuildinfo
+# ensure-libs 的库构建指纹（启动时据此跳过无谓重编，不入库）
+.libs-build-hash
 
 # 临时/探针产物
 .e2e-workspace/

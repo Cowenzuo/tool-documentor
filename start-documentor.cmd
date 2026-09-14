@@ -27,8 +27,8 @@ if not exist "node_modules" (
     )
 )
 
-echo [1/2] 构建 workspace 库（core/templates/postprocess/docx）...
-call pnpm build:libs
+echo [1/2] 检查 workspace 库（core/templates/postprocess/docx）...
+node scripts\ensure-libs.cjs
 if errorlevel 1 (
     echo [错误] 库构建失败，请检查上方报错信息。
     pause
