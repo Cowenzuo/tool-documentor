@@ -104,7 +104,14 @@ function main() {
     if (m) {
       try {
         const data = JSON.parse(m[1])
-        const ok = data.editor === true && data.welcome === true
+        // 关键断言：编辑器/欢迎页出现，且内容块删除在界面上真的生效
+        const ok = data.editor === true && data.welcome === true && data.deleteOk === true
+        if (data.deleteOk !== true) {
+          console.error(
+            `[e2e-smoke] ✗ 删除内容块未生效：按钮=${data.deleteBtnFound} ` +
+              `${data.biaoShi?.blockCards} → ${data.blockCardsAfterDelete}，提示=${data.deleteToast}`
+          )
+        }
         console.log(`[e2e-smoke] ${ok ? '✓ 通过' : '✗ 关键断言失败'}：${JSON.stringify(data)}`)
         void finish(ok ? 0 : 1)
       } catch (err) {

@@ -184,6 +184,20 @@ function createMainWindow(): void {
             blockCards: document.querySelectorAll('.block-card').length,
             chips: [...document.querySelectorAll('.np-chip')].map((c) => c.textContent.trim())
           };
+          // 删除内容块：点第一张卡片的删除按钮，卡片数必须减一（且不弹错误提示）
+          const cardsBefore = document.querySelectorAll('.block-card').length;
+          const delBtn = document.querySelector('.block-card .block-card-actions .be-icon-btn.danger');
+          out.deleteBtnFound = !!delBtn;
+          if (delBtn && cardsBefore > 0) {
+            delBtn.click();
+            await sleep(700);
+            out.blockCardsAfterDelete = document.querySelectorAll('.block-card').length;
+            out.deleteToast = document.querySelector('.toast') ? document.querySelector('.toast').textContent : null;
+            out.deleteOk = out.blockCardsAfterDelete === cardsBefore - 1;
+          } else {
+            out.blockCardsAfterDelete = cardsBefore;
+            out.deleteOk = false;
+          }
           // 清空搜索恢复全树
           setNative(q, '');
           // 保存

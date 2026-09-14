@@ -32,6 +32,8 @@ export default function NodePage(): React.JSX.Element {
   const pendingRef = useRef(new Map<number, ContentBlock>())
   const timersRef = useRef(new Map<number, number>())
   const nodeIdRef = useRef<string | null>(null)
+  /** 上一次与 store 对账过的块序列；用于识别"store 侧发生了结构性变化" */
+  const storeSignatureRef = useRef('')
   const descValueRef = useRef(desc)
   const descDirtyRef = useRef(false)
   const descTimerRef = useRef<number | undefined>(undefined)
@@ -51,8 +53,32 @@ export default function NodePage(): React.JSX.Element {
     for (const timer of timersRef.current.values()) window.clearTimeout(timer)
     timersRef.current.clear()
     window.clearTimeout(descTimerRef.current)
+    storeSignatureRef.current = (node?.contentBlocks ?? []).map((b) => JSON.stringify(b)).join('\u0000')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node?.id])
+
+  /**
+   * 与 store 对账：新增/删除/移动内容块之后，服务端才是权威——
+   * store 侧块序列一变就按它整表覆盖缓存（保留尚未 flush 的编辑缓冲）。
+   *
+   * 只依赖 node?.id 重建缓存是不够的：增删移都不改节点 id，
+   * 会出现"数据已经删了、卡片还在界面上"的假象，用户再点一次反而收到
+   * "内容位置不对"的报错。
+   */
+  useEffect(() => {
+    if (!node || node.id !== nodeIdRef.current) return
+    const incoming = node.contentBlocks
+    const signature = incoming.map((b) => JSON.stringify(b)).join('\u0000')
+    if (signature === storeSignatureRef.current) return
+    storeSignatureRef.current = signature
+    setBlocks(
+      incoming.map((b, i) => {
+        const pending = pendingRef.current.get(i)
+        // 该下标还有未提交的编辑：以本地待提交值为准，避免打字被回滚
+        return pending ? pending : b
+      })
+    )
+  }, [node?.contentBlocks])
 
   /** 提交全部挂起编辑（块 + 编制说明） */
   const flushPending = useCallback(() => {
