@@ -158,7 +158,7 @@ describe('DocxWriter 端到端（合成示例模板骨架）', () => {
     const demo = manager.findStructureByName('示例文档模板 (Demo)')!
     const style = manager.styleForStructure(demo)!
 
-    // 2×3 像素 → 19050×28575 EMU（96 DPI）
+    // 2×3 像素的极小图不放大（低于 150px 阈值）→ 保持原始尺寸 19050×28575 EMU（96 DPI）
     writeFileSync(join(dir, 'pic.png'), makePng(2, 3))
     const target = firstContentNode(tree)
     target.contentBlocks.push({ type: 'image', imagePath: 'pic.png', caption: '图1 测试图' })
@@ -184,6 +184,59 @@ describe('DocxWriter 端到端（合成示例模板骨架）', () => {
     )
     const ct = await zip.file('[Content_Types].xml')!.async('string')
     expect(ct).toContain('<Default Extension="png" ContentType="image/png"/>')
+  })
+
+  it('图片尺寸：铺满正文可用宽度并保持宽高比（不再写死 6 英寸）', async () => {
+    resetIdCounterForTest()
+    const { tree, manager } = loadDemo()
+    const demo = manager.findStructureByName('示例文档模板 (Demo)')!
+    const style = manager.styleForStructure(demo)!
+
+    // 示例骨架：A4 11906×16838 twips，左右边距各 1800 → 正文宽 8306 twips
+    // = 8306 × 635 = 5,274,310 EMU
+    writeFileSync(join(dir, 'wide.png'), makePng(400, 300))
+    const target = firstContentNode(tree)
+    target.contentBlocks.push({ type: 'image', imagePath: 'wide.png', caption: '图1 宽图' })
+
+    const { instructions } = serializeWithWarnings(tree, style, { imageBaseDir: dir })
+    const outputPath = join(dir, 'out-img-width.docx')
+    await writeDocx(instructions, style, outputPath)
+    const zip = await JSZip.loadAsync(readFileSync(outputPath))
+    const documentXml = await zip.file('word/document.xml')!.async('string')
+
+    const expectedCx = 8306 * 635
+    const expectedCy = Math.round((300 * 9525 * expectedCx) / (400 * 9525))
+    expect(documentXml).toContain(`<wp:extent cx="${expectedCx}" cy="${expectedCy}"/>`)
+    // 旧口径（写死 6 英寸 = 5486400）已不再出现
+    expect(documentXml).not.toContain('cx="5486400"')
+    // 图片段落居中，且 pStyle 在 pPr 首位
+    expect(documentXml).toContain('<w:jc w:val="center"/>')
+  })
+
+  it('图片尺寸：竖长图按页面高度上限缩放', async () => {
+    resetIdCounterForTest()
+    const { tree, manager } = loadDemo()
+    const demo = manager.findStructureByName('示例文档模板 (Demo)')!
+    const style = manager.styleForStructure(demo)!
+
+    // 200×4000 的竖长图：自然高度 4000×9525 EMU 远超可用高度
+    // 可用高 = 16838-1440-1440 = 13958 twips × 635 = 8,863,330 EMU
+    writeFileSync(join(dir, 'tall.png'), makePng(200, 4000))
+    const target = firstContentNode(tree)
+    target.contentBlocks.push({ type: 'image', imagePath: 'tall.png', caption: '图1 长图' })
+
+    const { instructions } = serializeWithWarnings(tree, style, { imageBaseDir: dir })
+    const outputPath = join(dir, 'out-img-tall.docx')
+    await writeDocx(instructions, style, outputPath)
+    const zip = await JSZip.loadAsync(readFileSync(outputPath))
+    const documentXml = await zip.file('word/document.xml')!.async('string')
+
+    const m = /<wp:extent cx="(\d+)" cy="(\d+)"\/>/.exec(documentXml)!
+    const cx = Number(m[1])
+    const cy = Number(m[2])
+    expect(cy).toBeLessThanOrEqual(13958 * 635)
+    // 仍保持宽高比（1:20）
+    expect(Math.abs(cy / cx - 20)).toBeLessThan(0.01)
   })
 
   it('图片段落套 figure 样式（样式表提供 figure 键时）', async () => {

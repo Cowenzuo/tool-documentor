@@ -81,6 +81,8 @@ export async function writeDocx(
   // ---------- 2. document.xml 正文重建（含图片嵌入） ----------
   const originalDocumentXml = readSkeleton('word/document.xml').toString('utf8')
   const sectPr = extractSectPr(originalDocumentXml)
+  /** 图片可用区域：从骨架页面尺寸与页边距算出，不再写死宽度 */
+  const mediaBox = mediaBoxOf(sectPr)
   const images: EmbeddedImage[] = []
   const imageByPath = new Map<string, EmbeddedImage>()
   const relsPath = 'word/_rels/document.xml.rels'
@@ -98,7 +100,7 @@ export async function writeDocx(
     const data = readFileSync(srcPath)
     const ext = extOf(srcPath)
     const { w, h } = imageSizePx(data, ext)
-    const { cx, cy } = fitEmu(w, h)
+    const { cx, cy } = fitEmu(w, h, mediaBox)
     const idx = nextMedia++
     const entry: EmbeddedImage = {
       srcPath,
@@ -274,8 +276,45 @@ interface EmbeddedImage {
 }
 
 const EMU_PER_PX = 9525 // 96 DPI
-/** 正文可用宽度上限（6 英寸），超出按比例缩放 */
-const MAX_WIDTH_EMU = 5486400
+const EMU_PER_TWIP = 635
+
+/** 正文可用区域（EMU）。按骨架 sectPr 的页面尺寸与页边距算，而不是写死宽度 */
+interface MediaBox {
+  widthEmu: number
+  heightEmu: number
+}
+
+/** 找不到 sectPr 时的兜底：A4 + Word 默认 1 英寸左右边距 */
+const FALLBACK_MEDIA_BOX: MediaBox = { widthEmu: 5400000, heightEmu: 7920000 }
+
+/**
+ * 正文可用宽度与高度上限。
+ * - 页边距缺省值取 Word 的 1 英寸（1440 twips）；骨架里左右为 0 是「按页宽画线」的常见写法，
+ *   正文区吃满，因此仍按实际值计算；
+ * - 页面尺寸缺失时整块回退到 A4 兜底值。
+ */
+function mediaBoxOf(sectPr: string): MediaBox {
+  const pgSz = /<w:pgSz\b[^>]*\/?>/u.exec(sectPr)?.[0] ?? ''
+  const pw = Number(/\bw:w="(\d+)"/u.exec(pgSz)?.[1] ?? 0)
+  const ph = Number(/\bw:h="(\d+)"/u.exec(pgSz)?.[1] ?? 0)
+  if (!(pw > 0) || !(ph > 0)) return FALLBACK_MEDIA_BOX
+
+  const pgMar = /<w:pgMar\b[^>]*\/?>/u.exec(sectPr)?.[0] ?? ''
+  const attr = (name: string, fallback: number): number => {
+    const v = new RegExp(`\\bw:${name}="(-?\\d+)"`, 'u').exec(pgMar)?.[1]
+    const n = Number(v ?? fallback)
+    // 负页边距是合法的（超出页边），但对图片可用区没意义，按 0 处理
+    return Number.isFinite(n) && n > 0 ? n : 0
+  }
+  const left = pgMar ? attr('left', 1440) : 1440
+  const right = pgMar ? attr('right', 1440) : 1440
+  const top = pgMar ? attr('top', 1440) : 1440
+  const bottom = pgMar ? attr('bottom', 1440) : 1440
+
+  const widthTw = Math.max(720, pw - left - right) // 至少 0.5 英寸，避免算出不可用的宽度
+  const heightTw = Math.max(720, ph - top - bottom)
+  return { widthEmu: widthTw * EMU_PER_TWIP, heightEmu: heightTw * EMU_PER_TWIP }
+}
 
 function extOf(p: string): string {
   const m = /\.[a-z0-9]+$/i.exec(p)
@@ -323,14 +362,36 @@ function imageSizePx(buf: Buffer, ext: string): { w: number; h: number } {
   return { w: 800, h: 520 }
 }
 
-function fitEmu(w: number, h: number): { cx: number; cy: number } {
-  let cx = Math.max(1, Math.round(w * EMU_PER_PX))
-  let cy = Math.max(1, Math.round(h * EMU_PER_PX))
-  if (cx > MAX_WIDTH_EMU) {
-    cy = Math.max(1, Math.round((cy * MAX_WIDTH_EMU) / cx))
-    cx = MAX_WIDTH_EMU
+/**
+ * 图片显示尺寸：按正文可用区域铺满宽度，保持宽高比，并受高度上限约束。
+ *
+ * 策略（与用户口径一致）：
+ * - 目标宽度 = 可用宽度；低分辨率小图不硬拉——见 MIN_UPSCALE_PX；
+ * - 高图（竖长截图）即使宽度没超，也按可用高度缩小，避免一张图跨好几页；
+ * - 只缩不放的旧口径已废弃：300px 的截图按 96 DPI 只有 3.1 英寸，在纸上偏小。
+ */
+const MIN_UPSCALE_PX = 150
+
+function fitEmu(w: number, h: number, box: MediaBox): { cx: number; cy: number } {
+  const pxW = Math.max(1, w)
+  const pxH = Math.max(1, h)
+  const naturalCx = Math.max(1, Math.round(pxW * EMU_PER_PX))
+  const naturalCy = Math.max(1, Math.round(pxH * EMU_PER_PX))
+
+  // 极小图不放大：放上去只会糊成一片，还不如按原始尺寸
+  let targetCx = pxW < MIN_UPSCALE_PX ? naturalCx : box.widthEmu
+
+  // 按高度上限收敛（竖长图在这里被压下来）
+  if (naturalCy > box.heightEmu) {
+    const byHeight = (naturalCx * box.heightEmu) / naturalCy
+    targetCx = Math.min(targetCx, byHeight)
   }
-  return { cx, cy }
+
+  const scale = targetCx / naturalCx
+  return {
+    cx: Math.max(1, Math.round(targetCx)),
+    cy: Math.max(1, Math.round(naturalCy * scale))
+  }
 }
 
 function maxRid(relsXml: string): number {
