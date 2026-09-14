@@ -29,7 +29,9 @@ export type WriteInstruction =
         rowsData: string[][]
         headerStyle: string
         bodyStyle: string
-        /** 纵向自动合并（同列连续相同内容） */
+        /** 显式纵向跨度：{ 列号: [[起始行, 跨几行], ...] }（优先于下面的兼容开关） */
+        rowSpans?: Record<string, Array<[number, number]>>
+        /** 兼容开关：同列连续相同内容自动合并（老数据） */
         mergeVertical: boolean
       }
     }

@@ -3,7 +3,7 @@
  * 排版规则对齐导出：表题注在上、图题注在下且居中；代码/公式高亮渲染。
  */
 import { useEffect, useState } from 'react'
-import { computeVerticalMerges } from '@documentor/core/table-merge'
+import { resolveTableMerges } from '@documentor/core/table-merge'
 import type { ContentBlock } from '@documentor/core/blocks'
 import { useSelectedNode } from '../../state/AppContext'
 import { renderMermaidSvg } from '../../utils/mermaid'
@@ -88,8 +88,12 @@ function PreviewBlock({
         </ul>
       )
     case 'table': {
-      // 纵向合并与导出同规则：同列连续相同内容 → rowSpan（被覆盖格不渲染）
-      const merges = block.mergeVertical === true ? computeVerticalMerges(block.data) : null
+      // 纵向合并与导出同规则（同一个解析函数）：显式跨度优先，老数据退回兼容判定
+      const merges = resolveTableMerges({
+        data: block.data,
+        rowSpans: block.rowSpans,
+        mergeVertical: block.mergeVertical
+      })
       return (
         <div className="pv-table-wrap">
           {block.caption && <div className="pv-table-caption">{block.caption}</div>}

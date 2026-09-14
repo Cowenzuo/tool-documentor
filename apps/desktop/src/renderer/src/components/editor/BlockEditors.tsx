@@ -2,7 +2,7 @@
  * 8 种内容块编辑器（受控组件：value 由父层 NodePage 提供，onChange 即时回传）。
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { computeVerticalMerges, countVerticalMerges } from '@documentor/core/table-merge'
+import { resolveTableMerges, countVerticalMerges } from '@documentor/core/table-merge'
 import type {
   CodeBlock,
   ContentBlock,
@@ -192,9 +192,13 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
     gridRef.current?.querySelector<HTMLElement>(`[data-cell="${rowId}"]`)?.focus()
   }
 
-  // 开关开启时给编辑网格标注：与上方内容相同的续格将被合并（导出/预览不重复显示）
-  const merges = block.mergeVertical === true ? computeVerticalMerges(block.data) : null
-  const mergeCount = merges ? countVerticalMerges(merges) : 0
+  // 合并来源：显式跨度优先、老数据退回兼容判定（与导出/预览同一个函数）
+  const merges = resolveTableMerges({
+    data: block.data,
+    rowSpans: block.rowSpans,
+    mergeVertical: block.mergeVertical
+  })
+  const mergeCount = countVerticalMerges(merges)
 
   return (
     <div className="be-table">

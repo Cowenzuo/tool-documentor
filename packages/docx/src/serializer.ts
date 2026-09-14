@@ -187,6 +187,8 @@ export function serializeWithWarnings(
               rowsData: block.data.map((row) => [...row]),
               headerStyle: look('table.header', `“${node.title}”的表格`),
               bodyStyle: look('table.body', `“${node.title}”的表格`),
+              // 显式跨度原样透传（判定与摊平都在 writer 里统一做）
+              ...(block.rowSpans ? { rowSpans: block.rowSpans } : {}),
               mergeVertical: block.mergeVertical === true
             }
           })

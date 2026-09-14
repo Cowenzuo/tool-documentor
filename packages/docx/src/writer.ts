@@ -6,7 +6,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import JSZip from 'jszip'
-import { computeVerticalMerges } from '@documentor/core'
+import { resolveTableMerges } from '@documentor/core'
 import type { StyleTemplateDef } from '@documentor/templates'
 import type { WriteInstruction } from './instructions'
 import { escapeXmlAttr, escapeXmlText } from './instructions'
@@ -559,7 +559,12 @@ function renderTable(
 
   const grid = `<w:tblGrid>${Array.from({ length: cols }, () => `<w:gridCol w:w="${colWidth}"/>`).join('')}</w:tblGrid>`
 
-  const merges = c.mergeVertical ? computeVerticalMerges(c.rowsData) : null
+  // 合并来源：显式跨度优先，老数据退回"同列连续相同内容"兼容判定
+  const merges = resolveTableMerges({
+    data: c.rowsData,
+    rowSpans: c.rowSpans,
+    mergeVertical: c.mergeVertical
+  })
 
   const cell = (text: string, style: string, merge?: 'start' | 'continue'): string => {
     const pPr = style.length > 0 ? `<w:pPr><w:pStyle w:val="${escapeXmlAttr(style)}"/></w:pPr>` : '<w:pPr/>'

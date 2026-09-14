@@ -14,6 +14,7 @@
   },
   "scripts": {
     "build:libs": "pnpm --filter @documentor/core build && pnpm --filter @documentor/templates build && pnpm --filter @documentor/postprocess build && pnpm --filter @documentor/docx build",
+    "build:libs:mark": "pnpm build:libs && node scripts/ensure-libs.cjs --mark",
     "ensure:libs": "node scripts/ensure-libs.cjs",
     "dev": "node scripts/ensure-libs.cjs && pnpm --filter @documentor/desktop dev",
     "build": "pnpm build:libs && pnpm --filter @documentor/desktop build",

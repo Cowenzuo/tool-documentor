@@ -47,8 +47,15 @@ export interface TableBlockProps {
   /** 每行一个单元格数组（行数可与 rows 不同步，以实际为准） */
   data: string[][]
   /**
-   * 纵向自动合并（默认关闭）：同一列中**连续**且 trim 后非空、内容完全相同的单元格
-   * 合并为一个；表头行不参与。判定规则见 core/table-merge.ts，编辑/预览/导出三处共用。
+   * 纵向合并跨度（显式表示，跨行不靠内容推断）。
+   * 形状：{ 列号: [[起始行, 跨几行], ...] }，行号按 data 下标（不含表头）。
+   * 合并只影响显示与导出，**不改动 data 里的值**——值保留，取消合并即可恢复。
+   * 缺省时不写：此时按 mergeVertical 的"同列连续相同值"兼容判定。
+   */
+  rowSpans?: Record<string, Array<[number, number]>>
+  /**
+   * 遗留开关：同列中**连续**且 trim 后非空、内容完全相同的单元格合并为一个；表头行不参与。
+   * 老数据与模板仍在用；有新跨度时以 rowSpans 为准。判定见 core/table-merge.ts。
    */
   mergeVertical?: boolean
 }
@@ -174,6 +181,8 @@ export function blockFromDb(type: string | number, props: Record<string, unknown
       }
       // 仅在开启时写入属性，保持既有工程 JSON 精简（老数据缺键=关闭）
       if (rest['mergeVertical'] === true) block.mergeVertical = true
+      const spans = parseRowSpans(rest['rowSpans'])
+      if (spans) block.rowSpans = spans
       return block
     }
     case 'formula':
@@ -204,4 +213,27 @@ function num(v: unknown): number {
 function strArray(v: unknown): string[] {
   if (!Array.isArray(v)) return []
   return v.map((x) => str(x))
+}
+
+/**
+ * 解析并规整 rowSpans：只接受 [[起始行, 跨几行], ...]，跨度 >= 2 才留。
+ * 非法形状一律丢弃（视为没有显式跨度，退回兼容判定），不让脏数据把渲染带偏。
+ */
+function parseRowSpans(v: unknown): Record<string, Array<[number, number]>> | undefined {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined
+  const out: Record<string, Array<[number, number]>> = {}
+  for (const [col, list] of Object.entries(v as Record<string, unknown>)) {
+    if (!Array.isArray(list)) continue
+    const spans: Array<[number, number]> = []
+    for (const item of list) {
+      if (!Array.isArray(item) || item.length < 2) continue
+      const start = num(item[0])
+      const span = num(item[1])
+      if (!Number.isInteger(start) || start < 0) continue
+      if (!Number.isInteger(span) || span < 2) continue
+      spans.push([start, span])
+    }
+    if (spans.length > 0) out[col] = spans
+  }
+  return Object.keys(out).length > 0 ? out : undefined
 }
