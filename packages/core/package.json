@@ -26,6 +26,10 @@
       "import": "./src/table-merge.ts",
       "require": "./dist/table-merge.js"
     },
+    "./table-limits": {
+      "import": "./src/table-limits.ts",
+      "require": "./dist/table-limits.js"
+    },
     "./time": {
       "import": "./src/time.ts",
       "require": "./dist/time.js"

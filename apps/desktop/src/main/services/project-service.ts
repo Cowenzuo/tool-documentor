@@ -12,6 +12,7 @@ import {
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import {
+  checkTableShape,
   dbPathOf,
   localIsoNow,
   ProjectStore,
@@ -257,6 +258,7 @@ export class ProjectService {
     if (existing.type !== input.block.type) {
       throw new ProjectServiceError('内容类型不能直接改，请删除后重新添加')
     }
+    assertTableShape(input.block)
     node.contentBlocks[input.index] = structuredClone(input.block)
   }
 
@@ -417,6 +419,27 @@ const IMAGE_MIME: Record<string, string> = {
 
 function mimeOf(ext: string): string {
   return IMAGE_MIME[ext.toLowerCase()] ?? 'application/octet-stream'
+}
+
+/**
+ * 表格形状校验：拦在写入侧。
+ *
+ * 以前没有任何校验，形状不一致要等到导出时被 `min(rows, data.length)` 掩盖过去，
+ * 界面上完全看不出来（`rows` 写成"数据行 + 表头"就是这么混过去的）。
+ * 现在把问题在写入时报出来，附上具体位置。
+ */
+function assertTableShape(block: ContentBlock): void {
+  if (block.type !== 'table') return
+  const issues = checkTableShape(block)
+  if (issues.length === 0) return
+  // rows 不一致只提示不拦（历史口径，且渲染只认 data）；列数不一致必须拦
+  const blocking = issues.filter((i) => i.where !== 'rows')
+  if (blocking.length > 0) {
+    throw new ProjectServiceError(
+      `表格形状不合法：${blocking.map((i) => `${i.where} —— ${i.reason}`).join('；')}`
+    )
+  }
+  for (const i of issues) console.warn('[table]', i.where, i.reason)
 }
 
 /**

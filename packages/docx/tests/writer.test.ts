@@ -314,8 +314,47 @@ describe('DocxWriter 端到端（合成示例模板骨架）', () => {
     expect(documentXml).toContain('<w:tcW w:w="3024" w:type="dxa"/><w:vMerge w:val="restart"/>')
   })
 
-  it('表格未开启合并时不输出 vMerge', async () => {
+  it('正文行数以 data 为准：rows 偏小不得丢掉行尾数据', async () => {
     resetIdCounterForTest()
+    const { tree, manager } = loadDemo()
+    const demo = manager.findStructureByName('示例文档模板 (Demo)')!
+    const style = manager.styleForStructure(demo)!
+    const target = firstContentNode(tree)
+
+    // 故意把 rows 写成 2（比如误按"数据行 + 表头"的口径），data 实际 4 行。
+    // 旧实现取 min(rows, data.length) 会静默丢掉后两行——这正是要钉住的缺陷。
+    target.contentBlocks.push({
+      type: 'table',
+      caption: '表1 rows 与 data 不一致',
+      rows: 2,
+      cols: 2,
+      headers: ['标识', '说明'],
+      data: [
+        ['R1', '第一行'],
+        ['R2', '第二行'],
+        ['R3', '第三行'],
+        ['R4', '第四行']
+      ]
+    })
+
+    const outputPath = join(dir, 'out-rows-mismatch.docx')
+    await writeDocx(serializeToInstructions(tree, style), style, outputPath)
+    const zip = await JSZip.loadAsync(readFileSync(outputPath))
+    const documentXml = await zip.file('word/document.xml')!.async('string')
+
+    for (const cell of ['R1', 'R2', 'R3', 'R4']) {
+      expect(documentXml).toContain(`>${cell}<`)
+    }
+    // 表头 1 行 + 数据 4 行 = 5 行
+    const table = /<w:tbl>(?:(?!<\/w:tbl>)[\s\S])*?rows 与 data 不一致(?:(?!<\/w:tbl>)[\s\S])*?<\/w:tbl>/.exec(
+      documentXml
+    )
+    if (table) {
+      expect(table[0].match(/<w:tr>/g)!).toHaveLength(5)
+    }
+  })
+
+  it('表格未开启合并时不输出 vMerge', async () => {    resetIdCounterForTest()
     const { tree, manager } = loadDemo()
     const demo = manager.findStructureByName('示例文档模板 (Demo)')!
     const style = manager.styleForStructure(demo)!

@@ -3,6 +3,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { resolveTableMerges, countVerticalMerges } from '@documentor/core/table-merge'
+import { TABLE_MAX_COLS, TABLE_MAX_ROWS } from '@documentor/core/table-limits'
 import type {
   CodeBlock,
   ContentBlock,
@@ -13,12 +14,7 @@ import type {
   TableBlock,
   TextBlock
 } from '@documentor/core/blocks'
-import {
-  CODE_LANGUAGE_LABELS,
-  CODE_LANGUAGES,
-  TABLE_MAX_COLS,
-  TABLE_MAX_ROWS
-} from './blockTypes'
+import { CODE_LANGUAGE_LABELS, CODE_LANGUAGES } from './blockTypes'
 import { highlightCode } from '../../utils/highlight'
 import {
   ensureMermaidEngine,
@@ -163,19 +159,68 @@ export function ImageEditor(props: EditorBaseProps<ImageBlock>): React.JSX.Eleme
 export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Element {
   const { block, onChange } = props
   const gridRef = useRef<HTMLDivElement | null>(null)
+  /** 缩表会丢内容时，先挂起等用户确认（不做静默截断） */
+  const [pendingShrink, setPendingShrink] = useState<{
+    rows: number
+    cols: number
+    lostRows: number
+    lostCols: number
+    lostCells: number
+  } | null>(null)
 
-  const clampRows = Math.min(TABLE_MAX_ROWS, Math.max(0, block.rows))
-  const clampCols = Math.min(TABLE_MAX_COLS, Math.max(0, block.cols))
+  // 显示真实规模：以前行数框显示 clamp 后的 50，而界面渲染 85 行，两处对不上。
+  // 上限只用来提示"超出界面舒适区"，不再当作数据的截断依据。
+  const realRows = block.data.length
+  const realCols = Math.max(block.cols, ...block.data.map((r) => r.length), block.headers.length, 0)
+  const overLimit = realRows > TABLE_MAX_ROWS || realCols > TABLE_MAX_COLS
 
-  const setSize = (rows: number, cols: number): void => {
-    const r = Math.min(TABLE_MAX_ROWS, Math.max(0, rows))
-    const c = Math.min(TABLE_MAX_COLS, Math.max(0, cols))
-    const headers = [...block.headers.slice(0, c), ...Array.from({ length: Math.max(0, c - block.headers.length) }, () => '')]
-    const data = Array.from({ length: r }, (_, ri) => {
+  /** 缩减时会丢掉的非空单元格数（增量增长不算丢失） */
+  const countLoss = (rows: number, cols: number): { rows: number; cols: number; cells: number } => {
+    const lostRows = Math.max(0, block.data.length - rows)
+    const rowLoss = block.data.slice(rows)
+    const lostCellsInRows = rowLoss.flat().filter((v) => v.trim() !== '').length
+    // 列方向的丢失：只在真正缩列时统计右侧非空单元格
+    let lostCols = 0
+    let lostCellsInCols = 0
+    if (cols < realCols) {
+      lostCols = realCols - cols
+      for (const row of block.data) {
+        lostCellsInCols += row.slice(cols).filter((v) => v.trim() !== '').length
+      }
+      if (block.headers.slice(cols).some((h) => h.trim() !== '')) lostCellsInCols += 1
+    }
+    return { rows: lostRows, cols: lostCols, cells: lostCellsInRows + lostCellsInCols }
+  }
+
+  /** 真正执行尺寸变更：只在这里改 data，且**只扩容不静默裁剪** */
+  const applySize = (rows: number, cols: number): void => {
+    const r = Math.max(0, rows)
+    const c = Math.max(1, cols)
+    // 扩容补空；缩容时保留原数据（由调用方确认后再调 applySize）
+    const data = Array.from({ length: Math.max(r, block.data.length) }, (_, ri) => {
       const src = block.data[ri] ?? []
-      return [...src.slice(0, c), ...Array.from({ length: Math.max(0, c - src.length) }, () => '')]
+      const width = Math.max(c, src.length)
+      return [...src.slice(0, c), ...Array.from({ length: Math.max(0, c - src.length) }, () => '')].slice(
+        0,
+        width
+      )
     })
-    onChange({ ...block, rows: r, cols: c, headers, data })
+    // 确认缩容后才真正裁掉
+    const trimmed = data.slice(0, r).map((row) => row.slice(0, c))
+    const headers = [
+      ...block.headers.slice(0, c),
+      ...Array.from({ length: Math.max(0, c - block.headers.length) }, () => '')
+    ]
+    onChange({ ...block, rows: trimmed.length, cols: c, headers, data: trimmed })
+  }
+
+  const requestSize = (rows: number, cols: number): void => {
+    const loss = countLoss(rows, cols)
+    if (loss.cells > 0) {
+      setPendingShrink({ rows, cols, lostRows: loss.rows, lostCols: loss.cols, lostCells: loss.cells })
+      return
+    }
+    applySize(rows, cols)
   }
 
   const setCell = (r: number, c: number, value: string): void => {
@@ -215,23 +260,57 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
             <input
               type="number"
               min={0}
-              max={TABLE_MAX_ROWS}
-              value={clampRows}
-              onChange={(e) => setSize(Number(e.target.value) || 0, clampCols)}
+              value={realRows}
+              onChange={(e) => requestSize(Number(e.target.value) || 0, realCols)}
             />
           </label>
           <label>
             列
             <input
               type="number"
-              min={0}
-              max={TABLE_MAX_COLS}
-              value={clampCols}
-              onChange={(e) => setSize(clampRows, Number(e.target.value) || 0)}
+              min={1}
+              value={realCols}
+              onChange={(e) => requestSize(realRows, Number(e.target.value) || 1)}
             />
           </label>
         </div>
       </div>
+
+      {/* 超出界面舒适区只提示，不裁剪数据：表照常保存与导出 */}
+      {overLimit && (
+        <p className="be-table-warn">
+          本表 {realRows} 行 × {realCols} 列，超出界面一次编辑的舒适规模（
+          {TABLE_MAX_ROWS} 行 × {TABLE_MAX_COLS} 列）。数据完整保留，导出不受影响；
+          建议分批编辑或拆表。
+        </p>
+      )}
+
+      {/* 缩表会丢内容：先确认，不静默截断 */}
+      {pendingShrink && (
+        <div className="be-table-confirm" role="alertdialog" aria-label="确认缩减表格">
+          <div>
+            这次缩减会丢失
+            {pendingShrink.lostRows > 0 ? ` ${pendingShrink.lostRows} 行` : ''}
+            {pendingShrink.lostCols > 0 ? ` ${pendingShrink.lostCols} 列` : ''}
+            {`（共 ${pendingShrink.lostCells} 个非空单元格）`}，无法撤销。
+          </div>
+          <div className="be-table-confirm-actions">
+            <button
+              type="button"
+              className="be-btn danger-text"
+              onClick={() => {
+                applySize(pendingShrink.rows, pendingShrink.cols)
+                setPendingShrink(null)
+              }}
+            >
+              确认缩减为 {pendingShrink.rows} 行 × {pendingShrink.cols} 列
+            </button>
+            <button type="button" className="be-btn" onClick={() => setPendingShrink(null)}>
+              取消
+            </button>
+          </div>
+        </div>
+      )}
 
       <label
         className="be-table-merge"
@@ -259,7 +338,7 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
       <div className="be-table-grid" ref={gridRef}>
         <div className="be-table-row be-table-head">
           <div className="be-table-corner" />
-          {Array.from({ length: clampCols }, (_, c) => (
+          {Array.from({ length: realCols }, (_, c) => (
             <input
               key={`h${c}`}
               data-cell={`h${c}`}
@@ -270,12 +349,12 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
               onKeyDown={(e) => {
                 const next =
                   e.key === 'Tab'
-                    ? c + 1 < clampCols
+                    ? c + 1 < realCols
                       ? `h${c + 1}`
                       : `0:0`
-                    : e.key === 'ArrowRight' && c + 1 < clampCols
+                    : e.key === 'ArrowRight' && c + 1 < realCols
                       ? `h${c + 1}`
-                      : e.key === 'ArrowDown' && clampRows > 0
+                      : e.key === 'ArrowDown' && realRows > 0
                         ? `0:${c}`
                         : null
                 if (next) {
@@ -286,10 +365,10 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
             />
           ))}
         </div>
-        {Array.from({ length: clampRows }, (_, r) => (
+        {Array.from({ length: realRows }, (_, r) => (
           <div className="be-table-row" key={r}>
             <div className="be-table-corner">{r + 1}</div>
-            {Array.from({ length: clampCols }, (_, c) => (
+            {Array.from({ length: realCols }, (_, c) => (
               <input
                 key={`${r}:${c}`}
                 data-cell={`${r}:${c}`}
@@ -304,14 +383,14 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
                 onKeyDown={(e) => {
                   let next: string | null = null
                   if (e.key === 'Tab') {
-                    next = c + 1 < clampCols ? `${r}:${c + 1}` : r + 1 < clampRows ? `${r + 1}:0` : null
-                  } else if (e.key === 'ArrowRight' && c + 1 < clampCols) {
+                    next = c + 1 < realCols ? `${r}:${c + 1}` : r + 1 < realRows ? `${r + 1}:0` : null
+                  } else if (e.key === 'ArrowRight' && c + 1 < realCols) {
                     next = `${r}:${c + 1}`
                   } else if (e.key === 'ArrowLeft' && c > 0) {
                     next = `${r}:${c - 1}`
                   } else if (e.key === 'ArrowUp' && r > 0) {
                     next = `${r - 1}:${c}`
-                  } else if (e.key === 'ArrowDown' && r + 1 < clampRows) {
+                  } else if (e.key === 'ArrowDown' && r + 1 < realRows) {
                     next = `${r + 1}:${c}`
                   }
                   if (next) {
@@ -323,7 +402,7 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
             ))}
           </div>
         ))}
-        {clampRows === 0 && <div className="be-table-empty-row">（无数据行）</div>}
+        {realRows === 0 && <div className="be-table-empty-row">（无数据行）</div>}
       </div>
     </div>
   )

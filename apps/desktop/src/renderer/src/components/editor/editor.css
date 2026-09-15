@@ -379,6 +379,36 @@
   color: var(--text-3);
 }
 
+/* 超出界面舒适规模：只提示，数据照常保留 */
+.be-table-warn {
+  margin: var(--space-1) 0 0;
+  padding: 6px var(--space-2);
+  border-left: 3px solid var(--danger);
+  background: rgb(240 97 109 / 0.08);
+  border-radius: 4px;
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--text-2);
+}
+
+/* 缩表确认：把"会丢什么"摆在按钮上方，避免静默截断 */
+.be-table-confirm {
+  margin: var(--space-1) 0 0;
+  padding: var(--space-2);
+  border: 1px solid var(--danger);
+  border-radius: 6px;
+  background: rgb(240 97 109 / 0.08);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--text-1);
+}
+
+.be-table-confirm-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
 /* 被上方合并覆盖的续格：编辑时仍可改，但提示导出后不重复显示 */
 .be-table-cell-merged {
   background: var(--bg-panel);

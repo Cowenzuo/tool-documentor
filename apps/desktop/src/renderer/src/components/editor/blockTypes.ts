@@ -58,8 +58,8 @@ export const CODE_LANGUAGE_LABELS: Record<string, string> = {
   plain: '纯文本'
 }
 
-export const TABLE_MAX_ROWS = 50
-export const TABLE_MAX_COLS = 20
+// 表格尺寸上限已下沉到 @documentor/core（table-limits.ts），界面从那里导入。
+// 这里不再保留副本，避免两处数字各自漂移。
 
 /** 空块时向用户展示的类型说明 */
 export function describeBlockType(type: BlockTypeName): string {

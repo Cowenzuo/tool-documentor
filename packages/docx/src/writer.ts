@@ -539,8 +539,12 @@ function renderTable(
   content: Extract<WriteInstruction, { opType: 'InsertTable' }>['content']
 ): string {
   const c = content
-  const rows = c.rows
   const cols = Math.max(1, c.cols)
+  // 正文行数：**只认 data 的实际长度**。
+  // rows 是提示性元数据（写入侧可能给 data.length + 1 的旧口径），
+  // 拿它当上界会在 rows < data.length 时静默丢掉行尾数据；
+  // 拿它的较大值又会在 rows > data.length 时凭空多出空行。所以两个都不用。
+  const rows = c.rowsData.length
   const colWidth = Math.floor(9072 / cols)
 
   // tblPr：宽度 + 边框（外 sz=8 内 sz=4）+ 单元格边距（左右 108 dxa）
@@ -594,8 +598,8 @@ function renderTable(
     }
     body += '</w:tr>'
   }
-  // 数据行
-  for (let r = 0; r < rows && r < c.rowsData.length; r++) {
+  // 数据行：逐行走 data，一行不多一行不少
+  for (let r = 0; r < rows; r++) {
     const row = c.rowsData[r] ?? []
     body += '<w:tr>'
     for (let col = 0; col < cols && col < row.length; col++) {
