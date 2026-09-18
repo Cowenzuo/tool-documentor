@@ -51,6 +51,13 @@ export default function TreePanel(): React.JSX.Element {
     return findById(session.root, menu.nodeId)
   }, [menu, session])
 
+  /** 子标题在各自父节点下的次序：标签上的圆圈数字取这一段（与导出侧编号链同源） */
+  const listIndex = useMemo(() => {
+    const map = new Map<string, number>()
+    if (session) assignListIndex(session.root, map)
+    return map
+  }, [session])
+
   const toggle = (id: string): void => {
     setExpanded((prev) => {
       const next = new Set(prev)
@@ -91,6 +98,7 @@ export default function TreePanel(): React.JSX.Element {
             query={query}
             expanded={expanded}
             selectedId={selectedId}
+            listIndex={listIndex}
             onToggle={toggle}
             onSelect={selectNode}
             onContextMenu={(e, nodeId) => {
@@ -142,11 +150,12 @@ function TreeNodeRow(props: {
   query: string
   expanded: Set<string>
   selectedId: string | null
+  listIndex: Map<string, number>
   onToggle: (id: string) => void
   onSelect: (id: string) => void
   onContextMenu: (e: React.MouseEvent, nodeId: string) => void
 }): React.JSX.Element {
-  const { node, depth, query, expanded, selectedId, onToggle, onSelect, onContextMenu } = props
+  const { node, depth, query, expanded, selectedId, listIndex, onToggle, onSelect, onContextMenu } = props
   const hasChildren = node.children.length > 0
   const isOpen = expanded.has(node.id)
   const queryTrim = query.trim().toLowerCase()
@@ -187,10 +196,15 @@ function TreeNodeRow(props: {
           <span className="tree-caret tree-caret-empty" />
         )}
         {node.isSubTitle ? (
-          <span className="tree-badge tree-badge-sub">子</span>
+          <span
+            className={`tree-badge tree-badge-list lv${levelClass(node.headingLevel)}`}
+            title={`子标题，第 ${node.headingLevel} 级`}
+          >
+            {circled(listIndex.get(node.id) ?? 1)}
+          </span>
         ) : (
-          <span className="tree-badge">
-            {node.headingLevel === 1 ? '章' : node.headingLevel === 2 ? '节' : node.headingLevel === 3 ? '条' : `${node.headingLevel}级`}
+          <span className="tree-badge tree-badge-level" title={`第 ${node.headingLevel} 级标题`}>
+            {node.headingLevel}
           </span>
         )}
         <span className={`tree-title${matchedTitle ? ' match' : ''}`}>{node.title || '·'}</span>
@@ -203,6 +217,7 @@ function TreeNodeRow(props: {
           query={query}
           expanded={expanded}
           selectedId={selectedId}
+          listIndex={listIndex}
           onToggle={onToggle}
           onSelect={onSelect}
           onContextMenu={onContextMenu}
@@ -210,6 +225,28 @@ function TreeNodeRow(props: {
       ))}
     </>
   )
+}
+
+/** 给每个子标题标记它在父节点下的第几项（1 起） */
+function assignListIndex(node: NodeDto, out: Map<string, number>): void {
+  let index = 0
+  for (const child of node.children) {
+    if (child.isSubTitle) {
+      index += 1
+      out.set(child.id, index)
+    }
+    assignListIndex(child, out)
+  }
+}
+
+/** 1..20 用圆圈数字，超出退回半角括号数字（模板层级不会这么多） */
+function circled(value: number): string {
+  return value >= 1 && value <= 20 ? String.fromCodePoint(0x2460 + value - 1) : `(${value})`
+}
+
+/** 层级取色只用五档，超过第五级沿用第五档 */
+function levelClass(level: number): number {
+  return Math.min(5, Math.max(1, level))
 }
 
 function collect(node: NodeDto, out: Set<string>): void {

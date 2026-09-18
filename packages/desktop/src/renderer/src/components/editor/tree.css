@@ -109,14 +109,42 @@
   font-weight: 650;
 }
 
+/* 层级标题：素色数字，数字本身就是层级（1 章、2 节、3 条…） */
+.tree-badge-level {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 子标题：带色圆圈数字，颜色按层级区分，与层级标题的素色数字一眼分得开 */
+.tree-badge-list {
+  background: color-mix(in srgb, var(--lv-1) 16%, transparent);
+  color: var(--lv-1);
+  font-size: 12px;
+}
+
+.tree-badge-list.lv2 {
+  background: color-mix(in srgb, var(--lv-2) 16%, transparent);
+  color: var(--lv-2);
+}
+
+.tree-badge-list.lv3 {
+  background: color-mix(in srgb, var(--lv-3) 16%, transparent);
+  color: var(--lv-3);
+}
+
+.tree-badge-list.lv4 {
+  background: color-mix(in srgb, var(--lv-4) 16%, transparent);
+  color: var(--lv-4);
+}
+
+.tree-badge-list.lv5 {
+  background: color-mix(in srgb, var(--lv-5) 16%, transparent);
+  color: var(--lv-5);
+}
+
 .tree-badge-root {
   background: var(--gradient-brand);
   color: #fff;
-}
-
-.tree-badge-sub {
-  background: var(--accent-soft);
-  color: var(--accent);
 }
 
 .tree-title {

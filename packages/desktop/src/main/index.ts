@@ -185,6 +185,8 @@ function createMainWindow(): void {
           out.editor = !!document.querySelector('.editor-workspace');
           out.titlebarProject = (document.querySelector('.tb-center') || {}).textContent || null;
           out.treeRows = document.querySelectorAll('.tree-row').length + 1;
+          // 层级标题用素色数字表示层级，子标题用带色圆圈数字表示本级次序
+          out.treeBadges = [...document.querySelectorAll('.tree-scroll .tree-badge')].map((b) => b.textContent.trim());
           // 选中根节点
           document.querySelector('.tree-root-row').click();
           await sleep(300);

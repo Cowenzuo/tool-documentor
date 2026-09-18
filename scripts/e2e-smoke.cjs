@@ -77,6 +77,16 @@ function checkResult(data) {
   need(data.settingsOpen === true, '设置弹层未打开')
   need(data.settingsClosed === true, '设置弹层未关闭')
   need(typeof data.treeRows === 'number' && data.treeRows > 1, `树行数异常：${data.treeRows}`)
+  // 标签语义：层级标题给素色数字，子标题给圆圈数字；章/节/条/子这套旧标签不许回来
+  need(
+    Array.isArray(data.treeBadges) &&
+      ['1', '2', '3', '①'].every((badge) => data.treeBadges.includes(badge)),
+    `节点标签不符合层级数字约定：${JSON.stringify(data.treeBadges)}`
+  )
+  need(
+    Array.isArray(data.treeBadges) && !data.treeBadges.some((b) => ['章', '节', '条', '子'].includes(b)),
+    `节点标签里还有旧的章/节/条/子：${JSON.stringify(data.treeBadges)}`
+  )
   return problems
 }
 
