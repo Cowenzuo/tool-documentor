@@ -25,12 +25,18 @@ const CSP_BASE = [
   "frame-src 'none'"
 ]
 
-/** 收集 head 内联脚本的 sha256（跳过带 src 与 type="module" 的脚本） */
+/**
+ * 收集 head 内联脚本的 sha256（跳过带 src 与 type="module" 的脚本）。
+ *
+ * 换行必须归一成 LF 再算哈希：CSP 比对时浏览器算的是解析后的脚本文本，
+ * 而 Windows 上源码检出与 Vite 产出都带 CRLF，按原样算出来的哈希永远对不上，
+ * 结果就是这段防闪烁脚本在生产包里被 CSP 拦掉、启动时先闪一下亮色主题。
+ */
 function inlineScriptHashes(html: string): string[] {
   const hashes: string[] = []
   const re = /<script(?![^>]*\bsrc=)(?![^>]*type=["']module["'])[^>]*>([\s\S]*?)<\/script>/gi
   for (const m of html.matchAll(re)) {
-    const content = m[1] ?? ''
+    const content = (m[1] ?? '').replace(/\r\n/g, '\n')
     if (content.trim().length === 0) continue
     hashes.push(`'sha256-${createHash('sha256').update(content, 'utf8').digest('base64')}'`)
   }

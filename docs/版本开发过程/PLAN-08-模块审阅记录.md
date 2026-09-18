@@ -131,10 +131,9 @@ docx 与打包两块条目最多，复核时逐条对过行号。
 - 应修 9 条（S1 到 S9）与文档连带项 G2、G6，状态不变；
 - 第 5 节的 G5 顺带修了：`e2e-smoke` 被中途终止时会留下持有工程数据库句柄的
   Electron 进程，现已补信号收尾与清理提示；
-- **新发现一条**，是加完 E2E 断言后才看得见的：构建产物的 CSP 里
-  `script-src` 的 sha256 是按带 CRLF 的脚本文本算的，而 Chromium 在比对前会把
-  换行归一成 LF，于是 `packages/desktop/out/renderer/index.html` 里那段防主题闪烁的
-  内联脚本在生产包里**永远被 CSP 拦住**（`pnpm e2e` 会打出
-  `[renderer:error/csp] ... blocked`）。修法是一行：`electron.vite.config.ts:35`
-  取哈希前把 `\r\n` 换成 `\n`。本轮未改，等裁定；
+- 加完 E2E 断言后才看见、随后已修的一条：构建产物的 CSP 里 `script-src` 的 sha256 当初
+  按带 CRLF 的脚本文本计算，而 Chromium 比对前会把换行归一成 LF，于是
+  `packages/desktop/out/renderer/index.html` 里那段防主题闪烁的内联脚本在生产包里
+  一直被拦住，冷启动先闪一下亮色主题。修法是取哈希前把 `\r\n` 归一成 `\n`，
+  并把"渲染层 CSP 违规"纳入 E2E 收尾断言：实测修复后 `pnpm e2e` 报 CSP 违规 0 条；
 - 审阅者的原始报告只存在于当次会话记录里，需要归档再另说。

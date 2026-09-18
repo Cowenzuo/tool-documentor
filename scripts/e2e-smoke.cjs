@@ -101,6 +101,8 @@ function main() {
   let buffer = ''
   let resultData = null
   let physTimer = null
+  /** 渲染层 CSP 违规：脚本被拦意味着功能静默失效，必须让冒烟红 */
+  const cspViolations = []
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -150,7 +152,14 @@ function main() {
     buffer += text
     // 渲染层控制台告警/CSP 违规（主进程 E2E 钩子转发）
     for (const line of text.split(/\r?\n/)) {
-      if (line.includes('[renderer:')) console.warn(`[e2e-smoke] 注意：${line.trim()}`)
+      if (!line.includes('[renderer:')) continue
+      const trimmed = line.trim()
+      if (trimmed.includes('/csp')) {
+        cspViolations.push(trimmed)
+        console.error(`[e2e-smoke] ✗ CSP 违规：${trimmed}`)
+      } else {
+        console.warn(`[e2e-smoke] 注意：${trimmed}`)
+      }
     }
     // 探针抛错时主进程只打印一行，早退比等到 180s 超时更能指出问题
     const failed = /\[e2e\] failed: (.*)/.exec(buffer)
@@ -189,9 +198,14 @@ function main() {
       clearTimeout(physTimer)
       physTimer = null
       const toast = phys[1].trim()
-      const ok = toast.length > 0 && toast !== 'null' && !toast.includes('失败')
-      if (!ok) console.error(`[e2e-smoke] ✗ 物理点击保存未生效：toast=${toast}`)
-      console.log(`[e2e-smoke] ${ok ? '✓ 全部通过' : '✗ 物理点击断言失败'}：物理点击 toast=${toast}`)
+      const toastOk = toast.length > 0 && toast !== 'null' && !toast.includes('失败')
+      const cspOk = cspViolations.length === 0
+      if (!toastOk) console.error(`[e2e-smoke] ✗ 物理点击保存未生效：toast=${toast}`)
+      if (!cspOk) {
+        console.error(`[e2e-smoke] ✗ 渲染层有 ${cspViolations.length} 条 CSP 违规，被拦的脚本不会执行`)
+      }
+      const ok = toastOk && cspOk
+      console.log(`[e2e-smoke] ${ok ? '✓ 全部通过' : '✗ 收尾断言失败'}：物理点击 toast=${toast}，CSP 违规 ${cspViolations.length} 条`)
       void finish(ok ? 0 : 1)
     }
   }
