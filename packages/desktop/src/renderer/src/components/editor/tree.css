@@ -8,13 +8,18 @@
 }
 
 .tree-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--border);
   flex: none;
 }
 
 .tree-search input {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
   background: var(--bg-input);
@@ -28,10 +33,79 @@
   border-color: var(--accent);
 }
 
+/* 命中数量：贴在搜索框右侧，不占正文宽度 */
+.tree-count {
+  flex: none;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 全展/全折：图标按钮，压在搜索框右端 */
+.tree-icon-btn {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: var(--text-3);
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.tree-icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-1);
+}
+
+/* 按层级折叠：按钮贴住搜索行右端，菜单从它下面展开 */
+.tree-level-fold {
+  position: relative;
+  flex: none;
+}
+
+.tree-level-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 60;
+  min-width: 104px;
+  padding: var(--space-1);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-overlay);
+  box-shadow: var(--overlay-shadow);
+}
+
+.tree-level-menu button {
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: var(--radius-control);
+  font-size: var(--text-sm);
+  color: var(--text-1);
+  white-space: nowrap;
+}
+
+.tree-level-menu button:hover,
+.tree-level-menu button:focus-visible {
+  background: var(--bg-hover);
+}
+
 .tree-scroll {
   flex: 1;
   overflow-y: auto;
   padding: var(--space-1);
+}
+
+/* 键盘进入（Tab）时给个焦点提示；鼠标点进来靠选中行本身表示 */
+.tree-scroll:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
 }
 
 .tree-root-row,
@@ -109,14 +183,42 @@
   font-weight: 650;
 }
 
+/* 层级标题：素色数字，数字本身就是层级（1 章、2 节、3 条…） */
+.tree-badge-level {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 子标题：带色圆圈数字，颜色按层级区分，与层级标题的素色数字一眼分得开 */
+.tree-badge-list {
+  background: color-mix(in srgb, var(--lv-1) 16%, transparent);
+  color: var(--lv-1);
+  font-size: 12px;
+}
+
+.tree-badge-list.lv2 {
+  background: color-mix(in srgb, var(--lv-2) 16%, transparent);
+  color: var(--lv-2);
+}
+
+.tree-badge-list.lv3 {
+  background: color-mix(in srgb, var(--lv-3) 16%, transparent);
+  color: var(--lv-3);
+}
+
+.tree-badge-list.lv4 {
+  background: color-mix(in srgb, var(--lv-4) 16%, transparent);
+  color: var(--lv-4);
+}
+
+.tree-badge-list.lv5 {
+  background: color-mix(in srgb, var(--lv-5) 16%, transparent);
+  color: var(--lv-5);
+}
+
 .tree-badge-root {
   background: var(--gradient-brand);
   color: #fff;
-}
-
-.tree-badge-sub {
-  background: var(--accent-soft);
-  color: var(--accent);
 }
 
 .tree-title {
@@ -132,6 +234,12 @@
   color: var(--accent);
 }
 
+/* 命中的那几个字：只加底色，颜色沿用标题色，免得和"整行命中"的强调色打架 */
+.tree-hl {
+  background: var(--accent-soft-strong);
+  border-radius: 2px;
+}
+
 .tree-empty {
   color: var(--text-3);
   font-size: var(--text-xs);
@@ -144,6 +252,7 @@
   position: fixed;
   z-index: 120;
   min-width: 148px;
+  max-width: 240px;
   background: var(--bg-raised);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-overlay);
@@ -151,6 +260,18 @@
   padding: var(--space-1);
   display: flex;
   flex-direction: column;
+}
+
+/* 菜单头：写清这一单是冲着哪个章节去的 */
+.tree-menu-head {
+  padding: 6px 12px;
+  margin-bottom: var(--space-1);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tree-menu button {

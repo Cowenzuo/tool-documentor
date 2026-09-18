@@ -101,6 +101,100 @@ function checkResult(data) {
     `标题栏工程操作组不齐：${JSON.stringify(data.tbActions)}`
   )
   need(typeof data.treeRows === 'number' && data.treeRows > 1, `树行数异常：${data.treeRows}`)
+  // 标签语义：层级标题给素色数字，子标题给圆圈数字；章/节/条/子这套旧标签不许回来
+  need(
+    Array.isArray(data.treeBadges) &&
+      ['1', '2', '3', '①'].every((badge) => data.treeBadges.includes(badge)),
+    `节点标签不符合层级数字约定：${JSON.stringify(data.treeBadges)}`
+  )
+  need(
+    Array.isArray(data.treeBadges) && !data.treeBadges.some((b) => ['章', '节', '条', '子'].includes(b)),
+    `节点标签里还有旧的章/节/条/子：${JSON.stringify(data.treeBadges)}`
+  )
+  // 搜索：命中数、命中子串高亮、搜不到时的空状态
+  need(
+    typeof data.searchCount === 'string' && /^\d+\s*项$/.test(data.searchCount.trim()),
+    `搜索命中数未显示：${data.searchCount}`
+  )
+  need(
+    typeof data.searchHits === 'number' && data.searchHits > 0,
+    `搜索命中子串没有高亮：${data.searchHits}`
+  )
+  need(
+    typeof data.searchEmptyText === 'string' && data.searchEmptyText.includes('没有匹配'),
+    `搜索无结果时缺少提示：${data.searchEmptyText}`
+  )
+  // 命中之间切换：搜索 附录 应有两处命中，下一个/上一个要能来回走并回绕
+  need(data.hitButtons === true, '搜索框旁缺少上一个/下一个命中按钮')
+  need(
+    typeof data.hitCount === 'string' && data.hitCount.trim() === '2 项',
+    `命中数不对：${data.hitCount}`
+  )
+  need(
+    typeof data.hitFirst === 'string' && data.hitFirst.includes('附录'),
+    `第一个命中不对：${data.hitFirst}`
+  )
+  need(
+    typeof data.hitSecond === 'string' && data.hitSecond.includes('附录 A'),
+    `下一个命中没走到第二处：${data.hitSecond}`
+  )
+  need(data.hitWrapped === data.hitFirst, `走到末尾没有回绕：${data.hitWrapped}`)
+  need(data.hitPrev === data.hitSecond, `上一个命中不对：${data.hitPrev}`)
+  // 树语义与键盘：容器要是 tree，方向键要能移动选中，且只有一行是选中态
+  need(data.treeRole === 'tree', `树容器缺少 tree 语义：${data.treeRole}`)
+  need(
+    data.treeKeyMoved === true,
+    `树里按方向键没有移动选中：${data.treeKeyBefore} → ${data.treeKeyAfter}`
+  )
+  need(data.treeAriaSelected === 1, `树里选中态行数异常：${data.treeAriaSelected}`)
+  // 展开状态持久化（全折/全展的动作走「展开与折叠」菜单，菜单断言在下面）
+  need(
+    data.treeDeepRowsAfterCollapse === 0,
+    `点全部折叠后二级以下仍有 ${data.treeDeepRowsAfterCollapse} 行`
+  )
+  need(
+    typeof data.treeExpandState === 'string' && data.treeExpandState.trim() === '[]',
+    `折叠状态没有写进工程库：${data.treeExpandState}`
+  )
+  need(
+    typeof data.treeRowsAfterExpand === 'number' && data.treeRowsAfterExpand > 0,
+    `点全部展开后没有恢复行：${data.treeRowsAfterExpand}`
+  )
+  // 按层级折叠：菜单项按文档实际深度生成，折到 2 级后更深的行必须消失，再全展要回来
+  need(data.treeFoldMenuBtn === true, '结构栏缺少展开与折叠菜单')
+  need(
+    Array.isArray(data.treeFoldMenuItems) && data.treeFoldMenuItems.includes('折到 2 级'),
+    `展开与折叠的菜单项不对：${JSON.stringify(data.treeFoldMenuItems)}`
+  )
+  need(data.treeHasDeepRowAtLevel2 === false, '折到 2 级后仍有更深层的行没被收起')
+  need(
+    typeof data.treeRowsAtLevel2 === 'number' && data.treeRowsAtLevel2 < data.treeRowsAfterExpand,
+    `折到 2 级后行数没有减少：${data.treeRowsAtLevel2} 对 ${data.treeRowsAfterExpand}`
+  )
+  need(data.treeHasDeepRowAfterReset === true, '全展之后深层行没有回来')
+  // 右键菜单
+  need(data.menuOpen === true, '右键没有打开章节菜单')
+  need(
+    Array.isArray(data.menuItems) &&
+      ['复制章节', '删除章节', '折叠该分支'].every((label) => data.menuItems.includes(label)),
+    `章节菜单项不齐：${JSON.stringify(data.menuItems)}`
+  )
+  need(
+    typeof data.menuHeadText === 'string' && data.menuHeadText.includes('范围'),
+    `菜单头没有写清操作对象：${data.menuHeadText}`
+  )
+  need(data.menuSelectedTitle === '范围', `右键没有顺带选中该行：${data.menuSelectedTitle}`)
+  need(
+    Array.isArray(data.menuDisabledHints) &&
+      data.menuDisabledHints.length > 0 &&
+      data.menuDisabledHints.every((h) => typeof h === 'string' && h.length > 0),
+    `菜单里禁用的项没写原因：${JSON.stringify(data.menuDisabledHints)}`
+  )
+  need(
+    typeof data.menuFocus === 'string' && data.menuFocus.length > 0,
+    `菜单打开后焦点没有落到可用项上：${data.menuFocus}`
+  )
+  need(data.menuClosed === true, 'Esc 没有关掉章节菜单')
   return problems
 }
 
@@ -219,17 +313,34 @@ function main() {
     // 物理点击结果：主进程在探针之后重放真实鼠标点击，1.4s 后才打印
     const phys = /\[e2e-phys\] toast= (.*)/.exec(buffer)
     if (phys && resultData !== null && physTimer) {
+      const keyLine = /\[e2e-keys\] (\{.*?\})\s*\n/.exec(buffer)
+      if (!keyLine) return // 真实按键那一段还没打印，再等一会儿
       clearTimeout(physTimer)
       physTimer = null
+      const keys = JSON.parse(keyLine[1])
       const toast = phys[1].trim()
       const toastOk = toast.length > 0 && toast !== 'null' && !toast.includes('失败')
       const cspOk = cspViolations.length === 0
+      const focusOk = typeof keys.focusClass === 'string' && keys.focusClass.includes('tree-scroll')
+      const keyMoved = keys.selectedAfter !== null && keys.selectedAfter !== keys.selectedBefore
       if (!toastOk) console.error(`[e2e-smoke] ✗ 物理点击保存未生效：toast=${toast}`)
       if (!cspOk) {
         console.error(`[e2e-smoke] ✗ 渲染层有 ${cspViolations.length} 条 CSP 违规，被拦的脚本不会执行`)
       }
-      const ok = toastOk && cspOk
-      console.log(`[e2e-smoke] ${ok ? '✓ 全部通过' : '✗ 收尾断言失败'}：物理点击 toast=${toast}，CSP 违规 ${cspViolations.length} 条`)
+      if (!focusOk) {
+        console.error(`[e2e-smoke] ✗ 点树之后焦点没进树容器：${keys.focusClass}`)
+      }
+      if (!keyMoved) {
+        console.error(
+          `[e2e-smoke] ✗ 真实方向键没有移动选中：${keys.selectedBefore} → ${keys.selectedAfter}`
+        )
+      }
+      const ok = toastOk && cspOk && focusOk && keyMoved
+      console.log(
+        `[e2e-smoke] ${ok ? '✓ 全部通过' : '✗ 收尾断言失败'}：物理点击 toast=${toast}，` +
+          `CSP 违规 ${cspViolations.length} 条，树焦点=${keys.focusClass}，` +
+          `方向键 ${keys.selectedBefore} → ${keys.selectedAfter}`
+      )
       void finish(ok ? 0 : 1)
     }
   }

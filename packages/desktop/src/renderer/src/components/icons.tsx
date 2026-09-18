@@ -65,6 +65,33 @@ export function SettingsIcon({ size = 16, className }: IconProps): JSX.Element {
   )
 }
 
+/** 单上箭头：搜索结果的「上一个命中」 */
+export function ChevronUpIcon({ size = 14, className }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size)} className={className} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m6.5 14.5 5.5-6 5.5 6" />
+    </svg>
+  )
+}
+
+/** 单下箭头：搜索结果的「下一个命中」 */
+export function ChevronDownIcon({ size = 14, className }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size)} className={className} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m6.5 9.5 5.5 6 5.5-6" />
+    </svg>
+  )
+}
+
+/** 缩进的三行：结构栏「展开与折叠」菜单 */
+export function LevelsIcon({ size = 14, className }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size)} className={className} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+      <path d="M4 6.5h16M7.5 12h12.5M11 17.5h9" />
+    </svg>
+  )
+}
+
 /** 品牌文档图标（渐变底上的白描文档，欢迎页/标题栏共用） */
 export function BrandDocGlyph({
   size = 20,

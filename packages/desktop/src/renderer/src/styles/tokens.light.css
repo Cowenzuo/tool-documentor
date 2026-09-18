@@ -29,6 +29,13 @@ html[data-theme='light'] {
   --danger: #d64550;
   --warning: #b07d16;
 
+  /* 子标题（有序列表那一家）按层级取色：与层级标题的素色数字一眼分得开 */
+  --lv-1: #5a68e0;
+  --lv-2: #1e9e6e;
+  --lv-3: #b07d16;
+  --lv-4: #8b5cf6;
+  --lv-5: #0e7490;
+
   --scrollbar-thumb: rgb(15 23 42 / 0.18);
   --scrollbar-thumb-hover: rgb(15 23 42 / 0.32);
 

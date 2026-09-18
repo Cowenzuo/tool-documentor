@@ -16,6 +16,11 @@ function isDev(): boolean {
   return !app.isPackaged && Boolean(process.env['ELECTRON_RENDERER_URL'])
 }
 
+/** 生命周期日志带时间戳：窗口莫名其妙消失时，靠它分辨是谁在什么时候关的 */
+function lifecycle(message: string): void {
+  console.log(`[lifecycle ${new Date().toLocaleTimeString('zh-CN', { hour12: false })}] ${message}`)
+}
+
 /** 允许交给系统浏览器打开的外链协议（其余一律拦截） */
 const SAFE_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:'])
 
@@ -83,6 +88,7 @@ function createMainWindow(): void {
 
   // 关窗前自动保存。存不上就不关：让用户知道改动还在，而不是以为已经存好。
   mainWindow.on('close', (event) => {
+    lifecycle('窗口收到关闭请求')
     const result = projectService?.saveAndCloseProject()
     if (result && !result.ok) {
       const choice = dialog.showMessageBoxSync(mainWindow as BrowserWindow, {
@@ -99,7 +105,16 @@ function createMainWindow(): void {
     }
   })
   mainWindow.on('closed', () => {
+    lifecycle('窗口已关闭')
     mainWindow = null
+  })
+
+  // 渲染层崩了或子进程异常退出时留个痕迹：不然只看到窗口消失，分不清是关的还是崩的
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    lifecycle(`渲染进程结束：${details.reason} exitCode=${details.exitCode}`)
+  })
+  app.on('child-process-gone', (_event, details) => {
+    lifecycle(`子进程结束：${details.type} ${details.reason}`)
   })
 
   // 外链：仅安全协议交给系统浏览器，窗口内一律不打开
@@ -185,6 +200,8 @@ function createMainWindow(): void {
           out.editor = !!document.querySelector('.editor-workspace');
           out.titlebarProject = (document.querySelector('.tb-center') || {}).textContent || null;
           out.treeRows = document.querySelectorAll('.tree-row').length + 1;
+          // 层级标题用素色数字表示层级，子标题用带色圆圈数字表示本级次序
+          out.treeBadges = [...document.querySelectorAll('.tree-scroll .tree-badge')].map((b) => b.textContent.trim());
           // 选中根节点
           document.querySelector('.tree-root-row').click();
           await sleep(300);
@@ -193,6 +210,8 @@ function createMainWindow(): void {
           const q = await waitFor('.tree-search input');
           setNative(q, '标识');
           await sleep(200);
+          out.searchCount = (document.querySelector('.tree-count') || {}).textContent || null;
+          out.searchHits = document.querySelectorAll('.tree-hl').length;
           const rows = [...document.querySelectorAll('.tree-row')];
           const match = rows.find((r) => r.textContent.includes('标识'));
           if (match) match.click();
@@ -220,6 +239,100 @@ function createMainWindow(): void {
           out.tbActions = [...document.querySelectorAll('.tb-right .tb-action')].map((b) => b.textContent.trim());
           // 清空搜索恢复全树
           setNative(q, '');
+          await sleep(200);
+          // 搜不到时要有话可说，不能只剩一个根行
+          setNative(q, 'zzz-查无此章节');
+          await sleep(250);
+          out.searchEmptyText = document.querySelector('.tree-scroll .tree-empty') ? document.querySelector('.tree-scroll .tree-empty').textContent.trim() : null;
+          out.searchCountEmpty = (document.querySelector('.tree-count') || {}).textContent || null;
+          setNative(q, '');
+          await sleep(200);
+          // 命中之间切换：搜索框右侧的上一个/下一个命中
+          setNative(q, '附录');
+          await sleep(250);
+          out.hitCount = (document.querySelector('.tree-count') || {}).textContent || null;
+          const nextHit = document.querySelector('.tree-icon-btn[aria-label="下一个命中"]');
+          const prevHit = document.querySelector('.tree-icon-btn[aria-label="上一个命中"]');
+          out.hitButtons = !!nextHit && !!prevHit;
+          const selectedTitle = () => (document.querySelector('.np-title') ? document.querySelector('.np-title').value : null);
+          if (nextHit && prevHit) {
+            nextHit.click();
+            await sleep(300);
+            out.hitFirst = selectedTitle();
+            nextHit.click();
+            await sleep(300);
+            out.hitSecond = selectedTitle();
+            nextHit.click();
+            await sleep(300);
+            out.hitWrapped = selectedTitle();
+            prevHit.click();
+            await sleep(300);
+            out.hitPrev = selectedTitle();
+          }
+          setNative(q, '');
+          await sleep(200);
+          // 展开与折叠菜单：全折/全展/按层级折叠都从这里进
+          const foldMenuBtn = document.querySelector('.tree-icon-btn[aria-label="展开与折叠"]');
+          const openFoldMenu = async () => {
+            foldMenuBtn.click();
+            await sleep(220);
+          };
+          const clickFoldItem = async (label) => {
+            const item = [...document.querySelectorAll('.tree-level-menu button')].find((b) => b.textContent.trim() === label);
+            if (!item) return false;
+            item.click();
+            await sleep(250);
+            return true;
+          };
+          out.treeFoldMenuBtn = !!foldMenuBtn;
+          if (foldMenuBtn) {
+            await openFoldMenu();
+            out.treeFoldMenuItems = [...document.querySelectorAll('.tree-level-menu button')].map((b) => b.textContent.trim());
+            await clickFoldItem('全部折叠');
+            out.treeRowsAfterCollapse = document.querySelectorAll('.tree-row').length;
+            // 折叠后顶层章节仍应可见，二级以下的行必须消失
+            out.treeDeepRowsAfterCollapse = document.querySelectorAll('.tree-row[aria-level="3"], .tree-row[aria-level="4"]').length;
+            out.treeExpandState = await window.documentor.uiState.load('tree_expanded');
+            await openFoldMenu();
+            await clickFoldItem('全部展开');
+            out.treeRowsAfterExpand = document.querySelectorAll('.tree-row').length;
+            // 按层级折叠：样例树最深四级，菜单里就有折到 2、3、4 级
+            await openFoldMenu();
+            await clickFoldItem('折到 2 级');
+            out.treeRowsAtLevel2 = document.querySelectorAll('.tree-row').length;
+            // 样例树里最深的一行是「附录 A」（在 3 级章节底下），折到 2 级后它必须消失
+            out.treeHasDeepRowAtLevel2 = [...document.querySelectorAll('.tree-row')].some((r) => r.textContent.includes('附录 A'));
+            await openFoldMenu();
+            await clickFoldItem('全部展开');
+            out.treeRowsAfterLevelReset = document.querySelectorAll('.tree-row').length;
+            out.treeHasDeepRowAfterReset = [...document.querySelectorAll('.tree-row')].some((r) => r.textContent.includes('附录 A'));
+          }
+          // 右键菜单：右键顺带选中该行，菜单头写清对象，禁用项要说明原因，焦点落在可用项上
+          const ctxRow = [...document.querySelectorAll('.tree-row')].find((r) => r.textContent.includes('范围'));
+          if (ctxRow) {
+            const rect = ctxRow.getBoundingClientRect();
+            ctxRow.dispatchEvent(new MouseEvent('contextmenu', {
+              bubbles: true,
+              clientX: Math.round(rect.left + 20),
+              clientY: Math.round(rect.top + 5)
+            }));
+            await sleep(300);
+            out.menuOpen = !!document.querySelector('.tree-menu');
+            out.menuItems = [...document.querySelectorAll('.tree-menu button')].map((b) => b.textContent.trim());
+            out.menuHeadText = (document.querySelector('.tree-menu-head') || {}).textContent || null;
+            out.menuDisabledHints = [...document.querySelectorAll('.tree-menu button:disabled')].map((b) => b.title);
+            out.menuFocus = document.activeElement ? document.activeElement.textContent.trim() : null;
+            out.menuSelectedTitle = document.querySelector('.np-title') ? document.querySelector('.np-title').value : null;
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+            await sleep(200);
+            out.menuClosed = !document.querySelector('.tree-menu');
+            // 右键把选中挪到了这一行，验完把选中还回去，免得影响后面的断言（该章节不允许放内容块）
+            const back = [...document.querySelectorAll('.tree-row')].find((r) => r.textContent.includes('标识'));
+            if (back) {
+              back.click();
+              await sleep(300);
+            }
+          }
           // 保存
           const saveBtn = await waitFor('.tb-action[aria-label="保存工程"]');
           saveBtn.click();
@@ -285,12 +398,32 @@ function createMainWindow(): void {
           if (closeBtn) closeBtn.click();
           await sleep(350);
           out.settingsClosed = !document.querySelector('.settings-dialog');
+          // 树键盘导航：聚焦树容器按方向键，选中项应当移动；放在最后做，免得影响前面的断言
+          const treeScroll = document.querySelector('.tree-scroll');
+          if (treeScroll) {
+            out.treeRole = treeScroll.getAttribute('role');
+            treeScroll.focus();
+            const beforeKey = (document.querySelector('.tree-row.is-selected') || {}).textContent || null;
+            treeScroll.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+            await sleep(300);
+            const afterKey = (document.querySelector('.tree-row.is-selected') || {}).textContent || null;
+            out.treeKeyMoved = afterKey !== null && afterKey !== beforeKey;
+            out.treeKeyBefore = beforeKey;
+            out.treeKeyAfter = afterKey;
+            out.treeAriaSelected = document.querySelectorAll('[role="treeitem"][aria-selected="true"]').length;
+          }
           // 物理输入验证：返回保存按钮中心坐标，main 侧用 sendInputEvent 重放真实鼠标点击
           const physSave = document.querySelector('.tb-action[aria-label="保存工程"]');
           if (physSave) {
             const r = physSave.getBoundingClientRect();
             out.saveRect = { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
             out.saveToastBefore = (document.querySelector('.toast') || {}).textContent || null;
+          }
+          // 同样交给 main 侧重放真实点击 + 真实按键：合成事件会让"焦点没进来"这种问题假装通过
+          const physRow = [...document.querySelectorAll('.tree-row')][1];
+          if (physRow) {
+            const r = physRow.getBoundingClientRect();
+            out.treeKeyRowRect = { x: Math.round(r.left + 40), y: Math.round(r.top + r.height / 2) };
           }
           return out;
         })()
@@ -313,6 +446,31 @@ function createMainWindow(): void {
               `(document.querySelector('.toast') || {}).textContent || null`
             )
             console.log('[e2e-phys]', 'toast=', toast)
+          }
+          // 真实鼠标点一行 → 真实方向键：验的就是"焦点有没有进树容器"这件事
+          const rowRect = data['treeKeyRowRect'] as { x: number; y: number } | undefined
+          const win = mainWindow
+          if (rowRect && win) {
+            win.webContents.sendInputEvent({ type: 'mouseMove', x: rowRect.x, y: rowRect.y })
+            win.webContents.sendInputEvent({ type: 'mouseDown', x: rowRect.x, y: rowRect.y, button: 'left', clickCount: 1 })
+            win.webContents.sendInputEvent({ type: 'mouseUp', x: rowRect.x, y: rowRect.y, button: 'left', clickCount: 1 })
+            await new Promise((resolve) => setTimeout(resolve, 400))
+            const focusClass = await win.webContents.executeJavaScript(
+              `(document.activeElement && (document.activeElement.className || document.activeElement.tagName)) || null`
+            )
+            const selectedBefore = await win.webContents.executeJavaScript(
+              `(document.querySelector('.tree-row.is-selected, .tree-root-row.is-selected') || {}).textContent || null`
+            )
+            win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Down' })
+            win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Down' })
+            await new Promise((resolve) => setTimeout(resolve, 400))
+            const selectedAfter = await win.webContents.executeJavaScript(
+              `(document.querySelector('.tree-row.is-selected, .tree-root-row.is-selected') || {}).textContent || null`
+            )
+            console.log(
+              '[e2e-keys]',
+              JSON.stringify({ focusClass, selectedBefore, selectedAfter })
+            )
           }
         })
         .catch((err) => console.error('[e2e] failed:', err))
@@ -340,6 +498,7 @@ function registerIpc(): void {
   })
 
   ipcMain.on(IPC.WindowClose, () => {
+    lifecycle('渲染层请求关闭窗口')
     mainWindow?.close()
   })
 
@@ -365,6 +524,7 @@ app.whenReady().then(() => {
 
   // 退出前自动保存当前工程
   app.on('before-quit', () => {
+    lifecycle('收到退出请求')
     projectService?.saveAndCloseProject()
   })
 
@@ -376,6 +536,7 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  lifecycle('所有窗口已关闭，退出应用')
   if (process.platform !== 'darwin') {
     app.quit()
   }
