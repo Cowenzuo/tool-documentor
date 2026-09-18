@@ -1,12 +1,25 @@
 /** tree.test.ts — 文档树节点增删改查与遍历的单测。 */
 
 import { beforeEach, describe, expect, it } from 'vitest'
-import { resetIdCounterForTest } from '../src/idgen'
+import { nextNodeId, resetIdCounterForTest, seedIdCounter } from '../src/idgen'
 import { DocumentNode, DocumentTree } from '../src/tree'
 import type { ContentBlock } from '../src/blocks'
 
 beforeEach(() => {
   resetIdCounterForTest()
+})
+
+describe('id 计数器', () => {
+  it('seed 之后越过既有最大 id，不与旧 id 冲突', () => {
+    // 打开工程时 load() 会调 seedIdCounter(现存最大数字 id)。
+    // 少了这一步，新建的节点会拿到已经用过的 id，保存时主键冲突。
+    expect(nextNodeId()).toBe('1')
+    seedIdCounter(7)
+    expect(nextNodeId()).toBe('8')
+    // 往回 seed 不应让计数器倒退
+    seedIdCounter(3)
+    expect(nextNodeId()).toBe('9')
+  })
 })
 
 describe('DocumentNode 基础', () => {

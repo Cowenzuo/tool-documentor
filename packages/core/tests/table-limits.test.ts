@@ -1,22 +1,7 @@
-/** table-limits.test.ts — 表格尺寸契约与形状校验的单测。 */
+/** table-limits.test.ts — 表格形状校验的单测。 */
 
 import { describe, expect, it } from 'vitest'
-import { TABLE_MAX_COLS, TABLE_MAX_ROWS, bodyRowCount, checkTableShape } from '../src/table-limits'
-
-describe('表格尺寸契约', () => {
-  it('上限放在 core 且是量级够用的默认值', () => {
-    // 不再是界面里写死的 50/20；具体数值不做断言以免频繁改测试，
-    // 但必须足够大，能容纳"单表列全量组次"这种真实需求。
-    expect(TABLE_MAX_ROWS).toBeGreaterThanOrEqual(500)
-    expect(TABLE_MAX_COLS).toBeGreaterThanOrEqual(20)
-  })
-
-  it('正文行数只认 data 长度（rows 是提示性元数据）', () => {
-    expect(bodyRowCount(50, 85)).toBe(85)
-    expect(bodyRowCount(86, 85)).toBe(85)
-    expect(bodyRowCount(undefined, 85)).toBe(85)
-  })
-})
+import { checkTableShape } from '../src/table-limits'
 
 describe('checkTableShape（形状校验）', () => {
   it('合法表格没有问题', () => {

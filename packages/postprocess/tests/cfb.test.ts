@@ -2,10 +2,19 @@
  * cfb.test.ts — CFB 写入/解析往返（对齐旧版 visio_ole.py 自检语义）。
  */
 import { describe, it, expect } from 'vitest'
-import { buildCompoundFile, parseCompoundFile } from '../src/cfb'
+import { CFB_MINI, CFB_MINI_CUTOFF, buildCompoundFile, parseCompoundFile } from '../src/cfb'
 import { OLE01_STREAM, OBJINFO_STREAM, buildCompObj, VISIO_CLSID } from '../src/ole-streams'
 
 const FIXED_NOW = new Date('2024-01-01T00:00:00Z')
+
+describe('CFB 常量（对外格式契约，不是内部偏好）', () => {
+  it('mini 扇区 64 字节、阈值 4096 字节', () => {
+    // 这两个数字由 CFB 规范定死，Word 与其它读方按它们解析。
+    // 只做读写往返测不出改动（写读用同一常量，自洽），所以单独钉住。
+    expect(CFB_MINI).toBe(64)
+    expect(CFB_MINI_CUTOFF).toBe(4096)
+  })
+})
 
 function ascii(text: string): Uint8Array {
   const out = new Uint8Array(text.length)

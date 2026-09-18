@@ -56,6 +56,20 @@ describe('示例模板资产加载（samples/sample-template，合成无版权�
       expect(report.valid).toBe(true)
     }
   })
+
+  it('骨架里查不到的 styleId 必须报出来（校验真的在起作用）', () => {
+    // 反向用例：上面的"全部命中"不能只证明示例数据恰好正确，
+    // 还要能在 styleId 打错时报出来。示例骨架里有 49/45/60 等，没有 99999。
+    const mgr = createManager()
+    const base = mgr.findStyleTemplate('demo-stylemap')!
+    const broken = { ...base, styleMap: { ...base.styleMap, body: '99999' } }
+    const report = mgr.validateStyleTemplate(broken)
+    expect(report.valid).toBe(false)
+    expect(report.missing).toEqual([{ logicalName: 'body', styleId: '99999' }])
+    // 骨架读不到（路径不存在）时也要报，而不是当成功
+    const noSkeleton = { ...base, skeletonPath: `${base.skeletonPath}-不存在` }
+    expect(mgr.validateStyleTemplate(noSkeleton).valid).toBe(false)
+  })
 })
 
 describe('结构模板实例化（对齐旧版 cloneNode 语义）', () => {
@@ -179,6 +193,25 @@ describe('结构 × 样式配对（软校验候选）', () => {
     // 软校验：结构模板照常加载
     expect(mgr.listStructures()).toHaveLength(1)
     expect(mgr.defaultStyleCandidate(demo)!.fileKey).toBe('demo-stylemap')
+  })
+
+  it('候选可用性也要看骨架：styleId 在 styles.xml 里查不到就不算可用', () => {
+    // 上面那条走的是"逻辑键缺失"分支；这里专门覆盖"键齐全但 styleId 打错"，
+    // 也就是 styleCandidatesForStructure 里合并 validateStyleTemplate 结果的那段。
+    const mgr = createManager()
+    const demo = mgr.findStructureByName('示例文档模板 (Demo)')!
+    const base = mgr.findStyleTemplate('demo-stylemap')!
+    const broken = { ...base, styleMap: { ...base.styleMap, body: '99999' } }
+    // 用坏样式顶掉注册表里的同名项，候选查询才会走到它
+    ;(mgr as unknown as { styles: Map<string, unknown> }).styles.set(base.name, broken)
+    ;(mgr as unknown as { styles: Map<string, unknown> }).styles.set(base.fileKey, broken)
+
+    const candidate = mgr
+      .styleCandidatesForStructure(demo)
+      .find((c) => c.fileKey === 'demo-stylemap')!
+    expect(candidate.available).toBe(false)
+    expect(candidate.missingKeys.join(' ')).toContain('body')
+    expect(candidate.missingKeys.join(' ')).toContain('99999')
   })
 
   it('旧格式兼容：无 styleTemplates 时回退单元素集合', async () => {
