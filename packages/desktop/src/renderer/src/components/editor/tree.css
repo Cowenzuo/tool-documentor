@@ -8,13 +8,17 @@
 }
 
 .tree-search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--border);
   flex: none;
 }
 
 .tree-search input {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
   background: var(--bg-input);
@@ -26,6 +30,14 @@
 .tree-search input:focus {
   outline: none;
   border-color: var(--accent);
+}
+
+/* 命中数量：贴在搜索框右侧，不占正文宽度 */
+.tree-count {
+  flex: none;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
 }
 
 .tree-scroll {
@@ -158,6 +170,12 @@
 
 .tree-title.match {
   color: var(--accent);
+}
+
+/* 命中的那几个字：只加底色，颜色沿用标题色，免得和"整行命中"的强调色打架 */
+.tree-hl {
+  background: var(--accent-soft-strong);
+  border-radius: 2px;
 }
 
 .tree-empty {

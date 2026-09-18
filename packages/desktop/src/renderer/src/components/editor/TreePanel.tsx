@@ -20,6 +20,13 @@ export default function TreePanel(): React.JSX.Element {
   const menuRef = useRef<HTMLDivElement | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
+  /** 搜索匹配集：一次遍历算清命中、要显示的祖先与第一个命中，避免逐行递归扫子树 */
+  const needle = query.trim().toLowerCase()
+  const match = useMemo(() => {
+    const empty: TreeMatchIndex = { hits: new Set(), visible: new Set(), first: null }
+    return session ? buildMatchIndex(session.root, needle) : empty
+  }, [session, needle])
+
   const sessionKey = session?.info.dprojPath ?? ''
   useEffect(() => {
     // 打开工程后全部展开
@@ -39,6 +46,13 @@ export default function TreePanel(): React.JSX.Element {
     row?.scrollIntoView({ block: 'nearest' })
   }, [selectedId, sessionKey])
 
+  /** 搜索时滚到第一个命中，省得用户自己在一长串里找 */
+  useEffect(() => {
+    const target = match.first
+    if (!target) return
+    const row = scrollRef.current?.querySelector<HTMLElement>(`[data-node-id="${target}"]`)
+    row?.scrollIntoView({ block: 'nearest' })
+  }, [match])
   useEffect(() => {
     const close = (event: MouseEvent): void => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenu(null)
@@ -78,6 +92,7 @@ export default function TreePanel(): React.JSX.Element {
   if (!session) return <aside className="tree-panel" />
 
   const root = session.root
+  const searching = needle.length > 0
 
   return (
     <aside className="tree-panel">
@@ -89,6 +104,11 @@ export default function TreePanel(): React.JSX.Element {
           placeholder="搜索章节…"
           aria-label="搜索章节"
         />
+        {searching && (
+          <span className="tree-count" aria-live="polite">
+            {match.hits.size} 项
+          </span>
+        )}
       </div>
       <div className="tree-scroll" ref={scrollRef}>
         <div className="tree-root-row" onClick={() => selectNode(root.id)}>
@@ -103,7 +123,8 @@ export default function TreePanel(): React.JSX.Element {
             key={child.id}
             node={child}
             depth={0}
-            query={query}
+            needle={needle}
+            match={match}
             expanded={expanded}
             selectedId={selectedId}
             listIndex={listIndex}
@@ -116,6 +137,9 @@ export default function TreePanel(): React.JSX.Element {
           />
         ))}
         {root.children.length === 0 && <div className="tree-empty">模板里还没有章节</div>}
+        {root.children.length > 0 && searching && match.hits.size === 0 && (
+          <div className="tree-empty">没有匹配的章节</div>
+        )}
       </div>
 
       {menu && menuNode && (
@@ -155,7 +179,8 @@ export default function TreePanel(): React.JSX.Element {
 function TreeNodeRow(props: {
   node: NodeDto
   depth: number
-  query: string
+  needle: string
+  match: TreeMatchIndex
   expanded: Set<string>
   selectedId: string | null
   listIndex: Map<string, number>
@@ -163,19 +188,15 @@ function TreeNodeRow(props: {
   onSelect: (id: string) => void
   onContextMenu: (e: React.MouseEvent, nodeId: string) => void
 }): React.JSX.Element {
-  const { node, depth, query, expanded, selectedId, listIndex, onToggle, onSelect, onContextMenu } = props
+  const { node, depth, needle, match, expanded, selectedId, listIndex, onToggle, onSelect, onContextMenu } = props
   const hasChildren = node.children.length > 0
   const isOpen = expanded.has(node.id)
-  const queryTrim = query.trim().toLowerCase()
-  const selfMatch = queryTrim.length === 0 || node.title.toLowerCase().includes(queryTrim)
-  const childMatch = (n: NodeDto): boolean =>
-    n.title.toLowerCase().includes(queryTrim) || n.children.some(childMatch)
+  const searching = needle.length > 0
 
-  const showSelf = queryTrim.length === 0 || selfMatch || node.children.some(childMatch)
-  if (!showSelf) return <></>
+  if (searching && !match.visible.has(node.id)) return <></>
 
-  const visibleChildren = queryTrim.length === 0 ? (isOpen ? node.children : []) : node.children
-  const matchedTitle = queryTrim.length > 0 && selfMatch
+  const visibleChildren = searching ? node.children : isOpen ? node.children : []
+  const matchedTitle = searching && match.hits.has(node.id)
 
   return (
     <>
@@ -216,14 +237,17 @@ function TreeNodeRow(props: {
             {node.headingLevel}
           </span>
         )}
-        <span className={`tree-title${matchedTitle ? ' match' : ''}`}>{node.title || '·'}</span>
+        <span className={`tree-title${matchedTitle ? ' match' : ''}`}>
+          {searching ? highlight(node.title || '·', needle) : node.title || '·'}
+        </span>
       </div>
       {visibleChildren.map((child) => (
         <TreeNodeRow
           key={child.id}
           node={child}
           depth={depth + 1}
-          query={query}
+          needle={needle}
+          match={match}
           expanded={expanded}
           selectedId={selectedId}
           listIndex={listIndex}
@@ -246,6 +270,66 @@ function assignListIndex(node: NodeDto, out: Map<string, number>): void {
     }
     assignListIndex(child, out)
   }
+}
+
+interface TreeMatchIndex {
+  /** 标题命中的节点 */
+  hits: Set<string>
+  /** 需要渲染的节点：命中项加上它们的祖先 */
+  visible: Set<string>
+  /** 前序第一个命中，供自动滚过去用 */
+  first: string | null
+}
+
+/**
+ * 一次前序遍历算清匹配集。
+ * 以前是每行各自递归扫一遍子树判断"后代有没有命中"，最坏 O(n²)；
+ * 键入时每敲一个字都要重算，大树会拖手。
+ */
+function buildMatchIndex(root: NodeDto, needle: string): TreeMatchIndex {
+  const hits = new Set<string>()
+  const visible = new Set<string>()
+  if (needle.length === 0) return { hits, visible, first: null }
+
+  let first: string | null = null
+  const walk = (node: NodeDto): boolean => {
+    const selfHit = node.title.toLowerCase().includes(needle)
+    if (selfHit) {
+      hits.add(node.id)
+      if (first === null) first = node.id
+    }
+    let childHit = false
+    for (const child of node.children) {
+      if (walk(child)) childHit = true
+    }
+    if (selfHit || childHit) visible.add(node.id)
+    return selfHit || childHit
+  }
+  walk(root)
+  return { hits, visible, first }
+}
+
+/** 命中子串高亮；needle 必须已 trim 并转小写 */
+function highlight(text: string, needle: string): React.ReactNode {
+  const lower = text.toLowerCase()
+  const parts: React.ReactNode[] = []
+  let from = 0
+  let at = lower.indexOf(needle)
+  let key = 0
+  while (at >= 0) {
+    if (at > from) parts.push(text.slice(from, at))
+    parts.push(
+      <mark className="tree-hl" key={key}>
+        {text.slice(at, at + needle.length)}
+      </mark>
+    )
+    key += 1
+    from = at + needle.length
+    at = lower.indexOf(needle, from)
+  }
+  if (parts.length === 0) return text
+  if (from < text.length) parts.push(text.slice(from))
+  return parts
 }
 
 /** 1..20 用圆圈数字，超出退回半角括号数字（模板层级不会这么多） */

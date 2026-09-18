@@ -87,6 +87,19 @@ function checkResult(data) {
     Array.isArray(data.treeBadges) && !data.treeBadges.some((b) => ['章', '节', '条', '子'].includes(b)),
     `节点标签里还有旧的章/节/条/子：${JSON.stringify(data.treeBadges)}`
   )
+  // 搜索：命中数、命中子串高亮、搜不到时的空状态
+  need(
+    typeof data.searchCount === 'string' && /^\d+\s*项$/.test(data.searchCount.trim()),
+    `搜索命中数未显示：${data.searchCount}`
+  )
+  need(
+    typeof data.searchHits === 'number' && data.searchHits > 0,
+    `搜索命中子串没有高亮：${data.searchHits}`
+  )
+  need(
+    typeof data.searchEmptyText === 'string' && data.searchEmptyText.includes('没有匹配'),
+    `搜索无结果时缺少提示：${data.searchEmptyText}`
+  )
   return problems
 }
 

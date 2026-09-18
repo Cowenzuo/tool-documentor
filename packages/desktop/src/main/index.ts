@@ -195,6 +195,8 @@ function createMainWindow(): void {
           const q = await waitFor('.tree-search input');
           setNative(q, '标识');
           await sleep(200);
+          out.searchCount = (document.querySelector('.tree-count') || {}).textContent || null;
+          out.searchHits = document.querySelectorAll('.tree-hl').length;
           const rows = [...document.querySelectorAll('.tree-row')];
           const match = rows.find((r) => r.textContent.includes('标识'));
           if (match) match.click();
@@ -220,6 +222,14 @@ function createMainWindow(): void {
           }
           // 清空搜索恢复全树
           setNative(q, '');
+          await sleep(200);
+          // 搜不到时要有话可说，不能只剩一个根行
+          setNative(q, 'zzz-查无此章节');
+          await sleep(250);
+          out.searchEmptyText = document.querySelector('.tree-scroll .tree-empty') ? document.querySelector('.tree-scroll .tree-empty').textContent.trim() : null;
+          out.searchCountEmpty = (document.querySelector('.tree-count') || {}).textContent || null;
+          setNative(q, '');
+          await sleep(200);
           // 保存
           const saveBtn = await waitFor('.tb-action[aria-label="保存工程"]');
           saveBtn.click();
