@@ -52,6 +52,13 @@ export interface SaveResult {
   savedAt: string
 }
 
+/** 交付前检查：只报会影响导出结果的问题 */
+export interface PrecheckResult {
+  images: { total: number; missing: string[] }
+  mermaid: { total: number; converterAvailable: boolean }
+  tables: { total: number; overLimit: number }
+}
+
 /** 关闭前自动保存的结果：失败时工程保持打开，由调用方决定怎么提醒用户 */
 export type SaveAndCloseResult = { ok: true } | { ok: false; error: string }
 
@@ -144,6 +151,10 @@ export const ProjectIpc = {
   ProjectIsOpen: 'project:is-open',
   /** 在系统文件管理器里打开当前工程目录 */
   ProjectRevealFolder: 'project:reveal-folder',
+  /** 当前工程的正文栏宽（twips），预览按它排版 */
+  ProjectPageTextWidth: 'project:page-text-width',
+  /** 交付前检查：缺图、转换组件可用性、超限表格 */
+  ProjectPrecheck: 'project:precheck',
 
   TreeGetRoot: 'tree:get-root',
   NodeUpdateTitle: 'node:update-title',
@@ -258,6 +269,10 @@ export interface DesktopProjectApi {
   treeGetRoot(): Promise<ProjectOpenResult>
   /** 在系统文件管理器里打开工程目录，返回该目录路径 */
   revealFolder(): Promise<string>
+  /** 当前工程的正文栏宽（twips）；解析不到返回 null，界面用兜底宽度 */
+  pageTextWidth(): Promise<number | null>
+  /** 交付前检查：缺图、转换组件可用性、超限表格 */
+  precheck(): Promise<PrecheckResult>
 }
 
 export interface DesktopTreeApi {

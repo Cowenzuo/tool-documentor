@@ -316,8 +316,20 @@ function mediaBoxOf(sectPr: string): MediaBox {
   return { widthEmu: widthTw * EMU_PER_TWIP, heightEmu: heightTw * EMU_PER_TWIP }
 }
 
-function extOf(p: string): string {
-  const m = /\.[a-z0-9]+$/i.exec(p)
+/**
+ * 骨架的正文可用宽度（twips），供界面预览按同一栏宽排版。
+ * 与导出侧用同一套 sectPr 解析：页宽减左右页边距，缺省边距 1 英寸；
+ * 骨架读不到或没有 sectPr 时返回那套兜底值，绝不自己另算一份。
+ */
+export function skeletonTextWidthTwips(skeletonPath: string): number | null {
+  if (!skeletonPath) return null
+  const docPath = join(skeletonPath, 'word', 'document.xml')
+  if (!existsSync(docPath)) return null
+  const mediaBox = mediaBoxOf(extractSectPr(readFileSync(docPath, 'utf8')))
+  return Math.round(mediaBox.widthEmu / EMU_PER_TWIP)
+}
+
+function extOf(p: string): string {  const m = /\.[a-z0-9]+$/i.exec(p)
   return (m ? m[0] : '.png').toLowerCase()
 }
 

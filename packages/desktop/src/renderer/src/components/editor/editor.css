@@ -1091,8 +1091,13 @@ html[data-theme='light'] {
   overflow-y: auto;
 }
 
+/*
+ * 栏宽对齐导出：正文列宽由骨架的 sectPr 算出（PreviewPage 通过 --pv-page-width 传进来）。
+ * 这个容器是 border-box，左右内边距也算在宽度里，所以 max-width 要加上两侧内边距；
+ * 兜底值 554px 对应 A4 加左右 1800 缇页边距的正文宽（8306 缇）。
+ */
 .pv-article {
-  max-width: 780px;
+  max-width: calc(var(--pv-page-width, 554px) + var(--space-6) * 2);
   margin: 0 auto;
   padding: var(--space-6) var(--space-6) 120px;
   line-height: 1.5;
@@ -1114,6 +1119,51 @@ html[data-theme='light'] {
   font-weight: 500;
   color: var(--text-3);
   font-size: 0.9em;
+}
+
+/* 交付前检查：只在真有问题时出现，贴在正文上方 */
+.pv-precheck {
+  max-width: calc(var(--pv-page-width, 554px) + var(--space-6) * 2);
+  margin: var(--space-4) auto 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-card);
+  background: var(--bg-panel);
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}
+
+.pv-precheck-title {
+  display: block;
+  margin-bottom: var(--space-1);
+  font-weight: 600;
+  color: var(--warning);
+}
+
+.pv-precheck ul {
+  margin: 0;
+  padding-left: 1.2em;
+}
+
+/* 整篇预览里的单个章节：当前章节用左侧强调条标出来，方便定位 */
+.pv-node {
+  scroll-margin-top: var(--space-4);
+  border-left: 2px solid transparent;
+  padding-left: var(--space-3);
+  margin-left: calc(var(--space-3) * -1);
+}
+
+.pv-node.is-current {
+  border-left-color: var(--accent-soft-strong);
+}
+
+.pv-node.is-current > .pv-h1,
+.pv-node.is-current > .pv-h2,
+.pv-node.is-current > .pv-h3,
+.pv-node.is-current > .pv-h4,
+.pv-node.is-current > .pv-h5,
+.pv-node.is-current > .pv-h6 {
+  color: var(--accent);
 }
 
 .pv-body {

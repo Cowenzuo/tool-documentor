@@ -84,6 +84,15 @@ export function registerProjectIpc(service: ProjectService): void {
 
   handle<void, boolean>(ProjectIpc.ProjectIsOpen, () => service.isOpen)
 
+  // 预览按导出栏宽排版：栏宽取自样式骨架的 sectPr，解析不到返回 null 由界面兜底
+  handle<void, number | null>(ProjectIpc.ProjectPageTextWidth, () =>
+    service.pageTextWidthTwips()
+  )
+
+  handle<void, Awaited<ReturnType<ProjectService['precheck']>>>(ProjectIpc.ProjectPrecheck, () =>
+    service.precheck()
+  )
+
   handle<void, Awaited<ReturnType<ProjectService['projectInfo']>>>(ProjectIpc.ProjectGetInfo, () =>
     service.projectInfo()
   )
