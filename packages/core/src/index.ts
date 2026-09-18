@@ -47,6 +47,7 @@ export {
 export type { TableMergeCell, TableSpanSource } from './table-merge'
 export { TABLE_MAX_ROWS, TABLE_MAX_COLS, bodyRowCount, checkTableShape } from './table-limits'
 export type { TableShapeIssue } from './table-limits'
+export { normalizeMermaidSource, isMermaidSourceDirty } from './mermaid-source'
 export { localIsoNow, toLocalIso } from './time'
 export {
   readAnchor,

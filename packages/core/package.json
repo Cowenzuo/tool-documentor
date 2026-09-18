@@ -30,6 +30,10 @@
       "import": "./src/table-limits.ts",
       "require": "./dist/table-limits.js"
     },
+    "./mermaid-source": {
+      "import": "./src/mermaid-source.ts",
+      "require": "./dist/mermaid-source.js"
+    },
     "./time": {
       "import": "./src/time.ts",
       "require": "./dist/time.js"

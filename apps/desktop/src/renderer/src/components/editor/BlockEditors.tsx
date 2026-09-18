@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { resolveTableMerges, countVerticalMerges } from '@documentor/core/table-merge'
 import { TABLE_MAX_COLS, TABLE_MAX_ROWS } from '@documentor/core/table-limits'
+import { normalizeMermaidSource } from '@documentor/core/mermaid-source'
 import type {
   CodeBlock,
   ContentBlock,
@@ -602,6 +603,13 @@ export function MermaidEditor(props: EditorBaseProps<MermaidBlock>): React.JSX.E
           className="be-textarea be-mono"
           value={block.code}
           onChange={(e) => onChange({ ...block, code: e.target.value })}
+          onBlur={() => {
+            // 失焦时把源码规整一次并落库：粘进来的围栏与 `mermaid` 语言标签留在这里
+            // 会让渲染报 "No diagram type detected"，导出侧也吃同一份源码。
+            // 只清"包裹"，不碰图定义本身。
+            const cleaned = normalizeMermaidSource(block.code)
+            if (cleaned !== block.code) onChange({ ...block, code: cleaned })
+          }}
           placeholder={'graph TD\n  A[开始] --> B[结束]'}
           spellCheck={false}
         />

@@ -21,7 +21,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSyn
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { stripCaptionNumber } from '@documentor/core'
+import { stripCaptionNumber, normalizeMermaidSource } from '@documentor/core'
 import type { DocumentTree } from '@documentor/core'
 import type { StyleTemplateDef } from '@documentor/templates'
 import { embedVsdxIntoDocx } from '@documentor/postprocess'
@@ -148,7 +148,9 @@ export async function attachFiguresToDocx(
       const base = stripCaptionNumber(fig.caption) || fig.caption || `图${i + 1}`
       const name = `sdd-${String(i + 1).padStart(3, '0')}-${sanitizeCaption(base)}.vsdx`
       try {
-        const r = await convertFn(fig.code, fig.caption)
+        // 与编辑器渲染共用同一份规整：上游转换器未必容忍 markdown 围栏与语言标签，
+        // 而用户粘进来的源码常常带着它们（编辑器渲染那条路已经在规整）。
+        const r = await convertFn(normalizeMermaidSource(fig.code), fig.caption)
         if (!r.ok || !r.vsdxBase64) {
           stats.failed.push({ caption: fig.caption || `图${i + 1}`, reason: r.error || '转换失败' })
           slots.push({ name })

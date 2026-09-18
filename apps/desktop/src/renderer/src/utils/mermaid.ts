@@ -1,6 +1,8 @@
 /**
  * Mermaid 渲染（懒加载引擎单例，供编辑器分栏与预览视图共用）。
  */
+import { normalizeMermaidSource } from '@documentor/core/mermaid-source'
+
 let enginePromise: Promise<typeof import('mermaid')> | null = null
 
 export function ensureMermaidEngine(): Promise<typeof import('mermaid')> {
@@ -21,14 +23,17 @@ export async function renderMermaidSvg(code: string): Promise<string> {
   const mod = await ensureMermaidEngine()
   renderSeq += 1
   const id = `dmd-${Date.now().toString(36)}-${renderSeq.toString(36)}`
-  const { svg } = await mod.default.render(id, code)
+  // 规整：粘贴时常把 markdown 围栏与 `mermaid` 语言标签一起带进来，
+  // 那一行会让解析器报 "No diagram type detected matching given configuration"
+  const { svg } = await mod.default.render(id, normalizeMermaidSource(code))
   return svg
 }
 
 /** 把渲染出的 svg 栅格化为 PNG 并缓存到工程 mermaid/<hash>.png（失败静默） */
 export async function writeMermaidPngCache(svg: string, code: string): Promise<void> {
   try {
-    const hash = await sha256Hex(code)
+    // 与渲染用同一份规整后的源码做哈希，缓存键才与导出侧一致
+    const hash = await sha256Hex(normalizeMermaidSource(code))
     const blob = new Blob([svg], { type: 'image/svg+xml' })
     const url = URL.createObjectURL(blob)
     const img = new Image()
