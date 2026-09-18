@@ -25,21 +25,21 @@ apps/desktop/          # Electron 壳：main / preload / renderer 三段
   src/preload/         # contextBridge 类型化桥
   src/renderer/        # React UI：主题 token、组件、页面
   src/shared/          # main、preload、renderer 三端共享的 IPC 契约
-  out/                 # electron-vite 构建产物（中间产物，不可直接运行）
-  release/             # electron-builder 打包产物（可分发，见下）
+  out/                 # electron-vite 构建中间产物（不可直接运行）
 packages/              # core / templates / docx / postprocess 四个纯逻辑包
 samples/               # demo 级实例：示例模板、样例工程、实例样例，供直接打开测试，无外部版权内容
-scripts/               # 入库脚本：上游契约检查、E2E 冒烟、产物校验、按需构建库
+scripts/               # 入库脚本：上游契约检查、E2E 冒烟、产物校验、按需构建库、一键启动
+release/               # electron-builder 打包产物（可分发，不入库）
 temp/                  # 临时产物（不入库，可随时清空）
 ```
 
-> `apps/desktop/` 是**开发工程目录**（src / cli / scripts / out / release 都在里面），
-> 它本身不是可运行程序。要跑或要交付，看两个产物目录的区别：
+> **两个产物目录别混**：`out/` 是 electron-vite 的中间产物（只有源码产物，`pnpm start` 跑它），
+> `release/` 是 electron-builder 打出的可分发成品（可直接运行）。两者都在各自的 .gitignore 规则下。
 
 | 目录 | 是什么 | 能不能直接跑 |
 | --- | --- | --- |
 | `apps/desktop/out/` | electron-vite 的构建中间产物（main/preload/renderer 三份） | ❌ 只有源码产物，`pnpm start` 跑的是它 |
-| `apps/desktop/release/` | electron-builder 打出的可分发成品 | ✅ 见「打包与安全」一节 |
+| `release/`（仓库根） | electron-builder 打出的可分发成品 | ✅ 见「打包与安全」一节 |
 
 ## 开发
 
@@ -56,14 +56,14 @@ pnpm verify     # 门禁：上游契约检查 + typecheck + 全量单测 + build
 pnpm verify:local  # 同上但跳过上游检查（上游改造期间日常用）
 pnpm cli:test-export -- <instance.json> [out.docx] --templates <模板目录>   # 无界面导出
 pnpm --filter @documentor/docx test:real   # 真实图转换契约测试（需 Chromium）
-pnpm package:dir  # 免安装包：apps/desktop/release/win-unpacked
-pnpm package      # NSIS 安装包：apps/desktop/release/Documentor-<version>-setup.exe
+pnpm package:dir  # 免安装包：release/win-unpacked（仓库根）
+pnpm package      # NSIS 安装包：release/Documentor-<version>-setup.exe
 pnpm e2e          # 生产产物 E2E 冒烟（工作区落 temp/，见下）
 node scripts/verify-package.cjs   # 校验 asar 内容（必需项齐全 / mmd2vsdx 不入包 / 无开发依赖）
 ```
 
 > **一键启动的默认行为**：`start-documentor.cmd` 与 `scripts/start-documentor.cjs`
-> **默认启发布版**（`apps/desktop/release/win-unpacked/Documentor.exe`）——不做构建、秒开，
+> **默认启发布版**（`release/win-unpacked/Documentor.exe`，仓库根）——不做构建、秒开，
 > 适合改数据时用。要开发时加 `--dev`，或在仓库根建一个空的 `.dev-mode` 标记文件。
 >
 > ⚠️ `.dev-mode` 是**机器级开关**，对所有启动方式生效——包括安装包建出来的快捷方式。
@@ -97,11 +97,12 @@ node scripts/verify-package.cjs   # 校验 asar 内容（必需项齐全 / mmd2v
 
 ## 打包与安全
 
-**产物在哪**（由 `apps/desktop/electron-builder.yml` 的 `directories.output: release` 决定，
-相对配置文件所在目录解析，所以落在 `apps/desktop/` 下，不是仓库根）：
+**产物在哪**：仓库根的 `release/`。配置见 `apps/desktop/electron-builder.yml` 的
+`directories.output: ../../release`——electron-builder 的 `directories` 默认以配置文件所在目录
+为基准，写裸相对路径会落到 `apps/desktop/release`，所以显式上溯了两级统一到仓库根。
 
 ```
-apps/desktop/release/
+release/
 ├── Documentor-<version>-setup.exe          安装包，双击安装（NSIS，可选安装目录）
 ├── Documentor-<version>-setup.exe.blockmap 增量更新用，一起留着
 └── win-unpacked/

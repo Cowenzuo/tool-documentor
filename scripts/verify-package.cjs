@@ -15,7 +15,8 @@ const { existsSync, readFileSync, readdirSync } = require('node:fs')
 const { join, resolve } = require('node:path')
 
 const ROOT = resolve(__dirname, '..')
-const UNPACKED = join(ROOT, 'apps', 'desktop', 'release', 'win-unpacked')
+// 产物在仓库根的 release/（electron-builder.yml 的 directories.output 上溯了两级）
+const UNPACKED = join(ROOT, 'release', 'win-unpacked')
 const ASAR = join(UNPACKED, 'resources', 'app.asar')
 
 /** 必需项（任一缺失即失败） */

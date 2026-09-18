@@ -2,7 +2,7 @@
 /**
  * start-documentor.cjs —— 一键启动。
  *
- * **默认启动打包好的发布版**（apps/desktop/release/win-unpacked/Documentor.exe）。
+ * **默认启动打包好的发布版**（release/win-unpacked/Documentor.exe，产物在仓库根）。
  * 开发时才启开发版，两种方式：
  *   - 传 --dev： node scripts/start-documentor.cjs --dev
  *   - 或在本仓库根建一个名为 .dev-mode 的空文件（谁在这台机器上开发就建一个）
@@ -21,8 +21,8 @@ const { join, resolve, dirname } = require('node:path')
 const { spawn, spawnSync } = require('node:child_process')
 
 const ROOT = resolve(__dirname, '..')
-const RELEASE_EXE = join(ROOT, 'apps', 'desktop', 'release', 'win-unpacked', 'Documentor.exe')
-const RELEASE_DIR = join(ROOT, 'apps', 'desktop', 'release')
+const RELEASE_EXE = join(ROOT, 'release', 'win-unpacked', 'Documentor.exe')
+const RELEASE_DIR = join(ROOT, 'release')
 const DEV_MARKER = join(ROOT, '.dev-mode')
 
 const argv = process.argv.slice(2)
