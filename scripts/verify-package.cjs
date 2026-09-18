@@ -95,7 +95,7 @@ function main() {
   console.log(`[verify-package] 顶层依赖包：${names.length} 个`)
   if (process.argv.includes('--list')) console.log(names.join(', '))
 
-  const appPkg = JSON.parse(readFileSync(join(ROOT, 'apps', 'desktop', 'package.json'), 'utf8'))
+  const appPkg = JSON.parse(readFileSync(join(ROOT, 'packages', 'desktop', 'package.json'), 'utf8'))
   const devDeps = Object.keys(appPkg.devDependencies ?? {})
   for (const dep of devDeps) {
     if (top.has(dep)) {

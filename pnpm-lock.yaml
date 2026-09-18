@@ -12,17 +12,26 @@ importers:
         specifier: ~5.9.3
         version: 5.9.3
 
-  apps/desktop:
+  packages/core:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.20.1
+        version: 22.20.1
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@22.20.1)(vite@7.3.6(@types/node@22.20.1)(jiti@2.7.0))
+
+  packages/desktop:
     dependencies:
       '@documentor/core':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../core
       '@documentor/docx':
         specifier: workspace:*
-        version: link:../../packages/docx
+        version: link:../docx
       '@documentor/templates':
         specifier: workspace:*
-        version: link:../../packages/templates
+        version: link:../templates
       katex:
         specifier: ^0.18.5
         version: 0.18.5
@@ -72,15 +81,6 @@ importers:
       vite:
         specifier: ^7.3.6
         version: 7.3.6(@types/node@22.20.1)(jiti@2.7.0)
-
-  packages/core:
-    devDependencies:
-      '@types/node':
-        specifier: ^22.20.1
-        version: 22.20.1
-      vitest:
-        specifier: ^4.1.11
-        version: 4.1.11(@types/node@22.20.1)(vite@7.3.6(@types/node@22.20.1)(jiti@2.7.0))
 
   packages/docx:
     dependencies:

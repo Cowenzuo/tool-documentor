@@ -1,6 +1,6 @@
 /* 生成合成样例工程（dproj + db），供存储兼容回归（无任何外部版权内容）
  * 用法：node --experimental-sqlite scripts/gen-sample-project.cjs
- * 注意：@documentor/* 从本包（apps/desktop）node_modules 链接解析。
+ * 注意：@documentor/* 从本包（packages/desktop）node_modules 链接解析。
  */
 const { mkdirSync, rmSync } = require('node:fs')
 const { join } = require('node:path')

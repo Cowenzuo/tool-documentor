@@ -18,7 +18,7 @@ const { dirname, join, resolve } = require('node:path')
 
 const ROOT = resolve(__dirname, '..')
 /** 声明了对 mmd2vsdx 依赖的 workspace 包（resolve 起点） */
-const CONSUMERS = ['apps/desktop', 'packages/docx']
+const CONSUMERS = ['packages/desktop', 'packages/docx']
 /** 门面必须提供的成员（新形态：命名导出；旧形态：application 对象成员） */
 const FACADE_MEMBERS = ['convertText', 'shutdown']
 

@@ -20,32 +20,31 @@ TypeScript strict · Electron 44 · React 19 · Vite 7，构建走 electron-vite
 ## 结构
 
 ```
-apps/                  # 可运行程序（pnpm workspace 的 apps/*）
-  desktop/             #   Electron 壳：main / preload / renderer 三段
+packages/              # 本工程的全部模块，平级放在这里（pnpm workspace 的 packages/*）
+  desktop/             #   可执行程序：Electron 壳，含界面
     src/main/          #     主进程：窗口、IPC、工程与导出管线宿主
     src/preload/       #     contextBridge 类型化桥
     src/renderer/      #     React UI：主题 token、组件、页面
     src/shared/        #     main、preload、renderer 三端共享的 IPC 契约
     out/               #     electron-vite 构建中间产物（不可直接运行）
-packages/              # 纯逻辑库（pnpm workspace 的 packages/*）
-                       #   core / templates / docx / postprocess，零 UI 依赖、可单测
+  core/ templates/     #   纯逻辑库：零 UI 依赖、可单测
+  docx/ postprocess/
 samples/               # demo 级实例：示例模板、样例工程、实例样例，供直接打开测试，无外部版权内容
 scripts/               # 入库脚本：上游契约检查、E2E 冒烟、产物校验、按需构建库、一键启动
 release/               # electron-builder 打包产物（可分发，不入库）
 temp/                  # 临时产物（不入库，可随时清空）
 ```
 
-> **`apps` 与 `packages` 的分界是依赖方向**：`apps/*` 是可运行程序，`packages/*` 是被它引用的库。
-> 依赖只允许 **apps → packages**，以及 packages 之间 `core ← templates ← docx`；
-> **任何库都不得依赖 apps**。这条边界保证了四个库能脱离 React/Electron 单独构建与单测
-> （`packages/*` 的 devDeps 只有 typescript 与 vitest）。
+> **`packages/` 下不分 apps 与 libs**：可执行与库只是角色不同，同属一个工程，平级放一起。
+> 依赖方向只允许 **desktop → 其余四个**，以及库之间 `core ← templates ← docx`；
+> **任何库都不得依赖 desktop**——这条边界保证四个库能脱离 React/Electron 单独构建与单测。
 
 > **两个产物目录别混**：`out/` 是 electron-vite 的中间产物（只有源码产物，`pnpm start` 跑它），
-> `release/` 是 electron-builder 打出的可分发成品（可直接运行）。两者都在各自的 .gitignore 规则下。
+> `release/` 是 electron-builder 打出的可分发成品（可直接运行）。
 
 | 目录 | 是什么 | 能不能直接跑 |
 | --- | --- | --- |
-| `apps/desktop/out/` | electron-vite 的构建中间产物（main/preload/renderer 三份） | ❌ 只有源码产物，`pnpm start` 跑的是它 |
+| `packages/desktop/out/` | electron-vite 的构建中间产物（main/preload/renderer 三份） | ❌ 只有源码产物，`pnpm start` 跑的是它 |
 | `release/`（仓库根） | electron-builder 打出的可分发成品 | ✅ 见「打包与安全」一节 |
 
 ## 开发
@@ -58,7 +57,7 @@ node scripts/start-documentor.cjs --dev    # 启【开发版】：开发新功�
 pnpm install    # 首次或依赖变动后
 pnpm dev        # electron-vite dev：渲染层 HMR（需先在 设置→模板目录 配置模板或经 DOC_E2E_TEMPLATES 注入开发模板）
 pnpm typecheck  # 全仓 TS strict 检查
-pnpm build      # 产物 apps/desktop/out/
+pnpm build      # 产物 packages/desktop/out/
 pnpm verify     # 门禁：上游契约检查 + typecheck + 全量单测 + build
 pnpm verify:local  # 同上但跳过上游检查（上游改造期间日常用）
 pnpm cli:test-export -- <instance.json> [out.docx] --templates <模板目录>   # 无界面导出
@@ -104,9 +103,9 @@ node scripts/verify-package.cjs   # 校验 asar 内容（必需项齐全 / mmd2v
 
 ## 打包与安全
 
-**产物在哪**：仓库根的 `release/`。配置见 `apps/desktop/electron-builder.yml` 的
+**产物在哪**：仓库根的 `release/`。配置见 `packages/desktop/electron-builder.yml` 的
 `directories.output: ../../release`——electron-builder 的 `directories` 默认以配置文件所在目录
-为基准，写裸相对路径会落到 `apps/desktop/release`，所以显式上溯了两级统一到仓库根。
+为基准，写裸相对路径会落到 `packages/desktop/release`，所以显式上溯了两级统一到仓库根。
 
 ```
 release/

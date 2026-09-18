@@ -14,7 +14,7 @@ copyright: Copyright © 2026 Documentor
 
 # 产物落到【仓库根】的 release/，不是本目录。
 # electron-builder 的 directories 默认以本配置文件所在目录为基准，
-# 写裸相对路径会落到 apps/desktop/release，与文档（项目特定规范 §4：release/ 是本地产物目录）
+# 写裸相对路径会落到 packages/desktop/release，与文档（项目特定规范 §4：release/ 是本地产物目录）
 # 以及 .gitignore 的 release/ 规则都对不上——这里显式上溯两级统一到仓库根。
 # 注意 electronDist 是另一套基准（同样相对本目录），别跟着一起改。
 directories:

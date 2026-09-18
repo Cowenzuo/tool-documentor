@@ -1,5 +1,7 @@
+# 本工程所有模块平级放在 packages/ 下：
+#   core / templates / docx / postprocess 是纯逻辑库，desktop 是可执行程序（Electron 壳含界面）。
+# 不再使用 apps/ 分组——可执行与库只是角色不同，同属一个工程，没必要分两处放。
 packages:
-  - 'apps/*'
   - 'packages/*'
 
 allowBuilds:
