@@ -351,24 +351,21 @@ export default function NodePage(): React.JSX.Element {
               ) : (
                 <span className="np-badge">标题级别 {node.headingLevel}</span>
               )}
-              <span
-                className={`np-chip${node.copyable ? ' np-chip-ok' : ''}`}
-                title="该章节允许复制"
-              >
-                {node.copyable ? '可复制' : '不可复制'}
-              </span>
-              <span
-                className={`np-chip${node.deletable ? ' np-chip-ok' : ''}`}
-                title="该章节允许删除"
-              >
-                {node.deletable ? '可删除' : '不可删除'}
-              </span>
-              <span
-                className={`np-chip${canEditBlocks ? ' np-chip-ok' : ''}`}
-                title="该章节可添加内容"
-              >
-                {canEditBlocks ? '可编辑' : '锁定'}
-              </span>
+              {/*
+                只列能做的事：以前把「不可复制/不可删除/锁定」也摆出来，
+                三个否定标签读着像出错。模板限死了就合并成一句「只读」，鼠标悬停给原因。
+              */}
+              {node.copyable && <span className="np-chip np-chip-ok">可复制</span>}
+              {node.deletable && <span className="np-chip np-chip-ok">可删除</span>}
+              {canEditBlocks && <span className="np-chip np-chip-ok">可加内容</span>}
+              {!node.copyable && !node.deletable && !canEditBlocks && (
+                <span
+                  className="np-chip"
+                  title="模板限定了该章节：不可复制、不可删除，也不能添加内容"
+                >
+                  只读
+                </span>
+              )}
             </div>
           </div>
 
