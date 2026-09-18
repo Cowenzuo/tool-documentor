@@ -5,14 +5,16 @@
  * （其中真正的编译约 2.4 秒，其余是进程启动开销）。而库源码平时一天也改不了几次，
  * 每次启动都重编一遍纯属白等。
  *
- * 做法：把四个包 src/ 下的文件清单 + 修改时间指纹存到仓库根的 .libs-build-hash，
- * 与当前指纹比对。一致就跳过构建，不一致或指纹缺失就跑 pnpm build:libs。
+ * 做法：把四个包 src/ 下的文件清单 + 修改时间指纹、外加各自的 tsconfig.build.json
+ * 内容指纹，存到仓库根的 .libs-build-hash，与当前指纹比对。一致就跳过构建，
+ * 不一致或指纹缺失就跑 pnpm build:libs。
  *
  * 正确性：指纹含文件名，因此新增与删除源文件都会让它变化（只比时间戳会漏掉删除）。
- * 若你改了构建配置（tsconfig.build.json）而不改 src，指纹不变——此时手动跑
- * `pnpm build:libs` 或删掉 .libs-build-hash 即可。
+ * 指纹之外还补一道"产物是否存在"的检查：删掉或半途中断留下的半套 dist 不会被指纹发现，
+ * 却会让下游 require 到缺失的产物。
+ * 注意 tsconfig.base.json 与 TypeScript 版本不在指纹里——改这两处请手动跑
+ * `pnpm build:libs:mark`。
  *
-/**
  * 用法：node scripts/ensure-libs.cjs          # 需要时构建
  *       node scripts/ensure-libs.cjs --force  # 无条件构建
  *       node scripts/ensure-libs.cjs --mark   # 只刷新指纹（手工跑过 build:libs 后调用）
@@ -50,7 +52,41 @@ function fingerprintDir(dir) {
 }
 
 /**
- * 兜底检查：逐个源文件与它对应的编译产物比时间，产物缺失或更旧 → 必须重编。
+ * 产物缺失清单：只比"对应产物在不在"，不看时间。
+ *
+ * 为什么单列这一条：指纹里 dist 只记了"目录是否存在"，所以删掉一个 dist 文件、
+ * 或 tsc 中断留下半套产物时，指纹照样一致，构建被跳过，下游 require 到缺失的产物。
+ * 不看时间是为了避开 tsc 不重写同内容文件导致的假落后。
+ */
+function missingArtifacts() {
+  const missing = []
+  for (const lib of LIBS) {
+    const srcDir = join(ROOT, 'packages', lib, 'src')
+    const distDir = join(ROOT, 'packages', lib, 'dist')
+    if (!existsSync(srcDir)) continue
+    let affected = 0
+    const walk = (d, prefix) => {
+      for (const name of readdirSync(d)) {
+        const p = join(d, name)
+        const st = statSync(p)
+        if (st.isDirectory()) {
+          walk(p, `${prefix}${name}/`)
+          continue
+        }
+        if (!name.endsWith('.ts')) continue
+        // 手写声明文件（*.d.ts）不产出 .js，跳过
+        if (name.endsWith('.d.ts')) continue
+        if (!existsSync(join(distDir, `${prefix}${name.replace(/\.ts$/, '.js')}`))) affected++
+      }
+    }
+    walk(srcDir, '')
+    if (affected > 0) missing.push(`${lib}（${affected} 个产物不存在）`)
+  }
+  return missing
+}
+
+/**
+ * 兜底检查：逐个源文件与它对应的编译产物比时间，产物更旧 → 说明要重编。
  *
  * 为什么不能只看"目录里最新时间"：tsc 对**内容未变**的文件会跳过写入，
  * 所以碰过一下源码（内容没改）就会让 src 永远比 dist 新，判据失效。
@@ -124,12 +160,17 @@ function main() {
   const current = currentFingerprint()
   const previous = existsSync(HASH_FILE) ? readFileSync(HASH_FILE, 'utf8').trim() : ''
 
-  // 指纹一致即视为最新。
-  // 这里刻意不叠加时间戳判据：源码改了但 tsc 判定输出字节完全相同（纯类型改动）时
-  // 产物不会被重写，mtime 会一直落后，叠加判据会导致每次启动都白编一遍。
+  // 指纹一致还要再看一眼产物是否齐全：删掉或损坏单个 dist 文件不会改变指纹，
+  // 但下游 require 会直接失败，所以这里必须补一道存在性检查。
   if (previous === current) {
-    console.log('[ensure-libs] 库源码未变化，跳过构建（省约 4 秒）')
-    console.log('[ensure-libs] 需要强制重建：pnpm build:libs，或删掉仓库根的 .libs-build-hash')
+    const missing = missingArtifacts()
+    if (missing.length === 0) {
+      console.log('[ensure-libs] 库源码未变化，跳过构建（省约 4 秒）')
+      console.log('[ensure-libs] 需要强制重建：pnpm build:libs，或删掉仓库根的 .libs-build-hash')
+      return
+    }
+    console.log(`[ensure-libs] 检测到构建产物缺失（${missing.join('、')}），正在构建…`)
+    build()
     return
   }
 

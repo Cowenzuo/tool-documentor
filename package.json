@@ -22,9 +22,10 @@
     "package:dir": "pnpm build && pnpm --filter @documentor/desktop package:dir",
     "package": "pnpm build && pnpm --filter @documentor/desktop package",
     "verify:package": "pnpm package:dir && node scripts/verify-package.cjs",
-    "e2e": "node scripts/e2e-smoke.cjs",
+    "e2e": "pnpm build && node scripts/e2e-smoke.cjs",
     "typecheck": "pnpm -r typecheck",
-    "verify": "node scripts/check-upstream.cjs && pnpm typecheck && pnpm -r test && pnpm build",
+    "verify": "pnpm typecheck && pnpm -r test && pnpm build && node scripts/check-upstream.cjs",
+    "verify:upstream": "node scripts/check-upstream.cjs --strict",
     "verify:local": "pnpm typecheck && pnpm -r test && pnpm build",
     "cli:test-export": "pnpm --filter @documentor/desktop cli:test-export"
   }

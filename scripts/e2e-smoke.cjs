@@ -3,23 +3,29 @@
  *
  * 约定：**所有临时产物落在仓库 `temp/`**（gitignored），不写入系统临时目录。
  * 流程：构建后的渲染层产物 → electron-vite preview 启动 Electron →
- *       DOC_E2E 驱动 DOM 全流程（新建工程/编辑/保存/导出/预览/设置）→ 打印结果 JSON。
+ *       DOC_E2E 驱动 DOM 全流程（新建工程/编辑/保存/导出/预览/设置）→ 打印结果 JSON →
+ *       再用 sendInputEvent 重放一次真实鼠标点击（[e2e-phys]），两段都验。
+ *
+ * 前置：本脚本**不构建**，跑之前必须有最新的 out/。用 `pnpm e2e`（含 pnpm build），
+ *       直接 node 调用只适合刚构建完的场景。
  *
  * 用法（仓库根）：
- *   node scripts/e2e-smoke.cjs            # 跑完清理工作区
+ *   pnpm e2e                              # 构建 + 冒烟，跑完清理工作区
  *   node scripts/e2e-smoke.cjs --keep     # 保留 temp/e2e-<时间戳>/ 供检查
  *   node scripts/e2e-smoke.cjs --templates <dir>   # 覆盖模板目录（缺省合成夹具）
  *
  * 退出码：0 = E2E 通过；1 = 失败/超时。
  */
 const { spawn, execSync } = require('node:child_process')
-const { mkdirSync, rmSync } = require('node:fs')
+const { existsSync, mkdirSync, rmSync } = require('node:fs')
 const { join, resolve } = require('node:path')
 
 const ROOT = resolve(__dirname, '..')
 const TEMP_ROOT = join(ROOT, 'temp')
 const FIXTURE = join(ROOT, 'samples', 'sample-template')
 const TIMEOUT_MS = 180_000
+/** 关键断言通过后，等物理点击结果的时间上限 */
+const PHYS_GRACE_MS = 15_000
 
 function parseArgs(argv) {
   let keep = false
@@ -43,6 +49,37 @@ function killTree(pid) {
   }
 }
 
+/**
+ * 检查探针产出的结果。
+ * 以前只断言 editor/welcome/deleteOk 三项：导出失败、预览空白、设置打不开都会照样绿。
+ */
+function checkResult(data) {
+  const problems = []
+  const need = (ok, message) => {
+    if (!ok) problems.push(message)
+  }
+  need(data.welcome === true, '欢迎页未出现')
+  need(data.wizardOpen === true, '新建向导未打开')
+  need(data.editor === true, '编辑器未出现')
+  need(
+    data.deleteOk === true,
+    `删除内容块未生效：按钮=${data.deleteBtnFound} ` +
+      `${data.biaoShi && data.biaoShi.blockCards} → ${data.blockCardsAfterDelete}，` +
+      `提示=${data.deleteToast}`
+  )
+  need(data.exportDialogOpen === true, '导出对话框未打开')
+  need(
+    typeof data.exportToast === 'string' && data.exportToast.includes('导出') && !data.exportToast.includes('失败'),
+    `导出结果提示异常：${data.exportToast}`
+  )
+  need(data.previewPage === true, '预览视图未渲染')
+  need(data.backToEdit === true, '从预览切回编辑失败')
+  need(data.settingsOpen === true, '设置弹层未打开')
+  need(data.settingsClosed === true, '设置弹层未关闭')
+  need(typeof data.treeRows === 'number' && data.treeRows > 1, `树行数异常：${data.treeRows}`)
+  return problems
+}
+
 function main() {
   const { keep, templates } = parseArgs(process.argv.slice(2))
   const workspace = join(TEMP_ROOT, `e2e-${Date.now()}`)
@@ -62,6 +99,8 @@ function main() {
 
   let settled = false
   let buffer = ''
+  let resultData = null
+  let physTimer = null
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
@@ -70,19 +109,24 @@ function main() {
     if (settled) return
     settled = true
     clearTimeout(timer)
+    if (physTimer) clearTimeout(physTimer)
     killTree(child.pid)
     await sleep(800)
-    if (!keep) {
-      for (let attempt = 0; attempt < 5; attempt++) {
-        try {
-          rmSync(workspace, { recursive: true, force: true })
-          break
-        } catch {
-          await sleep(500)
-        }
-      }
-    } else {
+    if (keep) {
       console.log(`[e2e-smoke] 已保留工作区：${workspace}`)
+      process.exit(code)
+    }
+    let removed = false
+    for (let attempt = 0; attempt < 5 && !removed; attempt++) {
+      try {
+        rmSync(workspace, { recursive: true, force: true })
+      } catch {
+        await sleep(500)
+      }
+      removed = !existsSync(workspace)
+    }
+    if (!removed) {
+      console.warn(`[e2e-smoke] 注意：工作区未能清理，可能有残留进程占用句柄：${workspace}`)
     }
     process.exit(code)
   }
@@ -92,6 +136,14 @@ function main() {
     void finish(1)
   }, TIMEOUT_MS)
 
+  // Ctrl+C / 被终止时也要收尾，否则会留下拿着工程数据库句柄的 Electron 进程
+  for (const sig of ['SIGINT', 'SIGTERM']) {
+    process.on(sig, () => {
+      console.warn(`[e2e-smoke] 收到 ${sig}，清理后退出`)
+      void finish(1)
+    })
+  }
+
   const onChunk = (chunk) => {
     const text = chunk.toString()
     process.stdout.write(text)
@@ -100,24 +152,47 @@ function main() {
     for (const line of text.split(/\r?\n/)) {
       if (line.includes('[renderer:')) console.warn(`[e2e-smoke] 注意：${line.trim()}`)
     }
+    // 探针抛错时主进程只打印一行，早退比等到 180s 超时更能指出问题
+    const failed = /\[e2e\] failed: (.*)/.exec(buffer)
+    if (failed) {
+      console.error(`[e2e-smoke] ✗ 界面探针执行失败：${failed[1].trim()}`)
+      void finish(1)
+      return
+    }
     const m = buffer.match(/\[e2e\] (\{[\s\S]*?\})\s*\n/)
-    if (m) {
+    if (m && resultData === null) {
       try {
-        const data = JSON.parse(m[1])
-        // 关键断言：编辑器/欢迎页出现，且内容块删除在界面上真的生效
-        const ok = data.editor === true && data.welcome === true && data.deleteOk === true
-        if (data.deleteOk !== true) {
-          console.error(
-            `[e2e-smoke] ✗ 删除内容块未生效：按钮=${data.deleteBtnFound} ` +
-              `${data.biaoShi?.blockCards} → ${data.blockCardsAfterDelete}，提示=${data.deleteToast}`
-          )
-        }
-        console.log(`[e2e-smoke] ${ok ? '✓ 通过' : '✗ 关键断言失败'}：${JSON.stringify(data)}`)
-        void finish(ok ? 0 : 1)
+        resultData = JSON.parse(m[1])
       } catch (err) {
         console.error('[e2e-smoke] ✗ 结果 JSON 解析失败：', err.message)
         void finish(1)
+        return
       }
+      const problems = checkResult(resultData)
+      console.log(`[e2e-smoke] 探针结果：${JSON.stringify(resultData)}`)
+      if (problems.length > 0) {
+        for (const p of problems) console.error(`[e2e-smoke] ✗ ${p}`)
+        console.error(`[e2e-smoke] ✗ 关键断言失败（${problems.length} 项）`)
+        void finish(1)
+        return
+      }
+      console.log('[e2e-smoke] 关键断言通过，等待物理点击验证…')
+      physTimer = setTimeout(() => {
+        console.error('[e2e-smoke] ✗ 未收到物理点击验证结果（[e2e-phys]）')
+        void finish(1)
+      }, PHYS_GRACE_MS)
+      return
+    }
+    // 物理点击结果：主进程在探针之后重放真实鼠标点击，1.4s 后才打印
+    const phys = /\[e2e-phys\] toast= (.*)/.exec(buffer)
+    if (phys && resultData !== null && physTimer) {
+      clearTimeout(physTimer)
+      physTimer = null
+      const toast = phys[1].trim()
+      const ok = toast.length > 0 && toast !== 'null' && !toast.includes('失败')
+      if (!ok) console.error(`[e2e-smoke] ✗ 物理点击保存未生效：toast=${toast}`)
+      console.log(`[e2e-smoke] ${ok ? '✓ 全部通过' : '✗ 物理点击断言失败'}：物理点击 toast=${toast}`)
+      void finish(ok ? 0 : 1)
     }
   }
 
