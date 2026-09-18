@@ -121,6 +121,18 @@ function checkResult(data) {
     typeof data.treeRowsAfterExpand === 'number' && data.treeRowsAfterExpand > 0,
     `点全部展开后没有恢复行：${data.treeRowsAfterExpand}`
   )
+  // 按层级折叠：菜单项按文档实际深度生成，折到 2 级后更深的行必须消失，再全展要回来
+  need(data.treeLevelBtn === true, '结构栏缺少按层级折叠按钮')
+  need(
+    Array.isArray(data.treeLevelItems) && data.treeLevelItems.includes('折到 2 级'),
+    `按层级折叠的菜单项不对：${JSON.stringify(data.treeLevelItems)}`
+  )
+  need(data.treeHasDeepRowAtLevel2 === false, '折到 2 级后仍有更深层的行没被收起')
+  need(
+    typeof data.treeRowsAtLevel2 === 'number' && data.treeRowsAtLevel2 < data.treeRowsAfterExpand,
+    `折到 2 级后行数没有减少：${data.treeRowsAtLevel2} 对 ${data.treeRowsAfterExpand}`
+  )
+  need(data.treeHasDeepRowAfterReset === true, '全展之后深层行没有回来')
   // 右键菜单
   need(data.menuOpen === true, '右键没有打开章节菜单')
   need(

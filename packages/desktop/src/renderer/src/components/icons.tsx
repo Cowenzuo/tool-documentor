@@ -99,6 +99,15 @@ export function ChevronsUpIcon({ size = 14, className }: IconProps): JSX.Element
   )
 }
 
+/** 缩进的三行：结构栏「按层级折叠」 */
+export function LevelsIcon({ size = 14, className }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size)} className={className} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+      <path d="M4 6.5h16M7.5 12h12.5M11 17.5h9" />
+    </svg>
+  )
+}
+
 /** 品牌文档图标（渐变底上的白描文档，欢迎页/标题栏共用） */
 export function BrandDocGlyph({
   size = 20,

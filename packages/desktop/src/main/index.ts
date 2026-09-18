@@ -260,6 +260,26 @@ function createMainWindow(): void {
             await sleep(250);
             out.treeRowsAfterExpand = document.querySelectorAll('.tree-row').length;
           }
+          // 按层级折叠：折到 2 级后，三级及更深（aria-level ≥ 4）的行必须消失
+          const levelBtn = document.querySelector('.tree-icon-btn[aria-label="按层级折叠"]');
+          out.treeLevelBtn = !!levelBtn;
+          if (levelBtn) {
+            levelBtn.click();
+            await sleep(250);
+            out.treeLevelItems = [...document.querySelectorAll('.tree-level-menu button')].map((b) => b.textContent.trim());
+            const level2 = [...document.querySelectorAll('.tree-level-menu button')].find((b) => b.textContent.includes('2 级'));
+            if (level2) {
+              level2.click();
+              await sleep(250);
+              out.treeRowsAtLevel2 = document.querySelectorAll('.tree-row').length;
+              // 样例树里最深的一行是「附录 A」（在 3 级章节底下），折到 2 级后它必须消失
+              out.treeHasDeepRowAtLevel2 = [...document.querySelectorAll('.tree-row')].some((r) => r.textContent.includes('附录 A'));
+            }
+            expandBtn?.click();
+            await sleep(250);
+            out.treeRowsAfterLevelReset = document.querySelectorAll('.tree-row').length;
+            out.treeHasDeepRowAfterReset = [...document.querySelectorAll('.tree-row')].some((r) => r.textContent.includes('附录 A'));
+          }
           // 右键菜单：右键顺带选中该行，菜单头写清对象，禁用项要说明原因，焦点落在可用项上
           const ctxRow = [...document.querySelectorAll('.tree-row')].find((r) => r.textContent.includes('范围'));
           if (ctxRow) {

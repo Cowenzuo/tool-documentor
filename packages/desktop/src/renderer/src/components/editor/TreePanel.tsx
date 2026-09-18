@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { NodeDto } from '../../../../shared/project'
 import { useApp } from '../../state/AppContext'
-import { ChevronsDownIcon, ChevronsUpIcon } from '../icons'
+import { ChevronsDownIcon, ChevronsUpIcon, LevelsIcon } from '../icons'
 import './tree.css'
 
 interface MenuState {
@@ -21,7 +21,9 @@ export default function TreePanel(): React.JSX.Element {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [query, setQuery] = useState('')
   const [menu, setMenu] = useState<MenuState | null>(null)
+  const [levelMenu, setLevelMenu] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
+  const levelMenuRef = useRef<HTMLDivElement | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
   /** 搜索匹配集：一次遍历算清命中、要显示的祖先与第一个命中，避免逐行递归扫子树 */
@@ -76,10 +78,15 @@ export default function TreePanel(): React.JSX.Element {
   }, [match])
   useEffect(() => {
     const close = (event: MouseEvent): void => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenu(null)
+      const target = event.target as Node
+      if (menuRef.current && !menuRef.current.contains(target)) setMenu(null)
+      if (levelMenuRef.current && !levelMenuRef.current.contains(target)) setLevelMenu(false)
     }
     const key = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setMenu(null)
+      if (event.key === 'Escape') {
+        setMenu(null)
+        setLevelMenu(false)
+      }
     }
     window.addEventListener('mousedown', close)
     window.addEventListener('keydown', key)
@@ -88,6 +95,12 @@ export default function TreePanel(): React.JSX.Element {
       window.removeEventListener('keydown', key)
     }
   }, [])
+
+  /** 层级菜单打开后把焦点放到第一项，键盘能接着走 */
+  useEffect(() => {
+    if (!levelMenu) return
+    levelMenuRef.current?.querySelector<HTMLButtonElement>('.tree-level-menu button')?.focus()
+  }, [levelMenu])
 
   const menuNode: NodeDto | null = useMemo(() => {
     if (!menu || !session) return null
@@ -117,6 +130,18 @@ export default function TreePanel(): React.JSX.Element {
     const map = new Map<string, number>()
     if (session) assignListIndex(session.root, map)
     return map
+  }, [session])
+
+  /** 文档里最深的标题层级：按层级折叠的菜单项按它生成 */
+  const maxLevel = useMemo(() => {
+    if (!session) return 0
+    let deepest = 0
+    const walk = (node: NodeDto): void => {
+      if (node.headingLevel > deepest) deepest = node.headingLevel
+      for (const child of node.children) walk(child)
+    }
+    walk(session.root)
+    return deepest
   }, [session])
 
   /** 当前看得见的行（前序），键盘上下移动按它走；同时带上父节点便于左键回退 */
@@ -216,6 +241,21 @@ export default function TreePanel(): React.JSX.Element {
     persistExpanded(next)
   }
 
+  /**
+   * 折到第 level 级：1 到 level 级照常显示，更深的收起。
+   * 语义与「全部折叠」一致——全部折叠就是折到 1 级。
+   */
+  const collapseToLevel = (level: number): void => {
+    const next = new Set<string>()
+    const walk = (node: NodeDto): void => {
+      if (node.id !== root.id && node.headingLevel < level) next.add(node.id)
+      for (const child of node.children) walk(child)
+    }
+    walk(root)
+    setExpanded(next)
+    persistExpanded(next)
+  }
+
   // 右键菜单：打开时聚焦第一个可用项，越界就往回收，禁用项说明为什么不能点
   const canCopy = !!menuNode && menuNode.headingLevel > 0 && menuNode.copyable
   const canDelete = !!menuNode && menuNode.headingLevel > 0 && menuNode.deletable
@@ -276,6 +316,37 @@ export default function TreePanel(): React.JSX.Element {
         >
           <ChevronsUpIcon size={14} />
         </button>
+        {maxLevel >= 2 && (
+          <div className="tree-level-fold" ref={levelMenuRef}>
+            <button
+              type="button"
+              className="tree-icon-btn"
+              onClick={() => setLevelMenu((open) => !open)}
+              title="按层级折叠"
+              aria-label="按层级折叠"
+              aria-haspopup="menu"
+              aria-expanded={levelMenu}
+            >
+              <LevelsIcon size={14} />
+            </button>
+            {levelMenu && (
+              <div className="tree-level-menu" role="menu" aria-label="按层级折叠">
+                {Array.from({ length: maxLevel - 1 }, (_, i) => i + 2).map((level) => (
+                  <button
+                    key={level}
+                    role="menuitem"
+                    onClick={() => {
+                      collapseToLevel(level)
+                      setLevelMenu(false)
+                    }}
+                  >
+                    折到 {level} 级
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
       <div
         className="tree-scroll"

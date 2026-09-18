@@ -8,6 +8,7 @@
 }
 
 .tree-search {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -58,6 +59,41 @@
 .tree-icon-btn:hover {
   background: var(--bg-hover);
   color: var(--text-1);
+}
+
+/* 按层级折叠：按钮贴住搜索行右端，菜单从它下面展开 */
+.tree-level-fold {
+  position: relative;
+  flex: none;
+}
+
+.tree-level-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 60;
+  min-width: 104px;
+  padding: var(--space-1);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-overlay);
+  box-shadow: var(--overlay-shadow);
+}
+
+.tree-level-menu button {
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: var(--radius-control);
+  font-size: var(--text-sm);
+  color: var(--text-1);
+  white-space: nowrap;
+}
+
+.tree-level-menu button:hover,
+.tree-level-menu button:focus-visible {
+  background: var(--bg-hover);
 }
 
 .tree-scroll {
