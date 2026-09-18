@@ -32,6 +32,7 @@ import {
   loadRecents,
   saveAppSettings
 } from './services/config'
+import { ProjectServiceError } from './services/project-service'
 import type { ProjectService } from './services/project-service'
 
 type Handler<T, R> = (arg: T) => R | Promise<R>
@@ -72,7 +73,9 @@ export function registerProjectIpc(service: ProjectService): void {
   )
 
   handle<void, void>(ProjectIpc.ProjectClose, () => {
-    service.saveAndCloseProject()
+    const result = service.saveAndCloseProject()
+    // 保存失败时工程仍开着：必须把错误抛回渲染层，不能让它以为已经关掉了
+    if (!result.ok) throw new ProjectServiceError(`保存失败，工程未关闭：${result.error}`)
   })
 
   handle<void, Awaited<ReturnType<ProjectService['saveProject']>>>(ProjectIpc.ProjectSave, () =>

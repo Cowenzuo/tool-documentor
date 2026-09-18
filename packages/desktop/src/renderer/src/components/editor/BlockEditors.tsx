@@ -82,7 +82,8 @@ export function ImageEditor(props: EditorBaseProps<ImageBlock>): React.JSX.Eleme
         void window.documentor.block
           .writeBytes({ relPath: `images/${name}`, base64 })
           .then(() => {
-            onChange({ ...block, imagePath: name })
+            // 与写文件时的路径一致：读图的地方都按工程目录解析，写裸文件名会读不到
+            onChange({ ...block, imagePath: `images/${name}` })
           })
           .catch((err: unknown) => {
             console.error('[image] write failed:', err)

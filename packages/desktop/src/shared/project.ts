@@ -41,11 +41,19 @@ export interface CreateProjectInput {
 export interface ProjectOpenResult {
   info: ProjectInfoDto
   root: NodeDto
+  /**
+   * 打开工程时读到的非致命问题，目前只有"内容块类型无法识别，已跳过"。
+   * 这些块不会进界面，界面必须把警告弹给用户，否则下一次保存会把它们永久丢掉。
+   */
+  warnings?: string[]
 }
 
 export interface SaveResult {
   savedAt: string
 }
+
+/** 关闭前自动保存的结果：失败时工程保持打开，由调用方决定怎么提醒用户 */
+export type SaveAndCloseResult = { ok: true } | { ok: false; error: string }
 
 /** 树命令结果：复制节点后 renderer 需要新节点子树 */
 export interface CopyNodeResult {

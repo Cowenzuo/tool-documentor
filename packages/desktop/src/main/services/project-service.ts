@@ -42,6 +42,7 @@ import type {
   NodeTitleInput,
   ProjectInfoDto,
   ProjectOpenResult,
+  SaveAndCloseResult,
   SaveResult
 } from '../../shared/project'
 import { toNodeDto } from './dto'
@@ -82,8 +83,17 @@ export class ProjectService {
 
   // ================= 生命周期 =================
 
+  /** 切换工程前先存好当前工程；存不上就不切，避免把改动丢掉 */
+  private closeOpenProjectBeforeSwitch(): void {
+    if (!this.isOpen) return
+    const result = this.saveAndCloseProject()
+    if (!result.ok) {
+      throw new ProjectServiceError(`当前工程保存失败，未切换：${result.error}`)
+    }
+  }
+
   createProject(input: CreateProjectInput): ProjectOpenResult {
-    if (this.isOpen) this.closeProject()
+    this.closeOpenProjectBeforeSwitch()
 
     const projectDir = join(input.workspaceDir, input.name)
     if (existsSync(projectDir)) {
@@ -125,7 +135,7 @@ export class ProjectService {
   }
 
   openProject(dprojPath: string): ProjectOpenResult {
-    if (this.isOpen) this.closeProject()
+    this.closeOpenProjectBeforeSwitch()
     const projectDir = dirname(dprojPath)
     const anchor = readAnchor(projectDir)
     if (!anchor) {
@@ -158,16 +168,21 @@ export class ProjectService {
     return { savedAt: now }
   }
 
-  /** 保存并关闭（切换工程/退出前） */
-  saveAndCloseProject(): void {
-    if (this.isOpen) {
-      try {
-        this.saveProject()
-      } catch (err) {
-        console.error('[project] auto-save failed:', err)
-      }
-      this.closeProject()
+  /**
+   * 保存并关闭（切换工程/退出前）。
+   * 保存失败时**不关闭工程**，把错误交回调用方：静默关闭会让用户以为已经存上了。
+   */
+  saveAndCloseProject(): SaveAndCloseResult {
+    if (!this.isOpen) return { ok: true }
+    try {
+      this.saveProject()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.error('[project] auto-save failed:', message)
+      return { ok: false, error: message }
     }
+    this.closeProject()
+    return { ok: true }
   }
 
   closeProject(): void {
@@ -193,7 +208,12 @@ export class ProjectService {
 
   private openResult(): ProjectOpenResult {
     const root = this.requireTree().root
-    return { info: this.projectInfo(), root: toNodeDto(root) }
+    const warnings = this.store.loadWarnings()
+    return {
+      info: this.projectInfo(),
+      root: toNodeDto(root),
+      ...(warnings.length > 0 ? { warnings } : {})
+    }
   }
 
   // ================= 树变更 =================
@@ -275,7 +295,8 @@ export class ProjectService {
     mkdirSync(imagesDir, { recursive: true })
     const target = join(imagesDir, imageName)
     copyFileSync(input.srcPath, target)
-    return { imagePath: imageName }
+    // 记相对工程目录的路径：所有读图的地方都按工程目录解析（缩略图、预览、导出）
+    return { imagePath: `images/${imageName}` }
   }
 
   /** 写工程内文件（图片/mermaid 缓存等）。relPath 必须落在工程目录内。 */
@@ -299,9 +320,15 @@ export class ProjectService {
     if (rel.startsWith('..') || isAbsolute(rel)) {
       throw new ProjectServiceError('非法路径：越出工程目录')
     }
-    if (!existsSync(resolved)) return null
-    const mime = mimeOf(extname(resolved))
-    const data = readFileSync(resolved)
+    // 兼容只记了文件名的历史数据：图片实际都放在工程 images/ 下
+    const target = existsSync(resolved)
+      ? resolved
+      : isAbsolute(relPath)
+        ? resolved
+        : join(this.projectDirValue, 'images', relPath)
+    if (!existsSync(target)) return null
+    const mime = mimeOf(extname(target))
+    const data = readFileSync(target)
     return `data:${mime};base64,${data.toString('base64')}`
   }
 

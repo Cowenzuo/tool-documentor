@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, nativeTheme, session, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, session, shell } from 'electron'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { IPC } from '../shared/contract'
@@ -80,6 +80,24 @@ function createMainWindow(): void {
   }
   mainWindow.on('maximize', () => sendMaximized(true))
   mainWindow.on('unmaximize', () => sendMaximized(false))
+
+  // 关窗前自动保存。存不上就不关：让用户知道改动还在，而不是以为已经存好。
+  mainWindow.on('close', (event) => {
+    const result = projectService?.saveAndCloseProject()
+    if (result && !result.ok) {
+      const choice = dialog.showMessageBoxSync(mainWindow as BrowserWindow, {
+        type: 'error',
+        title: '保存失败',
+        message: '工程保存失败，现在退出会丢掉未保存的改动。',
+        detail: result.error,
+        buttons: ['返回编辑', '仍然退出'],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true
+      })
+      if (choice === 0) event.preventDefault()
+    }
+  })
   mainWindow.on('closed', () => {
     mainWindow = null
   })

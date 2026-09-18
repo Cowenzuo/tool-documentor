@@ -51,7 +51,7 @@ interface AppContextValue {
     name: string
     templateName: string
   }) => Promise<boolean>
-  closeProject: () => Promise<void>
+  closeProject: () => Promise<boolean>
   saveProject: () => Promise<boolean>
   selectNode: (id: string | null) => void
   /** 变更（await IPC 后本地生效） */
@@ -129,6 +129,10 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
       try {
         const result = await window.documentor.project.open(dprojPath)
         enterSession(result)
+        // 打开的工程若有内容块被跳过，必须让用户知道：下一次保存就再也找不回来了
+        if (result.warnings && result.warnings.length > 0) {
+          showToast({ kind: 'warn', text: result.warnings.join('；') })
+        }
         // 恢复上次选中节点
         const saved = await window.documentor.uiState.load(UI_STATE_SELECTED_KEY)
         const ids = collectIds(result.root)
@@ -162,15 +166,22 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
     [enterSession, showToast]
   )
 
-  const closeProject = useCallback(async () => {
+  /** 关闭工程：保存失败就留在工程里，别让用户以为已经安全退出 */
+  const closeProject = useCallback(async (): Promise<boolean> => {
     await flushAll()
     try {
       await window.documentor.project.close()
-    } finally {
-      setSession(null)
-      setSelectedId(null)
+    } catch (err) {
+      showToast({
+        kind: 'error',
+        text: `保存失败，未关闭工程：${err instanceof Error ? err.message : String(err)}`
+      })
+      return false
     }
-  }, [flushAll])
+    setSession(null)
+    setSelectedId(null)
+    return true
+  }, [flushAll, showToast])
 
   const saveProject = useCallback(async (): Promise<boolean> => {
     await flushAll()
@@ -196,134 +207,141 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
     [flushAll, session]
   )
 
-  const guardSession = (): AppSession => {
+  const guardSession = (): void => {
     if (!session) throw new Error('工程未打开')
-    return session
   }
+
+  /**
+   * 改根树的唯一入口。必须用函数式更新：这些写操作都在 await 之后才回写状态，
+   * 拿 await 之前的会话快照回写会在重叠提交时互相覆盖（后完成的那次把前一次的改动抹掉，
+   * 界面回退成旧值，再保存就把旧值写回库）。op 返回 null 表示无需变化。
+   */
+  const updateRoot = useCallback((op: (root: NodeDto) => NodeDto | null) => {
+    setSession((current) => {
+      if (!current) return current
+      const next = op(current.root)
+      return next ? { ...current, root: next } : current
+    })
+  }, [])
 
   const setNodeTitle = useCallback(
     async (nodeId: string, title: string) => {
-      const s = guardSession()
+      guardSession()
       try {
         await window.documentor.tree.updateTitle({ nodeId, title })
-        setSession({ ...s, root: updateNode(s.root, nodeId, { title }) })
+        updateRoot((root) => updateNode(root, nodeId, { title }))
       } catch (err) {
         showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [session, showToast]
+    [session, showToast, updateRoot]
   )
 
   const setNodeDescription = useCallback(
     async (nodeId: string, description: string) => {
-      const s = guardSession()
+      guardSession()
       try {
         await window.documentor.tree.updateDescription({ nodeId, description })
-        setSession({ ...s, root: updateNode(s.root, nodeId, { description }) })
+        updateRoot((root) => updateNode(root, nodeId, { description }))
       } catch (err) {
         showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [session, showToast]
+    [session, showToast, updateRoot]
   )
 
   const copyNode = useCallback(
     async (nodeId: string) => {
-      const s = guardSession()
+      guardSession()
       try {
         const result = await window.documentor.tree.copy({ nodeId })
-        const slot = findInsertSlot(s.root, nodeId)
-        if (slot) {
-          setSession({
-            ...s,
-            root: insertNode(s.root, slot.parentId, slot.index, result.node)
-          })
-        } else {
-          setSession({ ...s, root: insertNode(s.root, result.node.id, 0, result.node) })
-        }
+        updateRoot((root) => {
+          const slot = findInsertSlot(root, nodeId)
+          return slot
+            ? insertNode(root, slot.parentId, slot.index, result.node)
+            : insertNode(root, result.node.id, 0, result.node)
+        })
       } catch (err) {
         showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [session, showToast]
+    [session, showToast, updateRoot]
   )
 
   const deleteNode = useCallback(
     async (nodeId: string) => {
-      const s = guardSession()
+      guardSession()
       try {
         await window.documentor.tree.delete({ nodeId })
-        const next = removeNode(s.root, nodeId)
-        if (!next) return
-        setSession({ ...s, root: next })
+        updateRoot((root) => removeNode(root, nodeId))
         setSelectedId((current) => (current === nodeId ? null : current))
       } catch (err) {
         showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [session, showToast]
+    [session, showToast, updateRoot]
   )
 
   const addContentBlock = useCallback(
     async (nodeId: string, type: BlockTypeName) => {
-      const s = guardSession()
+      guardSession()
       try {
         await window.documentor.block.add({ nodeId, type })
         const block = createBlock(type)
-        setSession({ ...s, root: addBlockOp(s.root, nodeId, block) })
+        updateRoot((root) => addBlockOp(root, nodeId, block))
       } catch (err) {
         showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [session, showToast]
+    [session, showToast, updateRoot]
   )
 
   const removeContentBlock = useCallback(
     async (nodeId: string, index: number) => {
-      const s = guardSession()
+      guardSession()
       try {
         await window.documentor.block.remove({ nodeId, index })
-        setSession({ ...s, root: removeBlockAt(s.root, nodeId, index) })
+        updateRoot((root) => removeBlockAt(root, nodeId, index))
       } catch (err) {
         showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [session, showToast]
+    [session, showToast, updateRoot]
   )
 
   const moveContentBlock = useCallback(
     async (nodeId: string, from: number, to: number) => {
-      const s = guardSession()
+      guardSession()
       if (from === to) return
       try {
         await window.documentor.block.move({ nodeId, from, to })
-        setSession({ ...s, root: moveBlockIn(s.root, nodeId, from, to) })
+        updateRoot((root) => moveBlockIn(root, nodeId, from, to))
       } catch (err) {
         showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [session, showToast]
+    [session, showToast, updateRoot]
   )
 
   const updateContentBlock = useCallback(
     async (nodeId: string, index: number, block: ContentBlock) => {
-      const s = guardSession()
+      guardSession()
       try {
         await window.documentor.block.update({ nodeId, index, block })
-        setSession({ ...s, root: updateBlockOp(s.root, nodeId, index, block) })
+        updateRoot((root) => updateBlockOp(root, nodeId, index, block))
       } catch (err) {
         showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [session, showToast]
+    [session, showToast, updateRoot]
   )
 
   // Ctrl+S 全局保存
