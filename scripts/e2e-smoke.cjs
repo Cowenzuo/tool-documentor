@@ -100,6 +100,22 @@ function checkResult(data) {
     typeof data.searchEmptyText === 'string' && data.searchEmptyText.includes('没有匹配'),
     `搜索无结果时缺少提示：${data.searchEmptyText}`
   )
+  // 命中之间切换：搜索 附录 应有两处命中，下一个/上一个要能来回走并回绕
+  need(data.hitButtons === true, '搜索框旁缺少上一个/下一个命中按钮')
+  need(
+    typeof data.hitCount === 'string' && data.hitCount.trim() === '2 项',
+    `命中数不对：${data.hitCount}`
+  )
+  need(
+    typeof data.hitFirst === 'string' && data.hitFirst.includes('附录'),
+    `第一个命中不对：${data.hitFirst}`
+  )
+  need(
+    typeof data.hitSecond === 'string' && data.hitSecond.includes('附录 A'),
+    `下一个命中没走到第二处：${data.hitSecond}`
+  )
+  need(data.hitWrapped === data.hitFirst, `走到末尾没有回绕：${data.hitWrapped}`)
+  need(data.hitPrev === data.hitSecond, `上一个命中不对：${data.hitPrev}`)
   // 树语义与键盘：容器要是 tree，方向键要能移动选中，且只有一行是选中态
   need(data.treeRole === 'tree', `树容器缺少 tree 语义：${data.treeRole}`)
   need(
@@ -122,10 +138,10 @@ function checkResult(data) {
     `点全部展开后没有恢复行：${data.treeRowsAfterExpand}`
   )
   // 按层级折叠：菜单项按文档实际深度生成，折到 2 级后更深的行必须消失，再全展要回来
-  need(data.treeLevelBtn === true, '结构栏缺少按层级折叠按钮')
+  need(data.treeFoldMenuBtn === true, '结构栏缺少展开与折叠菜单')
   need(
-    Array.isArray(data.treeLevelItems) && data.treeLevelItems.includes('折到 2 级'),
-    `按层级折叠的菜单项不对：${JSON.stringify(data.treeLevelItems)}`
+    Array.isArray(data.treeFoldMenuItems) && data.treeFoldMenuItems.includes('折到 2 级'),
+    `展开与折叠的菜单项不对：${JSON.stringify(data.treeFoldMenuItems)}`
   )
   need(data.treeHasDeepRowAtLevel2 === false, '折到 2 级后仍有更深层的行没被收起')
   need(

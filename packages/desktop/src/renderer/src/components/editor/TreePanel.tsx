@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { NodeDto } from '../../../../shared/project'
 import { useApp } from '../../state/AppContext'
-import { ChevronsDownIcon, ChevronsUpIcon, LevelsIcon } from '../icons'
+import { ChevronDownIcon, ChevronUpIcon, LevelsIcon } from '../icons'
 import './tree.css'
 
 interface MenuState {
@@ -29,7 +29,7 @@ export default function TreePanel(): React.JSX.Element {
   /** 搜索匹配集：一次遍历算清命中、要显示的祖先与第一个命中，避免逐行递归扫子树 */
   const needle = query.trim().toLowerCase()
   const match = useMemo(() => {
-    const empty: TreeMatchIndex = { hits: new Set(), visible: new Set(), first: null }
+    const empty: TreeMatchIndex = { hits: new Set(), order: [], visible: new Set(), first: null }
     return session ? buildMatchIndex(session.root, needle) : empty
   }, [session, needle])
 
@@ -161,8 +161,14 @@ export default function TreePanel(): React.JSX.Element {
   /**
    * 树内键盘操作：上下移动选中，右键展开/进入子节点，左键折叠/回父节点，Home/End 到首尾。
    * 这个面板的选中项直接驱动右侧编辑区，所以方向键移动的就是选中项本身。
+   *
+   * 处理挂在面板上而不是树容器上：搜索完最顺手的动作是直接按↓走进结果，
+   * 那时焦点还在搜索框里，挂在树容器上就收不到键事件。焦点在搜索框时只接管上下键，
+   * 左右与 Home/End 留给文本光标。
    */
   const onTreeKeyDown = (event: React.KeyboardEvent): void => {
+    const fromSearch = (event.target as HTMLElement).tagName === 'INPUT'
+    if (fromSearch && event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
     const rows = flatRows.rows
     if (rows.length === 0) return
     const index = rows.findIndex((n) => n.id === selectedId)
@@ -256,6 +262,16 @@ export default function TreePanel(): React.JSX.Element {
     persistExpanded(next)
   }
 
+  /** 在上一个/下一个命中之间切换，到头回绕；一个都没选过就从第一个（或最后一个）开始 */
+  const stepHit = (delta: 1 | -1): void => {
+    const hits = match.order
+    if (hits.length === 0) return
+    const at = selectedId ? hits.indexOf(selectedId) : -1
+    const index = at < 0 ? (delta > 0 ? 0 : hits.length - 1) : (at + delta + hits.length) % hits.length
+    const target = hits[index]
+    if (target) selectNode(target)
+  }
+
   // 右键菜单：打开时聚焦第一个可用项，越界就往回收，禁用项说明为什么不能点
   const canCopy = !!menuNode && menuNode.headingLevel > 0 && menuNode.copyable
   const canDelete = !!menuNode && menuNode.headingLevel > 0 && menuNode.deletable
@@ -284,7 +300,7 @@ export default function TreePanel(): React.JSX.Element {
   }
 
   return (
-    <aside className="tree-panel">
+    <aside className="tree-panel" onKeyDown={onTreeKeyDown}>
       <div className="tree-search">
         <input
           type="search"
@@ -293,60 +309,83 @@ export default function TreePanel(): React.JSX.Element {
           placeholder="搜索章节…"
           aria-label="搜索章节"
         />
-        {searching && (
-          <span className="tree-count" aria-live="polite">
-            {match.hits.size} 项
-          </span>
-        )}
-        <button
-          type="button"
-          className="tree-icon-btn"
-          onClick={expandAll}
-          title="全部展开"
-          aria-label="全部展开"
-        >
-          <ChevronsDownIcon size={14} />
-        </button>
-        <button
-          type="button"
-          className="tree-icon-btn"
-          onClick={collapseAll}
-          title="全部折叠"
-          aria-label="全部折叠"
-        >
-          <ChevronsUpIcon size={14} />
-        </button>
-        {maxLevel >= 2 && (
-          <div className="tree-level-fold" ref={levelMenuRef}>
+        {searching && match.hits.size > 0 && (
+          <>
+            <span className="tree-count" aria-live="polite">
+              {match.hits.size} 项
+            </span>
             <button
               type="button"
               className="tree-icon-btn"
-              onClick={() => setLevelMenu((open) => !open)}
-              title="按层级折叠"
-              aria-label="按层级折叠"
-              aria-haspopup="menu"
-              aria-expanded={levelMenu}
+              onClick={() => stepHit(-1)}
+              title="上一个命中"
+              aria-label="上一个命中"
             >
-              <LevelsIcon size={14} />
+              <ChevronUpIcon size={14} />
             </button>
-            {levelMenu && (
-              <div className="tree-level-menu" role="menu" aria-label="按层级折叠">
-                {Array.from({ length: maxLevel - 1 }, (_, i) => i + 2).map((level) => (
-                  <button
-                    key={level}
-                    role="menuitem"
-                    onClick={() => {
-                      collapseToLevel(level)
-                      setLevelMenu(false)
-                    }}
-                  >
-                    折到 {level} 级
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+            <button
+              type="button"
+              className="tree-icon-btn"
+              onClick={() => stepHit(1)}
+              title="下一个命中"
+              aria-label="下一个命中"
+            >
+              <ChevronDownIcon size={14} />
+            </button>
+          </>
         )}
+        {searching && match.hits.size === 0 && (
+          <span className="tree-count" aria-live="polite">
+            0 项
+          </span>
+        )}
+        <div className="tree-level-fold" ref={levelMenuRef}>
+          <button
+            type="button"
+            className="tree-icon-btn"
+            onClick={() => setLevelMenu((open) => !open)}
+            title="展开与折叠"
+            aria-label="展开与折叠"
+            aria-haspopup="menu"
+            aria-expanded={levelMenu}
+          >
+            <LevelsIcon size={14} />
+          </button>
+          {levelMenu && (
+            <div className="tree-level-menu" role="menu" aria-label="展开与折叠">
+              <button
+                role="menuitem"
+                onClick={() => {
+                  expandAll()
+                  setLevelMenu(false)
+                }}
+              >
+                全部展开
+              </button>
+              <button
+                role="menuitem"
+                onClick={() => {
+                  collapseAll()
+                  setLevelMenu(false)
+                }}
+              >
+                全部折叠
+              </button>
+              {Array.from({ length: Math.max(0, maxLevel - 1) }, (_, i) => i + 2).map((level) => (
+                <button
+                  key={level}
+                  role="menuitem"
+                  onClick={() => {
+                    collapseToLevel(level)
+                    setLevelMenu(false)
+                  }}
+                >
+                  折到 {level} 级
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
       <div
         className="tree-scroll"
@@ -355,8 +394,7 @@ export default function TreePanel(): React.JSX.Element {
         aria-label="文档结构"
         tabIndex={0}
         aria-activedescendant={selectedId ? treeRowDomId(selectedId) : undefined}
-        onKeyDown={onTreeKeyDown}
-        // 点树区就把焦点收进容器：否则方向键落在别处，键事件根本到不了上面的处理函数。
+        // 点树区就把焦点收进容器：否则方向键落在别处，键事件根本到不了处理函数。
         // 这里连同默认聚焦一起拦掉，免得行里的箭头按钮把焦点从容器抢走。
         onMouseDown={(e) => {
           e.preventDefault()
@@ -586,8 +624,10 @@ function flattenVisible(
   searching: boolean,
   match: TreeMatchIndex
 ): { rows: NodeDto[]; parentOf: Map<string, string> } {
-  const rows: NodeDto[] = [root]
+  const rows: NodeDto[] = []
   const parentOf = new Map<string, string>()
+  // 搜索时根节点不进导航序列：按↓的意图是走进结果，不是跳到根上
+  if (!searching) rows.push(root)
   const walk = (node: NodeDto, parentId: string): void => {
     if (searching && !match.visible.has(node.id)) return
     rows.push(node)
@@ -614,6 +654,8 @@ function assignListIndex(node: NodeDto, out: Map<string, number>): void {
 interface TreeMatchIndex {
   /** 标题命中的节点 */
   hits: Set<string>
+  /** 命中节点按前序排好，供上一个/下一个命中切换 */
+  order: string[]
   /** 需要渲染的节点：命中项加上它们的祖先 */
   visible: Set<string>
   /** 前序第一个命中，供自动滚过去用 */
@@ -627,14 +669,16 @@ interface TreeMatchIndex {
  */
 function buildMatchIndex(root: NodeDto, needle: string): TreeMatchIndex {
   const hits = new Set<string>()
+  const order: string[] = []
   const visible = new Set<string>()
-  if (needle.length === 0) return { hits, visible, first: null }
+  if (needle.length === 0) return { hits, order, visible, first: null }
 
   let first: string | null = null
   const walk = (node: NodeDto): boolean => {
     const selfHit = node.title.toLowerCase().includes(needle)
     if (selfHit) {
       hits.add(node.id)
+      order.push(node.id)
       if (first === null) first = node.id
     }
     let childHit = false
@@ -645,7 +689,7 @@ function buildMatchIndex(root: NodeDto, needle: string): TreeMatchIndex {
     return selfHit || childHit
   }
   walk(root)
-  return { hits, visible, first }
+  return { hits, order, visible, first }
 }
 
 /** 命中子串高亮；needle 必须已 trim 并转小写 */

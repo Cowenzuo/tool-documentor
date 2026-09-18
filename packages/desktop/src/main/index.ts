@@ -245,38 +245,63 @@ function createMainWindow(): void {
           out.searchCountEmpty = (document.querySelector('.tree-count') || {}).textContent || null;
           setNative(q, '');
           await sleep(200);
-          // 全折/全展：折叠后普通行应当一个不剩，展开后回来；同时确认状态写进了工程库
-          const collapseBtn = document.querySelector('.tree-icon-btn[aria-label="全部折叠"]');
-          const expandBtn = document.querySelector('.tree-icon-btn[aria-label="全部展开"]');
-          out.treeExpandButtons = !!collapseBtn && !!expandBtn;
-          if (collapseBtn && expandBtn) {
-            collapseBtn.click();
+          // 命中之间切换：搜索框右侧的上一个/下一个命中
+          setNative(q, '附录');
+          await sleep(250);
+          out.hitCount = (document.querySelector('.tree-count') || {}).textContent || null;
+          const nextHit = document.querySelector('.tree-icon-btn[aria-label="下一个命中"]');
+          const prevHit = document.querySelector('.tree-icon-btn[aria-label="上一个命中"]');
+          out.hitButtons = !!nextHit && !!prevHit;
+          const selectedTitle = () => (document.querySelector('.np-title') ? document.querySelector('.np-title').value : null);
+          if (nextHit && prevHit) {
+            nextHit.click();
+            await sleep(300);
+            out.hitFirst = selectedTitle();
+            nextHit.click();
+            await sleep(300);
+            out.hitSecond = selectedTitle();
+            nextHit.click();
+            await sleep(300);
+            out.hitWrapped = selectedTitle();
+            prevHit.click();
+            await sleep(300);
+            out.hitPrev = selectedTitle();
+          }
+          setNative(q, '');
+          await sleep(200);
+          // 展开与折叠菜单：全折/全展/按层级折叠都从这里进
+          const foldMenuBtn = document.querySelector('.tree-icon-btn[aria-label="展开与折叠"]');
+          const openFoldMenu = async () => {
+            foldMenuBtn.click();
+            await sleep(220);
+          };
+          const clickFoldItem = async (label) => {
+            const item = [...document.querySelectorAll('.tree-level-menu button')].find((b) => b.textContent.trim() === label);
+            if (!item) return false;
+            item.click();
             await sleep(250);
+            return true;
+          };
+          out.treeFoldMenuBtn = !!foldMenuBtn;
+          if (foldMenuBtn) {
+            await openFoldMenu();
+            out.treeFoldMenuItems = [...document.querySelectorAll('.tree-level-menu button')].map((b) => b.textContent.trim());
+            await clickFoldItem('全部折叠');
             out.treeRowsAfterCollapse = document.querySelectorAll('.tree-row').length;
             // 折叠后顶层章节仍应可见，二级以下的行必须消失
             out.treeDeepRowsAfterCollapse = document.querySelectorAll('.tree-row[aria-level="3"], .tree-row[aria-level="4"]').length;
             out.treeExpandState = await window.documentor.uiState.load('tree_expanded');
-            expandBtn.click();
-            await sleep(250);
+            await openFoldMenu();
+            await clickFoldItem('全部展开');
             out.treeRowsAfterExpand = document.querySelectorAll('.tree-row').length;
-          }
-          // 按层级折叠：折到 2 级后，三级及更深（aria-level ≥ 4）的行必须消失
-          const levelBtn = document.querySelector('.tree-icon-btn[aria-label="按层级折叠"]');
-          out.treeLevelBtn = !!levelBtn;
-          if (levelBtn) {
-            levelBtn.click();
-            await sleep(250);
-            out.treeLevelItems = [...document.querySelectorAll('.tree-level-menu button')].map((b) => b.textContent.trim());
-            const level2 = [...document.querySelectorAll('.tree-level-menu button')].find((b) => b.textContent.includes('2 级'));
-            if (level2) {
-              level2.click();
-              await sleep(250);
-              out.treeRowsAtLevel2 = document.querySelectorAll('.tree-row').length;
-              // 样例树里最深的一行是「附录 A」（在 3 级章节底下），折到 2 级后它必须消失
-              out.treeHasDeepRowAtLevel2 = [...document.querySelectorAll('.tree-row')].some((r) => r.textContent.includes('附录 A'));
-            }
-            expandBtn?.click();
-            await sleep(250);
+            // 按层级折叠：样例树最深四级，菜单里就有折到 2、3、4 级
+            await openFoldMenu();
+            await clickFoldItem('折到 2 级');
+            out.treeRowsAtLevel2 = document.querySelectorAll('.tree-row').length;
+            // 样例树里最深的一行是「附录 A」（在 3 级章节底下），折到 2 级后它必须消失
+            out.treeHasDeepRowAtLevel2 = [...document.querySelectorAll('.tree-row')].some((r) => r.textContent.includes('附录 A'));
+            await openFoldMenu();
+            await clickFoldItem('全部展开');
             out.treeRowsAfterLevelReset = document.querySelectorAll('.tree-row').length;
             out.treeHasDeepRowAfterReset = [...document.querySelectorAll('.tree-row')].some((r) => r.textContent.includes('附录 A'));
           }
