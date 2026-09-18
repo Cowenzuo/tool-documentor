@@ -55,7 +55,9 @@ const api: DesktopApi = {
     isOpen: () => invoke(ProjectIpc.ProjectIsOpen) as Promise<boolean>,
     getInfo: () => invoke(ProjectIpc.ProjectGetInfo) as ReturnType<DesktopApi['project']['getInfo']>,
     treeGetRoot: () =>
-      invoke(ProjectIpc.TreeGetRoot) as ReturnType<DesktopApi['project']['treeGetRoot']>
+      invoke(ProjectIpc.TreeGetRoot) as ReturnType<DesktopApi['project']['treeGetRoot']>,
+    revealFolder: () =>
+      invoke(ProjectIpc.ProjectRevealFolder) as ReturnType<DesktopApi['project']['revealFolder']>
   },
   tree: {
     updateTitle: (input: NodeTitleInput) =>

@@ -142,6 +142,8 @@ export const ProjectIpc = {
   ProjectSave: 'project:save',
   ProjectGetInfo: 'project:get-info',
   ProjectIsOpen: 'project:is-open',
+  /** 在系统文件管理器里打开当前工程目录 */
+  ProjectRevealFolder: 'project:reveal-folder',
 
   TreeGetRoot: 'tree:get-root',
   NodeUpdateTitle: 'node:update-title',
@@ -252,6 +254,8 @@ export interface DesktopProjectApi {
   isOpen(): Promise<boolean>
   getInfo(): Promise<ProjectInfoDto>
   treeGetRoot(): Promise<ProjectOpenResult>
+  /** 在系统文件管理器里打开工程目录，返回该目录路径 */
+  revealFolder(): Promise<string>
 }
 
 export interface DesktopTreeApi {

@@ -216,6 +216,8 @@ function createMainWindow(): void {
             out.blockCardsAfterDelete = cardsBefore;
             out.deleteOk = false;
           }
+          // 标题栏工程操作组：保存、导出、定位、退出四个按钮都应在
+          out.tbActions = [...document.querySelectorAll('.tb-right .tb-action')].map((b) => b.textContent.trim());
           // 清空搜索恢复全树
           setNative(q, '');
           // 保存

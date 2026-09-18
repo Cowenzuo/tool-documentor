@@ -95,6 +95,11 @@ function checkResult(data) {
     typeof data.settingsHintChars === 'number' && data.settingsHintChars < 160,
     `设置里的说明文字过长（${data.settingsHintChars} 字符），又回到大段注释了`
   )
+  need(
+    Array.isArray(data.tbActions) &&
+      ['保存', '导出', '定位', '退出'].every((label) => data.tbActions.includes(label)),
+    `标题栏工程操作组不齐：${JSON.stringify(data.tbActions)}`
+  )
   need(typeof data.treeRows === 'number' && data.treeRows > 1, `树行数异常：${data.treeRows}`)
   return problems
 }

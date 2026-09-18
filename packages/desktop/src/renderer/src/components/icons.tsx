@@ -21,6 +21,16 @@ export function MinimizeIcon({ size = 16, className }: IconProps): JSX.Element {
   )
 }
 
+/** 打开的文件夹：标题栏「定位」用，表示去文件管理器里看工程目录 */
+export function FolderOpenIcon({ size = 16, className }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size)} className={className} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3.5 6.8a1.3 1.3 0 0 1 1.3-1.3h3.4l1.8 2h8.9a1.3 1.3 0 0 1 1.3 1.3v8.9a1.3 1.3 0 0 1-1.3 1.3H4.8a1.3 1.3 0 0 1-1.3-1.3Z" />
+      <path d="M3.5 9.6h17" />
+    </svg>
+  )
+}
+
 export function MaximizeIcon({ size = 16, className }: IconProps): JSX.Element {
   return (
     <svg {...base(size)} className={className} fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden="true">
