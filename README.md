@@ -58,13 +58,14 @@ pnpm install    # 首次或依赖变动后
 pnpm dev        # electron-vite dev：渲染层 HMR（需先在 设置→模板目录 配置模板或经 DOC_E2E_TEMPLATES 注入开发模板）
 pnpm typecheck  # 全仓 TS strict 检查
 pnpm build      # 产物 packages/desktop/out/
-pnpm verify     # 门禁：上游契约检查 + typecheck + 全量单测 + build
-pnpm verify:local  # 同上但跳过上游检查（上游改造期间日常用）
+pnpm verify     # 门禁：typecheck + 全量单测 + build，收尾再跑上游契约检查（只报告不阻断）
+pnpm verify:local  # 同上但完全跳过上游检查（上游改造期间日常用）
+pnpm verify:upstream  # 上游契约检查的严格模式，漂移即退出码 1（发布前用）
 pnpm cli:test-export -- <instance.json> [out.docx] --templates <模板目录>   # 无界面导出
 pnpm --filter @documentor/docx test:real   # 真实图转换契约测试（需 Chromium）
 pnpm package:dir  # 免安装包：release/win-unpacked（仓库根）
 pnpm package      # NSIS 安装包：release/Documentor-<version>-setup.exe
-pnpm e2e          # 生产产物 E2E 冒烟（工作区落 temp/，见下）
+pnpm e2e          # 先构建，再起真实 Electron 跑生产产物冒烟（工作区落 temp/，见下）
 node scripts/verify-package.cjs   # 校验 asar 内容（必需项齐全 / mmd2vsdx 不入包 / 无开发依赖）
 ```
 
