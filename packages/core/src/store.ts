@@ -9,7 +9,7 @@
 import { DatabaseSync } from 'node:sqlite'
 import { mkdirSync, rmSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { blockFromDb, blockTypeIndex, propsOf } from './blocks'
+import { blockFromDb, blockTypeIndex, parseBlockType, propsOf } from './blocks'
 import { seedIdCounter } from './idgen'
 import { localIsoNow } from './time'
 import { DocumentNode, DocumentTree } from './tree'
@@ -37,6 +37,7 @@ export class ProjectStore {
   private mDbPath = ''
   private mName = ''
   private mTemplateName = ''
+  private loadWarningsValue: string[] = []
 
   // ================= 打开 / 创建 =================
 
@@ -161,11 +162,14 @@ export class ProjectStore {
       db.exec('DELETE FROM content_block')
       db.exec('DELETE FROM node')
 
-      // 根节点（对齐旧版：仅写指定列，其余取默认）
+      // 根节点：列取默认值（heading 0 / node_type 'root'），但描述与内容块是真的用户数据，
+      // 必须一起落库。历史上这两项被丢掉，界面从树面板根节点行走到它们时保存即失。
       db.prepare(
         "INSERT INTO node (id, parent_id, sort_order, heading_level, title, description, node_type) " +
-          "VALUES (?, NULL, 0, 0, ?, '', 'root')"
-      ).run(root.id, root.title)
+          "VALUES (?, NULL, 0, 0, ?, ?, 'root')"
+      ).run(root.id, root.title, root.description)
+
+      this.saveBlocks(root)
 
       let order = 0
       for (const child of root.children) {
@@ -182,6 +186,23 @@ export class ProjectStore {
         /* 忽略：清理失败不影响关闭 */
       }
       throw err
+    }
+  }
+
+  private saveBlocks(node: DocumentNode): void {
+    const db = this.requireDb()
+    const insertBlock = db.prepare(
+      'INSERT INTO content_block (node_id, sort_order, block_type, props_json) VALUES (?, ?, ?, ?)'
+    )
+    let blockOrder = 0
+    for (const block of node.contentBlocks) {
+      insertBlock.run(
+        node.id,
+        blockOrder,
+        String(blockTypeIndex(block.type)),
+        JSON.stringify(propsOf(block))
+      )
+      blockOrder += 1
     }
   }
 
@@ -210,19 +231,7 @@ export class ProjectStore {
       node.allowedChildLevels.join(',')
     )
 
-    const insertBlock = db.prepare(
-      'INSERT INTO content_block (node_id, sort_order, block_type, props_json) VALUES (?, ?, ?, ?)'
-    )
-    let blockOrder = 0
-    for (const block of node.contentBlocks) {
-      insertBlock.run(
-        node.id,
-        blockOrder,
-        String(blockTypeIndex(block.type)),
-        JSON.stringify(propsOf(block))
-      )
-      blockOrder += 1
-    }
+    this.saveBlocks(node)
 
     let childOrder = 0
     for (const child of node.children) {
@@ -235,12 +244,17 @@ export class ProjectStore {
 
   load(): DocumentTree {
     const db = this.requireDb()
-    const rootRow = db.prepare('SELECT id, title FROM node WHERE parent_id IS NULL LIMIT 1').get()
+    this.loadWarningsValue = []
+    const rootRow = db
+      .prepare('SELECT id, title, description FROM node WHERE parent_id IS NULL LIMIT 1')
+      .get()
     if (!rootRow) {
       throw new Error('工程数据异常：缺少根节点')
     }
     const root = new DocumentNode(0, str(rootRow['id']))
     root.title = str(rootRow['title'])
+    root.description = str(rootRow['description'])
+    this.loadBlocks(root)
     this.loadChildren(root)
     const tree = new DocumentTree(root)
     // 计数器越过现存最大数字 id，避免新节点与旧 id 冲突
@@ -251,6 +265,11 @@ export class ProjectStore {
     }
     seedIdCounter(maxNumeric)
     return tree
+  }
+
+  /** 上次 load 遇到的问题（目前只有"内容块类型无法识别，已跳过"） */
+  loadWarnings(): string[] {
+    return [...this.loadWarningsValue]
   }
 
   private loadChildren(parent: DocumentNode): void {
@@ -291,22 +310,38 @@ export class ProjectStore {
       node.allowedChildLevels = levels.split(',').filter((x) => x.length > 0)
     }
 
+    this.loadBlocks(node)
+    return node
+  }
+
+  /**
+   * 读内容块。类型无法识别时**跳过这一块并记一条警告**，不抛错。
+   * 抛错会让整个工程打不开（历史上写入过 -1 的项目就是这样坏掉的）；
+   * 跳过至少让用户能打开、能看见缺了什么，打开工程时会把警告弹给用户。
+   */
+  private loadBlocks(node: DocumentNode): void {
+    const db = this.requireDb()
     const blockRows = db
       .prepare(
         'SELECT block_type, props_json FROM content_block WHERE node_id = ? ORDER BY sort_order'
       )
-      .all(nodeId)
+      .all(node.id)
     for (const brow of blockRows) {
+      const rawType = str(brow['block_type'])
+      const name = parseBlockType(rawType)
+      if (!name) {
+        this.loadWarningsValue.push(`节点 ${node.id} 有一个无法识别的内容块类型 ${rawType}，已跳过`)
+        continue
+      }
       let props: Record<string, unknown>
       try {
         props = JSON.parse(str(brow['props_json'])) as Record<string, unknown>
       } catch {
         props = {}
       }
-      const block: ContentBlock = blockFromDb(str(brow['block_type']), props)
+      const block: ContentBlock = blockFromDb(name, props)
       node.contentBlocks.push(block)
     }
-    return node
   }
 
   // ================= UI 状态 =================

@@ -3,6 +3,7 @@
 import { mkdtempSync, existsSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { resetIdCounterForTest } from '../src/idgen'
 import { ProjectStore } from '../src/store'
@@ -126,6 +127,67 @@ describe('ProjectStore create/save/load 往返', () => {
     const loadedIds = store.load().collectIds()
     expect(loadedIds).toHaveLength(6)
     expect(new Set(loadedIds).size).toBe(6)
+  })
+})
+
+describe('根节点自身的内容：描述与内容块', () => {
+  it('根节点的描述与内容块随保存落库并读回', () => {
+    const dbPath = join(dir, 'root-content.db')
+    store.create(dbPath, 'p', 't')
+    const tree = buildSampleTree()
+    tree.root.description = '本文档的编制说明'
+    tree.root.contentBlocks.push({ type: 'text', content: '根节点上的正文' })
+
+    store.save(tree)
+    store.close()
+    store.open(dbPath)
+    const loaded = store.load()
+    expect(loaded.root.description).toBe('本文档的编制说明')
+    expect(loaded.root.contentBlocks).toEqual([{ type: 'text', content: '根节点上的正文' }])
+    expect(loaded.root.children).toHaveLength(1)
+  })
+})
+
+describe('无法识别的内容块类型', () => {
+  it('保存含枚举外类型的块时立刻抛错，不写坏工程', () => {
+    const dbPath = join(dir, 'bad-type.db')
+    store.create(dbPath, 'p', 't')
+    const tree = buildSampleTree()
+    store.save(tree)
+    const idsBefore = tree.collectIds()
+
+    const section = tree.root.children[0]!.children[1]!
+    section.contentBlocks.push({ type: 'video', src: 'x' } as unknown as ContentBlock)
+    expect(() => store.save(tree)).toThrow(/未知内容块类型/)
+
+    // 事务已回滚：重新打开仍是上一份完整数据
+    store.close()
+    store.open(dbPath)
+    expect(store.load().collectIds()).toEqual(idsBefore)
+  })
+
+  it('库里有 -1 这类历史脏数据时，跳过该块并给出警告，工程照常打开', () => {
+    const dbPath = join(dir, 'dirty.db')
+    store.create(dbPath, 'p', 't')
+    const tree = buildSampleTree()
+    store.save(tree)
+    const nodeId = tree.root.children[0]!.children[1]!.id
+
+    // 直接往库里塞一条历史脏数据（模拟旧版写出的 -1）
+    const raw = new DatabaseSync(dbPath)
+    raw
+      .prepare('INSERT INTO content_block (node_id, sort_order, block_type, props_json) VALUES (?, ?, ?, ?)')
+      .run(nodeId, 9, '-1', '{}')
+    raw.close()
+
+    store.close()
+    store.open(dbPath)
+    const loaded = store.load()
+    const node = loaded.root.children[0]!.children[1]!
+    expect(node.contentBlocks).toHaveLength(1)
+    expect(node.contentBlocks[0]!.type).toBe('text')
+    expect(store.loadWarnings()).toHaveLength(1)
+    expect(store.loadWarnings()[0]).toContain('-1')
   })
 })
 

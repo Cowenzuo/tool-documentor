@@ -8,6 +8,7 @@ import {
   blockTypeName,
   cloneBlock,
   createBlock,
+  parseBlockType,
   propsOf,
   type ContentBlock
 } from '../src/blocks'
@@ -27,6 +28,22 @@ describe('block 类型索引（对齐旧版 BlockType 枚举顺序）', () => {
     expect(blockTypeName('0')).toBe('text')
     expect(blockTypeName(7)).toBe('unorderedList')
     expect(blockTypeIndex('mermaid')).toBe(5)
+  })
+
+  it('枚举外的类型在写入侧立刻报错，不产出 -1', () => {
+    expect(() => createBlock('video' as never)).toThrow(/未知内容块类型/)
+    expect(() => blockTypeIndex('video' as never)).toThrow(/未知内容块类型/)
+    expect(() => blockTypeName(-1)).toThrow(/未知内容块类型/)
+  })
+
+  it('parseBlockType 宽松解析：名字/下标/数字串都认，不认识的返回 null', () => {
+    expect(parseBlockType('3')).toBe('formula')
+    expect(parseBlockType(4)).toBe('code')
+    expect(parseBlockType('mermaid')).toBe('mermaid')
+    expect(parseBlockType('-1')).toBeNull()
+    expect(parseBlockType('99')).toBeNull()
+    expect(parseBlockType('')).toBeNull()
+    expect(parseBlockType(1.5)).toBeNull()
   })
 })
 

@@ -19,12 +19,30 @@ export type BlockTypeName = (typeof BLOCK_TYPE_NAMES)[number]
 
 /** 与 db content_block.block_type 的数字字符串（'0'..'7'）互转 */
 export function blockTypeIndex(name: BlockTypeName): number {
-  return BLOCK_TYPE_NAMES.indexOf(name)
+  const i = BLOCK_TYPE_NAMES.indexOf(name)
+  // 写库前必须拦住：历史上写成 -1 会让整个工程再也打不开（load 时抛错）
+  if (i < 0) throw new Error(`未知内容块类型: ${String(name)}`)
+  return i
+}
+
+/**
+ * 宽松解析：数字字符串（'0'..'7'）、数字下标、类型名都接受，不认识返回 null。
+ * 读库侧用它，遇到无法识别的历史数据只跳过这一块，不让整个工程打不开。
+ */
+export function parseBlockType(type: number | string): BlockTypeName | null {
+  if (typeof type === 'number') {
+    return Number.isInteger(type) ? BLOCK_TYPE_NAMES[type] ?? null : null
+  }
+  const raw = type.trim()
+  if ((BLOCK_TYPE_NAMES as readonly string[]).includes(raw)) {
+    return raw as BlockTypeName
+  }
+  const i = Number.parseInt(raw, 10)
+  return Number.isInteger(i) ? BLOCK_TYPE_NAMES[i] ?? null : null
 }
 
 export function blockTypeName(index: number | string): BlockTypeName {
-  const i = typeof index === 'string' ? Number.parseInt(index, 10) : index
-  const name = BLOCK_TYPE_NAMES[i]
+  const name = parseBlockType(index)
   if (!name) throw new Error(`未知内容块类型: ${index}`)
   return name
 }
@@ -34,7 +52,7 @@ export interface TextBlockProps {
 }
 
 export interface ImageBlockProps {
-  /** 相对工程 images/ 的文件名（uuid.<ext>） */
+  /** 相对工程目录的图片路径，惯例是 images/uuid.<ext>；只记文件名是历史脏数据 */
   imagePath: string
   caption: string
 }
@@ -143,6 +161,9 @@ export function createBlock<T extends BlockTypeName>(type: T): ContentBlock & { 
     case 'unorderedList':
       base['items'] = []
       break
+    default:
+      // 拦住"凭空造块"：调用方传了枚举外的类型时立刻报错，而不是存进库变成打不开的工程
+      throw new Error(`未知内容块类型: ${String(type)}`)
   }
   return base as unknown as ContentBlock & { type: T }
 }

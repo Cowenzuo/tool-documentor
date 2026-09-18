@@ -7,6 +7,7 @@ export {
   BLOCK_TYPE_NAMES,
   blockTypeIndex,
   blockTypeName,
+  parseBlockType,
   createBlock,
   propsOf,
   blockFromDb,
