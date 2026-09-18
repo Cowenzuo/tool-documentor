@@ -259,6 +259,9 @@ function createMainWindow(): void {
           await sleep(400);
           out.settingsOpen = ((document.querySelector('.settings-dialog .wizard-head h2') || {}).textContent || '') === '设置';
           out.settingsSections = [...document.querySelectorAll('.settings-dialog .settings-group h3')].map((h) => h.textContent);
+          out.settingsFootButtons = [...document.querySelectorAll('.settings-dialog .wizard-foot button')].map((b) => b.textContent.trim());
+          // 说明文字只留短句：长段散文会在这里露馅（阈值取 160 字符，正常反馈远低于它）
+          out.settingsHintChars = [...document.querySelectorAll('.settings-dialog .settings-status, .settings-dialog .settings-hint')].reduce((n, el) => n + (el.textContent || '').trim().length, 0);
           // 主题收在设置里：三选一，切换要真的落到 data-theme 上，验完恢复原偏好
           const themeButtons = [...document.querySelectorAll('.settings-seg button')];
           out.themeOptions = themeButtons.map((b) => b.textContent);

@@ -85,6 +85,16 @@ function checkResult(data) {
     Array.isArray(data.settingsSections) && data.settingsSections.includes('主题'),
     `设置分区缺少主题：${JSON.stringify(data.settingsSections)}`
   )
+  need(
+    Array.isArray(data.settingsFootButtons) &&
+      data.settingsFootButtons.includes('取消') &&
+      data.settingsFootButtons.includes('保存设置'),
+    `设置底部缺少取消/保存：${JSON.stringify(data.settingsFootButtons)}`
+  )
+  need(
+    typeof data.settingsHintChars === 'number' && data.settingsHintChars < 160,
+    `设置里的说明文字过长（${data.settingsHintChars} 字符），又回到大段注释了`
+  )
   need(typeof data.treeRows === 'number' && data.treeRows > 1, `树行数异常：${data.treeRows}`)
   return problems
 }
