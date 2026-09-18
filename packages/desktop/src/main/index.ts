@@ -258,6 +258,24 @@ function createMainWindow(): void {
           settingsBtn.click();
           await sleep(400);
           out.settingsOpen = ((document.querySelector('.settings-dialog .wizard-head h2') || {}).textContent || '') === '设置';
+          out.settingsSections = [...document.querySelectorAll('.settings-dialog .settings-group h3')].map((h) => h.textContent);
+          // 主题收在设置里：三选一，切换要真的落到 data-theme 上，验完恢复原偏好
+          const themeButtons = [...document.querySelectorAll('.settings-seg button')];
+          out.themeOptions = themeButtons.map((b) => b.textContent);
+          const themeBefore = localStorage.getItem('doc-theme') || 'system';
+          const darkBtn = themeButtons.find((b) => b.textContent === '深色');
+          const backBtn = themeButtons.find((b) => b.textContent === (themeBefore === 'dark' ? '深色' : themeBefore === 'light' ? '浅色' : '跟随系统'));
+          if (darkBtn && backBtn) {
+            darkBtn.click();
+            await sleep(250);
+            const switched = document.documentElement.dataset.theme === 'dark';
+            backBtn.click();
+            await sleep(250);
+            const restored = (localStorage.getItem('doc-theme') || 'system') === themeBefore;
+            out.themeSwitchOk = switched && restored;
+          } else {
+            out.themeSwitchOk = false;
+          }
           const closeBtn = document.querySelector('.settings-dialog .wizard-head button');
           if (closeBtn) closeBtn.click();
           await sleep(350);

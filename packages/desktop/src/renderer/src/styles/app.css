@@ -49,6 +49,37 @@
   min-width: 0;
 }
 
+/* 设置内的分段选择（主题）：选中态走主题强调色，明暗两套都分得清 */
+.settings-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+}
+
+.settings-seg button {
+  padding: 5px 14px;
+  border-radius: 4px;
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.settings-seg button:hover {
+  background: var(--bg-hover);
+  color: var(--text-1);
+}
+
+.settings-seg button.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .be-btn.danger-text {
   color: var(--danger);
   border-color: var(--danger);

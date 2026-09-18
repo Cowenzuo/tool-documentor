@@ -76,6 +76,15 @@ function checkResult(data) {
   need(data.backToEdit === true, '从预览切回编辑失败')
   need(data.settingsOpen === true, '设置弹层未打开')
   need(data.settingsClosed === true, '设置弹层未关闭')
+  need(
+    Array.isArray(data.themeOptions) && data.themeOptions.length === 3,
+    `设置里应有主题三选项：${JSON.stringify(data.themeOptions)}`
+  )
+  need(data.themeSwitchOk === true, '设置里的主题切换未生效或未恢复原偏好')
+  need(
+    Array.isArray(data.settingsSections) && data.settingsSections.includes('主题'),
+    `设置分区缺少主题：${JSON.stringify(data.settingsSections)}`
+  )
   need(typeof data.treeRows === 'number' && data.treeRows > 1, `树行数异常：${data.treeRows}`)
   return problems
 }

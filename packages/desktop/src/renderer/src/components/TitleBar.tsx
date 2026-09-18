@@ -2,45 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useApp } from '../state/AppContext'
-import { useTheme, type ThemePreference } from '../theme/ThemeProvider'
-import { CloseIcon, MaximizeIcon, MinimizeIcon, MonitorIcon, MoonIcon, RestoreIcon, SunIcon, BrandDocGlyph } from './icons'
+import { CloseIcon, MaximizeIcon, MinimizeIcon, RestoreIcon, BrandDocGlyph } from './icons'
 import './titlebar.css'
-
-const CYCLE_ORDER: ThemePreference[] = ['system', 'dark', 'light']
-
-const THEME_LABEL: Record<ThemePreference, string> = {
-  system: '跟随系统',
-  dark: '深色',
-  light: '浅色'
-}
-
-const THEME_ICON = {
-  system: MonitorIcon,
-  dark: MoonIcon,
-  light: SunIcon
-} as const
-
-function ThemeSwitchButton(): React.JSX.Element {
-  const { preference, setPreference } = useTheme()
-  const Icon = THEME_ICON[preference]
-
-  const cycle = (): void => {
-    const index = CYCLE_ORDER.indexOf(preference)
-    setPreference(CYCLE_ORDER[(index + 1) % CYCLE_ORDER.length]!)
-  }
-
-  return (
-    <button
-      type="button"
-      className="tb-btn"
-      onClick={cycle}
-      title={`主题：${THEME_LABEL[preference]}（点击切换）`}
-      aria-label={`主题：${THEME_LABEL[preference]}，点击切换`}
-    >
-      <Icon size={15} />
-    </button>
-  )
-}
 
 function SaveButton(): React.JSX.Element | null {
   const { session, saveProject, busy } = useApp()
@@ -196,7 +159,6 @@ export default function TitleBar(): React.JSX.Element {
         <CloseProjectButton />
         <span className="tb-divider" />
         <SettingsButton />
-        <ThemeSwitchButton />
         {!isMac && <WindowControls />}
       </div>
     </header>

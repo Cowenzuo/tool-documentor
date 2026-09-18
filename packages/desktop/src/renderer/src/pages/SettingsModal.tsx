@@ -1,10 +1,40 @@
 /**
- * 设置对话框：默认工程目录 + 模板目录列表（增删/浏览；保存后主进程即时重载模板）。
- * 同时显示每个模板目录的加载结果——配错一层目录时，这里要说清为什么没加载到。
+ * 设置对话框：主题、默认工程目录、模板目录列表（增删/浏览；保存后主进程即时重载模板）。
+ * 每个模板目录就地显示加载结果——配错一层目录时，这里要说清为什么没加载到。
  */
 import { useEffect, useState } from 'react'
 import type { AppConfigDto, TemplateLoadReport } from '../../../shared/project'
 import { useApp } from '../state/AppContext'
+import { useTheme, type ThemePreference } from '../theme/ThemeProvider'
+
+/** 主题三选项：顺序与标题栏原先的循环顺序一致 */
+const THEME_OPTIONS: Array<{ value: ThemePreference; label: string }> = [
+  { value: 'system', label: '跟随系统' },
+  { value: 'light', label: '浅色' },
+  { value: 'dark', label: '深色' }
+]
+
+function ThemeSection(): React.JSX.Element {
+  const { preference, setPreference } = useTheme()
+  return (
+    <section className="settings-group">
+      <h3>主题</h3>
+      <div className="settings-seg" role="group" aria-label="主题">
+        {THEME_OPTIONS.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            className={preference === option.value ? 'active' : ''}
+            aria-pressed={preference === option.value}
+            onClick={() => setPreference(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </section>
+  )
+}
 
 export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.Element {
   const { showToast } = useApp()
@@ -64,6 +94,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
         </header>
         {cfg && (
           <div className="settings-body">
+            <ThemeSection />
             <section className="settings-group">
               <h3>默认工程目录</h3>
               <div className="w-row">
