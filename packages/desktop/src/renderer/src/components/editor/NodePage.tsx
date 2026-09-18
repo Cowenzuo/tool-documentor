@@ -2,7 +2,7 @@
  * 节点文档页：标题行内编辑 + 节点信息徽标区 + 编制说明（可编辑）+ 内容块流。
  * 块编辑器挂起值经防抖提交；切换/保存前统一 flush（复刻 collectEdits 语义）。
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ContentBlock } from '@documentor/core/blocks'
 import { useApp, useSelectedNode } from '../../state/AppContext'
 import { BlockCard } from './BlockCard'
@@ -90,6 +90,8 @@ export default function NodePage(): React.JSX.Element {
   const [lightbox, setLightbox] = useState<LightboxRequest | null>(null)
   /** 添加菜单的开合位置：null 关闭，'end' 末尾，数字表示插到该下标之前 */
   const [addOpen, setAddOpen] = useState<'end' | number | null>(null)
+  /** 防抖缓冲里还有没进工程数据的改动：界面上要看得见，别让人以为已经写好了 */
+  const [editing, setEditing] = useState(false)
   /** 折叠的块：按节点记，切走再回来还认得（块本身没有稳定 id，只能记下标） */
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
   const collapsedByNodeRef = useRef(new Map<string, Set<number>>())
@@ -102,6 +104,10 @@ export default function NodePage(): React.JSX.Element {
   const descValueRef = useRef(desc)
   const descDirtyRef = useRef(false)
   const descTimerRef = useRef<number | undefined>(undefined)
+  /** 标题同样走防抖提交：以前只在失焦时保存，编辑到一半切节点或保存就丢了 */
+  const titleValueRef = useRef(node?.title ?? '')
+  const titleDirtyRef = useRef(false)
+  const titleTimerRef = useRef<number | undefined>(undefined)
   /**
    * 块的前端稳定键：用下标当 key 时，一次"上移"会把两张卡片整体重挂载，
    * 正在编辑的光标、滚动位置、图片上传忙碌态全丢。这里按块对象配一把键，
@@ -114,6 +120,15 @@ export default function NodePage(): React.JSX.Element {
     descValueRef.current = desc
   }, [desc])
 
+  /** 编制说明框随内容长高，超过 40vh 才内部滚动（高度上限写在 CSS 里） */
+  const descRef = useRef<HTMLTextAreaElement | null>(null)
+  useLayoutEffect(() => {
+    const el = descRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [desc, node?.id])
+
   // 切换节点/挂载：重建缓存视图
   useEffect(() => {
     nodeIdRef.current = node?.id ?? null
@@ -124,6 +139,8 @@ export default function NodePage(): React.JSX.Element {
     setDesc(initialDesc === '无' ? '' : initialDesc)
     setCollapsed(new Set(collapsedByNodeRef.current.get(node?.id ?? '') ?? []))
     descDirtyRef.current = false
+    titleValueRef.current = node?.title ?? ''
+    titleDirtyRef.current = false
     structureOpRef.current = null
     pendingRef.current.clear()
     for (const timer of timersRef.current.values()) window.clearTimeout(timer)
@@ -161,11 +178,17 @@ export default function NodePage(): React.JSX.Element {
     setBlockKeys((prev) => reconcileKeys(prev, incoming.length, op))
   }, [node?.contentBlocks])
 
-  /** 提交全部挂起编辑（块 + 编制说明） */
+  /** 提交全部挂起编辑（标题 + 编制说明 + 内容块） */
   const flushPending = useCallback(() => {
+    const nodeId = nodeIdRef.current
+    // 标题
+    window.clearTimeout(titleTimerRef.current)
+    if (titleDirtyRef.current && nodeId) {
+      titleDirtyRef.current = false
+      void setNodeTitle(nodeId, titleValueRef.current)
+    }
     // 编制说明
     window.clearTimeout(descTimerRef.current)
-    const nodeId = nodeIdRef.current
     if (descDirtyRef.current && nodeId) {
       descDirtyRef.current = false
       void setNodeDescription(nodeId, descValueRef.current)
@@ -178,8 +201,9 @@ export default function NodePage(): React.JSX.Element {
       timersRef.current.delete(index)
       if (nodeId) void updateContentBlock(nodeId, index, block)
     }
+    setEditing(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setNodeDescription, updateContentBlock])
+  }, [setNodeDescription, setNodeTitle, updateContentBlock])
 
   // 向 store 注册本页 flush（保存/关闭/切换节点前调用）
   useEffect(() => registerFlushAll(flushPending), [registerFlushAll, flushPending])
@@ -192,8 +216,20 @@ export default function NodePage(): React.JSX.Element {
       setDesc(value)
       descValueRef.current = value
       descDirtyRef.current = true
+      setEditing(true)
       window.clearTimeout(descTimerRef.current)
       descTimerRef.current = window.setTimeout(flushPending, DEBOUNCE_MS)
+    },
+    [flushPending]
+  )
+
+  const onTitleChange = useCallback(
+    (value: string) => {
+      titleValueRef.current = value
+      titleDirtyRef.current = true
+      setEditing(true)
+      window.clearTimeout(titleTimerRef.current)
+      titleTimerRef.current = window.setTimeout(flushPending, DEBOUNCE_MS)
     },
     [flushPending]
   )
@@ -202,6 +238,7 @@ export default function NodePage(): React.JSX.Element {
     (index: number, block: ContentBlock) => {
       setBlocks((prev) => prev.map((b, i) => (i === index ? block : b)))
       pendingRef.current.set(index, block)
+      setEditing(true)
       const prevTimer = timersRef.current.get(index)
       if (prevTimer !== undefined) window.clearTimeout(prevTimer)
       const nodeId = nodeIdRef.current
@@ -293,10 +330,19 @@ export default function NodePage(): React.JSX.Element {
               defaultValue={node.title}
               key={node.id}
               aria-label="章节标题"
+              onChange={(e) => onTitleChange(e.target.value)}
               onBlur={(e) => {
-                void setNodeTitle(node.id, e.target.value)
+                // 失焦立即提交，不等防抖
+                titleValueRef.current = e.target.value
+                titleDirtyRef.current = true
+                flushPending()
               }}
             />
+            {editing && (
+              <span className="np-dirty" title="停顿一下就会自动进入工程数据">
+                编辑中…
+              </span>
+            )}
             <div className="np-badges">
               {node.headingLevel === 0 ? (
                 <span className="np-badge">文档根</span>
@@ -328,6 +374,7 @@ export default function NodePage(): React.JSX.Element {
 
           <textarea
             className="np-desc-editor"
+            ref={descRef}
             value={desc}
             onChange={(e) => onDescChange(e.target.value)}
             placeholder="编制说明（可选）…"
