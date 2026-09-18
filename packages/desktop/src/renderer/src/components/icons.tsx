@@ -81,6 +81,24 @@ export function SettingsIcon({ size = 16, className }: IconProps): JSX.Element {
   )
 }
 
+/** 双下箭头：结构栏「全部展开」 */
+export function ChevronsDownIcon({ size = 14, className }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size)} className={className} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m6.5 7.5 5.5 5 5.5-5M6.5 13l5.5 5 5.5-5" />
+    </svg>
+  )
+}
+
+/** 双上箭头：结构栏「全部折叠」 */
+export function ChevronsUpIcon({ size = 14, className }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size)} className={className} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m6.5 11 5.5-5 5.5 5M6.5 17l5.5-5 5.5 5" />
+    </svg>
+  )
+}
+
 /** 品牌文档图标（渐变底上的白描文档，欢迎页/标题栏共用） */
 export function BrandDocGlyph({
   size = 20,

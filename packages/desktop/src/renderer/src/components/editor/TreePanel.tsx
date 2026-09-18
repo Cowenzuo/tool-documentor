@@ -1,9 +1,10 @@
 /**
  * 结构栏：文档树（默认全展开，可折叠/搜索/右键复制删除）。
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { NodeDto } from '../../../../shared/project'
 import { useApp } from '../../state/AppContext'
+import { ChevronsDownIcon, ChevronsUpIcon } from '../icons'
 import './tree.css'
 
 interface MenuState {
@@ -11,6 +12,9 @@ interface MenuState {
   y: number
   nodeId: string
 }
+
+/** 展开状态存在工程库的 ui_state 里，按工程各记一份 */
+const EXPANDED_STATE_KEY = 'tree_expanded'
 
 export default function TreePanel(): React.JSX.Element {
   const { session, selectedId, selectNode, copyNode, deleteNode } = useApp()
@@ -28,14 +32,31 @@ export default function TreePanel(): React.JSX.Element {
   }, [session, needle])
 
   const sessionKey = session?.info.dprojPath ?? ''
+
+  /** 展开状态写回工程库；切工程时按新工程的记录恢复 */
+  const persistExpanded = useCallback((next: Set<string>): void => {
+    void window.documentor.uiState.save(EXPANDED_STATE_KEY, JSON.stringify([...next])).catch(() => undefined)
+  }, [])
+
   useEffect(() => {
-    // 打开工程后全部展开
-    if (session) {
-      const all = new Set<string>()
-      collect(session.root, all)
-      setExpanded(all)
-    }
     setQuery('')
+    if (!session) return
+    let disposed = false
+    const all = new Set<string>()
+    collect(session.root, all)
+    void window.documentor.uiState
+      .load(EXPANDED_STATE_KEY)
+      .then((raw) => {
+        if (disposed) return
+        // 没有记录就全展开；有记录（哪怕是空数组，表示用户全折了）就照它来
+        setExpanded(parseExpanded(raw, all) ?? all)
+      })
+      .catch(() => {
+        if (!disposed) setExpanded(all)
+      })
+    return () => {
+      disposed = true
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionKey])
 
@@ -87,12 +108,11 @@ export default function TreePanel(): React.JSX.Element {
   }, [session, expanded, needle, match])
 
   const toggle = (id: string): void => {
-    setExpanded((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+    const next = new Set(expanded)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    setExpanded(next)
+    persistExpanded(next)
   }
 
   /**
@@ -154,6 +174,30 @@ export default function TreePanel(): React.JSX.Element {
   const root = session.root
   const searching = needle.length > 0
 
+  const expandAll = (): void => {
+    const next = new Set<string>()
+    collect(root, next)
+    setExpanded(next)
+    persistExpanded(next)
+  }
+
+  const collapseAll = (): void => {
+    const next = new Set<string>()
+    setExpanded(next)
+    persistExpanded(next)
+  }
+
+  /** 收起某一支的全部后代（箭头按住 Alt 点击）：长文档里逐级点太慢 */
+  const collapseBranch = (id: string): void => {
+    const branch = findById(root, id)
+    if (!branch) return
+    const doomed = new Set<string>()
+    for (const child of branch.children) collect(child, doomed)
+    const next = new Set([...expanded].filter((x) => !doomed.has(x)))
+    setExpanded(next)
+    persistExpanded(next)
+  }
+
   return (
     <aside className="tree-panel">
       <div className="tree-search">
@@ -169,6 +213,24 @@ export default function TreePanel(): React.JSX.Element {
             {match.hits.size} 项
           </span>
         )}
+        <button
+          type="button"
+          className="tree-icon-btn"
+          onClick={expandAll}
+          title="全部展开"
+          aria-label="全部展开"
+        >
+          <ChevronsDownIcon size={14} />
+        </button>
+        <button
+          type="button"
+          className="tree-icon-btn"
+          onClick={collapseAll}
+          title="全部折叠"
+          aria-label="全部折叠"
+        >
+          <ChevronsUpIcon size={14} />
+        </button>
       </div>
       <div
         className="tree-scroll"
@@ -210,6 +272,7 @@ export default function TreePanel(): React.JSX.Element {
             selectedId={selectedId}
             listIndex={listIndex}
             onToggle={toggle}
+            onCollapseBranch={collapseBranch}
             onSelect={selectNode}
             onContextMenu={(e, nodeId) => {
               e.preventDefault()
@@ -268,10 +331,11 @@ function TreeNodeRow(props: {
   selectedId: string | null
   listIndex: Map<string, number>
   onToggle: (id: string) => void
+  onCollapseBranch: (id: string) => void
   onSelect: (id: string) => void
   onContextMenu: (e: React.MouseEvent, nodeId: string) => void
 }): React.JSX.Element {
-  const { node, depth, posInSet, setSize, needle, match, expanded, selectedId, listIndex, onToggle, onSelect, onContextMenu } = props
+  const { node, depth, posInSet, setSize, needle, match, expanded, selectedId, listIndex, onToggle, onCollapseBranch, onSelect, onContextMenu } = props
   const hasChildren = node.children.length > 0
   const isOpen = expanded.has(node.id)
   const searching = needle.length > 0
@@ -303,9 +367,11 @@ function TreeNodeRow(props: {
             type="button"
             className="tree-caret"
             aria-label={isOpen ? '折叠' : '展开'}
+            title={isOpen ? '折叠；按住 Alt 点击收起整枝' : '展开；按住 Alt 点击收起整枝'}
             onClick={(e) => {
               e.stopPropagation()
-              onToggle(node.id)
+              if (e.altKey) onCollapseBranch(node.id)
+              else onToggle(node.id)
             }}
           >
             <svg viewBox="0 0 16 16" width="12" height="12" className={isOpen ? 'open' : ''}>
@@ -344,6 +410,7 @@ function TreeNodeRow(props: {
           selectedId={selectedId}
           listIndex={listIndex}
           onToggle={onToggle}
+          onCollapseBranch={onCollapseBranch}
           onSelect={onSelect}
           onContextMenu={onContextMenu}
         />
@@ -355,6 +422,22 @@ function TreeNodeRow(props: {
 /** 行在 DOM 里的 id：键盘导航靠 aria-activedescendant 指过来 */
 function treeRowDomId(nodeId: string): string {
   return `tree-node-${nodeId}`
+}
+
+/**
+ * 解析存下来的展开状态。
+ * 没有记录返回 null（调用方用全展开兜底）；空数组是有效记录，表示用户全折了。
+ * 工程里已不存在的 id 直接丢掉，避免模板换过之后留下幽灵状态。
+ */
+function parseExpanded(raw: string, valid: Set<string>): Set<string> | null {
+  if (raw.trim().length === 0) return null
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return null
+    return new Set(parsed.filter((x): x is string => typeof x === 'string' && valid.has(x)))
+  } catch {
+    return null
+  }
 }
 
 /**

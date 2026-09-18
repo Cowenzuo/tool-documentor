@@ -107,6 +107,20 @@ function checkResult(data) {
     `树里按方向键没有移动选中：${data.treeKeyBefore} → ${data.treeKeyAfter}`
   )
   need(data.treeAriaSelected === 1, `树里选中态行数异常：${data.treeAriaSelected}`)
+  // 全展/全折与展开状态持久化
+  need(data.treeExpandButtons === true, '结构栏缺少全展/全折按钮')
+  need(
+    data.treeRowsAfterCollapse === 0,
+    `点全部折叠后仍显示 ${data.treeRowsAfterCollapse} 行`
+  )
+  need(
+    typeof data.treeExpandState === 'string' && data.treeExpandState.trim() === '[]',
+    `折叠状态没有写进工程库：${data.treeExpandState}`
+  )
+  need(
+    typeof data.treeRowsAfterExpand === 'number' && data.treeRowsAfterExpand > 0,
+    `点全部展开后没有恢复行：${data.treeRowsAfterExpand}`
+  )
   return problems
 }
 

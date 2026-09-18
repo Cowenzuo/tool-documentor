@@ -230,6 +230,19 @@ function createMainWindow(): void {
           out.searchCountEmpty = (document.querySelector('.tree-count') || {}).textContent || null;
           setNative(q, '');
           await sleep(200);
+          // 全折/全展：折叠后普通行应当一个不剩，展开后回来；同时确认状态写进了工程库
+          const collapseBtn = document.querySelector('.tree-icon-btn[aria-label="全部折叠"]');
+          const expandBtn = document.querySelector('.tree-icon-btn[aria-label="全部展开"]');
+          out.treeExpandButtons = !!collapseBtn && !!expandBtn;
+          if (collapseBtn && expandBtn) {
+            collapseBtn.click();
+            await sleep(250);
+            out.treeRowsAfterCollapse = document.querySelectorAll('.tree-row').length;
+            out.treeExpandState = await window.documentor.uiState.load('tree_expanded');
+            expandBtn.click();
+            await sleep(250);
+            out.treeRowsAfterExpand = document.querySelectorAll('.tree-row').length;
+          }
           // 保存
           const saveBtn = await waitFor('.tb-action[aria-label="保存工程"]');
           saveBtn.click();

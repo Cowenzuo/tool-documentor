@@ -40,6 +40,26 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* 全展/全折：图标按钮，压在搜索框右端 */
+.tree-icon-btn {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: var(--text-3);
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.tree-icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-1);
+}
+
 .tree-scroll {
   flex: 1;
   overflow-y: auto;
