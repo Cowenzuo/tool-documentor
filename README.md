@@ -20,18 +20,25 @@ TypeScript strict · Electron 44 · React 19 · Vite 7，构建走 electron-vite
 ## 结构
 
 ```
-apps/desktop/          # Electron 壳：main / preload / renderer 三段
-  src/main/            # 主进程：窗口、IPC、工程与导出管线宿主
-  src/preload/         # contextBridge 类型化桥
-  src/renderer/        # React UI：主题 token、组件、页面
-  src/shared/          # main、preload、renderer 三端共享的 IPC 契约
-  out/                 # electron-vite 构建中间产物（不可直接运行）
-packages/              # core / templates / docx / postprocess 四个纯逻辑包
+apps/                  # 可运行程序（pnpm workspace 的 apps/*）
+  desktop/             #   Electron 壳：main / preload / renderer 三段
+    src/main/          #     主进程：窗口、IPC、工程与导出管线宿主
+    src/preload/       #     contextBridge 类型化桥
+    src/renderer/      #     React UI：主题 token、组件、页面
+    src/shared/        #     main、preload、renderer 三端共享的 IPC 契约
+    out/               #     electron-vite 构建中间产物（不可直接运行）
+packages/              # 纯逻辑库（pnpm workspace 的 packages/*）
+                       #   core / templates / docx / postprocess，零 UI 依赖、可单测
 samples/               # demo 级实例：示例模板、样例工程、实例样例，供直接打开测试，无外部版权内容
 scripts/               # 入库脚本：上游契约检查、E2E 冒烟、产物校验、按需构建库、一键启动
 release/               # electron-builder 打包产物（可分发，不入库）
 temp/                  # 临时产物（不入库，可随时清空）
 ```
+
+> **`apps` 与 `packages` 的分界是依赖方向**：`apps/*` 是可运行程序，`packages/*` 是被它引用的库。
+> 依赖只允许 **apps → packages**，以及 packages 之间 `core ← templates ← docx`；
+> **任何库都不得依赖 apps**。这条边界保证了四个库能脱离 React/Electron 单独构建与单测
+> （`packages/*` 的 devDeps 只有 typescript 与 vitest）。
 
 > **两个产物目录别混**：`out/` 是 electron-vite 的中间产物（只有源码产物，`pnpm start` 跑它），
 > `release/` 是 electron-builder 打出的可分发成品（可直接运行）。两者都在各自的 .gitignore 规则下。
