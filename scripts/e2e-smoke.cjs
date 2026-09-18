@@ -74,6 +74,25 @@ function checkResult(data) {
   )
   need(data.previewPage === true, '预览视图未渲染')
   need(data.backToEdit === true, '从预览切回编辑失败')
+  // 整篇预览：多个章节节点、当前章节有标记、有问题时给检查摘要
+  need(
+    typeof data.previewNodes === 'number' && data.previewNodes > 1,
+    `预览只渲染了一个章节：${data.previewNodes}`
+  )
+  need(data.previewCurrent === 1, `预览里当前章节标记异常：${data.previewCurrent}`)
+  need(
+    typeof data.previewPrecheck === 'string' && data.previewPrecheck.includes('导出前检查'),
+    `预览缺少导出前检查摘要：${data.previewPrecheck}`
+  )
+  // 内容块折叠与标题入库
+  need(
+    typeof data.richBlockCards === 'number' && data.richBlockCards > 1,
+    `多块章节的卡片数异常：${data.richBlockCards}`
+  )
+  need(data.collapsedCards === 1, `点折叠后收起态卡片数不对：${data.collapsedCards}`)
+  need(data.collapsedBodyGone === true, '折叠后编辑器体仍然存在')
+  need(data.collapsedAfterExpand === 0, `再点一次没有展开回来：${data.collapsedAfterExpand}`)
+  need(data.titleSynced === true, '标题没有在停顿后自动入库（树上的标题没变）')
   need(data.settingsOpen === true, '设置弹层未打开')
   need(data.settingsClosed === true, '设置弹层未关闭')
   need(

@@ -2,7 +2,7 @@
  * 节点文档页：标题行内编辑 + 节点信息徽标区 + 编制说明（可编辑）+ 内容块流。
  * 块编辑器挂起值经防抖提交；切换/保存前统一 flush（复刻 collectEdits 语义）。
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ContentBlock } from '@documentor/core/blocks'
 import { useApp, useSelectedNode } from '../../state/AppContext'
 import { BlockCard } from './BlockCard'
@@ -11,6 +11,67 @@ import { BLOCK_ADD_ORDER, BLOCK_TYPE_LABELS, describeBlockType } from './blockTy
 import { Lightbox } from '../Lightbox'
 
 const DEBOUNCE_MS = 600
+
+/** 结构变更的种类：发起方登记，对账时按它搬运块的稳定键 */
+type StructureOp =
+  | { kind: 'add' }
+  | { kind: 'insert'; index: number }
+  | { kind: 'remove'; index: number }
+  | { kind: 'move'; from: number; to: number }
+
+/** 登记的有效期：失败的操作不该在很久之后误伤下一次对账 */
+const STRUCTURE_OP_TTL_MS = 5000
+
+function newBlockKey(): string {
+  return crypto.randomUUID()
+}
+
+/**
+ * 按登记的结构变更加工稳定键。
+ * 只在长度与预期吻合时才采纳，否则退回整批新键——宁可重挂载，也不能张冠李戴。
+ */
+function reconcileKeys(prev: string[], incomingLength: number, op: StructureOp | null): string[] {
+  if ((op?.kind === 'add' || op?.kind === 'insert') && prev.length === incomingLength - 1) {
+    if (op.kind === 'add') return [...prev, newBlockKey()]
+    const next = [...prev]
+    next.splice(Math.max(0, Math.min(op.index, next.length)), 0, newBlockKey())
+    return next
+  }
+  if (op?.kind === 'remove' && prev.length === incomingLength + 1) {
+    return prev.filter((_, i) => i !== op.index)
+  }
+  if (op?.kind === 'move' && prev.length === incomingLength) {
+    const next = [...prev]
+    const [moved] = next.splice(op.from, 1)
+    if (moved !== undefined) next.splice(op.to, 0, moved)
+    return next
+  }
+  if (prev.length === incomingLength) return prev
+  return Array.from({ length: incomingLength }, () => newBlockKey())
+}
+
+/** 添加内容的下拉菜单：末尾「＋ 添加内容」与块间插入共用同一份 */
+function AddBlockMenu({
+  onPick
+}: {
+  onPick: (type: (typeof BLOCK_ADD_ORDER)[number]) => void
+}): React.JSX.Element {
+  return (
+    <div className="np-add-menu">
+      {BLOCK_ADD_ORDER.map((type) => (
+        <button
+          key={type}
+          type="button"
+          title={describeBlockType(type)}
+          onClick={() => onPick(type)}
+        >
+          <span className="np-add-label">{BLOCK_TYPE_LABELS[type]}</span>
+          <span className="np-add-desc">{describeBlockType(type)}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
 
 export default function NodePage(): React.JSX.Element {
   const node = useSelectedNode()
@@ -27,7 +88,13 @@ export default function NodePage(): React.JSX.Element {
   const [blocks, setBlocks] = useState<ContentBlock[]>(node?.contentBlocks ?? [])
   const [desc, setDesc] = useState(node?.description ?? '')
   const [lightbox, setLightbox] = useState<LightboxRequest | null>(null)
-  const [addOpen, setAddOpen] = useState(false)
+  /** 添加菜单的开合位置：null 关闭，'end' 末尾，数字表示插到该下标之前 */
+  const [addOpen, setAddOpen] = useState<'end' | number | null>(null)
+  /** 防抖缓冲里还有没进工程数据的改动：界面上要看得见，别让人以为已经写好了 */
+  const [editing, setEditing] = useState(false)
+  /** 折叠的块：按节点记，切走再回来还认得（块本身没有稳定 id，只能记下标） */
+  const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
+  const collapsedByNodeRef = useRef(new Map<string, Set<number>>())
 
   const pendingRef = useRef(new Map<number, ContentBlock>())
   const timersRef = useRef(new Map<number, number>())
@@ -37,18 +104,50 @@ export default function NodePage(): React.JSX.Element {
   const descValueRef = useRef(desc)
   const descDirtyRef = useRef(false)
   const descTimerRef = useRef<number | undefined>(undefined)
+  /** 标题同样走防抖提交：以前只在失焦时保存，编辑到一半切节点或保存就丢了 */
+  const titleValueRef = useRef(node?.title ?? '')
+  const titleDirtyRef = useRef(false)
+  const titleTimerRef = useRef<number | undefined>(undefined)
+  /**
+   * 块的前端稳定键：用下标当 key 时，一次"上移"会把两张卡片整体重挂载，
+   * 正在编辑的光标、滚动位置、图片上传忙碌态全丢。这里按块对象配一把键，
+   * 结构变更（增删移）由发起方登记，对账时按登记把键跟着搬。
+   */
+  const [blockKeys, setBlockKeys] = useState<string[]>([])
+  const structureOpRef = useRef<{ op: StructureOp; at: number } | null>(null)
 
   useEffect(() => {
     descValueRef.current = desc
   }, [desc])
 
+  /** 编制说明框随内容长高，超过 40vh 才内部滚动（高度上限写在 CSS 里） */
+  const descRef = useRef<HTMLTextAreaElement | null>(null)
+  useLayoutEffect(() => {
+    const el = descRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [desc, node?.id])
+
+  /** 切章节回到顶部：滚动容器不随节点重建，不主动归零就会停在上一章的位置 */
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  useLayoutEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 })
+  }, [node?.id])
+
   // 切换节点/挂载：重建缓存视图
   useEffect(() => {
     nodeIdRef.current = node?.id ?? null
     const initialDesc = node?.description ?? ''
-    setBlocks(node?.contentBlocks ?? [])
+    const initialBlocks = node?.contentBlocks ?? []
+    setBlocks(initialBlocks)
+    setBlockKeys(initialBlocks.map(() => newBlockKey()))
     setDesc(initialDesc === '无' ? '' : initialDesc)
+    setCollapsed(new Set(collapsedByNodeRef.current.get(node?.id ?? '') ?? []))
     descDirtyRef.current = false
+    titleValueRef.current = node?.title ?? ''
+    titleDirtyRef.current = false
+    structureOpRef.current = null
     pendingRef.current.clear()
     for (const timer of timersRef.current.values()) window.clearTimeout(timer)
     timersRef.current.clear()
@@ -78,13 +177,24 @@ export default function NodePage(): React.JSX.Element {
         return pending ? pending : b
       })
     )
+    const registered = structureOpRef.current
+    const op =
+      registered && Date.now() - registered.at <= STRUCTURE_OP_TTL_MS ? registered.op : null
+    structureOpRef.current = null
+    setBlockKeys((prev) => reconcileKeys(prev, incoming.length, op))
   }, [node?.contentBlocks])
 
-  /** 提交全部挂起编辑（块 + 编制说明） */
+  /** 提交全部挂起编辑（标题 + 编制说明 + 内容块） */
   const flushPending = useCallback(() => {
+    const nodeId = nodeIdRef.current
+    // 标题
+    window.clearTimeout(titleTimerRef.current)
+    if (titleDirtyRef.current && nodeId) {
+      titleDirtyRef.current = false
+      void setNodeTitle(nodeId, titleValueRef.current)
+    }
     // 编制说明
     window.clearTimeout(descTimerRef.current)
-    const nodeId = nodeIdRef.current
     if (descDirtyRef.current && nodeId) {
       descDirtyRef.current = false
       void setNodeDescription(nodeId, descValueRef.current)
@@ -97,8 +207,9 @@ export default function NodePage(): React.JSX.Element {
       timersRef.current.delete(index)
       if (nodeId) void updateContentBlock(nodeId, index, block)
     }
+    setEditing(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setNodeDescription, updateContentBlock])
+  }, [setNodeDescription, setNodeTitle, updateContentBlock])
 
   // 向 store 注册本页 flush（保存/关闭/切换节点前调用）
   useEffect(() => registerFlushAll(flushPending), [registerFlushAll, flushPending])
@@ -111,8 +222,20 @@ export default function NodePage(): React.JSX.Element {
       setDesc(value)
       descValueRef.current = value
       descDirtyRef.current = true
+      setEditing(true)
       window.clearTimeout(descTimerRef.current)
       descTimerRef.current = window.setTimeout(flushPending, DEBOUNCE_MS)
+    },
+    [flushPending]
+  )
+
+  const onTitleChange = useCallback(
+    (value: string) => {
+      titleValueRef.current = value
+      titleDirtyRef.current = true
+      setEditing(true)
+      window.clearTimeout(titleTimerRef.current)
+      titleTimerRef.current = window.setTimeout(flushPending, DEBOUNCE_MS)
     },
     [flushPending]
   )
@@ -121,6 +244,7 @@ export default function NodePage(): React.JSX.Element {
     (index: number, block: ContentBlock) => {
       setBlocks((prev) => prev.map((b, i) => (i === index ? block : b)))
       pendingRef.current.set(index, block)
+      setEditing(true)
       const prevTimer = timersRef.current.get(index)
       if (prevTimer !== undefined) window.clearTimeout(prevTimer)
       const nodeId = nodeIdRef.current
@@ -135,11 +259,15 @@ export default function NodePage(): React.JSX.Element {
   )
 
   const handleAdd = useCallback(
-    async (type: (typeof BLOCK_ADD_ORDER)[number]) => {
+    async (type: (typeof BLOCK_ADD_ORDER)[number], atIndex?: number) => {
       const nodeId = nodeIdRef.current
       if (!nodeId) return
       await flushPending()
-      await addContentBlock(nodeId, type)
+      structureOpRef.current = {
+        op: typeof atIndex === 'number' ? { kind: 'insert', index: atIndex } : { kind: 'add' },
+        at: Date.now()
+      }
+      await addContentBlock(nodeId, type, atIndex)
     },
     [flushPending, addContentBlock]
   )
@@ -149,6 +277,7 @@ export default function NodePage(): React.JSX.Element {
       const nodeId = nodeIdRef.current
       if (!nodeId) return
       await flushPending()
+      structureOpRef.current = { op: { kind: 'remove', index }, at: Date.now() }
       await removeContentBlock(nodeId, index)
     },
     [flushPending, removeContentBlock]
@@ -159,9 +288,32 @@ export default function NodePage(): React.JSX.Element {
       const nodeId = nodeIdRef.current
       if (!nodeId) return
       await flushPending()
+      structureOpRef.current = { op: { kind: 'move', from: index, to: index + direction }, at: Date.now() }
       await moveContentBlock(nodeId, index, index + direction)
     },
     [flushPending, moveContentBlock]
+  )
+
+  /** 折叠状态按节点存，切走再回来还认得 */
+  const toggleCollapse = useCallback((index: number) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (next.has(index)) next.delete(index)
+      else next.add(index)
+      const nodeId = nodeIdRef.current
+      if (nodeId) collapsedByNodeRef.current.set(nodeId, next)
+      return next
+    })
+  }, [])
+
+  const setAllCollapsed = useCallback(
+    (value: boolean) => {
+      const next = value ? new Set(blocks.map((_, i) => i)) : new Set<number>()
+      setCollapsed(next)
+      const nodeId = nodeIdRef.current
+      if (nodeId) collapsedByNodeRef.current.set(nodeId, next)
+    },
+    [blocks]
   )
 
   if (!node) {
@@ -176,7 +328,7 @@ export default function NodePage(): React.JSX.Element {
 
   return (
     <main className="node-page">
-      <div className="np-scroll">
+      <div className="np-scroll" ref={scrollRef}>
         <article className="np-article">
           <div className="np-head">
             <input
@@ -184,10 +336,19 @@ export default function NodePage(): React.JSX.Element {
               defaultValue={node.title}
               key={node.id}
               aria-label="章节标题"
+              onChange={(e) => onTitleChange(e.target.value)}
               onBlur={(e) => {
-                void setNodeTitle(node.id, e.target.value)
+                // 失焦立即提交，不等防抖
+                titleValueRef.current = e.target.value
+                titleDirtyRef.current = true
+                flushPending()
               }}
             />
+            {editing && (
+              <span className="np-dirty" title="停顿一下就会自动进入工程数据">
+                编辑中…
+              </span>
+            )}
             <div className="np-badges">
               {node.headingLevel === 0 ? (
                 <span className="np-badge">文档根</span>
@@ -196,29 +357,27 @@ export default function NodePage(): React.JSX.Element {
               ) : (
                 <span className="np-badge">标题级别 {node.headingLevel}</span>
               )}
-              <span
-                className={`np-chip${node.copyable ? ' np-chip-ok' : ''}`}
-                title="该章节允许复制"
-              >
-                {node.copyable ? '可复制' : '不可复制'}
-              </span>
-              <span
-                className={`np-chip${node.deletable ? ' np-chip-ok' : ''}`}
-                title="该章节允许删除"
-              >
-                {node.deletable ? '可删除' : '不可删除'}
-              </span>
-              <span
-                className={`np-chip${canEditBlocks ? ' np-chip-ok' : ''}`}
-                title="该章节可添加内容"
-              >
-                {canEditBlocks ? '可编辑' : '锁定'}
-              </span>
+              {/*
+                只列能做的事：以前把「不可复制/不可删除/锁定」也摆出来，
+                三个否定标签读着像出错。模板限死了就合并成一句「只读」，鼠标悬停给原因。
+              */}
+              {node.copyable && <span className="np-chip np-chip-ok">可复制</span>}
+              {node.deletable && <span className="np-chip np-chip-ok">可删除</span>}
+              {canEditBlocks && <span className="np-chip np-chip-ok">可加内容</span>}
+              {!node.copyable && !node.deletable && !canEditBlocks && (
+                <span
+                  className="np-chip"
+                  title="模板限定了该章节：不可复制、不可删除，也不能添加内容"
+                >
+                  只读
+                </span>
+              )}
             </div>
           </div>
 
           <textarea
             className="np-desc-editor"
+            ref={descRef}
             value={desc}
             onChange={(e) => onDescChange(e.target.value)}
             placeholder="编制说明（可选）…"
@@ -229,47 +388,74 @@ export default function NodePage(): React.JSX.Element {
             <div className="np-block-hint">该模板的章节不能添加内容</div>
           ) : (
             <div className="np-blocks">
+              {blocks.length > 0 && (
+                <div className="np-blocks-toolbar">
+                  <span className="np-blocks-count">{blocks.length} 项内容</span>
+                  <button
+                    type="button"
+                    className="be-btn be-btn-mini"
+                    onClick={() => setAllCollapsed(collapsed.size < blocks.length)}
+                  >
+                    {collapsed.size < blocks.length ? '全部折叠' : '全部展开'}
+                  </button>
+                </div>
+              )}
               {blocks.map((block, index) => (
-                <BlockCard
-                  key={`${node.id}:${index}`}
-                  nodeId={node.id}
-                  index={index}
-                  block={block}
-                  canMoveUp={index > 0}
-                  canMoveDown={index < blocks.length - 1}
-                  onChange={handleChange}
-                  onMove={(i, d) => void handleMove(i, d)}
-                  onRemove={(i) => void handleRemove(i)}
-                  onPreview={(req) => setLightbox(req)}
-                />
+                <div className="np-block-slot" key={blockKeys[index] ?? `${node.id}:${index}`}>
+                  {canEditBlocks && (
+                    <div className="np-insert">
+                      <button
+                        type="button"
+                        className="np-insert-btn"
+                        title="在此上方插入内容"
+                        aria-label={`在第 ${index + 1} 项上方插入内容`}
+                        aria-expanded={addOpen === index}
+                        onClick={() => setAddOpen((v) => (v === index ? null : index))}
+                      >
+                        ＋ 在此插入
+                      </button>
+                      {addOpen === index && (
+                        <AddBlockMenu
+                          onPick={(type) => {
+                            setAddOpen(null)
+                            void handleAdd(type, index)
+                          }}
+                        />
+                      )}
+                    </div>
+                  )}
+                  <BlockCard
+                    nodeId={node.id}
+                    index={index}
+                    block={block}
+                    collapsed={collapsed.has(index)}
+                    onToggleCollapse={toggleCollapse}
+                    canMoveUp={index > 0}
+                    canMoveDown={index < blocks.length - 1}
+                    onChange={handleChange}
+                    onMove={(i, d) => void handleMove(i, d)}
+                    onRemove={(i) => void handleRemove(i)}
+                    onPreview={(req) => setLightbox(req)}
+                  />
+                </div>
               ))}
               {canEditBlocks && (
                 <div className="np-add">
                   <button
                     type="button"
                     className="np-add-btn"
-                    onClick={() => setAddOpen((v) => !v)}
-                    aria-expanded={addOpen}
+                    onClick={() => setAddOpen((v) => (v === 'end' ? null : 'end'))}
+                    aria-expanded={addOpen === 'end'}
                   >
                     ＋ 添加内容
                   </button>
-                  {addOpen && (
-                    <div className="np-add-menu">
-                      {BLOCK_ADD_ORDER.map((type) => (
-                        <button
-                          key={type}
-                          type="button"
-                          title={describeBlockType(type)}
-                          onClick={() => {
-                            setAddOpen(false)
-                            void handleAdd(type)
-                          }}
-                        >
-                          <span className="np-add-label">{BLOCK_TYPE_LABELS[type]}</span>
-                          <span className="np-add-desc">{describeBlockType(type)}</span>
-                        </button>
-                      ))}
-                    </div>
+                  {addOpen === 'end' && (
+                    <AddBlockMenu
+                      onPick={(type) => {
+                        setAddOpen(null)
+                        void handleAdd(type)
+                      }}
+                    />
                   )}
                 </div>
               )}

@@ -57,7 +57,11 @@ const api: DesktopApi = {
     treeGetRoot: () =>
       invoke(ProjectIpc.TreeGetRoot) as ReturnType<DesktopApi['project']['treeGetRoot']>,
     revealFolder: () =>
-      invoke(ProjectIpc.ProjectRevealFolder) as ReturnType<DesktopApi['project']['revealFolder']>
+      invoke(ProjectIpc.ProjectRevealFolder) as ReturnType<DesktopApi['project']['revealFolder']>,
+    pageTextWidth: () =>
+      invoke(ProjectIpc.ProjectPageTextWidth) as ReturnType<DesktopApi['project']['pageTextWidth']>,
+    precheck: () =>
+      invoke(ProjectIpc.ProjectPrecheck) as ReturnType<DesktopApi['project']['precheck']>
   },
   tree: {
     updateTitle: (input: NodeTitleInput) =>

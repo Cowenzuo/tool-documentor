@@ -84,8 +84,18 @@ export function updateBlock(
   })
 }
 
-export function addBlock(root: NodeDto, nodeId: string, block: ContentBlock): NodeDto {
-  return updateNodeListField(root, nodeId, (blocks) => [...blocks, block])
+export function addBlock(
+  root: NodeDto,
+  nodeId: string,
+  block: ContentBlock,
+  index?: number
+): NodeDto {
+  return updateNodeListField(root, nodeId, (blocks) => {
+    if (typeof index !== 'number') return [...blocks, block]
+    const next = [...blocks]
+    next.splice(Math.max(0, Math.min(index, next.length)), 0, block)
+    return next
+  })
 }
 
 export function removeBlockAt(root: NodeDto, nodeId: string, index: number): NodeDto {

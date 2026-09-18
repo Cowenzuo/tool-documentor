@@ -237,6 +237,35 @@ function createMainWindow(): void {
           }
           // 标题栏工程操作组：保存、导出、定位、退出四个按钮都应在
           out.tbActions = [...document.querySelectorAll('.tb-right .tb-action')].map((b) => b.textContent.trim());
+          // 块折叠：切到内容多的章节，收起第一张卡片后正文应当消失，再展开回来
+          // 先清空搜索，否则树上被过滤得只剩命中项，找不到目标章节
+          setNative(q, '');
+          await sleep(250);
+          const richRow = [...document.querySelectorAll('.tree-row')].find((r) => r.textContent.includes('需求'));
+          if (richRow) {
+            richRow.click();
+            await sleep(400);
+            out.richBlockCards = document.querySelectorAll('.block-card').length;
+            const foldBtn = document.querySelector('.block-card .block-card-collapse');
+            if (foldBtn) {
+              foldBtn.click();
+              await sleep(200);
+              out.collapsedCards = document.querySelectorAll('.block-card.is-collapsed').length;
+              out.collapsedBodyGone = !document.querySelector('.block-card.is-collapsed .block-card-body');
+              out.collapsedSummary = (document.querySelector('.block-card-summary') || {}).textContent || null;
+              const again = document.querySelector('.block-card .block-card-collapse');
+              if (again) again.click();
+              await sleep(200);
+              out.collapsedAfterExpand = document.querySelectorAll('.block-card.is-collapsed').length;
+            }
+            // 标题不等失焦就入库：改完标题停顿一下，树上的标题应当跟着变
+            const titleInput = document.querySelector('.np-title');
+            if (titleInput) {
+              setNative(titleInput, '需求改');
+              await sleep(1000);
+              out.titleSynced = [...document.querySelectorAll('.tree-row')].some((r) => r.textContent.includes('需求改'));
+            }
+          }
           // 清空搜索恢复全树
           setNative(q, '');
           await sleep(200);
@@ -363,6 +392,10 @@ function createMainWindow(): void {
             await sleep(900);
             out.previewPage = !!document.querySelector('.pv-article');
             out.previewListItems = document.querySelectorAll('.pv-list li').length;
+            // 整篇预览：章节节点数应当多于一个，当前章节要标出来；有问题时顶部给检查摘要
+            out.previewNodes = document.querySelectorAll('.pv-node').length;
+            out.previewCurrent = document.querySelectorAll('.pv-node.is-current').length;
+            out.previewPrecheck = (document.querySelector('.pv-precheck') || {}).textContent || null;
             const editTab = [...document.querySelectorAll('.view-toggle button')].find((b) => b.textContent === '编辑');
             if (editTab) editTab.click();
             await sleep(300);

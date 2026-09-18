@@ -1,7 +1,7 @@
 /**
  * 内容块展示常量（标签/徽标字符/代码语言）。
  */
-import type { BlockTypeName } from '@documentor/core/blocks'
+import type { BlockTypeName, ContentBlock } from '@documentor/core/blocks'
 
 export const BLOCK_TYPE_LABELS: Record<BlockTypeName, string> = {
   text: '文本',
@@ -80,5 +80,37 @@ export function describeBlockType(type: BlockTypeName): string {
       return '有序列表，每行一项'
     case 'unorderedList':
       return '无序列表，每行一项'
+  }
+}
+
+/** 折叠时显示的一行摘要：让收起后的卡片还说得出自己是什么 */
+export function summarizeBlock(block: ContentBlock): string {
+  const firstLine = (text: string): string => text.split('\n').find((line) => line.trim().length > 0)?.trim() ?? ''
+  const cut = (text: string, max = 80): string => {
+    const one = firstLine(text) || text.trim()
+    return one.length > max ? `${one.slice(0, max)}…` : one
+  }
+  switch (block.type) {
+    case 'text':
+      return cut(block.content) || '（空段落）'
+    case 'image':
+      return block.caption || block.imagePath || '（未选择图片）'
+    case 'table': {
+      const cols = Math.max(block.headers.length, ...block.data.map((row) => row.length), block.cols, 0)
+      const size = `${block.data.length} 行 × ${cols} 列`
+      return block.caption ? `${block.caption} · ${size}` : size
+    }
+    case 'formula':
+      return cut(block.latexCode) || '（空公式）'
+    case 'code': {
+      const lang = CODE_LANGUAGE_LABELS[block.language] ?? block.language
+      const head = cut(block.code, 60)
+      return head ? `${lang ? `${lang} · ` : ''}${head}` : lang || '（空代码）'
+    }
+    case 'mermaid':
+      return block.caption ? `${block.caption} · ${cut(block.code, 50)}` : cut(block.code, 70) || '（空图）'
+    case 'orderedList':
+    case 'unorderedList':
+      return block.items.length > 0 ? `${block.items.length} 项 · ${cut(block.items[0] ?? '', 60)}` : '（空列表）'
   }
 }

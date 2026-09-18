@@ -12,18 +12,21 @@ import {
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import {
+  bodyRowCount,
   checkTableShape,
   dbPathOf,
   localIsoNow,
   ProjectStore,
   readAnchor,
+  TABLE_MAX_COLS,
+  TABLE_MAX_ROWS,
   writeAnchor,
   ANCHOR_FILE_NAME,
   type ProjectAnchor
 } from '@documentor/core'
 import type { DocumentTree, DocumentNode } from '@documentor/core/tree'
 import { createBlock, type BlockTypeName, type ContentBlock } from '@documentor/core/blocks'
-import { exportTreeToDocxWithFigures, collectMermaidFigures, resolveMmdFacade } from '@documentor/docx'
+import { exportTreeToDocxWithFigures, collectMermaidFigures, resolveMmdFacade, skeletonTextWidthTwips } from '@documentor/docx'
 import type { TemplateManager } from '@documentor/templates'
 import type {
   BlockAddInput,
@@ -42,6 +45,7 @@ import type {
   NodeTitleInput,
   ProjectInfoDto,
   ProjectOpenResult,
+  PrecheckResult,
   SaveAndCloseResult,
   SaveResult
 } from '../../shared/project'
@@ -249,12 +253,33 @@ export class ProjectService {
     parent.removeChild(node)
   }
 
-  // ================= 内容块变更 =================
+  /**
+   * 当前工程的正文栏宽（twips），供预览按导出栏宽排版。
+   * 取"结构模板可用样式里的第一套"——与导出对话框的默认选择一致；
+   * 解析交给 docx 包的骨架解析函数，界面侧不另算一份。
+   */
+  pageTextWidthTwips(): number | null {
+    if (!this.isOpen) return null
+    const def = this.managerValue.findStructureByName(this.store.templateName())
+    const candidates = def ? this.managerValue.styleCandidatesForStructure(def) : []
+    const pick = candidates.find((c) => c.available) ?? candidates[0]
+    if (!pick) return null
+    const styleDef = this.managerValue.findStyleTemplate(pick.fileKey)
+    if (!styleDef) return null
+    return skeletonTextWidthTwips(styleDef.skeletonPath)
+  }
 
+  // ================= 内容块变更 =================
   addBlock(input: BlockAddInput): number {
     const node = this.requireNode(input.nodeId)
     this.assertBlocksAllowed(node)
-    node.addContentBlock(createBlock(input.type))
+    const block = createBlock(input.type)
+    // 带 index 就是"插到这一项之前"，不带就追加到末尾
+    if (typeof input.index === 'number') {
+      node.insertContentBlock(input.index, block)
+    } else {
+      node.addContentBlock(block)
+    }
     return node.contentBlocks.length
   }
 
@@ -333,6 +358,52 @@ export class ProjectService {
   }
 
   // ================= UI 状态 =================
+
+  /**
+   * 交付前检查：把"会影响到导出结果"的问题在预览里一次说清。
+   * 只报真问题（缺图、转换组件不可用、表格超出界面上限），不做常规计数播报。
+   */
+  async precheck(): Promise<PrecheckResult> {
+    const result: PrecheckResult = {
+      images: { total: 0, missing: [] },
+      mermaid: { total: 0, converterAvailable: true },
+      tables: { total: 0, overLimit: 0 }
+    }
+    if (this.treeValue) {
+      this.treeValue.traverse((n) => {
+        for (const b of n.contentBlocks) {
+          if (b.type === 'image') {
+            result.images.total += 1
+            if (b.imagePath && !this.imageExists(b.imagePath)) {
+              result.images.missing.push(b.imagePath)
+            }
+          } else if (b.type === 'mermaid') {
+            result.mermaid.total += 1
+          } else if (b.type === 'table') {
+            result.tables.total += 1
+            const cols = Math.max(
+              b.headers.length,
+              b.cols,
+              ...b.data.map((row) => row.length)
+            )
+            if (bodyRowCount(b.rows, b.data.length) > TABLE_MAX_ROWS || cols > TABLE_MAX_COLS) {
+              result.tables.overLimit += 1
+            }
+          }
+        }
+      })
+    }
+    result.mermaid.converterAvailable = await isMermaidConversionAvailable()
+    return result
+  }
+
+  /** 工程内图片是否真的在（与读图同一条回落规则：先按工程目录，再按 images/） */
+  private imageExists(imagePath: string): boolean {
+    const direct = isAbsolute(imagePath) ? imagePath : resolve(this.projectDirValue, imagePath)
+    if (existsSync(direct)) return true
+    if (isAbsolute(imagePath)) return false
+    return existsSync(join(this.projectDirValue, 'images', imagePath))
+  }
 
   /** 当前文档树中的 Mermaid 图块数（导出对话框提示/诊断） */
   countMermaidFigures(): number {

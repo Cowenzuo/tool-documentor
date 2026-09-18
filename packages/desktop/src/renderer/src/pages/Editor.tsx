@@ -15,6 +15,8 @@ export type EditorView = 'edit' | 'preview'
 const TREE_MIN = 180
 const TREE_MAX = 520
 const TREE_WIDTH_KEY = 'layout.treeWidth'
+/** 上次用的是哪个视图：按工程记在 ui_state 里 */
+const VIEW_KEY = 'editor_view'
 
 function readTreeWidth(): number {
   try {
@@ -27,10 +29,52 @@ function readTreeWidth(): number {
 }
 
 export default function Editor(): React.JSX.Element {
-  const { session, busy } = useApp()
+  const { session, busy, flushAll } = useApp()
   const [view, setView] = useState<EditorView>('edit')
   const [treeWidth, setTreeWidth] = useState(readTreeWidth)
   const treeWidthRef = useRef(treeWidth)
+
+  /**
+   * 切视图前先提交挂起编辑：预览读的是工程数据，而编辑区有 600ms 防抖缓冲，
+   * 不 flush 就会看到"编辑一半时"的旧样子。
+   */
+  const changeView = useCallback(
+    (next: EditorView) => {
+      if (next === view) return
+      void flushAll()
+      setView(next)
+      // 记住这个选择：下次打开工程还停在上次看的那一边
+      void window.documentor.uiState.save(VIEW_KEY, next).catch(() => undefined)
+    },
+    [flushAll, view]
+  )
+
+  const sessionKey = session?.info.dprojPath ?? ''
+  useEffect(() => {
+    let disposed = false
+    void window.documentor.uiState
+      .load(VIEW_KEY)
+      .then((saved) => {
+        if (disposed) return
+        setView(saved === 'preview' ? 'preview' : 'edit')
+      })
+      .catch(() => undefined)
+    return () => {
+      disposed = true
+    }
+  }, [sessionKey])
+
+  /** Ctrl+P 在编辑与预览之间切换（应用没有打印功能，这个组合空着） */
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (!event.ctrlKey || event.shiftKey || event.altKey) return
+      if (event.key !== 'p' && event.key !== 'P') return
+      event.preventDefault()
+      changeView(view === 'edit' ? 'preview' : 'edit')
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [changeView, view])
 
   useEffect(() => {
     treeWidthRef.current = treeWidth
@@ -72,7 +116,7 @@ export default function Editor(): React.JSX.Element {
         />
         <div className="editor-stage">
           <div className="stage-toolbar">
-            <ViewToggle view={view} onViewChange={setView} />
+            <ViewToggle view={view} onViewChange={changeView} />
           </div>
           {view === 'edit' ? <NodePage /> : <PreviewPage />}
         </div>
