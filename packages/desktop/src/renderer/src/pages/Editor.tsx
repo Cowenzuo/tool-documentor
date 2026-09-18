@@ -27,10 +27,23 @@ function readTreeWidth(): number {
 }
 
 export default function Editor(): React.JSX.Element {
-  const { session, busy } = useApp()
+  const { session, busy, flushAll } = useApp()
   const [view, setView] = useState<EditorView>('edit')
   const [treeWidth, setTreeWidth] = useState(readTreeWidth)
   const treeWidthRef = useRef(treeWidth)
+
+  /**
+   * 切视图前先提交挂起编辑：预览读的是工程数据，而编辑区有 600ms 防抖缓冲，
+   * 不 flush 就会看到"编辑一半时"的旧样子。
+   */
+  const changeView = useCallback(
+    (next: EditorView) => {
+      if (next === view) return
+      void flushAll()
+      setView(next)
+    },
+    [flushAll, view]
+  )
 
   useEffect(() => {
     treeWidthRef.current = treeWidth
@@ -72,7 +85,7 @@ export default function Editor(): React.JSX.Element {
         />
         <div className="editor-stage">
           <div className="stage-toolbar">
-            <ViewToggle view={view} onViewChange={setView} />
+            <ViewToggle view={view} onViewChange={changeView} />
           </div>
           {view === 'edit' ? <NodePage /> : <PreviewPage />}
         </div>

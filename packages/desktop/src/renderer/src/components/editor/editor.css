@@ -1211,6 +1211,17 @@ html[data-theme='light'] {
   font-size: var(--text-sm);
 }
 
+/* 图片缺失或未选择：给一个占位框，不让整块凭空消失 */
+.pv-missing {
+  padding: var(--space-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-card);
+  background: var(--bg-panel);
+  color: var(--text-3);
+  font-size: var(--text-xs);
+  text-align: center;
+}
+
 .pv-mermaid-error {
   color: var(--danger);
   font-size: var(--text-xs);

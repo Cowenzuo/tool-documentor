@@ -2,7 +2,7 @@
  * 静态预览（M6）：以文档排版感渲染当前选中节点（标题 + 内容块），所见接近导出正文。
  * 排版规则对齐导出：表题注在上、图题注在下且居中；代码/公式高亮渲染。
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { resolveTableMerges } from '@documentor/core/table-merge'
 import type { ContentBlock } from '@documentor/core/blocks'
 import { useSelectedNode } from '../../state/AppContext'
@@ -14,9 +14,15 @@ import { CODE_LANGUAGE_LABELS } from './blockTypes'
 export function PreviewPage(): React.JSX.Element {
   const node = useSelectedNode()
   const [lightbox, setLightbox] = useState<string | null>(null)
+  const scrollRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     setLightbox(null)
+  }, [node?.id])
+
+  /** 切章节回到顶部：滚动容器不随节点重建，不主动归零就会停在上一章的位置 */
+  useLayoutEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 })
   }, [node?.id])
 
   if (!node) {
@@ -34,7 +40,7 @@ export function PreviewPage(): React.JSX.Element {
 
   return (
     <main className="node-page">
-      <div className="pv-scroll">
+      <div className="pv-scroll" ref={scrollRef}>
         <article className="pv-article">
           {node.title && (
             <div className={headingClass}>
@@ -155,12 +161,17 @@ function ImagePreview({
   onImageClick: (src: string) => void
 }): React.JSX.Element {
   const [src, setSrc] = useState<string | null>(null)
+  /** 读不到文件要说话：以前整块直接不渲染，用户以为这块内容没了 */
+  const [missing, setMissing] = useState(false)
   useEffect(() => {
     let disposed = false
     setSrc(null)
+    setMissing(false)
     if (block.imagePath) {
       void window.documentor.files.readAsDataUrl(block.imagePath).then((url) => {
-        if (!disposed && url) setSrc(url)
+        if (disposed) return
+        setSrc(url)
+        setMissing(url === null)
       })
     }
     return () => {
@@ -168,6 +179,22 @@ function ImagePreview({
     }
   }, [block.imagePath])
 
+  if (!block.imagePath) {
+    return (
+      <figure className="pv-figure">
+        <div className="pv-missing">未选择图片</div>
+        {block.caption && <figcaption className="pv-figure-caption">{block.caption}</figcaption>}
+      </figure>
+    )
+  }
+  if (missing) {
+    return (
+      <figure className="pv-figure">
+        <div className="pv-missing">图片文件缺失：{block.imagePath}</div>
+        {block.caption && <figcaption className="pv-figure-caption">{block.caption}</figcaption>}
+      </figure>
+    )
+  }
   if (!src) return <></>
   return (
     <figure className="pv-figure">

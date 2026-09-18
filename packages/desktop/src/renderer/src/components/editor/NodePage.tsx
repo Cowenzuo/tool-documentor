@@ -129,6 +129,12 @@ export default function NodePage(): React.JSX.Element {
     el.style.height = `${el.scrollHeight}px`
   }, [desc, node?.id])
 
+  /** 切章节回到顶部：滚动容器不随节点重建，不主动归零就会停在上一章的位置 */
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  useLayoutEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 })
+  }, [node?.id])
+
   // 切换节点/挂载：重建缓存视图
   useEffect(() => {
     nodeIdRef.current = node?.id ?? null
@@ -322,7 +328,7 @@ export default function NodePage(): React.JSX.Element {
 
   return (
     <main className="node-page">
-      <div className="np-scroll">
+      <div className="np-scroll" ref={scrollRef}>
         <article className="np-article">
           <div className="np-head">
             <input
