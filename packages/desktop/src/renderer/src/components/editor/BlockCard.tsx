@@ -34,13 +34,34 @@ export function BlockCard(props: BlockCardProps): React.JSX.Element {
   const { block, index, collapsed, onToggleCollapse, onChange, onMove, onRemove, canMoveUp, canMoveDown } = props
   const change = (next: ContentBlock): void => onChange(index, next)
 
+  /**
+   * 卡片级快捷键：Alt+↑/↓ 移动本块，Ctrl+Enter 折叠/展开。
+   * 事件从编辑器里冒泡上来，所以光标在文本域里也能用。
+   */
+  const onKeyDown = (event: React.KeyboardEvent): void => {
+    if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+      event.preventDefault()
+      if (event.key === 'ArrowUp' ? canMoveUp : canMoveDown) {
+        onMove(index, event.key === 'ArrowUp' ? -1 : 1)
+      }
+      return
+    }
+    if (event.ctrlKey && event.key === 'Enter') {
+      event.preventDefault()
+      onToggleCollapse(index)
+    }
+  }
+
   return (
-    <section className={`block-card type-${block.type}${collapsed ? ' is-collapsed' : ''}`}>
+    <section
+      className={`block-card type-${block.type}${collapsed ? ' is-collapsed' : ''}`}
+      onKeyDown={onKeyDown}
+    >
       <header className="block-card-head">
         <button
           type="button"
           className="block-card-collapse"
-          title={collapsed ? '展开此内容' : '折叠此内容'}
+          title={collapsed ? '展开此内容（Ctrl+Enter）' : '折叠此内容（Ctrl+Enter）'}
           aria-label={collapsed ? '展开此内容' : '折叠此内容'}
           aria-expanded={!collapsed}
           onClick={() => onToggleCollapse(index)}
@@ -58,7 +79,7 @@ export function BlockCard(props: BlockCardProps): React.JSX.Element {
           <button
             type="button"
             className="be-icon-btn"
-            title="上移"
+            title="上移（Alt+↑）"
             aria-label="上移此内容"
             disabled={!canMoveUp}
             onClick={() => onMove(index, -1)}
@@ -70,7 +91,7 @@ export function BlockCard(props: BlockCardProps): React.JSX.Element {
           <button
             type="button"
             className="be-icon-btn"
-            title="下移"
+            title="下移（Alt+↓）"
             aria-label="下移此内容"
             disabled={!canMoveDown}
             onClick={() => onMove(index, 1)}

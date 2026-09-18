@@ -15,6 +15,7 @@ export function ViewToggle({
       <button
         type="button"
         className={view === 'edit' ? 'active' : ''}
+        title="编辑（Ctrl+P 切换）"
         onClick={() => onViewChange('edit')}
       >
         编辑
@@ -22,7 +23,7 @@ export function ViewToggle({
       <button
         type="button"
         className={view === 'preview' ? 'active' : ''}
-        title="以文档排版显示当前章节"
+        title="以文档排版显示整篇（Ctrl+P 切换）"
         onClick={() => onViewChange('preview')}
       >
         预览
