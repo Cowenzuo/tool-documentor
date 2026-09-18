@@ -59,7 +59,7 @@ interface AppContextValue {
   setNodeDescription: (nodeId: string, description: string) => Promise<void>
   copyNode: (nodeId: string) => Promise<void>
   deleteNode: (nodeId: string) => Promise<void>
-  addContentBlock: (nodeId: string, type: BlockTypeName) => Promise<void>
+  addContentBlock: (nodeId: string, type: BlockTypeName, index?: number) => Promise<void>
   removeContentBlock: (nodeId: string, index: number) => Promise<void>
   moveContentBlock: (nodeId: string, from: number, to: number) => Promise<void>
   updateContentBlock: (nodeId: string, index: number, block: ContentBlock) => Promise<void>
@@ -287,12 +287,12 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
   )
 
   const addContentBlock = useCallback(
-    async (nodeId: string, type: BlockTypeName) => {
+    async (nodeId: string, type: BlockTypeName, index?: number) => {
       guardSession()
       try {
-        await window.documentor.block.add({ nodeId, type })
+        await window.documentor.block.add({ nodeId, type, ...(typeof index === 'number' ? { index } : {}) })
         const block = createBlock(type)
-        updateRoot((root) => addBlockOp(root, nodeId, block))
+        updateRoot((root) => addBlockOp(root, nodeId, block, index))
       } catch (err) {
         showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
       }

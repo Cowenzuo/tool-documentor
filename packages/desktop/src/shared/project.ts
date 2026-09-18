@@ -207,6 +207,8 @@ export interface NodeDeleteInput {
 export interface BlockAddInput {
   nodeId: string
   type: BlockTypeName
+  /** 插到第几项之前；不传就追加到末尾 */
+  index?: number
 }
 
 export interface BlockIndexInput {

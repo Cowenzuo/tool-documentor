@@ -254,7 +254,13 @@ export class ProjectService {
   addBlock(input: BlockAddInput): number {
     const node = this.requireNode(input.nodeId)
     this.assertBlocksAllowed(node)
-    node.addContentBlock(createBlock(input.type))
+    const block = createBlock(input.type)
+    // 带 index 就是"插到这一项之前"，不带就追加到末尾
+    if (typeof input.index === 'number') {
+      node.insertContentBlock(input.index, block)
+    } else {
+      node.addContentBlock(block)
+    }
     return node.contentBlocks.length
   }
 
