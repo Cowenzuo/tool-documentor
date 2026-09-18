@@ -100,6 +100,13 @@ function checkResult(data) {
     typeof data.searchEmptyText === 'string' && data.searchEmptyText.includes('没有匹配'),
     `搜索无结果时缺少提示：${data.searchEmptyText}`
   )
+  // 树语义与键盘：容器要是 tree，方向键要能移动选中，且只有一行是选中态
+  need(data.treeRole === 'tree', `树容器缺少 tree 语义：${data.treeRole}`)
+  need(
+    data.treeKeyMoved === true,
+    `树里按方向键没有移动选中：${data.treeKeyBefore} → ${data.treeKeyAfter}`
+  )
+  need(data.treeAriaSelected === 1, `树里选中态行数异常：${data.treeAriaSelected}`)
   return problems
 }
 
@@ -209,12 +216,29 @@ function main() {
     // 物理点击结果：主进程在探针之后重放真实鼠标点击，1.4s 后才打印
     const phys = /\[e2e-phys\] toast= (.*)/.exec(buffer)
     if (phys && resultData !== null && physTimer) {
+      const keyLine = /\[e2e-keys\] (\{.*?\})\s*\n/.exec(buffer)
+      if (!keyLine) return // 真实按键那一段还没打印，再等一会儿
       clearTimeout(physTimer)
       physTimer = null
+      const keys = JSON.parse(keyLine[1])
       const toast = phys[1].trim()
-      const ok = toast.length > 0 && toast !== 'null' && !toast.includes('失败')
-      if (!ok) console.error(`[e2e-smoke] ✗ 物理点击保存未生效：toast=${toast}`)
-      console.log(`[e2e-smoke] ${ok ? '✓ 全部通过' : '✗ 物理点击断言失败'}：物理点击 toast=${toast}`)
+      const toastOk = toast.length > 0 && toast !== 'null' && !toast.includes('失败')
+      if (!toastOk) console.error(`[e2e-smoke] ✗ 物理点击保存未生效：toast=${toast}`)
+      const focusOk = typeof keys.focusClass === 'string' && keys.focusClass.includes('tree-scroll')
+      if (!focusOk) {
+        console.error(`[e2e-smoke] ✗ 点树之后焦点没进树容器：${keys.focusClass}`)
+      }
+      const keyMoved = keys.selectedAfter !== null && keys.selectedAfter !== keys.selectedBefore
+      if (!keyMoved) {
+        console.error(
+          `[e2e-smoke] ✗ 真实方向键没有移动选中：${keys.selectedBefore} → ${keys.selectedAfter}`
+        )
+      }
+      const ok = toastOk && focusOk && keyMoved
+      console.log(
+        `[e2e-smoke] ${ok ? '✓ 全部通过' : '✗ 收尾断言失败'}：物理点击 toast=${toast}，` +
+          `树焦点=${keys.focusClass}，方向键 ${keys.selectedBefore} → ${keys.selectedAfter}`
+      )
       void finish(ok ? 0 : 1)
     }
   }

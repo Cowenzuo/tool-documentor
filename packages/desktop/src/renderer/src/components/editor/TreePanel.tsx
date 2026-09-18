@@ -80,6 +80,12 @@ export default function TreePanel(): React.JSX.Element {
     return map
   }, [session])
 
+  /** 当前看得见的行（前序），键盘上下移动按它走；同时带上父节点便于左键回退 */
+  const flatRows = useMemo(() => {
+    const empty = { rows: [] as NodeDto[], parentOf: new Map<string, string>() }
+    return session ? flattenVisible(session.root, expanded, needle.length > 0, match) : empty
+  }, [session, expanded, needle, match])
+
   const toggle = (id: string): void => {
     setExpanded((prev) => {
       const next = new Set(prev)
@@ -87,6 +93,60 @@ export default function TreePanel(): React.JSX.Element {
       else next.add(id)
       return next
     })
+  }
+
+  /**
+   * 树内键盘操作：上下移动选中，右键展开/进入子节点，左键折叠/回父节点，Home/End 到首尾。
+   * 这个面板的选中项直接驱动右侧编辑区，所以方向键移动的就是选中项本身。
+   */
+  const onTreeKeyDown = (event: React.KeyboardEvent): void => {
+    const rows = flatRows.rows
+    if (rows.length === 0) return
+    const index = rows.findIndex((n) => n.id === selectedId)
+    const current = index >= 0 ? rows[index] : undefined
+    /** 根节点没有折叠箭头，键盘也不该把它整个收起来（要全折有工具栏按钮） */
+    const collapsible = current !== undefined && flatRows.parentOf.has(current.id)
+    const selectAt = (i: number): void => {
+      const target = rows[Math.max(0, Math.min(rows.length - 1, i))]
+      if (target) selectNode(target.id)
+    }
+    switch (event.key) {
+      case 'ArrowDown':
+        event.preventDefault()
+        selectAt(index + 1)
+        break
+      case 'ArrowUp':
+        event.preventDefault()
+        selectAt(index - 1)
+        break
+      case 'Home':
+        event.preventDefault()
+        selectAt(0)
+        break
+      case 'End':
+        event.preventDefault()
+        selectAt(rows.length - 1)
+        break
+      case 'ArrowRight':
+        if (!current) break
+        event.preventDefault()
+        if (collapsible && current.children.length > 0 && !expanded.has(current.id)) toggle(current.id)
+        else selectAt(index + 1)
+        break
+      case 'ArrowLeft': {
+        if (!current) break
+        event.preventDefault()
+        if (collapsible && current.children.length > 0 && expanded.has(current.id)) {
+          toggle(current.id)
+        } else {
+          const parentId = flatRows.parentOf.get(current.id)
+          if (parentId) selectNode(parentId)
+        }
+        break
+      }
+      default:
+        break
+    }
   }
 
   if (!session) return <aside className="tree-panel" />
@@ -110,19 +170,40 @@ export default function TreePanel(): React.JSX.Element {
           </span>
         )}
       </div>
-      <div className="tree-scroll" ref={scrollRef}>
-        <div className="tree-root-row" onClick={() => selectNode(root.id)}>
+      <div
+        className="tree-scroll"
+        ref={scrollRef}
+        role="tree"
+        aria-label="文档结构"
+        tabIndex={0}
+        aria-activedescendant={selectedId ? treeRowDomId(selectedId) : undefined}
+        onKeyDown={onTreeKeyDown}
+        // 点树区就把焦点收进容器：否则方向键落在别处，键事件根本到不了上面的处理函数。
+        // 这里连同默认聚焦一起拦掉，免得行里的箭头按钮把焦点从容器抢走。
+        onMouseDown={(e) => {
+          e.preventDefault()
+          scrollRef.current?.focus()
+        }}
+      >
+        <div
+          className={`tree-root-row${selectedId === root.id ? ' is-selected' : ''}`}
+          id={treeRowDomId(root.id)}
+          role="treeitem"
+          aria-level={1}
+          aria-selected={selectedId === root.id}
+          onClick={() => selectNode(root.id)}
+        >
           <span className="tree-caret tree-caret-empty" />
           <span className="tree-badge tree-badge-root">根</span>
-          <span className={`tree-title${selectedId === root.id ? ' selected' : ''}`}>
-            {root.title || '(未命名文档)'}
-          </span>
+          <span className="tree-title">{root.title || '(未命名文档)'}</span>
         </div>
-        {root.children.map((child) => (
+        {root.children.map((child, i) => (
           <TreeNodeRow
             key={child.id}
             node={child}
             depth={0}
+            posInSet={i + 1}
+            setSize={root.children.length}
             needle={needle}
             match={match}
             expanded={expanded}
@@ -179,6 +260,8 @@ export default function TreePanel(): React.JSX.Element {
 function TreeNodeRow(props: {
   node: NodeDto
   depth: number
+  posInSet: number
+  setSize: number
   needle: string
   match: TreeMatchIndex
   expanded: Set<string>
@@ -188,7 +271,7 @@ function TreeNodeRow(props: {
   onSelect: (id: string) => void
   onContextMenu: (e: React.MouseEvent, nodeId: string) => void
 }): React.JSX.Element {
-  const { node, depth, needle, match, expanded, selectedId, listIndex, onToggle, onSelect, onContextMenu } = props
+  const { node, depth, posInSet, setSize, needle, match, expanded, selectedId, listIndex, onToggle, onSelect, onContextMenu } = props
   const hasChildren = node.children.length > 0
   const isOpen = expanded.has(node.id)
   const searching = needle.length > 0
@@ -202,7 +285,14 @@ function TreeNodeRow(props: {
     <>
       <div
         className={`tree-row${selectedId === node.id ? ' is-selected' : ''}`}
+        id={treeRowDomId(node.id)}
         data-node-id={node.id}
+        role="treeitem"
+        aria-level={depth + 2}
+        aria-selected={selectedId === node.id}
+        aria-expanded={hasChildren ? isOpen : undefined}
+        aria-posinset={posInSet}
+        aria-setsize={setSize}
         style={{ paddingLeft: 8 + depth * 16 }}
         onClick={() => onSelect(node.id)}
         onContextMenu={(e) => onContextMenu(e, node.id)}
@@ -241,11 +331,13 @@ function TreeNodeRow(props: {
           {searching ? highlight(node.title || '·', needle) : node.title || '·'}
         </span>
       </div>
-      {visibleChildren.map((child) => (
+      {visibleChildren.map((child, i) => (
         <TreeNodeRow
           key={child.id}
           node={child}
           depth={depth + 1}
+          posInSet={i + 1}
+          setSize={visibleChildren.length}
           needle={needle}
           match={match}
           expanded={expanded}
@@ -258,6 +350,34 @@ function TreeNodeRow(props: {
       ))}
     </>
   )
+}
+
+/** 行在 DOM 里的 id：键盘导航靠 aria-activedescendant 指过来 */
+function treeRowDomId(nodeId: string): string {
+  return `tree-node-${nodeId}`
+}
+
+/**
+ * 摊平当前看得见的行（前序），供键盘导航按显示顺序走。
+ * 顺带记下每个节点的父节点，左键回退时要用。
+ */
+function flattenVisible(
+  root: NodeDto,
+  expanded: Set<string>,
+  searching: boolean,
+  match: TreeMatchIndex
+): { rows: NodeDto[]; parentOf: Map<string, string> } {
+  const rows: NodeDto[] = [root]
+  const parentOf = new Map<string, string>()
+  const walk = (node: NodeDto, parentId: string): void => {
+    if (searching && !match.visible.has(node.id)) return
+    rows.push(node)
+    parentOf.set(node.id, parentId)
+    const kids = searching ? node.children : expanded.has(node.id) ? node.children : []
+    for (const child of kids) walk(child, node.id)
+  }
+  for (const child of root.children) walk(child, root.id)
+  return { rows, parentOf }
 }
 
 /** 给每个子标题标记它在父节点下的第几项（1 起） */

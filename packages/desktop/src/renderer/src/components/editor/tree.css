@@ -46,6 +46,12 @@
   padding: var(--space-1);
 }
 
+/* 键盘进入（Tab）时给个焦点提示；鼠标点进来靠选中行本身表示 */
+.tree-scroll:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
 .tree-root-row,
 .tree-row {
   display: flex;

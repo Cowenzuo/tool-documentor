@@ -274,12 +274,32 @@ function createMainWindow(): void {
           if (closeBtn) closeBtn.click();
           await sleep(350);
           out.settingsClosed = !document.querySelector('.settings-dialog');
+          // 树键盘导航：聚焦树容器按方向键，选中项应当移动；放在最后做，免得影响前面的断言
+          const treeScroll = document.querySelector('.tree-scroll');
+          if (treeScroll) {
+            out.treeRole = treeScroll.getAttribute('role');
+            treeScroll.focus();
+            const beforeKey = (document.querySelector('.tree-row.is-selected') || {}).textContent || null;
+            treeScroll.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+            await sleep(300);
+            const afterKey = (document.querySelector('.tree-row.is-selected') || {}).textContent || null;
+            out.treeKeyMoved = afterKey !== null && afterKey !== beforeKey;
+            out.treeKeyBefore = beforeKey;
+            out.treeKeyAfter = afterKey;
+            out.treeAriaSelected = document.querySelectorAll('[role="treeitem"][aria-selected="true"]').length;
+          }
           // 物理输入验证：返回保存按钮中心坐标，main 侧用 sendInputEvent 重放真实鼠标点击
           const physSave = document.querySelector('.tb-action[aria-label="保存工程"]');
           if (physSave) {
             const r = physSave.getBoundingClientRect();
             out.saveRect = { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
             out.saveToastBefore = (document.querySelector('.toast') || {}).textContent || null;
+          }
+          // 同样交给 main 侧重放真实点击 + 真实按键：合成事件会让"焦点没进来"这种问题假装通过
+          const physRow = [...document.querySelectorAll('.tree-row')][1];
+          if (physRow) {
+            const r = physRow.getBoundingClientRect();
+            out.treeKeyRowRect = { x: Math.round(r.left + 40), y: Math.round(r.top + r.height / 2) };
           }
           return out;
         })()
@@ -302,6 +322,31 @@ function createMainWindow(): void {
               `(document.querySelector('.toast') || {}).textContent || null`
             )
             console.log('[e2e-phys]', 'toast=', toast)
+          }
+          // 真实鼠标点一行 → 真实方向键：验的就是"焦点有没有进树容器"这件事
+          const rowRect = data['treeKeyRowRect'] as { x: number; y: number } | undefined
+          const win = mainWindow
+          if (rowRect && win) {
+            win.webContents.sendInputEvent({ type: 'mouseMove', x: rowRect.x, y: rowRect.y })
+            win.webContents.sendInputEvent({ type: 'mouseDown', x: rowRect.x, y: rowRect.y, button: 'left', clickCount: 1 })
+            win.webContents.sendInputEvent({ type: 'mouseUp', x: rowRect.x, y: rowRect.y, button: 'left', clickCount: 1 })
+            await new Promise((resolve) => setTimeout(resolve, 400))
+            const focusClass = await win.webContents.executeJavaScript(
+              `(document.activeElement && (document.activeElement.className || document.activeElement.tagName)) || null`
+            )
+            const selectedBefore = await win.webContents.executeJavaScript(
+              `(document.querySelector('.tree-row.is-selected, .tree-root-row.is-selected') || {}).textContent || null`
+            )
+            win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Down' })
+            win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Down' })
+            await new Promise((resolve) => setTimeout(resolve, 400))
+            const selectedAfter = await win.webContents.executeJavaScript(
+              `(document.querySelector('.tree-row.is-selected, .tree-root-row.is-selected') || {}).textContent || null`
+            )
+            console.log(
+              '[e2e-keys]',
+              JSON.stringify({ focusClass, selectedBefore, selectedAfter })
+            )
           }
         })
         .catch((err) => console.error('[e2e] failed:', err))
