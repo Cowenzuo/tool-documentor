@@ -216,6 +216,7 @@
   position: fixed;
   z-index: 120;
   min-width: 148px;
+  max-width: 240px;
   background: var(--bg-raised);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-overlay);
@@ -223,6 +224,18 @@
   padding: var(--space-1);
   display: flex;
   flex-direction: column;
+}
+
+/* 菜单头：写清这一单是冲着哪个章节去的 */
+.tree-menu-head {
+  padding: 6px 12px;
+  margin-bottom: var(--space-1);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tree-menu button {

@@ -94,6 +94,24 @@ export default function TreePanel(): React.JSX.Element {
     return findById(session.root, menu.nodeId)
   }, [menu, session])
 
+  /** 菜单打开后：先把越界的部分收回来，再把焦点放到第一个可用项上（键盘能直接接着走） */
+  useEffect(() => {
+    const el = menuRef.current
+    if (!menu || !el) return
+    const rect = el.getBoundingClientRect()
+    const overflowX = rect.right - window.innerWidth + 8
+    const overflowY = rect.bottom - window.innerHeight + 8
+    if (overflowX > 0 || overflowY > 0) {
+      setMenu((prev) =>
+        prev
+          ? { ...prev, x: prev.x - Math.max(0, overflowX), y: prev.y - Math.max(0, overflowY) }
+          : prev
+      )
+      return
+    }
+    el.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()
+  }, [menu])
+
   /** 子标题在各自父节点下的次序：标签上的圆圈数字取这一段（与导出侧编号链同源） */
   const listIndex = useMemo(() => {
     const map = new Map<string, number>()
@@ -198,6 +216,33 @@ export default function TreePanel(): React.JSX.Element {
     persistExpanded(next)
   }
 
+  // 右键菜单：打开时聚焦第一个可用项，越界就往回收，禁用项说明为什么不能点
+  const canCopy = !!menuNode && menuNode.headingLevel > 0 && menuNode.copyable
+  const canDelete = !!menuNode && menuNode.headingLevel > 0 && menuNode.deletable
+  const copyDeniedReason = !menuNode
+    ? ''
+    : menuNode.headingLevel === 0
+      ? '根节点不能复制'
+      : '模板未开放复制'
+  const deleteDeniedReason = !menuNode
+    ? ''
+    : menuNode.headingLevel === 0
+      ? '根节点不能删除'
+      : '模板未开放删除'
+
+  const onMenuKeyDown = (event: React.KeyboardEvent): void => {
+    const items = [...(menuRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])]
+    if (items.length === 0) return
+    const index = items.findIndex((el) => el === document.activeElement)
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      items[(index + 1 + items.length) % items.length]?.focus()
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      items[(index - 1 + items.length) % items.length]?.focus()
+    }
+  }
+
   return (
     <aside className="tree-panel">
       <div className="tree-search">
@@ -276,6 +321,8 @@ export default function TreePanel(): React.JSX.Element {
             onSelect={selectNode}
             onContextMenu={(e, nodeId) => {
               e.preventDefault()
+              // 右键同时把该行选上：菜单里的操作对象与右侧编辑区看到的保持一致
+              selectNode(nodeId)
               setMenu({ x: e.clientX, y: e.clientY, nodeId })
             }}
           />
@@ -292,10 +339,16 @@ export default function TreePanel(): React.JSX.Element {
           className="tree-menu"
           style={{ left: menu.x, top: menu.y }}
           role="menu"
+          aria-label="章节操作"
+          onKeyDown={onMenuKeyDown}
         >
+          <div className="tree-menu-head" title={rowTooltip(menuNode)}>
+            {menuNode.title || '·'}
+          </div>
           <button
             role="menuitem"
-            disabled={menuNode.headingLevel === 0 || !menuNode.copyable}
+            disabled={!canCopy}
+            title={canCopy ? '复制该章节及其子章节' : copyDeniedReason}
             onClick={() => {
               void copyNode(menuNode.id)
               setMenu(null)
@@ -306,13 +359,25 @@ export default function TreePanel(): React.JSX.Element {
           <button
             role="menuitem"
             className="danger"
-            disabled={menuNode.headingLevel === 0 || !menuNode.deletable}
+            disabled={!canDelete}
+            title={canDelete ? '删除该章节及其子章节' : deleteDeniedReason}
             onClick={() => {
               void deleteNode(menuNode.id)
               setMenu(null)
             }}
           >
             删除章节
+          </button>
+          <button
+            role="menuitem"
+            disabled={menuNode.children.length === 0}
+            title={menuNode.children.length === 0 ? '该章节没有子章节' : '收起该章节下的所有层级'}
+            onClick={() => {
+              collapseBranch(menuNode.id)
+              setMenu(null)
+            }}
+          >
+            折叠该分支
           </button>
         </div>
       )}

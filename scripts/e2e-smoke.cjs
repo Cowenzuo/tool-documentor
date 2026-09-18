@@ -110,8 +110,8 @@ function checkResult(data) {
   // 全展/全折与展开状态持久化
   need(data.treeExpandButtons === true, '结构栏缺少全展/全折按钮')
   need(
-    data.treeRowsAfterCollapse === 0,
-    `点全部折叠后仍显示 ${data.treeRowsAfterCollapse} 行`
+    data.treeDeepRowsAfterCollapse === 0,
+    `点全部折叠后二级以下仍有 ${data.treeDeepRowsAfterCollapse} 行`
   )
   need(
     typeof data.treeExpandState === 'string' && data.treeExpandState.trim() === '[]',
@@ -121,6 +121,29 @@ function checkResult(data) {
     typeof data.treeRowsAfterExpand === 'number' && data.treeRowsAfterExpand > 0,
     `点全部展开后没有恢复行：${data.treeRowsAfterExpand}`
   )
+  // 右键菜单
+  need(data.menuOpen === true, '右键没有打开章节菜单')
+  need(
+    Array.isArray(data.menuItems) &&
+      ['复制章节', '删除章节', '折叠该分支'].every((label) => data.menuItems.includes(label)),
+    `章节菜单项不齐：${JSON.stringify(data.menuItems)}`
+  )
+  need(
+    typeof data.menuHeadText === 'string' && data.menuHeadText.includes('范围'),
+    `菜单头没有写清操作对象：${data.menuHeadText}`
+  )
+  need(data.menuSelectedTitle === '范围', `右键没有顺带选中该行：${data.menuSelectedTitle}`)
+  need(
+    Array.isArray(data.menuDisabledHints) &&
+      data.menuDisabledHints.length > 0 &&
+      data.menuDisabledHints.every((h) => typeof h === 'string' && h.length > 0),
+    `菜单里禁用的项没写原因：${JSON.stringify(data.menuDisabledHints)}`
+  )
+  need(
+    typeof data.menuFocus === 'string' && data.menuFocus.length > 0,
+    `菜单打开后焦点没有落到可用项上：${data.menuFocus}`
+  )
+  need(data.menuClosed === true, 'Esc 没有关掉章节菜单')
   return problems
 }
 

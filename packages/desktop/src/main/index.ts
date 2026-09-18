@@ -238,10 +238,38 @@ function createMainWindow(): void {
             collapseBtn.click();
             await sleep(250);
             out.treeRowsAfterCollapse = document.querySelectorAll('.tree-row').length;
+            // 折叠后顶层章节仍应可见，二级以下的行必须消失
+            out.treeDeepRowsAfterCollapse = document.querySelectorAll('.tree-row[aria-level="3"], .tree-row[aria-level="4"]').length;
             out.treeExpandState = await window.documentor.uiState.load('tree_expanded');
             expandBtn.click();
             await sleep(250);
             out.treeRowsAfterExpand = document.querySelectorAll('.tree-row').length;
+          }
+          // 右键菜单：右键顺带选中该行，菜单头写清对象，禁用项要说明原因，焦点落在可用项上
+          const ctxRow = [...document.querySelectorAll('.tree-row')].find((r) => r.textContent.includes('范围'));
+          if (ctxRow) {
+            const rect = ctxRow.getBoundingClientRect();
+            ctxRow.dispatchEvent(new MouseEvent('contextmenu', {
+              bubbles: true,
+              clientX: Math.round(rect.left + 20),
+              clientY: Math.round(rect.top + 5)
+            }));
+            await sleep(300);
+            out.menuOpen = !!document.querySelector('.tree-menu');
+            out.menuItems = [...document.querySelectorAll('.tree-menu button')].map((b) => b.textContent.trim());
+            out.menuHeadText = (document.querySelector('.tree-menu-head') || {}).textContent || null;
+            out.menuDisabledHints = [...document.querySelectorAll('.tree-menu button:disabled')].map((b) => b.title);
+            out.menuFocus = document.activeElement ? document.activeElement.textContent.trim() : null;
+            out.menuSelectedTitle = document.querySelector('.np-title') ? document.querySelector('.np-title').value : null;
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+            await sleep(200);
+            out.menuClosed = !document.querySelector('.tree-menu');
+            // 右键把选中挪到了这一行，验完把选中还回去，免得影响后面的断言（该章节不允许放内容块）
+            const back = [...document.querySelectorAll('.tree-row')].find((r) => r.textContent.includes('标识'));
+            if (back) {
+              back.click();
+              await sleep(300);
+            }
           }
           // 保存
           const saveBtn = await waitFor('.tb-action[aria-label="保存工程"]');
