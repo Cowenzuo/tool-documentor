@@ -16,6 +16,11 @@ function isDev(): boolean {
   return !app.isPackaged && Boolean(process.env['ELECTRON_RENDERER_URL'])
 }
 
+/** 生命周期日志带时间戳：窗口莫名其妙消失时，靠它分辨是谁在什么时候关的 */
+function lifecycle(message: string): void {
+  console.log(`[lifecycle ${new Date().toLocaleTimeString('zh-CN', { hour12: false })}] ${message}`)
+}
+
 /** 允许交给系统浏览器打开的外链协议（其余一律拦截） */
 const SAFE_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:'])
 
@@ -83,6 +88,7 @@ function createMainWindow(): void {
 
   // 关窗前自动保存。存不上就不关：让用户知道改动还在，而不是以为已经存好。
   mainWindow.on('close', (event) => {
+    lifecycle('窗口收到关闭请求')
     const result = projectService?.saveAndCloseProject()
     if (result && !result.ok) {
       const choice = dialog.showMessageBoxSync(mainWindow as BrowserWindow, {
@@ -99,7 +105,16 @@ function createMainWindow(): void {
     }
   })
   mainWindow.on('closed', () => {
+    lifecycle('窗口已关闭')
     mainWindow = null
+  })
+
+  // 渲染层崩了或子进程异常退出时留个痕迹：不然只看到窗口消失，分不清是关的还是崩的
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    lifecycle(`渲染进程结束：${details.reason} exitCode=${details.exitCode}`)
+  })
+  app.on('child-process-gone', (_event, details) => {
+    lifecycle(`子进程结束：${details.type} ${details.reason}`)
   })
 
   // 外链：仅安全协议交给系统浏览器，窗口内一律不打开
@@ -415,6 +430,7 @@ function registerIpc(): void {
   })
 
   ipcMain.on(IPC.WindowClose, () => {
+    lifecycle('渲染层请求关闭窗口')
     mainWindow?.close()
   })
 
@@ -440,6 +456,7 @@ app.whenReady().then(() => {
 
   // 退出前自动保存当前工程
   app.on('before-quit', () => {
+    lifecycle('收到退出请求')
     projectService?.saveAndCloseProject()
   })
 
@@ -451,6 +468,7 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  lifecycle('所有窗口已关闭，退出应用')
   if (process.platform !== 'darwin') {
     app.quit()
   }
