@@ -126,7 +126,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
                       status = '目录不存在'
                       bad = true
                     } else if (!r.hasManifest) {
-                      status = '缺 manifest.json，已跳过'
+                      status = '这一层没有模板清单，已跳过'
                       bad = true
                     } else if (r.loadFailed) {
                       status = '未加载到模板'
@@ -140,7 +140,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
                       <div className="w-row">
                         <input
                           value={dir}
-                          placeholder="模板目录（含 manifest.json 的那一层）"
+                          placeholder="模板目录（要选到模板仓库的 packages 子目录）"
                           onChange={(e) => {
                             const next = [...cfg.template_dirs]
                             next[i] = e.target.value
