@@ -44,7 +44,11 @@ temp/                  # 临时产物（不入库，可随时清空）
 ## 开发
 
 ```bash
-pnpm install
+# 一键启动（双击 start-documentor.cmd 同效）
+node scripts/start-documentor.cjs          # 默认启【发布版】：改数据用这条，秒开、不构建
+node scripts/start-documentor.cjs --dev    # 启【开发版】：开发新功能用这条
+
+pnpm install    # 首次或依赖变动后
 pnpm dev        # electron-vite dev：渲染层 HMR（需先在 设置→模板目录 配置模板或经 DOC_E2E_TEMPLATES 注入开发模板）
 pnpm typecheck  # 全仓 TS strict 检查
 pnpm build      # 产物 apps/desktop/out/
@@ -58,7 +62,15 @@ pnpm e2e          # 生产产物 E2E 冒烟（工作区落 temp/，见下）
 node scripts/verify-package.cjs   # 校验 asar 内容（必需项齐全 / mmd2vsdx 不入包 / 无开发依赖）
 ```
 
-> **启动时的库构建**：`pnpm dev` 与 `start-documentor.cmd` 会先跑 `scripts/ensure-libs.cjs`——
+> **一键启动的默认行为**：`start-documentor.cmd` 与 `scripts/start-documentor.cjs`
+> **默认启发布版**（`apps/desktop/release/win-unpacked/Documentor.exe`）——不做构建、秒开，
+> 适合改数据时用。要开发时加 `--dev`，或在仓库根建一个空的 `.dev-mode` 标记文件。
+>
+> ⚠️ `.dev-mode` 是**机器级开关**，对所有启动方式生效——包括安装包建出来的快捷方式。
+> 共享机器上建了它，别人双击图标也会跑到开发版（还要现编库，多等十几秒）。
+> 开发完记得 `del .dev-mode`；该文件已 gitignore，不会入库。
+
+> **启动时的库构建**：只有开发版路径会跑 `scripts/ensure-libs.cjs`——
 > 四个库包的源码没变就跳过构建（省约 4 秒），变了才重编。手工跑过 `pnpm build:libs` 后
 > 用 `pnpm build:libs:mark` 刷新指纹，否则下次启动会白重编一遍。
 
