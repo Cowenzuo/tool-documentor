@@ -1,10 +1,40 @@
 /**
- * 设置对话框：默认工程目录 + 模板目录列表（增删/浏览；保存后主进程即时重载模板）。
- * 同时显示每个模板目录的加载结果——配错一层目录时，这里要说清为什么没加载到。
+ * 设置对话框：主题、默认工程目录、模板目录列表（增删/浏览；保存后主进程即时重载模板）。
+ * 每个模板目录就地显示加载结果——配错一层目录时，这里要说清为什么没加载到。
  */
 import { useEffect, useState } from 'react'
 import type { AppConfigDto, TemplateLoadReport } from '../../../shared/project'
 import { useApp } from '../state/AppContext'
+import { useTheme, type ThemePreference } from '../theme/ThemeProvider'
+
+/** 主题三选项：顺序与标题栏原先的循环顺序一致 */
+const THEME_OPTIONS: Array<{ value: ThemePreference; label: string }> = [
+  { value: 'system', label: '跟随系统' },
+  { value: 'light', label: '浅色' },
+  { value: 'dark', label: '深色' }
+]
+
+function ThemeSection(): React.JSX.Element {
+  const { preference, setPreference } = useTheme()
+  return (
+    <section className="settings-group">
+      <h3>主题</h3>
+      <div className="settings-seg" role="group" aria-label="主题">
+        {THEME_OPTIONS.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            className={preference === option.value ? 'active' : ''}
+            aria-pressed={preference === option.value}
+            onClick={() => setPreference(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </section>
+  )
+}
 
 export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.Element {
   const { showToast } = useApp()
@@ -64,6 +94,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
         </header>
         {cfg && (
           <div className="settings-body">
+            <ThemeSection />
             <section className="settings-group">
               <h3>默认工程目录</h3>
               <div className="w-row">
@@ -85,11 +116,6 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
             </section>
             <section className="settings-group">
               <h3>模板目录</h3>
-              <p className="settings-hint">
-                选择包含模板的目录；多个目录存在同名模板时，靠前的目录优先。
-                <br />
-                要选到<b>含 manifest.json 的那一层</b>——模板仓库里是 packages/ 子目录，不是仓库根。
-              </p>
               <div className="settings-dirs">
                 {cfg.template_dirs.map((dir, i) => {
                   const r = dir.trim() ? reportFor(dir) : undefined
@@ -100,10 +126,10 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
                       status = '目录不存在'
                       bad = true
                     } else if (!r.hasManifest) {
-                      status = '没有 manifest.json，该目录会被整个跳过'
+                      status = '这一层没有模板清单，已跳过'
                       bad = true
                     } else if (r.loadFailed) {
-                      status = '未加载到任何模板'
+                      status = '未加载到模板'
                       bad = true
                     } else {
                       status = `已加载 ${r.structures} 套结构、${r.styles} 套样式`
@@ -114,6 +140,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
                       <div className="w-row">
                         <input
                           value={dir}
+                          placeholder="模板目录（要选到模板仓库的 packages 子目录）"
                           onChange={(e) => {
                             const next = [...cfg.template_dirs]
                             next[i] = e.target.value
@@ -142,10 +169,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
                         </button>
                       </div>
                       {status && (
-                        <p
-                          className="settings-hint"
-                          style={{ margin: '2px 0 0 0', color: bad ? 'var(--danger)' : undefined }}
-                        >
+                        <p className={`settings-status${bad ? ' bad' : ''}`}>
                           {status}
                           {r && r.reasons.length > 0 ? `：${r.reasons.slice(0, 3).join('；')}` : ''}
                         </p>
@@ -155,30 +179,32 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
                 })}
                 <button
                   type="button"
-                  className="be-btn"
+                  className="be-btn settings-add-dir"
                   onClick={() => setCfg({ ...cfg, template_dirs: [...cfg.template_dirs, ''] })}
                 >
                   ＋ 添加模板目录
                 </button>
               </div>
               {report && !report.loadedAny && cfg.template_dirs.some((d) => d.trim()) && (
-                <p className="settings-hint" style={{ color: 'var(--danger)' }}>
-                  当前一套模板都没加载到，新建工程向导会是空的。
-                </p>
+                <p className="settings-status bad">没有加载到任何模板，新建工程向导会是空的</p>
               )}
             </section>
           </div>
         )}
         <footer className="wizard-foot">
-          <span />
-          <button
-            type="button"
-            className="be-btn be-btn-primary"
-            disabled={!cfg || saving}
-            onClick={() => void save()}
-          >
-            保存设置
-          </button>
+          <div className="settings-foot-actions">
+            <button type="button" className="be-btn" onClick={onClose} disabled={saving}>
+              取消
+            </button>
+            <button
+              type="button"
+              className="be-btn be-btn-primary"
+              disabled={!cfg || saving}
+              onClick={() => void save()}
+            >
+              保存设置
+            </button>
+          </div>
         </footer>
       </div>
     </div>

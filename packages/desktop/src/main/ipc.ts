@@ -2,7 +2,7 @@
  * 主进程 IPC 注册：工程/树/块/对话框/设置/模板查询。
  * handler 抛错统一转为 rejection（renderer 侧可捕获 message）。
  */
-import { BrowserWindow, dialog, ipcMain } from 'electron'
+import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { buildTemplateManager } from './services/template-host'
 import type {
   AppConfigDto,
@@ -87,6 +87,15 @@ export function registerProjectIpc(service: ProjectService): void {
   handle<void, Awaited<ReturnType<ProjectService['projectInfo']>>>(ProjectIpc.ProjectGetInfo, () =>
     service.projectInfo()
   )
+
+  // 定位：在系统文件管理器里打开工程目录。工程没打开就没有可打开的位置。
+  handle<void, string>(ProjectIpc.ProjectRevealFolder, async () => {
+    const info = service.projectInfo()
+    if (!info.projectDir) throw new ProjectServiceError('工程未打开')
+    const failure = await shell.openPath(info.projectDir)
+    if (failure) throw new ProjectServiceError(`打开工程目录失败：${failure}`)
+    return info.projectDir
+  })
 
   // ---------- 树 ----------
   handle<void, Awaited<ReturnType<ProjectService['openResult']>>>(ProjectIpc.TreeGetRoot, () =>

@@ -2,45 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useApp } from '../state/AppContext'
-import { useTheme, type ThemePreference } from '../theme/ThemeProvider'
-import { CloseIcon, MaximizeIcon, MinimizeIcon, MonitorIcon, MoonIcon, RestoreIcon, SunIcon, BrandDocGlyph } from './icons'
+import { CloseIcon, FolderOpenIcon, MaximizeIcon, MinimizeIcon, RestoreIcon, BrandDocGlyph } from './icons'
 import './titlebar.css'
-
-const CYCLE_ORDER: ThemePreference[] = ['system', 'dark', 'light']
-
-const THEME_LABEL: Record<ThemePreference, string> = {
-  system: '跟随系统',
-  dark: '深色',
-  light: '浅色'
-}
-
-const THEME_ICON = {
-  system: MonitorIcon,
-  dark: MoonIcon,
-  light: SunIcon
-} as const
-
-function ThemeSwitchButton(): React.JSX.Element {
-  const { preference, setPreference } = useTheme()
-  const Icon = THEME_ICON[preference]
-
-  const cycle = (): void => {
-    const index = CYCLE_ORDER.indexOf(preference)
-    setPreference(CYCLE_ORDER[(index + 1) % CYCLE_ORDER.length]!)
-  }
-
-  return (
-    <button
-      type="button"
-      className="tb-btn"
-      onClick={cycle}
-      title={`主题：${THEME_LABEL[preference]}（点击切换）`}
-      aria-label={`主题：${THEME_LABEL[preference]}，点击切换`}
-    >
-      <Icon size={15} />
-    </button>
-  )
-}
 
 function SaveButton(): React.JSX.Element | null {
   const { session, saveProject, busy } = useApp()
@@ -83,6 +46,28 @@ function ExportButton(): React.JSX.Element | null {
   )
 }
 
+function RevealFolderButton(): React.JSX.Element | null {
+  const { session, showToast } = useApp()
+  if (!session) return null
+  return (
+    <button
+      type="button"
+      className="tb-btn tb-action"
+      onClick={() => {
+        // 成功不弹提示：资源管理器已经打开了，再报一次是噪音；失败必须说出来
+        void window.documentor.project.revealFolder().catch((err: unknown) => {
+          showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
+        })
+      }}
+      title="在文件管理器里打开工程目录"
+      aria-label="定位工程目录"
+    >
+      <FolderOpenIcon size={15} />
+      <span>定位</span>
+    </button>
+  )
+}
+
 function CloseProjectButton(): React.JSX.Element | null {
   const { session, closeProject } = useApp()
   if (!session) return null
@@ -91,13 +76,14 @@ function CloseProjectButton(): React.JSX.Element | null {
       type="button"
       className="tb-btn tb-action"
       onClick={() => void closeProject()}
-      title="保存并关闭工程"
-      aria-label="关闭工程"
+      title="保存并退出工程，回到欢迎页"
+      aria-label="退出工程"
     >
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4 6.5h16M9.5 6.5V4.8A1.3 1.3 0 0 1 10.8 3.5h2.4a1.3 1.3 0 0 1 1.3 1.3v1.7M6.3 6.5 7 19.2a1.5 1.5 0 0 0 1.5 1.3h7a1.5 1.5 0 0 0 1.5-1.3l.7-12.7" />
+        <path d="M15 4.5h3.5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H15" />
+        <path d="M10 8l-4 4 4 4M6 12h9" />
       </svg>
-      <span>关闭工程</span>
+      <span>退出</span>
     </button>
   )
 }
@@ -193,10 +179,10 @@ export default function TitleBar(): React.JSX.Element {
       <div className="tb-right">
         <SaveButton />
         <ExportButton />
+        <RevealFolderButton />
         <CloseProjectButton />
         <span className="tb-divider" />
         <SettingsButton />
-        <ThemeSwitchButton />
         {!isMac && <WindowControls />}
       </div>
     </header>

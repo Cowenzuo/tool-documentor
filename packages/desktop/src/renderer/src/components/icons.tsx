@@ -13,36 +13,20 @@ function base(size: number): { width: number; height: number; viewBox: string } 
   return { width: size, height: size, viewBox: '0 0 24 24' }
 }
 
-export function MonitorIcon({ size = 16, className }: IconProps): JSX.Element {
-  return (
-    <svg {...base(size)} className={className} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="3" y="4.5" width="18" height="13" rx="2" />
-      <path d="M8.5 21h7M12 17.5V21" />
-    </svg>
-  )
-}
-
-export function MoonIcon({ size = 16, className }: IconProps): JSX.Element {
-  return (
-    <svg {...base(size)} className={className} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M20.4 14.2A8.4 8.4 0 0 1 9.8 3.6a8.5 8.5 0 1 0 10.6 10.6Z" />
-    </svg>
-  )
-}
-
-export function SunIcon({ size = 16, className }: IconProps): JSX.Element {
-  return (
-    <svg {...base(size)} className={className} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5 5l1.4 1.4M17.6 17.6 19 19M19 5l-1.4 1.4M6.4 17.6 5 19" />
-    </svg>
-  )
-}
-
 export function MinimizeIcon({ size = 16, className }: IconProps): JSX.Element {
   return (
     <svg {...base(size)} className={className} fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" aria-hidden="true">
       <path d="M5.5 12.5h13" />
+    </svg>
+  )
+}
+
+/** 打开的文件夹：标题栏「定位」用，表示去文件管理器里看工程目录 */
+export function FolderOpenIcon({ size = 16, className }: IconProps): JSX.Element {
+  return (
+    <svg {...base(size)} className={className} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3.5 6.8a1.3 1.3 0 0 1 1.3-1.3h3.4l1.8 2h8.9a1.3 1.3 0 0 1 1.3 1.3v8.9a1.3 1.3 0 0 1-1.3 1.3H4.8a1.3 1.3 0 0 1-1.3-1.3Z" />
+      <path d="M3.5 9.6h17" />
     </svg>
   )
 }

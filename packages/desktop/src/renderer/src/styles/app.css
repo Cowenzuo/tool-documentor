@@ -22,13 +22,42 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+}
+
+/*
+ * 分区：标题带一道强调色标记，区间用细分隔线。
+ * 这么分是为了替代原先堆在正文里的大段说明文字——层级本身说明归属，不用写解释。
+ */
+.settings-group {
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-group:first-child {
+  padding-top: 0;
+}
+
+.settings-group:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .settings-group h3 {
-  margin: 0 0 var(--space-2);
-  font-size: var(--text-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-md);
   font-weight: 600;
+  color: var(--text-1);
+}
+
+.settings-group h3::before {
+  content: '';
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--accent);
 }
 
 .settings-hint {
@@ -36,6 +65,17 @@
   font-size: var(--text-xs);
   color: var(--text-3);
   line-height: 1.6;
+}
+
+/* 单条目录的加载结果：短句反馈，跟操作贴在一起 */
+.settings-status {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+.settings-status.bad {
+  color: var(--danger);
 }
 
 .settings-dirs {
@@ -47,6 +87,47 @@
 .settings-dirs .w-row input {
   flex: 1;
   min-width: 0;
+}
+
+.settings-add-dir {
+  align-self: flex-start;
+}
+
+.settings-foot-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+/* 设置内的分段选择（主题）：选中态走主题强调色，明暗两套都分得清 */
+.settings-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+}
+
+.settings-seg button {
+  padding: 5px 14px;
+  border-radius: 4px;
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.settings-seg button:hover {
+  background: var(--bg-hover);
+  color: var(--text-1);
+}
+
+.settings-seg button.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
 }
 
 .be-btn.danger-text {
