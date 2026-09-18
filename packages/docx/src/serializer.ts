@@ -63,7 +63,13 @@ export function serializeWithWarnings(
     const base = options?.imageBaseDir
     if (!base || !imagePath) return null
     const abs = isAbsolute(imagePath) ? imagePath : resolve(base, imagePath)
-    return existsSync(abs) ? abs : null
+    if (existsSync(abs)) return abs
+    // 兼容只记了文件名的历史数据：图片实际都放在工程 images/ 下
+    if (!isAbsolute(imagePath)) {
+      const inImages = resolve(base, 'images', imagePath)
+      if (existsSync(inImages)) return inImages
+    }
+    return null
   }
 
   // ---------- 题注编号状态 ----------

@@ -328,6 +328,8 @@ function imageMime(ext: string): string {
     jpeg: 'image/jpeg',
     gif: 'image/gif',
     bmp: 'image/bmp',
+    webp: 'image/webp',
+    svg: 'image/svg+xml',
     tif: 'image/tiff',
     tiff: 'image/tiff',
     emf: 'image/x-emf',
@@ -336,7 +338,82 @@ function imageMime(ext: string): string {
   return map[ext.toLowerCase()] ?? 'application/octet-stream'
 }
 
-/** 从文件头读取像素尺寸（png/jpeg/gif；其它类型回退 800×520） */
+/** WebP：VP8X 画布、VP8L 无损、VP8 有损三种头都要认 */
+function webpSizePx(buf: Buffer): { w: number; h: number } | null {
+  const chunk = buf.toString('ascii', 12, 16)
+  if (chunk === 'VP8X' && buf.length >= 30) {
+    return {
+      w: 1 + (buf[24]! | (buf[25]! << 8) | (buf[26]! << 16)),
+      h: 1 + (buf[27]! | (buf[28]! << 8) | (buf[29]! << 16))
+    }
+  }
+  if (chunk === 'VP8L' && buf.length >= 25 && buf[20] === 0x2f) {
+    const bits = buf.readUInt32LE(21)
+    return { w: 1 + (bits & 0x3fff), h: 1 + ((bits >> 14) & 0x3fff) }
+  }
+  if (chunk === 'VP8 ') {
+    // 关键帧起始码 9d 01 2a 之后是 14 位宽、14 位高
+    const start = buf.indexOf(Buffer.from([0x9d, 0x01, 0x2a]), 20)
+    if (start >= 0 && start + 7 <= buf.length) {
+      const w = buf.readUInt16LE(start + 3) & 0x3fff
+      const h = buf.readUInt16LE(start + 5) & 0x3fff
+      if (w > 0 && h > 0) return { w, h }
+    }
+  }
+  return null
+}
+
+/** SVG：先看 width/height 属性（带单位换算），没有就看 viewBox */
+function svgSizePx(buf: Buffer): { w: number; h: number } | null {
+  const text = buf.toString('utf8', 0, Math.min(buf.length, 8192))
+  const tag = /<svg[^>]*>/i.exec(text)?.[0]
+  if (!tag) return null
+  const attr = (name: string): number | null => {
+    const m = new RegExp(`${name}\\s*=\\s*"([^"]*)"|${name}\\s*=\\s*'([^']*)'`, 'i').exec(tag)
+    const raw = (m?.[1] ?? m?.[2] ?? '').trim()
+    if (raw.length === 0) return null
+    const num = Number.parseFloat(raw)
+    if (!Number.isFinite(num) || num <= 0) return null
+    const unit = /[a-z%]+$/i.exec(raw)?.[0]?.toLowerCase() ?? ''
+    if (unit === 'mm') return Math.round((num * 96) / 25.4)
+    if (unit === 'cm') return Math.round((num * 96) / 2.54)
+    if (unit === 'in') return Math.round(num * 96)
+    if (unit === 'pt') return Math.round((num * 96) / 72)
+    if (unit === '%') return null
+    return Math.round(num)
+  }
+  const w = attr('width')
+  const h = attr('height')
+  if (w && h) return { w, h }
+  const vb = /viewBox\s*=\s*"([^"]*)"|viewBox\s*=\s*'([^']*)'/i.exec(tag)
+  const parts = (vb?.[1] ?? vb?.[2] ?? '').trim().split(/[\s,]+/).map(Number)
+  const vw = parts[2]
+  const vh = parts[3]
+  if (parts.length === 4 && vw !== undefined && vh !== undefined && vw > 0 && vh > 0) {
+    return { w: Math.round(vw), h: Math.round(vh) }
+  }
+  return null
+}
+
+/** EMF 头：iType(0) nSize(4) rclBounds(8) rclFrame(24)，rclFrame 单位 0.01 毫米 */
+function emfSizePx(buf: Buffer): { w: number; h: number } | null {
+  if (buf.length < 40 || buf.readUInt32LE(0) !== 1) return null
+  const toPx = (v: number): number => Math.max(1, Math.round((v / 100) * (96 / 25.4)))
+  const frameW = buf.readInt32LE(32) - buf.readInt32LE(24)
+  const frameH = buf.readInt32LE(36) - buf.readInt32LE(28)
+  if (frameW > 0 && frameH > 0) return { w: toPx(frameW), h: toPx(frameH) }
+  // rclFrame 全零时退回 rclBounds（设备单位，按像素算）
+  const boundW = buf.readInt32LE(16) - buf.readInt32LE(8)
+  const boundH = buf.readInt32LE(20) - buf.readInt32LE(12)
+  if (boundW > 0 && boundH > 0) return { w: boundW, h: boundH }
+  return null
+}
+
+/**
+ * 从文件头读像素尺寸。
+ * 导入对话框放行的八种格式都要能读出来：读不出来的会被当成 800×520 渲染，
+ * 宽高比一错，图在纸上就是拉变形的。
+ */
 function imageSizePx(buf: Buffer, ext: string): { w: number; h: number } {
   const e = ext.toLowerCase()
   if (e === '.png' && buf.length >= 24 && buf.toString('ascii', 12, 16) === 'IHDR') {
@@ -359,6 +436,34 @@ function imageSizePx(buf: Buffer, ext: string): { w: number; h: number } {
   if (e === '.gif' && buf.length >= 10) {
     return { w: buf.readUInt16LE(6), h: buf.readUInt16LE(8) }
   }
+  if (e === '.bmp' && buf.length >= 26 && buf.toString('ascii', 0, 2) === 'BM') {
+    const headerSize = buf.readUInt32LE(14)
+    if (headerSize === 12) {
+      return { w: buf.readUInt16LE(18), h: buf.readUInt16LE(20) }
+    }
+    const w = buf.readInt32LE(18)
+    const h = buf.readInt32LE(22)
+    if (w > 0 && h !== 0) return { w, h: Math.abs(h) }
+  }
+  if (
+    e === '.webp' &&
+    buf.length >= 30 &&
+    buf.toString('ascii', 0, 4) === 'RIFF' &&
+    buf.toString('ascii', 8, 12) === 'WEBP'
+  ) {
+    const size = webpSizePx(buf)
+    if (size) return size
+  }
+  if (e === '.svg') {
+    const size = svgSizePx(buf)
+    if (size) return size
+  }
+  if (e === '.emf') {
+    const size = emfSizePx(buf)
+    if (size) return size
+  }
+  // 认不出来的格式：给一个固定值撑住版面。此时 MIME 多半也是 octet-stream，
+  // Word 会显示成无法识别的对象，用户看得见，不会以为图正常。
   return { w: 800, h: 520 }
 }
 
@@ -539,7 +644,9 @@ function renderTable(
   content: Extract<WriteInstruction, { opType: 'InsertTable' }>['content']
 ): string {
   const c = content
-  const cols = Math.max(1, c.cols)
+  // 列数与行数同口径：**只认真实数据宽度**。
+  // cols 是提示性元数据，模板/实例 JSON 不给它时是 0，拿它当上界会把后面几列静默丢掉。
+  const cols = Math.max(1, c.headers.length, c.cols, ...c.rowsData.map((row) => row.length))
   // 正文行数：**只认 data 的实际长度**。
   // rows 是提示性元数据（写入侧可能给 data.length + 1 的旧口径），
   // 拿它当上界会在 rows < data.length 时静默丢掉行尾数据；
@@ -593,7 +700,8 @@ function renderTable(
   // 表头行（仅当表头非空；表头不参与纵向合并）
   if (c.headers.length > 0) {
     body += '<w:tr>'
-    for (let col = 0; col < cols && col < c.headers.length; col++) {
+    // 补齐到 cols：表格行必须与 tblGrid 列数一致，缺格会让 Word 的边框与合并错位
+    for (let col = 0; col < cols; col++) {
       body += cell(c.headers[col] ?? '', c.headerStyle)
     }
     body += '</w:tr>'
@@ -602,7 +710,7 @@ function renderTable(
   for (let r = 0; r < rows; r++) {
     const row = c.rowsData[r] ?? []
     body += '<w:tr>'
-    for (let col = 0; col < cols && col < row.length; col++) {
+    for (let col = 0; col < cols; col++) {
       const m = merges?.[r]?.[col]
       const mergeArg = m === undefined || (m.rowSpan <= 1 && !m.covered) ? undefined : m.covered ? 'continue' : 'start'
       body += cell(row[col] ?? '', c.bodyStyle, mergeArg)

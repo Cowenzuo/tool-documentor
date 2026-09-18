@@ -1,6 +1,6 @@
 /** writer.test.ts — 写入指令打包成 docx 的端到端单测。 */
 
-import { mkdtempSync, readFileSync, rmSync, existsSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, existsSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -63,6 +63,16 @@ function firstContentNode(tree: DocumentTree): DocumentNode {
   })
   if (!found) throw new Error('无可用内容节点')
   return found
+}
+
+/** 取包含指定标记文本的那张表（模板本身可能也有表，不能按"第一张表"取） */
+function tableAround(xml: string, marker: string): string {
+  const at = xml.indexOf(marker)
+  if (at < 0) throw new Error(`找不到标记：${marker}`)
+  const start = xml.lastIndexOf('<w:tbl>', at)
+  const end = xml.indexOf('</w:tbl>', at)
+  if (start < 0 || end < 0) throw new Error(`标记不在表格里：${marker}`)
+  return xml.slice(start, end + '</w:tbl>'.length)
 }
 
 function loadDemo(): { manager: TemplateManager; tree: DocumentTree } {
@@ -239,6 +249,100 @@ describe('DocxWriter 端到端（合成示例模板骨架）', () => {
     expect(Math.abs(cy / cx - 20)).toBeLessThan(0.01)
   })
 
+  it('图片格式：bmp/webp/svg/emf 都能读出真实尺寸，WebP/SVG 声明正确 MIME', async () => {
+    resetIdCounterForTest()
+    const { tree, manager } = loadDemo()
+    const demo = manager.findStructureByName('示例文档模板 (Demo)')!
+    const style = manager.styleForStructure(demo)!
+
+    // 导入对话框放行的八种格式里，png/jpg/gif 之外这四种以前一律按 800×520 渲染，
+    // 宽高比被强制成 1.538，图在纸上会拉变形；webp/svg 还会被声明成 octet-stream 而不显示。
+    const bmp = Buffer.alloc(54)
+    bmp.write('BM', 0, 'ascii')
+    bmp.writeUInt32LE(40, 14)
+    bmp.writeInt32LE(300, 18)
+    bmp.writeInt32LE(100, 22)
+    writeFileSync(join(dir, 'size.bmp'), bmp)
+
+    const webp = Buffer.alloc(30)
+    webp.write('RIFF', 0, 'ascii')
+    webp.write('WEBP', 8, 'ascii')
+    webp.write('VP8X', 12, 'ascii')
+    const vw = 320 - 1
+    const vh = 160 - 1
+    webp[24] = vw & 0xff
+    webp[25] = (vw >> 8) & 0xff
+    webp[26] = (vw >> 16) & 0xff
+    webp[27] = vh & 0xff
+    webp[28] = (vh >> 8) & 0xff
+    webp[29] = (vh >> 16) & 0xff
+    writeFileSync(join(dir, 'size.webp'), webp)
+
+    writeFileSync(
+      join(dir, 'size.svg'),
+      '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="50"><rect/></svg>'
+    )
+
+    const emf = Buffer.alloc(40)
+    emf.writeUInt32LE(1, 0)
+    emf.writeInt32LE(0, 8)
+    emf.writeInt32LE(0, 12)
+    emf.writeInt32LE(1000, 16)
+    emf.writeInt32LE(400, 20)
+    emf.writeInt32LE(0, 24)
+    emf.writeInt32LE(0, 28)
+    emf.writeInt32LE(25400, 32) // rclFrame，单位 0.01 毫米 → 254mm → 960px
+    emf.writeInt32LE(12700, 36) // 127mm → 480px
+    writeFileSync(join(dir, 'size.emf'), emf)
+
+    const cases: Array<{ file: string; ratio: number; mime?: string }> = [
+      { file: 'size.bmp', ratio: 100 / 300 },
+      { file: 'size.webp', ratio: 160 / 320, mime: 'image/webp' },
+      { file: 'size.svg', ratio: 50 / 200, mime: 'image/svg+xml' },
+      { file: 'size.emf', ratio: 480 / 960 }
+    ]
+
+    for (const item of cases) {
+      const caseTree = loadDemo().tree
+      const node = firstContentNode(caseTree)
+      node.contentBlocks.push({ type: 'image', imagePath: item.file, caption: `图1 ${item.file}` })
+      const outputPath = join(dir, `out-${item.file}.docx`)
+      const { instructions } = serializeWithWarnings(caseTree, style, { imageBaseDir: dir })
+      await writeDocx(instructions, style, outputPath)
+      const zip = await JSZip.loadAsync(readFileSync(outputPath))
+      const documentXml = await zip.file('word/document.xml')!.async('string')
+      const m = /<wp:extent cx="(\d+)" cy="(\d+)"\/>/.exec(documentXml)!
+      expect(m, `${item.file} 应有 wp:extent`).toBeTruthy()
+      const ratio = Number(m[2]) / Number(m[1])
+      expect(Math.abs(ratio - item.ratio), `${item.file} 宽高比`).toBeLessThan(0.01)
+      if (item.mime) {
+        const ct = await zip.file('[Content_Types].xml')!.async('string')
+        expect(ct).toContain(`ContentType="${item.mime}"`)
+      }
+    }
+  })
+
+  it('图片路径兼容：块里只记文件名时回落工程 images/ 目录', async () => {
+    resetIdCounterForTest()
+    const { tree, manager } = loadDemo()
+    const demo = manager.findStructureByName('示例文档模板 (Demo)')!
+    const style = manager.styleForStructure(demo)!
+    const target = firstContentNode(tree)
+
+    // 早期版本把 imagePath 记成裸文件名，而文件实际落在工程 images/ 下；
+    // 这类历史数据不能再降级成占位文本。
+    mkdirSync(join(dir, 'images'), { recursive: true })
+    writeFileSync(join(dir, 'images', 'legacy.png'), makePng(200, 100))
+    target.contentBlocks.push({ type: 'image', imagePath: 'legacy.png', caption: '图1 历史路径' })
+
+    const { instructions } = serializeWithWarnings(tree, style, { imageBaseDir: dir })
+    const img = instructions.find(
+      (i): i is Extract<WriteInstruction, { opType: 'InsertImage' }> => i.opType === 'InsertImage'
+    )
+    expect(img).toBeDefined()
+    expect(img!.content.srcPath).toBe(join(dir, 'images', 'legacy.png'))
+  })
+
   it('图片段落套 figure 样式（样式表提供 figure 键时）', async () => {
     resetIdCounterForTest()
     const { tree, manager } = loadDemo()
@@ -354,7 +458,91 @@ describe('DocxWriter 端到端（合成示例模板骨架）', () => {
     }
   })
 
-  it('表格未开启合并时不输出 vMerge', async () => {    resetIdCounterForTest()
+  it('表格列数以 data 为准：cols 偏小不得丢掉右边几列', async () => {
+    resetIdCounterForTest()
+    const { tree, manager } = loadDemo()
+    const demo = manager.findStructureByName('示例文档模板 (Demo)')!
+    const style = manager.styleForStructure(demo)!
+    const target = firstContentNode(tree)
+
+    // 模板/实例 JSON 不给 cols 时它是 0；旧实现按 max(1, cols) 只渲染 1 列，
+    // 后面几列静默消失（与 rows 那条是同一类缺陷）。
+    target.contentBlocks.push({
+      type: 'table',
+      caption: '表1 cols 偏小',
+      rows: 2,
+      cols: 0,
+      headers: ['A', 'B', 'C'],
+      data: [
+        ['a1', 'b1', 'c1'],
+        ['a2', 'b2', 'c2']
+      ]
+    })
+
+    const outputPath = join(dir, 'out-cols-mismatch.docx')
+    await writeDocx(serializeToInstructions(tree, style), style, outputPath)
+    const zip = await JSZip.loadAsync(readFileSync(outputPath))
+    const documentXml = await zip.file('word/document.xml')!.async('string')
+
+    for (const cellText of ['A', 'B', 'C', 'a1', 'b1', 'c1', 'a2', 'b2', 'c2']) {
+      expect(documentXml).toContain(`>${cellText}<`)
+    }
+    const table = tableAround(documentXml, '>a1<')
+    expect(table.match(/<w:gridCol /g)!).toHaveLength(3)
+    expect(table.match(/<w:tr>/g)!).toHaveLength(3)
+    expect(table.match(/<w:tc>/g)!).toHaveLength(9)
+  })
+
+  it('表格参差行补齐到列数，行内单元格数与 tblGrid 一致', async () => {
+    resetIdCounterForTest()
+    const { tree, manager } = loadDemo()
+    const demo = manager.findStructureByName('示例文档模板 (Demo)')!
+    const style = manager.styleForStructure(demo)!
+    const target = firstContentNode(tree)
+
+    target.contentBlocks.push({
+      type: 'table',
+      caption: '表1 参差行',
+      rows: 2,
+      cols: 3,
+      headers: [],
+      data: [
+        ['r1c1', 'r1c2', 'r1c3'],
+        ['r2c1']
+      ]
+    })
+
+    const outputPath = join(dir, 'out-ragged-rows.docx')
+    await writeDocx(serializeToInstructions(tree, style), style, outputPath)
+    const zip = await JSZip.loadAsync(readFileSync(outputPath))
+    const documentXml = await zip.file('word/document.xml')!.async('string')
+    const table = tableAround(documentXml, '>r1c1<')
+    expect(table.match(/<w:tc>/g)!).toHaveLength(6)
+  })
+
+  it('XML 非法控制字符在写入前清掉，不产出打不开的文档', async () => {
+    resetIdCounterForTest()
+    const { tree, manager } = loadDemo()
+    const demo = manager.findStructureByName('示例文档模板 (Demo)')!
+    const style = manager.styleForStructure(demo)!
+    const target = firstContentNode(tree)
+    // 粘贴终端输出会带 ANSI 转义（ESC）、PDF 复制会带 \f、\v
+    target.contentBlocks.push({ type: 'text', content: '前\u0000\u001b[31m中\f\u000b后\u001f' })
+
+    const outputPath = join(dir, 'out-ctrl-chars.docx')
+    await writeDocx(serializeToInstructions(tree, style), style, outputPath)
+    const zip = await JSZip.loadAsync(readFileSync(outputPath))
+    const documentXml = await zip.file('word/document.xml')!.async('string')
+
+    expect(documentXml).toContain('前')
+    expect(documentXml).toContain('中')
+    expect(documentXml).toContain('后')
+    // XML 1.0 不允许的码位一个都不能留（\t\n\r 除外）
+    expect(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(documentXml)).toBe(false)
+  })
+
+  it('表格未开启合并时不输出 vMerge', async () => {
+    resetIdCounterForTest()
     const { tree, manager } = loadDemo()
     const demo = manager.findStructureByName('示例文档模板 (Demo)')!
     const style = manager.styleForStructure(demo)!

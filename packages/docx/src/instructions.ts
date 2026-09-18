@@ -61,15 +61,27 @@ export type WriteInstruction =
       content: Record<string, never>
     }
 
+/**
+ * XML 1.0 允许的字符以外的字符一律剔除（制表/换行/回车保留）。
+ * 控制字符（\u0000-\u001F 里除 \t\n\r 之外的部分，含 ESC）原样写进 XML 会让
+ * 整份 document.xml 非良构，Word 直接报"内容有问题"打不开，所以必须在写入前清掉。
+ * 用 u 标志的字符类可以顺带处理落单的代理项。
+ */
+const XML_ILLEGAL = /[^\u0009\u000A\u000D\u0020-\uD7FF\uE000-\uFFFD\u{10000}-\u{10FFFF}]/gu
+
+export function stripIllegalXmlChars(text: string): string {
+  return text.replace(XML_ILLEGAL, '')
+}
+
 export function escapeXmlText(text: string): string {
-  return text
+  return stripIllegalXmlChars(text)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
 }
 
 export function escapeXmlAttr(value: string): string {
-  return value
+  return stripIllegalXmlChars(value)
     .replace(/&/g, '&amp;')
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
