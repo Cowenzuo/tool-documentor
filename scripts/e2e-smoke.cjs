@@ -184,6 +184,30 @@ function checkResult(data) {
   need(data.titleSynced === true, '标题没有在停顿后自动入库（树上的标题没变）')
   need(data.settingsOpen === true, '设置弹层未打开')
   need(data.settingsClosed === true, '设置弹层未关闭')
+  // 撤销与重做：改内容 → 撤销回退 → 重做恢复 → 再撤销还原
+  need(data.histButtonsFound === true, '节点页没有找到撤销与重做按钮')
+  need(data.histTextareaFound === true, '附录 A 章节里没有找到正文输入框')
+  need(data.histRedoDisabledAtStart === true, '还没撤销过，重做按钮应当置灰')
+  need(
+    typeof data.histContentAfterEdit === 'string' && String(data.histContentAfterEdit).includes('撤销测试'),
+    `在输入框里改字没有落库：${data.histContentAfterEdit}`
+  )
+  need(
+    typeof data.histUndoLabel === 'string' && data.histUndoLabel.length > 0,
+    `撤销按钮没有拿到动作名：${data.histUndoLabel}`
+  )
+  need(data.histUndoEnabledAfterEdit === true, '编辑之后撤销按钮没有解禁')
+  need(data.histContentAfterUndo !== null && !String(data.histContentAfterUndo).includes('撤销测试'),
+    `Ctrl+Z 没有把内容退回去：${data.histContentAfterUndo}`)
+  need(data.histCanRedoAfterUndo === true, '撤销之后重做栈是空的')
+  need(data.histRedoEnabledAfterUndo === true, '撤销之后重做按钮没有解禁')
+  need(
+    typeof data.histContentAfterRedo === 'string' && String(data.histContentAfterRedo).includes('撤销测试'),
+    `Ctrl+Y 没有把内容改回来：${data.histContentAfterRedo}`
+  )
+  need(data.histContentRestored === true, '再撤销一次没有回到测试前的原文')
+  need(data.histRedoClearedByNewEdit === true, '新编辑之后重做栈没有被清空')
+  need(data.histCleanAfterTests === true, '撤销测试没有把文档清回原状')
   need(
     Array.isArray(data.themeOptions) && data.themeOptions.length === 3,
     `设置里应有主题三选项：${JSON.stringify(data.themeOptions)}`
@@ -500,14 +524,26 @@ function main() {
     if (phys && resultData !== null && physTimer) {
       const keyLine = /\[e2e-keys\] (\{.*?\})\s*\n/.exec(buffer)
       if (!keyLine) return // 真实按键那一段还没打印，再等一会儿
+      const undoLine = /\[e2e-undo\] (\{.*?\})\s*\n/.exec(buffer)
+      if (!undoLine) return // 真实 Ctrl+Z 那一段还没打印
       clearTimeout(physTimer)
       physTimer = null
       const keys = JSON.parse(keyLine[1])
+      const undo = JSON.parse(undoLine[1])
       const toast = phys[1].trim()
       const toastOk = toast.length > 0 && toast !== 'null' && !toast.includes('失败')
       const cspOk = cspViolations.length === 0
       const focusOk = typeof keys.focusClass === 'string' && keys.focusClass.includes('tree-scroll')
       const keyMoved = keys.selectedAfter !== null && keys.selectedAfter !== keys.selectedBefore
+      // 真实 Ctrl+Z：改前与改后必须不同，退回来的必须与改前逐字相同
+      const undoPrepared = undo.prepared
+      const undoOk =
+        undoPrepared !== null &&
+        typeof undoPrepared === 'object' &&
+        typeof undoPrepared.afterEdit === 'string' &&
+        undoPrepared.afterEdit !== undoPrepared.before &&
+        undoPrepared.canUndo === true &&
+        undo.reverted === undoPrepared.before
       if (!toastOk) console.error(`[e2e-smoke] ✗ 物理点击保存未生效：toast=${toast}`)
       if (!cspOk) {
         console.error(`[e2e-smoke] ✗ 渲染层有 ${cspViolations.length} 条 CSP 违规，被拦的脚本不会执行`)
@@ -520,11 +556,15 @@ function main() {
           `[e2e-smoke] ✗ 真实方向键没有移动选中：${keys.selectedBefore} → ${keys.selectedAfter}`
         )
       }
-      const ok = toastOk && cspOk && focusOk && keyMoved
+      if (!undoOk) {
+        console.error(`[e2e-smoke] ✗ 真实 Ctrl+Z 没有退回改动前：${JSON.stringify(undo)}`)
+      }
+      const ok = toastOk && cspOk && focusOk && keyMoved && undoOk
       console.log(
         `[e2e-smoke] ${ok ? '✓ 全部通过' : '✗ 收尾断言失败'}：物理点击 toast=${toast}，` +
           `CSP 违规 ${cspViolations.length} 条，树焦点=${keys.focusClass}，` +
-          `方向键 ${keys.selectedBefore} → ${keys.selectedAfter}`
+          `方向键 ${keys.selectedBefore} → ${keys.selectedAfter}，` +
+          `真实 Ctrl+Z ${undoOk ? '已回退' : '未回退'}`
       )
       void finish(ok ? 0 : 1)
     }

@@ -719,6 +719,84 @@ function createMainWindow(): void {
             out.treeKeyAfter = afterKey;
             out.treeAriaSelected = document.querySelectorAll('[role="treeitem"][aria-selected="true"]').length;
           }
+          // 撤销与重做：改一段正文 → 撤销回退 → 重做恢复 → 再撤销还原，最后用按钮状态收尾
+          const histBtn = (label) =>
+            [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === label) || null;
+          const pressKey = (key, shift) => {
+            window.dispatchEvent(
+              new KeyboardEvent('keydown', { key, ctrlKey: true, shiftKey: !!shift, bubbles: true, cancelable: true })
+            );
+          };
+          // 本章在"标题同步"那一步被改成"需求改"，两个名字都认，免得依赖执行顺序
+          const appendixOf = async () => {
+            const root = (await window.documentor.project.treeGetRoot()).root;
+            return findTreeNode(root, '附录 A') || findTreeNode(root, '附录A');
+          };
+          // 撤销测试挑"附录 A"：那里有一段正文块，标题也不会被前面的步骤改掉
+          const appendixRow = [...document.querySelectorAll('.tree-row')].find((r) =>
+            r.textContent.includes('附录 A')
+          );
+          if (appendixRow) {
+            appendixRow.click();
+            await sleep(450);
+            const appendixNode = await appendixOf();
+            const textIndex = appendixNode
+              ? (appendixNode.contentBlocks || []).findIndex((b) => b.type === 'text')
+              : -1;
+            if (appendixNode && textIndex >= 0) {
+              const original = appendixNode.contentBlocks[textIndex].content;
+              const undoBtn = histBtn('撤销');
+              const redoBtn = histBtn('重做');
+              out.histButtonsFound = !!undoBtn && !!redoBtn;
+              out.histRedoDisabledAtStart = redoBtn ? redoBtn.disabled === true : null;
+              // 在真实输入框里改字：这条路径才会走防抖提交与界面自己的历史状态刷新，
+              // 直接用 block.update 会绕过刷新，按钮与快捷键的状态就不是用户看到的那样
+              const textArea = document.querySelector('.block-card.type-text .be-textarea');
+              out.histTextareaFound = !!textArea;
+              if (textArea) {
+                setNative(textArea, original + '（撤销测试）');
+                await sleep(1200);
+              }
+              const editedNode = await appendixOf();
+              out.histContentAfterEdit = editedNode ? editedNode.contentBlocks[textIndex].content : null;
+              out.histUndoLabel = (await window.documentor.history.state()).undoLabel;
+              out.histUndoEnabledAfterEdit = undoBtn ? undoBtn.disabled === false : null;
+              // 快捷键走的是应用级撤销：文本框里按 Ctrl+Z 也进这条路
+              pressKey('z', false);
+              await sleep(800);
+              const afterUndoNode = await appendixOf();
+              out.histContentAfterUndo = afterUndoNode ? afterUndoNode.contentBlocks[textIndex].content : null;
+              const undoState = await window.documentor.history.state();
+              out.histCanRedoAfterUndo = undoState.canRedo;
+              out.histRedoEnabledAfterUndo = redoBtn ? redoBtn.disabled === false : null;
+              // 重做恢复改动
+              pressKey('y', false);
+              await sleep(800);
+              const afterRedoNode = await appendixOf();
+              out.histContentAfterRedo = afterRedoNode ? afterRedoNode.contentBlocks[textIndex].content : null;
+              // 再撤销回原状：文档回到测试前的样子
+              pressKey('z', false);
+              await sleep(800);
+              const restoredNode = await appendixOf();
+              out.histContentRestored = restoredNode
+                ? restoredNode.contentBlocks[textIndex].content === original
+                : null;
+              // 新编辑清空重做栈：同样走输入框
+              const textAreaAgain = document.querySelector('.block-card.type-text .be-textarea');
+              if (textAreaAgain) {
+                setNative(textAreaAgain, original + '（重做失效测试）');
+                await sleep(1200);
+              }
+              out.histRedoClearedByNewEdit = (await window.documentor.history.state()).canRedo === false;
+              // 清干净：把这一步撤销掉，文档回到原状
+              pressKey('z', false);
+              await sleep(800);
+              const cleanNode = await appendixOf();
+              out.histCleanAfterTests = cleanNode
+                ? cleanNode.contentBlocks[textIndex].content === original
+                : null;
+            }
+          }
           // 物理输入验证：返回保存按钮中心坐标，main 侧用 sendInputEvent 重放真实鼠标点击
           const physSave = document.querySelector('.tb-action[aria-label="保存工程"]');
           if (physSave) {
@@ -778,6 +856,38 @@ function createMainWindow(): void {
               '[e2e-keys]',
               JSON.stringify({ focusClass, selectedBefore, selectedAfter })
             )
+          }
+          // 真实 Ctrl+Z：先经渲染层改一段正文，再发真实按键，看文字是否退回改前
+          if (win) {
+            const finder = `const find = (n, t) => { if (!n) return null; if (n.title === t) return n; for (const c of n.children || []) { const h = find(c, t); if (h) return h; } return null; };`;
+            const prepared = await win.webContents.executeJavaScript(`(async () => {
+              ${finder}
+              const root = (await window.documentor.project.treeGetRoot()).root;
+              const node = find(root, '附录 A') || find(root, '附录A');
+              const i = node ? node.contentBlocks.findIndex((b) => b.type === 'text') : -1;
+              if (!node || i < 0) return null;
+              const before = node.contentBlocks[i].content;
+              await window.documentor.block.update({
+                nodeId: node.id,
+                index: i,
+                block: { ...node.contentBlocks[i], content: before + '（真实按键撤销）' }
+              });
+              const after = (await window.documentor.project.treeGetRoot()).root;
+              const node2 = find(after, '附录 A') || find(after, '附录A');
+              return { before, afterEdit: node2.contentBlocks[i].content, canUndo: (await window.documentor.history.state()).canUndo };
+            })()`)
+            await new Promise((resolve) => setTimeout(resolve, 300))
+            win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Z', modifiers: ['control'] })
+            win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Z', modifiers: ['control'] })
+            await new Promise((resolve) => setTimeout(resolve, 800))
+            const reverted = await win.webContents.executeJavaScript(`(async () => {
+              ${finder}
+              const root = (await window.documentor.project.treeGetRoot()).root;
+              const node = find(root, '附录 A') || find(root, '附录A');
+              const i = node ? node.contentBlocks.findIndex((b) => b.type === 'text') : -1;
+              return node && i >= 0 ? node.contentBlocks[i].content : null;
+            })()`)
+            console.log('[e2e-undo]', JSON.stringify({ prepared, reverted }))
           }
         })
         .catch((err) => console.error('[e2e] failed:', err))
