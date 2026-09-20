@@ -73,8 +73,10 @@ node scripts/verify-package.cjs   # 校验 asar 内容（必需项齐全 / mmd2v
 > **默认启发布版**（`release/win-unpacked/Documentor.exe`，仓库根）——不做构建、秒开，
 > 适合改数据时用。要开发时加 `--dev`，或在仓库根建一个空的 `.dev-mode` 标记文件。
 >
-> ⚠️ `.dev-mode` 是**机器级开关**，对所有启动方式生效——包括安装包建出来的快捷方式。
-> 共享机器上建了它，别人双击图标也会跑到开发版（还要现编库，多等十几秒）。
+> ⚠️ `.dev-mode` 只对这套一键启动生效：它只被 `scripts/start-documentor.cjs` 读取，
+> 走 `start-documentor.cmd` 或指向它的快捷方式启动都会读到。安装包建出来的快捷方式
+> 起的是装好的 `Documentor.exe`，不读这个标记。共享机器上留着它，别人从仓库这边
+> 启动也会跑到开发版（还要现编库，多等十几秒）。
 > 开发完记得 `del .dev-mode`；该文件已 gitignore，不会入库。
 
 > **启动时的库构建**：只有开发版路径会跑 `scripts/ensure-libs.cjs`——
@@ -105,8 +107,9 @@ node scripts/verify-package.cjs   # 校验 asar 内容（必需项齐全 / mmd2v
 ## 打包与安全
 
 **产物在哪**：仓库根的 `release/`。配置见 `packages/desktop/electron-builder.yml` 的
-`directories.output: ../../release`——electron-builder 的 `directories` 默认以配置文件所在目录
-为基准，写裸相对路径会落到 `packages/desktop/release`，所以显式上溯了两级统一到仓库根。
+`directories.output: ../../release`。electron-builder 把这层相对路径解析到 projectDir 上，
+projectDir 默认取进程的工作目录，不是配置文件所在目录；打包脚本在 `packages/desktop` 下执行，
+写裸相对路径会落到 `packages/desktop/release`，所以显式上溯了两级统一到仓库根。
 
 ```
 release/
