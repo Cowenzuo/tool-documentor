@@ -9,7 +9,7 @@ import { BLOCK_TYPE_NAMES } from '@documentor/core/blocks'
 import type { TemplateIssueDto } from '../../../../shared/project'
 import { BLOCK_TYPE_LABELS } from '../editor/blockTypes'
 import BlockForm from './BlockForm'
-import { CheckField, IssueLines, NumberField, SelectField, TextAreaField, TextField } from './fields'
+import { CheckField, IssueLines, NumberField, SelectField, TextAreaField, TextField, jsonTip } from './fields'
 import {
   NODE_FIELDS,
   asObject,
@@ -124,51 +124,53 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
 
         <div className="tpl-grid-2">
           <TextField
-            label="标题（title）"
+            label="标题"
+            tip={jsonTip('title', '这个节点在文档里的标题文字')}
             value={nodeTitle(node)}
             placeholder="章节标题"
             onChange={(value) => props.onPatch({ title: value })}
           />
           <NumberField
-            label="标题级别（headingLevel）"
+            label="级别"
+            tip={jsonTip('headingLevel', '0 是根节点，1 起是章、节、条')}
             value={headingLevel(node)}
             min={0}
             onChange={(value) => props.onPatch({ headingLevel: value })}
           />
         </div>
         <SelectField
-          label="节点类型（nodeType）"
+          label="类型"
+          tip={jsonTip('nodeType')}
           value={nodeType(node)}
           options={[
             ...(nodeType(node) === '' ? [{ value: '', label: '（未写类型）' }] : []),
             ...nodeTypes.map((type) => ({ value: type, label: type }))
           ]}
-          hint="取自这份模板里出现过的取值"
           onChange={(value) => props.onPatch({ nodeType: value })}
         />
         <div className="tpl-switches">
           <CheckField
-            label="可复制（copyable）"
+            label="可复制"
+            tip={jsonTip('copyable', '用户在新工程里可以复制这个节点')}
             checked={nodeSwitch(node, 'copyable')}
-            title="用户在新工程里可以复制这个节点"
             onChange={(checked) => props.onPatch({ copyable: checked })}
           />
           <CheckField
-            label="可删除（deletable）"
+            label="可删除"
+            tip={jsonTip('deletable', '用户在新工程里可以删除这个节点')}
             checked={nodeSwitch(node, 'deletable')}
-            title="用户在新工程里可以删除这个节点"
             onChange={(checked) => props.onPatch({ deletable: checked })}
           />
           <CheckField
-            label="可加内容块（allowContentBlocks）"
+            label="可加内容块"
+            tip={jsonTip('allowContentBlocks', '用户在新工程里可以往这个节点加内容块')}
             checked={nodeSwitch(node, 'allowContentBlocks')}
-            title="用户在新工程里可以往这个节点加内容块"
             onChange={(checked) => props.onPatch({ allowContentBlocks: checked })}
           />
         </div>
         <TextAreaField
-          label="说明文字（description）"
-          hint="给作者和用户看的填写提示"
+          label="说明"
+          tip={jsonTip('description', '写给作者和用户看的填写提示')}
           rows={4}
           value={str(node['description'])}
           onChange={(value) => props.onPatch({ description: value })}

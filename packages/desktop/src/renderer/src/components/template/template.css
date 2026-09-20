@@ -368,10 +368,11 @@ body.is-splitting {
   margin-top: var(--space-1);
 }
 
+/* 表单节奏：标签只留人话（JSON 键在悬停提示里），所以标签行短、字段之间可以贴紧些 */
 .tpl-field {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   margin-bottom: var(--space-2);
   min-width: 0;
 }
@@ -382,6 +383,7 @@ body.is-splitting {
   gap: var(--space-2);
   font-size: var(--text-xs);
   color: var(--text-2);
+  cursor: help;
 }
 
 .tpl-field-hint {
@@ -654,7 +656,7 @@ body.is-splitting {
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
   background: var(--bg-panel);
-  margin-bottom: var(--space-3);
+  margin-bottom: var(--space-2);
 }
 
 .tpl-block.has-error {
@@ -701,7 +703,7 @@ body.is-splitting {
 }
 
 .tpl-block-body {
-  padding: var(--space-2) var(--space-3) var(--space-3);
+  padding: var(--space-2) var(--space-3);
 }
 
 .tpl-tag {

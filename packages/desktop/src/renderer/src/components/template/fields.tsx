@@ -9,15 +9,19 @@ import type { TemplateIssueDto } from '../../../../shared/project'
 export function Field({
   label,
   hint,
+  tip,
   children
 }: {
   label: string
+  /** 常驻小字：只在"不写会填错"时才用，能进 tip 的都进 tip */
   hint?: string
+  /** 悬停说明（一般放 JSON 字段名与它的含义），不占版面 */
+  tip?: string
   children: ReactNode
 }): JSX.Element {
   return (
     <label className="tpl-field">
-      <span className="tpl-field-label">
+      <span className="tpl-field-label" title={tip ?? ''}>
         {label}
         {hint && <span className="tpl-field-hint">{hint}</span>}
       </span>
@@ -26,11 +30,20 @@ export function Field({
   )
 }
 
+/**
+ * 字段名的悬停提示：**常驻标签只留人话**（标题、列数、锁），
+ * JSON 里的键名与补充说明放这里——写模板的人需要它，但不是每分钟都要看。
+ */
+export function jsonTip(key: string, extra?: string): string {
+  return extra ? `JSON 字段：${key}。${extra}` : `JSON 字段：${key}`
+}
+
 export function TextField({
   label,
   value,
   placeholder,
   hint,
+  tip,
   mono,
   onChange
 }: {
@@ -38,11 +51,12 @@ export function TextField({
   value: string
   placeholder?: string
   hint?: string
+  tip?: string
   mono?: boolean
   onChange: (value: string) => void
 }): JSX.Element {
   return (
-    <Field label={label} hint={hint}>
+    <Field label={label} hint={hint} tip={tip}>
       <input
         className={`tpl-input${mono ? ' tpl-mono' : ''}`}
         value={value}
@@ -62,12 +76,14 @@ export function NumberField({
   value,
   min,
   hint,
+  tip,
   onChange
 }: {
   label: string
   value: number
   min?: number
   hint?: string
+  tip?: string
   onChange: (value: number) => void
 }): JSX.Element {
   const [draft, setDraft] = useState(String(value))
@@ -78,7 +94,7 @@ export function NumberField({
     else onChange(min ?? 0)
   }
   return (
-    <Field label={label} hint={hint}>
+    <Field label={label} hint={hint} tip={tip}>
       <input
         className="tpl-input tpl-number"
         inputMode="numeric"
@@ -96,16 +112,16 @@ export function NumberField({
 export function CheckField({
   label,
   checked,
-  title,
+  tip,
   onChange
 }: {
   label: string
   checked: boolean
-  title?: string
+  tip?: string
   onChange: (checked: boolean) => void
 }): JSX.Element {
   return (
-    <label className="tpl-switch" title={title ?? ''}>
+    <label className="tpl-switch" title={tip ?? ''}>
       <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
       <span>{label}</span>
     </label>
@@ -117,16 +133,18 @@ export function SelectField({
   value,
   options,
   hint,
+  tip,
   onChange
 }: {
   label: string
   value: string
   options: Array<{ value: string; label: string }>
   hint?: string
+  tip?: string
   onChange: (value: string) => void
 }): JSX.Element {
   return (
-    <Field label={label} hint={hint}>
+    <Field label={label} hint={hint} tip={tip}>
       <select
         className="tpl-select"
         value={value}
@@ -147,6 +165,7 @@ export function TextAreaField({
   value,
   placeholder,
   hint,
+  tip,
   mono,
   rows,
   onChange
@@ -155,12 +174,13 @@ export function TextAreaField({
   value: string
   placeholder?: string
   hint?: string
+  tip?: string
   mono?: boolean
   rows?: number
   onChange: (value: string) => void
 }): JSX.Element {
   return (
-    <Field label={label} hint={hint}>
+    <Field label={label} hint={hint} tip={tip}>
       <textarea
         className={`tpl-textarea${mono ? ' tpl-mono' : ''}`}
         value={value}
@@ -182,6 +202,7 @@ export function LinesAreaField({
   value,
   placeholder,
   hint,
+  tip,
   rows,
   onChange
 }: {
@@ -189,6 +210,7 @@ export function LinesAreaField({
   value: string
   placeholder?: string
   hint?: string
+  tip?: string
   rows?: number
   onChange: (value: string) => void
 }): JSX.Element {
@@ -198,7 +220,7 @@ export function LinesAreaField({
     if (!editing) setDraft(value)
   }, [value, editing])
   return (
-    <Field label={label} hint={hint}>
+    <Field label={label} hint={hint} tip={tip}>
       <textarea
         className="tpl-textarea tpl-mono"
         value={draft}

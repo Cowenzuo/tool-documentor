@@ -6,7 +6,7 @@
  */
 import { useState, type JSX } from 'react'
 import type { TemplateDirSnapshotDto, TemplateEntryDto } from '../../../../shared/project'
-import { IssueLine } from './fields'
+import { IssueLine, jsonTip } from './fields'
 import type { TemplateEditorStatus } from './useTemplateEditor'
 
 interface TemplateListProps {
@@ -71,7 +71,7 @@ function CreateForm({
   return (
     <div className="tpl-form">
       <label className="tpl-field">
-        <span className="tpl-field-label">
+        <span className="tpl-field-label" title={jsonTip('id', '同时是目录名与 manifest 里的 id')}>
           模板 id<span className="tpl-field-hint">目录名</span>
         </span>
         <input
@@ -84,7 +84,9 @@ function CreateForm({
       </label>
       {problem && <p className="tpl-note tpl-note-bad">{problem}</p>}
       <label className="tpl-field">
-        <span className="tpl-field-label">模板名称（name）</span>
+        <span className="tpl-field-label" title={jsonTip('name')}>
+          模板名称
+        </span>
         <input
           className="tpl-input"
           value={name}
@@ -93,8 +95,11 @@ function CreateForm({
         />
       </label>
       <label className="tpl-field">
-        <span className="tpl-field-label">
-          配对的样式模板<span className="tpl-field-hint">写入 styleTemplate，可留空</span>
+        <span
+          className="tpl-field-label"
+          title={jsonTip('styleTemplate', '写样式对照表的文件键：stylemap 文件名去掉 .json')}
+        >
+          配对的样式模板<span className="tpl-field-hint">可留空</span>
         </span>
         <select
           className="tpl-select"
@@ -244,7 +249,9 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
             {mode === 'rename' && selected && (
               <div className="tpl-form">
                 <label className="tpl-field">
-                  <span className="tpl-field-label">模板名称（name）</span>
+                  <span className="tpl-field-label" title={jsonTip('name')}>
+                    模板名称
+                  </span>
                   <input
                     className="tpl-input"
                     value={renameValue}
@@ -252,7 +259,7 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
                     onChange={(event) => setRenameValue(event.target.value)}
                   />
                 </label>
-                <p className="tpl-note">只改这份模板的名字，目录名与文件名不动</p>
+                <p className="tpl-note">只改名字，目录名与文件名不动</p>
                 <div className="tpl-form-foot">
                   <button type="button" className="tpl-mini" onClick={() => setMode('none')}>
                     取消
