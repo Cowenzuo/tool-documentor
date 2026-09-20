@@ -51,6 +51,7 @@
             "caption": "表1 示例引用",
             "rows": 2,
             "cols": 3,
+            "mergeVertical": true,
             "headers": ["序号", "标识", "标题"],
             "data": [
               ["1", "DEMO-001", "示例文档"],

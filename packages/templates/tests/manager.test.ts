@@ -244,6 +244,73 @@ describe('内容块模板锁 lock（只认三档，非法取值按不锁处理�
   })
 })
 
+describe('模板块纵向合并开关 mergeVertical（只认布尔 true）', () => {
+  it('模板里写了 true 的表格块，解析与实例化都带上该标志', () => {
+    resetIdCounterForTest()
+    const mgr = createManager()
+    const demo = mgr.findStructureByName('示例文档模板 (Demo)')!
+    // 夹具「引用文档」那张表写了 mergeVertical: true
+    const defTables = demo.rootDef.defaultChildren[1]!.contentBlocks.filter((b) => b.type === 'table')
+    expect(defTables).toHaveLength(1)
+    expect(defTables[0]!.mergeVertical).toBe(true)
+
+    // 旧实现解析阶段从不读这个字段，实例化时那行 if 永远不成立，块上拿不到
+    const tree = mgr.instantiate(demo)!
+    const tables: ContentBlock[] = []
+    tree.traverse((n) => tables.push(...n.contentBlocks.filter((b) => b.type === 'table')))
+    expect(tables).toHaveLength(1)
+    expect(tables[0]).toHaveProperty('mergeVertical', true)
+  })
+
+  it('没写、写了 false / 字符串 / 数字都不产生该键', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tpl-merge-'))
+    try {
+      const base = join(dir, 'templates')
+      mkdirSync(join(base, 'structures', 'merge'), { recursive: true })
+      writeFileSync(
+        join(base, 'manifest.json'),
+        JSON.stringify({
+          structures: [{ id: 'merge', name: '合并开关模板', file: 'merge-structure.json' }]
+        }),
+        'utf8'
+      )
+      writeFileSync(
+        join(base, 'structures', 'merge', 'merge-structure.json'),
+        JSON.stringify({
+          name: '合并开关模板',
+          root: {
+            nodeType: 'root',
+            title: '合并开关',
+            contentBlocks: [
+              { type: 'table', caption: '表1 没写', headers: ['A'], data: [['1']] },
+              { type: 'table', caption: '表2 false', mergeVertical: false, headers: ['A'], data: [['1']] },
+              { type: 'table', caption: '表3 字符串', mergeVertical: 'true', headers: ['A'], data: [['1']] },
+              { type: 'table', caption: '表4 数字', mergeVertical: 1, headers: ['A'], data: [['1']] },
+              { type: 'table', caption: '表5 true', mergeVertical: true, headers: ['A'], data: [['1']] }
+            ]
+          }
+        }),
+        'utf8'
+      )
+      const mgr = new TemplateManager()
+      mgr.loadTemplateDir(base)
+      const def = mgr.findStructureByName('合并开关模板')!
+      expect(def.rootDef.contentBlocks.map((b) => b.mergeVertical)).toEqual([
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        true
+      ])
+      const blocks = mgr.instantiate(def)!.root.contentBlocks
+      for (const block of blocks.slice(0, 4)) expect(block).not.toHaveProperty('mergeVertical')
+      expect(blocks[4]).toHaveProperty('mergeVertical', true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
 describe('用户目录优先与无效目录回退', () => {
   it('同名结构先加载者优先；无效目录跳过不抛错', () => {
     const mgr = new TemplateManager()

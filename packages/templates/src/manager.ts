@@ -264,6 +264,8 @@ export class TemplateManager {
         cols: b['cols'] == null ? undefined : Number(b['cols']),
         headers: asArray(b['headers']).map((x) => String(x)),
         data: asArray(b['data']).map((row) => asArray(row).map((x) => String(x))),
+        // 表格纵向合并开关只认布尔 true：字符串 'true'、数字 1 这类一律按不设处理
+        mergeVertical: b['mergeVertical'] === true ? true : undefined,
         items: asArray(b['items']).map((x) => String(x)),
         lock: parseLockValue(b['lock'], templateName, nodeTitle)
       })
