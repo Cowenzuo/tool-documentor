@@ -177,7 +177,7 @@ export function ImageEditor(props: EditorBaseProps<ImageBlock>): React.JSX.Eleme
 export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Element {
   const { block, onChange, readOnly } = props
   const gridRef = useRef<HTMLDivElement | null>(null)
-  /** 整块只读：单元格呈现给定内容，尺寸、合并与补齐都不给入口 */
+  /** 整块只读：单元格呈现给定内容，尺寸与合并开关都不给入口 */
   const locked = readOnly === true
   /** 缩表会丢内容时，先挂起等用户确认（不做静默截断） */
   const [pendingShrink, setPendingShrink] = useState<{

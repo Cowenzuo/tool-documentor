@@ -450,7 +450,7 @@
   padding: 3px 6px;
 }
 
-/* 合并开关与「补齐合并」同一行：补齐是显式动作，不跟着复选框走 */
+/* 合并开关这一行：勾选即生效，没有第二个动作 */
 .be-table-merge-bar {
   display: flex;
   align-items: center;
