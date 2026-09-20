@@ -40,10 +40,18 @@
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
+  /* 目录路径通常 40+ 字符：标题栏里的富余宽度优先给这一块，路径不许只露半截 */
+  flex: 4 1 360px;
+  max-width: min(72vw, 920px);
 }
 
 .tpl-dir-select {
-  max-width: min(420px, 42vw);
+  /* .tpl-select 的 width: 100% 在 flex 行里算不出"内容想要多宽"，
+     这里改成按富余空间分：有地方就铺开，窗口窄了才收 */
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .tpl-top-counts {
@@ -55,7 +63,7 @@
 }
 
 .tpl-top-gap {
-  flex: 1;
+  flex: 1 1 0;
 }
 
 .tpl-dirty {
@@ -103,6 +111,13 @@
   white-space: pre-wrap;
 }
 
+/* 提示条/页脚里的「备份位置」折叠块：里面那条路径很长，
+   得让这块能缩到行宽以内，路径自己在小框里横向滚，别把整条提示撑出屏幕 */
+.tpl-detail {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .tpl-detail summary {
   cursor: pointer;
   font-size: var(--text-xs);
@@ -112,6 +127,10 @@
 .tpl-detail .tpl-path {
   display: block;
   margin-top: 2px;
+  /* 备份/模板路径又长又不好折行：一行显示，放不下就横向滚，别折成楼梯 */
+  white-space: pre;
+  overflow-x: auto;
+  max-width: 100%;
 }
 
 /* ===== 三栏 =====
@@ -183,6 +202,17 @@ body.is-splitting {
   font-size: var(--text-md);
   font-weight: 600;
   color: var(--text-1);
+  flex: none;
+}
+
+/* 栏头里的 JSON 路径：占住整行剩余宽度，一行显示；真放不下才省略（鼠标停上去看全） */
+.tpl-col-head .tpl-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
 }
 
 .tpl-col-tools {
@@ -796,10 +826,6 @@ body.is-splitting {
 }
 
 @media (max-width: 940px) {
-  .tpl-dir-select {
-    max-width: 46vw;
-  }
-
   .tpl-item-id {
     display: none;
   }

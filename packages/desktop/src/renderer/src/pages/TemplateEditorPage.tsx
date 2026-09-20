@@ -245,7 +245,9 @@ export default function TemplateEditorPage(): JSX.Element {
             ) : (
               <details className="tpl-detail">
                 <summary>备份位置</summary>
-                <code className="tpl-path">{editor.notice.detail}</code>
+                <code className="tpl-path" title={editor.notice.detail}>
+                  {editor.notice.detail}
+                </code>
               </details>
             ))}
           <button type="button" className="tpl-mini" aria-label="关闭提示" onClick={editor.dismissNotice}>
@@ -352,7 +354,9 @@ export default function TemplateEditorPage(): JSX.Element {
               {editor.saveResult.backupPath ? (
                 <details className="tpl-detail">
                   <summary>备份位置</summary>
-                  <code className="tpl-path">{editor.saveResult.backupPath}</code>
+                  <code className="tpl-path" title={editor.saveResult.backupPath}>
+                    {editor.saveResult.backupPath}
+                  </code>
                 </details>
               ) : (
                 <span className="tpl-count">首次保存，没有可备份的原文件</span>

@@ -85,7 +85,9 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
     <section className="tpl-col tpl-col-insp" aria-label="节点">
       <header className="tpl-col-head">
         <h2>节点</h2>
-        <code className="tpl-path">{jsonPath}</code>
+        <code className="tpl-path" title={jsonPath}>
+          {jsonPath}
+        </code>
       </header>
       <div className="tpl-col-body">
         <div className="tpl-actions">
@@ -219,7 +221,7 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
                     <span className="tpl-issue-text">
                       第 {index + 1} 个内容块不是对象，程序会丢弃这一块
                     </span>
-                    <code className="tpl-path">
+                    <code className="tpl-path" title={`${jsonPath}.contentBlocks[${index}]`}>
                       {jsonPath}.contentBlocks[{index}]
                     </code>
                   </p>

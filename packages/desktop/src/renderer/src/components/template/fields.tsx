@@ -240,11 +240,14 @@ export function LinesAreaField({
   )
 }
 
-/** 一条校验结论：先说人话（message），再给出位置（path） */
-export function IssueLine({ issue }: { issue: TemplateIssueDto }): JSX.Element {  return (
+/** 一条校验结论：先说人话（message），再给出位置（path；位置可能很长，悬停看全） */
+export function IssueLine({ issue }: { issue: TemplateIssueDto }): JSX.Element {
+  return (
     <p className={`tpl-issue tpl-issue-${issue.level}`}>
       <span className="tpl-issue-text">{issue.message}</span>
-      <code className="tpl-path">{issue.path}</code>
+      <code className="tpl-path" title={issue.path}>
+        {issue.path}
+      </code>
     </p>
   )
 }
