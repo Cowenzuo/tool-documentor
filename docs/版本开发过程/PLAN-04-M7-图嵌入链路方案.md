@@ -37,7 +37,7 @@
 ## 3. 端到端管线（在 Documentor 内新增）
 
 ```
-现有导出: 树 + 样式 → docx（含 [Mermaid 图表: 前60字] 占位段 + figure.caption 题注段）
+现有导出: 树 + 样式 → docx（含 [Mermaid 图表: 源码] 占位段 + figure.caption 题注段）
                               │
              ▼ 用户选择「导出并处理图」/「导出并嵌入」
 ① Mermaid 收集    按文档树顺序取全部 mermaid 块（caption/code）

@@ -2,7 +2,8 @@
  * DocxSerializer：文档树 → 写入指令序列（对齐旧版 docxserializer.cpp 全规则）。
  * - 章节节点标题 → heading.<level> 段落（isSubTitle → subtitle.<depth>）
  * - kText → body；kTable → 表题注段（剥离手写序号）+ 表格；kImage/kMermaid →
- *   占位段 + 图题注段（图名在图下方）；kFormula/kCode → body 占位文本；
+ *   占位段 + 图题注段（图名在图下方），占位段整段带出源码，超长才截断并标注；
+ *   kFormula/kCode → body 占位文本；
  *   列表 → 每项一段 + 独立列表组 id（重新编号）
  * - warnings：样式键缺失时透出（配对软校验的兜底，不静默）；
  *   表格形状与声明列数对不上时也走这条通道（参差表不再静默导出）
@@ -222,7 +223,7 @@ export function serializeWithWarnings(
             out.push(
               paragraph(
                 figureStyle(`“${node.title}”的流程图`),
-                `[Mermaid 图表: ${block.code.slice(0, 60)}]`,
+                mermaidPlaceholder(block.code),
                 0
               )
             )
@@ -252,6 +253,23 @@ export function serializeWithWarnings(
 /** Word 多级列表最多 9 级（ilvl 0..8） */
 const MAX_HEADING_LEVEL = 9
 type CaptionKind = 'table' | 'figure'
+
+/** 图表降级占位段里源码的长度上限：不超过就整段照抄，超了才截断（且必然标注已截断） */
+const MERMAID_PLACEHOLDER_LIMIT = 2000
+
+/**
+ * 图表降级时的占位文本。嵌入失败时它就是用户在 Word 里看到的"文本形式的图"，
+ * 所以源码整段照抄；只有超长才截断，且截断处必然写明已截断、给出真实长度、指出完整源码在工程里。
+ * 旧实现固定切前 60 字符：尾部无声丢失、切在半截 token 上，与"以文本形式导出"的提示说的不是一回事。
+ */
+function mermaidPlaceholder(code: string): string {
+  if (code.length <= MERMAID_PLACEHOLDER_LIMIT) return `[Mermaid 图表: ${code}]`
+  const head = code.slice(0, MERMAID_PLACEHOLDER_LIMIT)
+  const lineEnd = head.lastIndexOf('\n')
+  // 优先切在行尾，免得留半截 token；单行过长（超过一半）时只能按长度切
+  const kept = lineEnd > MERMAID_PLACEHOLDER_LIMIT / 2 ? head.slice(0, lineEnd) : head
+  return `[Mermaid 图表: ${kept}（已截断，源码共 ${code.length} 字符，完整源码见工程文件）]`
+}
 
 function paragraph(styleName: string, text: string, listGroupId: number): WriteInstruction {
   return {

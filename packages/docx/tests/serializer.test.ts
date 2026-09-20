@@ -309,6 +309,52 @@ describe('题注编号方式（captionNumbering）', () => {
   })
 })
 
+describe('Mermaid 降级占位段：写进 Word 的内容与「以文本形式导出」一致', () => {
+  const mermaidTree = (code: string): DocumentTree => {
+    resetIdCounterForTest()
+    const root = new DocumentNode(0)
+    const section = node(2, '标识')
+    section.contentBlocks.push({ type: 'mermaid', caption: '图1 流程', code })
+    root.addChild(section)
+    return new DocumentTree(root)
+  }
+  const placeholder = (tree: DocumentTree): string => {
+    const hit = serializeToInstructions(tree, styleDef)
+      .filter(
+        (i): i is Extract<WriteInstruction, { opType: 'InsertParagraph' }> =>
+          i.opType === 'InsertParagraph'
+      )
+      .map((i) => i.content.text)
+      .find((text) => text.startsWith('[Mermaid'))
+    expect(hit).toBeDefined()
+    return hit!
+  }
+
+  it('源码不长时整段照抄（旧实现固定切前 60 字符，尾部无声丢失）', () => {
+    const code = ['graph TD', ...Array.from({ length: 24 }, (_, i) => `  A${i} --> A${i + 1}`)].join('\n')
+    expect(code.length).toBeGreaterThan(260) // review S8 的实测样本量级
+    const text = placeholder(mermaidTree(code))
+    expect(text).toBe(`[Mermaid 图表: ${code}]`)
+    // 尾行还在 → 尾部没有丢
+    expect(text).toContain(`A23 --> A24`)
+  })
+
+  it('超长源码：按行截断并写明「已截断」与真实长度，不留半截 token', () => {
+    const lines = Array.from({ length: 400 }, (_, i) => `  N${i} --> N${i + 1}`)
+    const code = `graph TD\n${lines.join('\n')}`
+    const text = placeholder(mermaidTree(code))
+    expect(code.length).toBeGreaterThan(2000) // 超过占位段上限才截断
+    expect(text.startsWith('[Mermaid 图表: ')).toBe(true) // 嵌入链路的槽位标记前缀不变
+    expect(text).toContain('已截断')
+    expect(text).toContain(`源码共 ${code.length} 字符`)
+    expect(text).toContain('完整源码见工程文件')
+    // 保留部分按整行切：最后一行与源码里的某一行逐字相同，不是半截 token
+    const kept = text.slice('[Mermaid 图表: '.length, text.indexOf('（已截断'))
+    expect(lines).toContain(kept.split('\n').at(-1)!)
+    expect(kept.length).toBeGreaterThan(1000)
+  })
+})
+
 describe('表格形状警告（导出侧不再静默）', () => {
   /** 造一棵只有一张表的树：表头 3 列、cols=2、第 2 行 4 列 */
   const raggedTree = (caption: string): DocumentTree => {

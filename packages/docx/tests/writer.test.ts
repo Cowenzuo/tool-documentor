@@ -766,6 +766,28 @@ describe('DocxWriter 端到端（合成示例模板骨架）', () => {
     expect(documentXml).toContain('SEQ 表')
   })
 
+  it('Mermaid 降级占位段：源码整段写进 document.xml（与「以文本形式导出」一致）', async () => {
+    resetIdCounterForTest()
+    const { manager } = loadDemo()
+    const demo = manager.findStructureByName('示例文档模板 (Demo)')!
+    const style = manager.styleForStructure(demo)!
+    const code = ['graph TD', ...Array.from({ length: 24 }, (_, i) => `  A${i} --> A${i + 1}`)].join('\n')
+    expect(code.length).toBeGreaterThan(260) // review S8 的实测样本量级（旧实现只留 60 字符源码）
+    const root = new DocumentNode(0)
+    const h1 = new DocumentNode(1)
+    h1.title = '第四章'
+    h1.contentBlocks.push({ type: 'mermaid', caption: '图1 流程', code })
+    root.addChild(h1)
+
+    const outputPath = join(dir, 'out-mermaid-placeholder.docx')
+    await writeDocx(serializeToInstructions(new DocumentTree(root), style), style, outputPath)
+    const zip = await JSZip.loadAsync(readFileSync(outputPath))
+    const documentXml = await zip.file('word/document.xml')!.async('string')
+    // 末行在文档里（'>' 按 XML 转义），且不需要「已截断」标注——一个字都没丢
+    expect(documentXml).toContain('A23 --&gt; A24')
+    expect(documentXml).not.toContain('已截断')
+  })
+
   it('无工程目录时回退占位文本（CLI/实例 JSON 路径）', () => {
     resetIdCounterForTest()
     const { tree, manager } = loadDemo()
