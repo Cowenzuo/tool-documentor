@@ -362,6 +362,63 @@ function createMainWindow(): void {
               await sleep(300);
             }
           }
+          // 表格合并的补齐动作：样例模板里表格在「引用文档」，需求章节没有表格块，
+          // 所以这一段按表格所在章节驱动。分两次点：
+          // 第一次这张表两行内容不同，没有可补的合并，只提示、不改数据；
+          // 第二次先把同列相邻两格改成同值，补齐应当报出 1 处并在确认后写出 rowSpans。
+          const tableRow = [...document.querySelectorAll('.tree-row')].find((r) => r.textContent.includes('引用文档'));
+          if (tableRow) {
+            tableRow.click();
+            await sleep(400);
+            out.tableChapterCards = document.querySelectorAll('.block-card').length;
+            const tableCell = (r, c) => document.querySelector('.be-table-cell[data-cell="' + r + ':' + c + '"]');
+            const cellText = (r, c) => { const el = tableCell(r, c); return el ? el.value : null; };
+            const values = () => [cellText(0, 0), cellText(1, 0)];
+            const readSpans = async () => {
+              const res = await window.documentor.project.treeGetRoot();
+              const walk = (n) => {
+                if (!n) return null;
+                if (n.title === '引用文档') return n;
+                for (const child of n.children || []) {
+                  const hit = walk(child);
+                  if (hit) return hit;
+                }
+                return null;
+              };
+              const node = walk(res.root);
+              const tbl = ((node && node.contentBlocks) || []).find((b) => b.type === 'table');
+              return tbl ? (tbl.rowSpans || null) : null;
+            };
+            const completeBtn = document.querySelector('.be-table-merge-complete');
+            out.tableCompleteBtn = !!completeBtn;
+            out.tableSpanBefore = await readSpans();
+            out.tableCellValuesBefore = values();
+            if (completeBtn) {
+              completeBtn.click();
+              await sleep(350);
+              out.tableNoopHint = (document.querySelector('.be-table-complete-hint') || {}).textContent || null;
+              out.tableSpanAfterNoop = await readSpans();
+              out.tableCellValuesAfterNoop = values();
+              // 制造一处可补的合并：把第二行第一格改成与上一行同值
+              setNative(tableCell(1, 0), '1');
+              await sleep(350);
+              out.tableCellValuesBeforeComplete = values();
+              completeBtn.click();
+              await sleep(350);
+              const confirmBox = document.querySelector('.be-table-confirm[aria-label="确认补齐合并"]');
+              out.tableConfirmText = confirmBox ? confirmBox.textContent : null;
+              const confirmBtn = document.querySelector('.be-table-complete-confirm');
+              out.tableConfirmBtn = !!confirmBtn;
+              if (confirmBtn) {
+                confirmBtn.click();
+                await sleep(700);
+                out.tableSpansAfterComplete = await readSpans();
+                out.tableCellValuesAfterComplete = values();
+                out.tableCoveredCells = document.querySelectorAll('.be-table-cell-merged').length;
+                out.tableToast = document.querySelector('.toast') ? document.querySelector('.toast').textContent : null;
+              }
+            }
+          }
           // 保存
           const saveBtn = await waitFor('.tb-action[aria-label="保存工程"]');
           saveBtn.click();

@@ -439,6 +439,18 @@
   padding: 3px 6px;
 }
 
+/* 合并开关与「补齐合并」同一行：补齐是显式动作，不跟着复选框走 */
+.be-table-merge-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.be-table-merge-bar .be-table-merge {
+  margin-bottom: 0;
+}
+
 .be-table-merge {
   display: flex;
   align-items: center;

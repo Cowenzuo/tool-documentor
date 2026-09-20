@@ -214,6 +214,47 @@ function checkResult(data) {
     `菜单打开后焦点没有落到可用项上：${data.menuFocus}`
   )
   need(data.menuClosed === true, 'Esc 没有关掉章节菜单')
+  // 表格合并的补齐动作：按钮在、无可补时不改数据、有可补时确认后写跨度且内容不动。
+  // 断言放在样例模板里唯一一张表上（表格在「引用文档」，需求章节没有表格块）。
+  need(data.tableCompleteBtn === true, '表格编辑器缺少「补齐合并」按钮')
+  need(
+    typeof data.tableNoopHint === 'string' && data.tableNoopHint.includes('没有可补齐的合并'),
+    `没有可补的合并时缺少提示：${data.tableNoopHint}`
+  )
+  need(
+    data.tableSpanBefore === null && data.tableSpanAfterNoop === null,
+    `没有可补的合并时 rowSpans 被动了：${JSON.stringify(data.tableSpanBefore)} → ` +
+      `${JSON.stringify(data.tableSpanAfterNoop)}`
+  )
+  need(
+    Array.isArray(data.tableCellValuesAfterNoop) &&
+      JSON.stringify(data.tableCellValuesAfterNoop) === JSON.stringify(data.tableCellValuesBefore),
+    `无补可补时单元格内容就变了：${JSON.stringify(data.tableCellValuesBefore)} → ` +
+      `${JSON.stringify(data.tableCellValuesAfterNoop)}`
+  )
+  need(
+    typeof data.tableConfirmText === 'string' && data.tableConfirmText.includes('将补齐 1 处合并'),
+    `补齐前没有报出补几处：${data.tableConfirmText}`
+  )
+  need(data.tableConfirmBtn === true, '补齐确认里缺少确认按钮')
+  need(
+    JSON.stringify(data.tableSpansAfterComplete) === JSON.stringify({ 0: [[0, 2]] }),
+    `确认补齐后 rowSpans 不对：${JSON.stringify(data.tableSpansAfterComplete)}`
+  )
+  need(
+    data.tableCoveredCells === 1,
+    `补齐后编辑区没有把第 2 行标成续格：${data.tableCoveredCells}`
+  )
+  need(
+    Array.isArray(data.tableCellValuesAfterComplete) &&
+      JSON.stringify(data.tableCellValuesAfterComplete) === JSON.stringify(data.tableCellValuesBeforeComplete),
+    `补齐写跨度时改动了单元格内容：${JSON.stringify(data.tableCellValuesBeforeComplete)} → ` +
+      `${JSON.stringify(data.tableCellValuesAfterComplete)}`
+  )
+  need(
+    !(typeof data.tableToast === 'string' && data.tableToast.includes('失败')),
+    `补齐合并不该报错：${data.tableToast}`
+  )
   return problems
 }
 

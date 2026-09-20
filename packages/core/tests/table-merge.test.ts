@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
   computeVerticalMerges,
   countVerticalMerges,
+  completeRowSpans,
   inferRowSpansFromData,
   resolveTableMerges
 } from '../src/table-merge'
@@ -130,7 +131,7 @@ describe('computeVerticalMerges（表格纵向合并判定）', () => {
   })
 })
 
-describe('resolveTableMerges（显式跨度优先）', () => {
+describe('resolveTableMerges（显式跨度与兼容判定取并集）', () => {
   it('有 rowSpans 时按跨度合并，且不要求内容相同（值保留）', () => {
     // 首行有值、下面留空——扁平数组表达不了跨行，靠 rowSpans 明确指定
     const data = [
@@ -147,19 +148,59 @@ describe('resolveTableMerges（显式跨度优先）', () => {
     expect(countVerticalMerges(m)).toBe(1)
   })
 
-  it('显式跨度优先于 mergeVertical：两者都在时按 span 走', () => {
+  it('显式跨度与 mergeVertical 各管一段：跨度逐格优先，兼容判定补空', () => {
     const data = [
       ['A', 'x'],
       ['A', 'y'],
       ['A', 'z']
     ]
-    // 兼容判定会把第 0 列合成 3 行；显式跨度只指定第 1 列
+    // 显式跨度只指定第 1 列的前两行；第 0 列仍由兼容判定合成 3 行。
+    // 旧口径是"有跨度就整体接管"，第 0 列的合开会静默消失，这里钉住并集语义。
     const m = resolveTableMerges({ data, rowSpans: { '1': [[0, 2]] }, mergeVertical: true })
-    expect(m[0]![0]!.rowSpan).toBe(1)
-    expect(m[1]![0]!.rowSpan).toBe(1)
+    expect(m[0]![0]!.rowSpan).toBe(3)
+    expect(m[1]![0]!.covered).toBe(true)
     expect(m[0]![1]).toEqual({ rowSpan: 2, covered: false })
     expect(m[1]![1]!.covered).toBe(true)
     expect(m[2]![1]!.rowSpan).toBe(1)
+  })
+
+  it('显式跨度认领的格子不再被兼容判定重复认领', () => {
+    const data = [
+      ['A', 'x'],
+      ['A', 'x'],
+      ['A', 'x']
+    ]
+    // 第 1 列显式覆盖第 1–2 行，兼容判定只能去补第 0 行那段
+    const m = resolveTableMerges({ data, rowSpans: { '1': [[1, 2]] }, mergeVertical: true })
+    expect(m[1]![1]).toEqual({ rowSpan: 2, covered: false })
+    expect(m[2]![1]!.covered).toBe(true)
+    expect(m[0]![1]!.rowSpan).toBe(1)
+    expect(m[0]![0]!.rowSpan).toBe(3)
+  })
+
+  it('completeRowSpans：把缺失的组补成跨度，已覆盖的不重复补', () => {
+    const data = [
+      ['甲', 'x'],
+      ['甲', 'y'],
+      ['乙', 'y'],
+      ['乙', 'y']
+    ]
+    // 只声明了第 0 列第 2–3 行；推导会把第 0 列 0–1 行、第 1 列 2–3 行补上
+    const { spans, added } = completeRowSpans(data, { '0': [[2, 2]] })
+    expect(added).toBe(2)
+    expect(spans!['0']).toEqual([[2, 2], [0, 2]])
+    expect(spans!['1']).toEqual([[1, 3]])
+    // 补完再判定：三处合并都在
+    expect(countVerticalMerges(resolveTableMerges({ data, rowSpans: spans }))).toBe(3)
+  })
+
+  it('completeRowSpans：本来就齐全时不新增', () => {
+    const data = [
+      ['甲', 'x'],
+      ['甲', 'y']
+    ]
+    const { added } = completeRowSpans(data, { '0': [[0, 2]] })
+    expect(added).toBe(0)
   })
 
   it('没有 rowSpans 时退回兼容判定（老工程行为不变）', () => {
@@ -195,6 +236,47 @@ describe('resolveTableMerges（显式跨度优先）', () => {
     expect(m[1]![0]!.covered).toBe(true)
     expect(m[2]![0]!.covered).toBe(true)
     expect(countVerticalMerges(m)).toBe(1)
+  })
+
+  it('列数按表头长度、cols 与数据行长度的最大值取', () => {
+    const data = [['A']]
+    expect(resolveTableMerges({ data })[0]!.length).toBe(1)
+    expect(resolveTableMerges({ data: [['A', 'B', 'C']] })[0]!.length).toBe(3)
+    expect(resolveTableMerges({ data, headers: ['H1', 'H2', 'H3', 'H4'] })[0]!.length).toBe(4)
+    expect(resolveTableMerges({ data, cols: 5 })[0]!.length).toBe(5)
+    // 三者同时给出时取最大，且 cols 声明的列上能落跨度
+    const m = resolveTableMerges({
+      data: [['甲'], ['甲']],
+      headers: ['甲'],
+      cols: 2,
+      rowSpans: { '1': [[0, 2]] }
+    })
+    expect(m[0]!.length).toBe(2)
+    expect(m[0]![1]).toEqual({ rowSpan: 2, covered: false })
+    // 没有数据行时仍是 0 行：不给合并，也不凭空造出表头行
+    expect(resolveTableMerges({ data: [], headers: ['A', 'B'], cols: 2 })).toEqual([])
+  })
+
+  it('表头 3 列、数据行 2 列时，第 3 列上的跨度必须成立', () => {
+    // 缺陷现场：判定只取 max(每行长度)，第 3 列被 c >= cols 当成越界丢掉，
+    // 预览与导出都少一处合并。导出侧 writer 的列数是"表头、每行、cols"三者最大值。
+    const data = [
+      ['1', 'DEMO-001'],
+      ['2', 'DEMO-002']
+    ]
+    const m = resolveTableMerges({
+      data,
+      headers: ['序号', '标识', '标题'],
+      rowSpans: { '2': [[0, 2]] }
+    })
+    expect(m[0]!.length).toBe(3)
+    expect(m[0]![2]).toEqual({ rowSpan: 2, covered: false })
+    expect(m[1]![2]!.covered).toBe(true)
+    expect(countVerticalMerges(m)).toBe(1)
+    // 不传表头时退回 data 宽度：第 3 列在网格外，跨度丢掉，与旧行为一致
+    const noHeaders = resolveTableMerges({ data, rowSpans: { '2': [[0, 2]] } })
+    expect(noHeaders[0]!.length).toBe(2)
+    expect(countVerticalMerges(noHeaders)).toBe(0)
   })
 })
 

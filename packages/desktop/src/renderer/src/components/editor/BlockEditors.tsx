@@ -2,7 +2,7 @@
  * 8 种内容块编辑器（受控组件：value 由父层 NodePage 提供，onChange 即时回传）。
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { resolveTableMerges, countVerticalMerges } from '@documentor/core/table-merge'
+import { completeRowSpans, resolveTableMerges, countVerticalMerges } from '@documentor/core/table-merge'
 import { TABLE_MAX_COLS, TABLE_MAX_ROWS } from '@documentor/core/table-limits'
 import { normalizeMermaidSource } from '@documentor/core/mermaid-source'
 import type {
@@ -169,6 +169,16 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
     lostCols: number
     lostCells: number
   } | null>(null)
+  /**
+   * 补齐合并：把"同列连续相同值""非空值后跟的空串"补成显式跨度。
+   * 先挂起等确认，且**只写 rowSpans、不动 data**——值留在原地，取消合并即可恢复。
+   */
+  const [pendingComplete, setPendingComplete] = useState<{
+    spans: Record<string, Array<[number, number]>>
+    added: number
+  } | null>(null)
+  /** 没有可补的地方时给一句提示，不弹窗也不改数据 */
+  const [completeHint, setCompleteHint] = useState<string | null>(null)
 
   // 显示真实规模：以前行数框显示 clamp 后的 50，而界面渲染 85 行，两处对不上。
   // 上限只用来提示"超出界面舒适区"，不再当作数据的截断依据。
@@ -230,6 +240,18 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
     onChange({ ...block, data })
   }
 
+  /** 点「补齐合并」：先算会补几处，0 处只提示，有补的先确认再写跨度 */
+  const requestComplete = (): void => {
+    const { spans, added } = completeRowSpans(block.data, block.rowSpans)
+    if (added === 0 || !spans) {
+      setPendingComplete(null)
+      setCompleteHint('没有可补齐的合并')
+      return
+    }
+    setCompleteHint(null)
+    setPendingComplete({ spans, added })
+  }
+
   const setHeader = (c: number, value: string): void => {
     const headers = block.headers.map((h, hi) => (hi === c ? value : h))
     onChange({ ...block, headers })
@@ -239,9 +261,12 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
     gridRef.current?.querySelector<HTMLElement>(`[data-cell="${rowId}"]`)?.focus()
   }
 
-  // 合并来源：显式跨度优先、老数据退回兼容判定（与导出/预览同一个函数）
+  // 合并来源：显式跨度逐格优先，老数据退回兼容判定（与导出/预览同一个函数）。
+  // 列数按表头、cols 与数据行的最大值取，导出侧就是这个口径
   const merges = resolveTableMerges({
     data: block.data,
+    headers: block.headers,
+    cols: block.cols,
     rowSpans: block.rowSpans,
     mergeVertical: block.mergeVertical
   })
@@ -314,28 +339,70 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
         </div>
       )}
 
-      <label
-        className="be-table-merge"
-        title="同一列中连续且内容相同的单元格会合并成一个，表头不参与，空单元格不合并"
-      >
-        <input
-          type="checkbox"
-          checked={block.mergeVertical === true}
-          onChange={(e) =>
-            onChange(
-              e.target.checked
-                ? { ...block, mergeVertical: true }
-                : { ...block, mergeVertical: undefined }
-            )
-          }
-        />
-        相同内容自动合并（纵向）
-        {block.mergeVertical === true && (
-          <span className="be-table-merge-hint">
-            {mergeCount > 0 ? `已检测到 ${mergeCount} 处合并` : '当前没有可合并的相邻单元格'}
-          </span>
-        )}
-      </label>
+      {/* 补齐会补几处：与缩表确认同一套写法，确认前不落数据 */}
+      {pendingComplete && (
+        <div className="be-table-confirm" role="alertdialog" aria-label="确认补齐合并">
+          <div>
+            将补齐 {pendingComplete.added} 处合并。只写合并跨度，单元格内容保持原样。
+          </div>
+          <div className="be-table-confirm-actions">
+            <button
+              type="button"
+              className="be-btn be-btn-primary be-table-complete-confirm"
+              onClick={() => {
+                onChange({ ...block, rowSpans: pendingComplete.spans })
+                setPendingComplete(null)
+                setCompleteHint(`已补齐 ${pendingComplete.added} 处合并`)
+              }}
+            >
+              确认补齐 {pendingComplete.added} 处合并
+            </button>
+            <button
+              type="button"
+              className="be-btn"
+              onClick={() => {
+                setPendingComplete(null)
+              }}
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="be-table-merge-bar">
+        <label
+          className="be-table-merge"
+          title="同一列中连续且内容相同的单元格会合并成一个，表头不参与，空单元格不合并"
+        >
+          <input
+            type="checkbox"
+            checked={block.mergeVertical === true}
+            onChange={(e) =>
+              onChange(
+                e.target.checked
+                  ? { ...block, mergeVertical: true }
+                  : { ...block, mergeVertical: undefined }
+              )
+            }
+          />
+          相同内容自动合并（纵向）
+          {block.mergeVertical === true && (
+            <span className="be-table-merge-hint">
+              {mergeCount > 0 ? `已检测到 ${mergeCount} 处合并` : '当前没有可合并的相邻单元格'}
+            </span>
+          )}
+        </label>
+        <button
+          type="button"
+          className="be-btn be-table-merge-complete"
+          title="把同列相邻的相同内容与留空续格补成显式跨度，只写跨度、不改单元格内容"
+          onClick={requestComplete}
+        >
+          补齐合并
+        </button>
+        {completeHint && <span className="be-table-merge-hint be-table-complete-hint">{completeHint}</span>}
+      </div>
 
       <div className="be-table-grid" ref={gridRef}>
         <div className="be-table-row be-table-head">
