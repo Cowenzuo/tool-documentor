@@ -208,6 +208,23 @@ function checkResult(data) {
   need(data.histContentRestored === true, '再撤销一次没有回到测试前的原文')
   need(data.histRedoClearedByNewEdit === true, '新编辑之后重做栈没有被清空')
   need(data.histCleanAfterTests === true, '撤销测试没有把文档清回原状')
+  // 历史列表：面板能展开、条目录得出来、点一条能跳到那一步
+  need(data.histCaretFound === true, '工具栏里没有找到历史列表按钮')
+  need(data.histPanelOpen === true, '点了历史按钮没有展开面板')
+  need(
+    Array.isArray(data.histItems) && data.histItems.length > 0,
+    `历史列表里没有条目：${JSON.stringify(data.histItems)}`
+  )
+  need(
+    Array.isArray(data.histItems) && data.histItems.includes('修改内容'),
+    `历史列表里没有内容编辑那一步：${JSON.stringify(data.histItems)}`
+  )
+  need(data.histRedoItemFound === true, '历史列表里没有可重做的那一条')
+  need(
+    typeof data.histContentAfterJump === 'string' && String(data.histContentAfterJump).includes('重做失效测试'),
+    `点历史条目没有跳到那一步：${data.histContentAfterJump}`
+  )
+  need(data.histCleanAfterJump === true, '跳转之后没有撤销回原状')
   need(
     Array.isArray(data.themeOptions) && data.themeOptions.length === 3,
     `设置里应有主题三选项：${JSON.stringify(data.themeOptions)}`

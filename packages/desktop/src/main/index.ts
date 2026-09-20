@@ -795,6 +795,39 @@ function createMainWindow(): void {
               out.histCleanAfterTests = cleanNode
                 ? cleanNode.contentBlocks[textIndex].content === original
                 : null;
+              // 历史列表：展开面板、读出条目、点"下一次重做"那一条跳过去
+              const caret = document.querySelector('.hist-caret');
+              out.histCaretFound = !!caret;
+              if (caret) {
+                caret.click();
+                await sleep(300);
+                const panel = document.querySelector('.hist-panel');
+                out.histPanelOpen = !!panel;
+                out.histItems = panel
+                  ? [...panel.querySelectorAll('.hist-item')].map((el) => el.textContent.trim())
+                  : null;
+                const listed = await window.documentor.history.state();
+                const nextKeep = listed.undoLabels.length + 1;
+                const nextRedoItem = panel
+                  ? panel.querySelector('.hist-item[data-keep="' + nextKeep + '"]')
+                  : null;
+                out.histRedoItemFound = !!nextRedoItem;
+                if (nextRedoItem) {
+                  nextRedoItem.click();
+                  await sleep(800);
+                }
+                const jumpedNode = await appendixOf();
+                out.histContentAfterJump = jumpedNode
+                  ? jumpedNode.contentBlocks[textIndex].content
+                  : null;
+                // 清干净：把跳过来的这一步再撤销掉
+                pressKey('z', false);
+                await sleep(800);
+                const finalNode = await appendixOf();
+                out.histCleanAfterJump = finalNode
+                  ? finalNode.contentBlocks[textIndex].content === original
+                  : null;
+              }
             }
           }
           // 物理输入验证：返回保存按钮中心坐标，main 侧用 sendInputEvent 重放真实鼠标点击
