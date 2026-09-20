@@ -1465,6 +1465,34 @@ body.is-splitting {
   background: var(--accent-soft);
   opacity: 1;
 }
+
+/* 撤销/重做：与状态标签同一行，靠右；没有可用步骤时置灰 */
+.np-history {
+  margin-left: auto;
+  flex: none;
+  display: flex;
+  gap: var(--space-1);
+}
+
+.np-history-btn {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  background: var(--bg-panel);
+  color: var(--text-2);
+  font-size: var(--text-xs);
+  padding: 3px 10px;
+  transition: background-color var(--duration-fast) ease;
+}
+
+.np-history-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-1);
+}
+
+.np-history-btn:disabled {
+  opacity: 0.45;
+}
+
 /* ===== 视图切换（节点页顶部右侧 / 预览页顶部） ===== */
 .view-toggle {
   display: inline-flex;

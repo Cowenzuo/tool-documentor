@@ -87,7 +87,10 @@ export default function NodePage(): React.JSX.Element {
     updateContentBlock,
     setNodeTitle,
     setNodeDescription,
-    registerFlushAll
+    registerFlushAll,
+    undo,
+    redo,
+    historyState
   } = useApp()
 
   const [blocks, setBlocks] = useState<ContentBlock[]>(node?.contentBlocks ?? [])
@@ -113,6 +116,8 @@ export default function NodePage(): React.JSX.Element {
   const titleValueRef = useRef(node?.title ?? '')
   const titleDirtyRef = useRef(false)
   const titleTimerRef = useRef<number | undefined>(undefined)
+  /** 非受控标题框的 DOM 引用：外部改回标题时要回写它 */
+  const titleRef = useRef<HTMLInputElement | null>(null)
   /**
    * 块的前端稳定键：用下标当 key 时，一次"上移"会把两张卡片整体重挂载，
    * 正在编辑的光标、滚动位置、图片上传忙碌态全丢。这里按块对象配一把键，
@@ -160,6 +165,25 @@ export default function NodePage(): React.JSX.Element {
     storeSignatureRef.current = (node?.contentBlocks ?? []).map((b) => JSON.stringify(b)).join('\u0000')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node?.id])
+
+  /**
+   * 外部改回来的标题与编制说明要回写到输入框。
+   * 撤销与重做会把整棵树换掉，而非受控标题框只在换章节时重建，
+   * 不回写就会出现"树已经退回去了、框里还留着新字"。
+   * 正在编辑（本地脏、还没落定）时不动它，免得把光标打断。
+   */
+  useEffect(() => {
+    if (!node || node.id !== nodeIdRef.current) return
+    const servedTitle = node.title ?? ''
+    const input = titleRef.current
+    if (input && !titleDirtyRef.current && input.value !== servedTitle) {
+      input.value = servedTitle
+    }
+    const servedDesc = (node.description ?? '') === '无' ? '' : (node.description ?? '')
+    if (!descDirtyRef.current && descValueRef.current !== servedDesc) {
+      setDesc(servedDesc)
+    }
+  }, [node?.title, node?.description, node?.id])
 
   /**
    * 与 store 对账：新增/删除/移动内容块之后，服务端才是权威——
@@ -338,6 +362,7 @@ export default function NodePage(): React.JSX.Element {
           <div className="np-head">
             <input
               className="np-title"
+              ref={titleRef}
               defaultValue={node.title}
               key={node.id}
               aria-label="章节标题"
@@ -377,6 +402,26 @@ export default function NodePage(): React.JSX.Element {
                   只读
                 </span>
               )}
+              <div className="np-history">
+                <button
+                  type="button"
+                  className="np-history-btn"
+                  disabled={!historyState.canUndo}
+                  title={historyState.undoLabel ? `撤销：${historyState.undoLabel}` : '撤销'}
+                  onClick={() => void undo()}
+                >
+                  撤销
+                </button>
+                <button
+                  type="button"
+                  className="np-history-btn"
+                  disabled={!historyState.canRedo}
+                  title={historyState.redoLabel ? `重做：${historyState.redoLabel}` : '重做'}
+                  onClick={() => void redo()}
+                >
+                  重做
+                </button>
+              </div>
             </div>
           </div>
 
