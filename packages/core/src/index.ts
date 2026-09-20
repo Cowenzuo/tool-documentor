@@ -66,6 +66,18 @@ export {
 } from './anchor'
 export type { ProjectAnchor } from './anchor'
 export { buildTreeFromInstance } from './instance'
+export {
+  HistoryStack,
+  HISTORY_COALESCE_MS,
+  HISTORY_MAX_STEPS,
+  HISTORY_MAX_BYTES
+} from './history'
+export type {
+  HistoryEntry,
+  HistoryPushInput,
+  HistoryStackOptions,
+  HistoryState
+} from './history'
 export type {
   InstanceFile,
   InstanceNodeJson,

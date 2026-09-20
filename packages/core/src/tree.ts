@@ -231,6 +231,56 @@ export class DocumentNode {
     }
     return clone
   }
+
+  /**
+   * 结构快照：与 deepClone 的区别是**保真**——保留 id、copyable、deletable 等全部状态字段，
+   * parent 置空。撤销与重做拿它存档，所以不能借用 deepClone 那套"克隆体"语义
+   * （deepClone 会给新 id、并把复制与删除权限改成克隆体的默认值）。
+   */
+  snapshot(): DocumentNode {
+    const copy = new DocumentNode(this.headingLevel, this.id)
+    copy.title = this.title
+    copy.description = this.description
+    copy.copyable = this.copyable
+    copy.deletable = this.deletable
+    copy.allowContentBlocks = this.allowContentBlocks
+    copy.isSubTitle = this.isSubTitle
+    copy.subTitleStyle = this.subTitleStyle
+    copy.subTitleAutoNumber = this.subTitleAutoNumber
+    copy.allowedChildLevels = [...this.allowedChildLevels]
+    copy.copyGroupId = this.copyGroupId
+    copy.contentBlocks = this.contentBlocks.map((block) => cloneBlock(block))
+    copy.children = this.children.map((child) => {
+      const childCopy = child.snapshot()
+      childCopy.parent = copy
+      return childCopy
+    })
+    return copy
+  }
+
+  /**
+   * 用快照恢复本节点的状态（id 与 parent 保持本节点的）。
+   * 直接替换 children 与 contentBlocks，不走 addChild 那套校验：快照里的状态当初就是合法的。
+   */
+  restoreFrom(snapshot: DocumentNode): void {
+    this.headingLevel = snapshot.headingLevel
+    this.title = snapshot.title
+    this.description = snapshot.description
+    this.copyable = snapshot.copyable
+    this.deletable = snapshot.deletable
+    this.allowContentBlocks = snapshot.allowContentBlocks
+    this.isSubTitle = snapshot.isSubTitle
+    this.subTitleStyle = snapshot.subTitleStyle
+    this.subTitleAutoNumber = snapshot.subTitleAutoNumber
+    this.allowedChildLevels = [...snapshot.allowedChildLevels]
+    this.copyGroupId = snapshot.copyGroupId
+    this.contentBlocks = snapshot.contentBlocks.map((block) => cloneBlock(block))
+    this.children = snapshot.children.map((child) => {
+      const childCopy = child.snapshot()
+      childCopy.parent = this
+      return childCopy
+    })
+  }
 }
 
 function toAlpha(value: number): string {

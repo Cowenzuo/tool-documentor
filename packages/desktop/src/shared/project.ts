@@ -52,6 +52,32 @@ export interface SaveResult {
   savedAt: string
 }
 
+/** 撤销栈的界面状态：按钮置灰、悬停提示与历史列表都用它 */
+export interface HistoryStateDto {
+  canUndo: boolean
+  canRedo: boolean
+  /** 最近一步可撤销动作的名字，栈空为 null */
+  undoLabel: string | null
+  redoLabel: string | null
+  steps: number
+  /** 已应用的步骤名，旧到新；界面倒序显示，最近一步在最上面 */
+  undoLabels: string[]
+  /** 已撤销的步骤名，下一个要重做的排在最前 */
+  redoLabels: string[]
+}
+
+/** 跳到历史中的某一步：keep = 保留多少步已应用的编辑，0 表示回到最初 */
+export interface HistoryJumpInput {
+  keep: number
+}
+
+/** 撤销与重做的返回：与打开工程同形状，界面整棵替换 */
+export interface HistoryResultDto extends ProjectOpenResult {
+  history: HistoryStateDto
+  /** 这一步动的章节 id，界面选中的章节若已不存在就退到它 */
+  focusNodeId: string | null
+}
+
 /** 交付前检查：只报会影响导出结果的问题 */
 export interface PrecheckResult {
   images: { total: number; missing: string[] }
@@ -162,6 +188,12 @@ export const ProjectIpc = {
   ProjectPrecheck: 'project:precheck',
 
   TreeGetRoot: 'tree:get-root',
+  /** 撤销与重做：会话级历史，返回与打开工程同形状的载荷 */
+  HistoryUndo: 'history:undo',
+  HistoryRedo: 'history:redo',
+  HistoryState: 'history:state',
+  /** 跳到历史中的某一步 */
+  HistoryJump: 'history:jump',
   NodeUpdateTitle: 'node:update-title',
   NodeUpdateDescription: 'node:update-description',
   NodeCopy: 'node:copy',
@@ -285,6 +317,15 @@ export interface DesktopTreeApi {
   updateDescription(input: NodeDescriptionInput): Promise<void>
   copy(input: NodeCopyInput): Promise<CopyNodeResult>
   delete(input: NodeDeleteInput): Promise<void>
+}
+
+/** 撤销与重做：栈是会话级的，跟当前打开的工程走 */
+export interface DesktopHistoryApi {
+  undo(): Promise<HistoryResultDto>
+  redo(): Promise<HistoryResultDto>
+  state(): Promise<HistoryStateDto>
+  /** 跳到第 keep 步之后的状态，0 表示回到最初 */
+  jump(input: HistoryJumpInput): Promise<HistoryResultDto>
 }
 
 export interface DesktopBlockApi {

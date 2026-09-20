@@ -15,6 +15,7 @@ import type {
   CreateProjectInput,
   ExportDocxInput,
   FileWriteBytesInput,
+  HistoryJumpInput,
   ImageImportInput,
   NodeCopyInput,
   NodeDeleteInput,
@@ -84,6 +85,13 @@ const api: DesktopApi = {
       invoke(ProjectIpc.ImageImport, input) as ReturnType<DesktopApi['block']['importImage']>,
     writeBytes: (input: FileWriteBytesInput) =>
       invoke(ProjectIpc.FileWriteBytes, input) as ReturnType<DesktopApi['block']['writeBytes']>
+  },
+  history: {
+    undo: () => invoke(ProjectIpc.HistoryUndo) as ReturnType<DesktopApi['history']['undo']>,
+    redo: () => invoke(ProjectIpc.HistoryRedo) as ReturnType<DesktopApi['history']['redo']>,
+    state: () => invoke(ProjectIpc.HistoryState) as ReturnType<DesktopApi['history']['state']>,
+    jump: (input: HistoryJumpInput) =>
+      invoke(ProjectIpc.HistoryJump, input) as ReturnType<DesktopApi['history']['jump']>
   },
   uiState: {
     save: (key: string, value: string) =>

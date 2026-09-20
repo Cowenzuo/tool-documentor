@@ -15,6 +15,9 @@ import {
   bodyRowCount,
   checkTableShape,
   dbPathOf,
+  HISTORY_MAX_BYTES,
+  HISTORY_MAX_STEPS,
+  HistoryStack,
   localIsoNow,
   ProjectStore,
   readAnchor,
@@ -38,6 +41,9 @@ import type {
   ExportDocxInput,
   ExportDocxResult,
   FileWriteBytesInput,
+  HistoryResultDto,
+  HistoryStateDto,
+  HistoryJumpInput,
   ImageImportInput,
   NodeCopyInput,
   NodeDeleteInput,
@@ -53,12 +59,27 @@ import { toNodeDto } from './dto'
 
 export class ProjectServiceError extends Error {}
 
+/**
+ * 一步撤销的存档：`nodeId` 是这份快照覆盖的那个节点（子树），撤销与重做都写回它。
+ * 只存受影响的子树而不是整棵树：代价与子树成正比，不随章节数放大。
+ */
+interface TreeSnapshot {
+  nodeId: string
+  node: DocumentNode
+}
+
 export class ProjectService {
   private treeValue: DocumentTree | null = null
   private anchorValue: ProjectAnchor | null = null
   private projectDirValue = ''
   private store = new ProjectStore()
   private managerValue: TemplateManager
+  /** 会话级撤销栈：跟着当前打开的工程走，开关工程时清空 */
+  private readonly history = new HistoryStack<TreeSnapshot>({
+    maxSteps: HISTORY_MAX_STEPS,
+    maxBytes: HISTORY_MAX_BYTES,
+    measure: estimateSnapshotBytes
+  })
 
   constructor(manager: TemplateManager) {
     this.managerValue = manager
@@ -135,6 +156,8 @@ export class ProjectService {
     this.treeValue = tree
     this.anchorValue = anchor
     this.projectDirValue = projectDir
+    // 历史不跨工程：新工程从空栈开始
+    this.history.clear()
     return this.openResult()
   }
 
@@ -158,12 +181,16 @@ export class ProjectService {
     }
     this.anchorValue = anchor
     this.projectDirValue = projectDir
+    // 历史不跨工程：换一个工程就从空栈开始
+    this.history.clear()
     return this.openResult()
   }
 
   saveProject(): SaveResult {
     const tree = this.requireTree()
     this.store.save(tree)
+    // 落库即封口：保存前后的编辑不并成一步，免得撤销跨过一次保存
+    this.history.seal()
     const now = localIsoNow()
     if (this.anchorValue) {
       this.anchorValue = { ...this.anchorValue, updated_at: now }
@@ -194,6 +221,7 @@ export class ProjectService {
     this.anchorValue = null
     this.projectDirValue = ''
     this.store.close()
+    this.history.clear()
   }
 
   projectInfo(): ProjectInfoDto {
@@ -221,15 +249,20 @@ export class ProjectService {
   }
 
   // ================= 树变更 =================
+  // 会改树的方法一律套 withSnapshot：先验后改，拒绝的写入不入栈
 
   setNodeTitle(input: NodeTitleInput): void {
     const node = this.requireNode(input.nodeId)
-    node.title = input.title
+    this.withSnapshot('修改标题', node, `node:title:${node.id}`, () => {
+      node.title = input.title
+    })
   }
 
   setNodeDescription(input: NodeDescriptionInput): void {
     const node = this.requireNode(input.nodeId)
-    node.description = input.description
+    this.withSnapshot('修改编制说明', node, `node:desc:${node.id}`, () => {
+      node.description = input.description
+    })
   }
 
   copyNode(input: NodeCopyInput): CopyNodeResult {
@@ -238,10 +271,13 @@ export class ProjectService {
     if (!node.copyable) throw new ProjectServiceError('该章节不允许复制')
     const parent = node.parent
     if (!parent) throw new ProjectServiceError('找不到上级章节')
-    const clone = node.deepClone()
-    const index = parent.children.indexOf(node) + 1
-    parent.insertChildAt(index, clone)
-    return { node: toNodeDto(clone), index }
+    // 动的是父节点的子级名单，快照存父节点
+    return this.withSnapshot('复制章节', parent, null, () => {
+      const clone = node.deepClone()
+      const index = parent.children.indexOf(node) + 1
+      parent.insertChildAt(index, clone)
+      return { node: toNodeDto(clone), index }
+    })
   }
 
   deleteNode(input: NodeDeleteInput): void {
@@ -250,7 +286,10 @@ export class ProjectService {
     if (!node.deletable) throw new ProjectServiceError('该章节不允许删除')
     const parent = node.parent
     if (!parent) throw new ProjectServiceError('找不到上级章节')
-    parent.removeChild(node)
+    // 同复制：动的是父节点的子级名单，快照存父节点
+    this.withSnapshot('删除章节', parent, null, () => {
+      parent.removeChild(node)
+    })
   }
 
   /**
@@ -274,13 +313,15 @@ export class ProjectService {
     const node = this.requireNode(input.nodeId)
     this.assertBlocksAllowed(node)
     const block = createBlock(input.type)
-    // 带 index 就是"插到这一项之前"，不带就追加到末尾
-    if (typeof input.index === 'number') {
-      node.insertContentBlock(input.index, block)
-    } else {
-      node.addContentBlock(block)
-    }
-    return node.contentBlocks.length
+    return this.withSnapshot('添加内容', node, null, () => {
+      // 带 index 就是"插到这一项之前"，不带就追加到末尾
+      if (typeof input.index === 'number') {
+        node.insertContentBlock(input.index, block)
+      } else {
+        node.addContentBlock(block)
+      }
+      return node.contentBlocks.length
+    })
   }
 
   removeBlock(input: BlockIndexInput): number {
@@ -291,10 +332,12 @@ export class ProjectService {
     if (isBlockPinned(existing.lock)) {
       throw new ProjectServiceError(lockRefusal(existing.lock, 'remove'))
     }
-    if (!node.removeContentBlockAt(input.index)) {
-      throw new ProjectServiceError('内容位置不对，请刷新后重试')
-    }
-    return node.contentBlocks.length
+    return this.withSnapshot('删除内容', node, null, () => {
+      if (!node.removeContentBlockAt(input.index)) {
+        throw new ProjectServiceError('内容位置不对，请刷新后重试')
+      }
+      return node.contentBlocks.length
+    })
   }
 
   moveBlock(input: BlockMoveInput): void {
@@ -308,7 +351,9 @@ export class ProjectService {
         throw new ProjectServiceError(lockRefusal(block.lock, 'move'))
       }
     }
-    node.swapContentBlocks(input.from, input.to)
+    this.withSnapshot('移动内容', node, null, () => {
+      node.swapContentBlocks(input.from, input.to)
+    })
   }
 
   updateBlock(input: BlockUpdateInput): void {
@@ -327,8 +372,11 @@ export class ProjectService {
       throw new ProjectServiceError(lockRefusal(existing.lock, 'edit'))
     }
     assertTableShape(input.block)
-    // 锁随模板来，不随写入方来：落库的档位一律以原块为准，免得被清掉
-    node.contentBlocks[input.index] = { ...structuredClone(input.block), lock: existing.lock }
+    // 同一块同一位置连续编辑按停顿合并成一步
+    this.withSnapshot('修改内容', node, `block:update:${node.id}:${input.index}`, () => {
+      // 锁随模板来，不随写入方来：落库的档位一律以原块为准，免得被清掉
+      node.contentBlocks[input.index] = { ...structuredClone(input.block), lock: existing.lock }
+    })
   }
 
   importImage(input: ImageImportInput): { imagePath: string } {
@@ -342,6 +390,8 @@ export class ProjectService {
     if (existing.lock === 'readonly') {
       throw new ProjectServiceError(lockRefusal(existing.lock, 'edit'))
     }
+    // 这里只把文件复制进工程目录，不动树，所以不入栈；
+    // 换图真正落到树上是随后的 updateBlock，那一步自己带快照
     const ext = extname(input.srcPath).toLowerCase()
     const imageName = `${randomUUID()}${ext}`
     const imagesDir = join(this.projectDirValue, 'images')
@@ -383,6 +433,77 @@ export class ProjectService {
     const mime = mimeOf(extname(target))
     const data = readFileSync(target)
     return `data:${mime};base64,${data.toString('base64')}`
+  }
+
+  // ================= 撤销与重做 =================
+
+  /** 撤销最近一步：把该步的"改动前"子树写回，整树交回界面替换 */
+  undo(): HistoryResultDto {
+    const entry = this.history.undo()
+    if (!entry) throw new ProjectServiceError('没有可撤销的编辑')
+    return this.applyHistoryStep(entry.before)
+  }
+
+  /** 重做最近撤销的一步：写回该步的"改动后"子树 */
+  redo(): HistoryResultDto {
+    const entry = this.history.redo()
+    if (!entry) throw new ProjectServiceError('没有可重做的编辑')
+    return this.applyHistoryStep(entry.after)
+  }
+
+  /** 界面用：按钮置灰、悬停提示与历史列表（bytes 不给界面，只用于栈自己的上限） */
+  historyState(): HistoryStateDto {
+    const state = this.history.state()
+    return {
+      canUndo: state.canUndo,
+      canRedo: state.canRedo,
+      undoLabel: state.undoLabel,
+      redoLabel: state.redoLabel,
+      steps: state.steps,
+      undoLabels: this.history.undoLabels(),
+      redoLabels: this.history.redoLabels()
+    }
+  }
+
+  /**
+   * 跳到历史中的某一步：界面点历史列表里的某一条就走这里。
+   * keep 是保留多少步已应用的编辑，界面会把越界值夹在 0 到总步数之间，这里再夹一次。
+   */
+  jump(input: HistoryJumpInput): HistoryResultDto {
+    const total = this.history.undoLabels().length + this.history.redoLabels().length
+    const keep = Math.max(0, Math.min(total, Math.trunc(input.keep)))
+    let focusNodeId: string | null = null
+    let guard = 0
+    while (this.history.state().steps > keep && guard < 10000) {
+      const entry = this.history.undo()
+      if (!entry) break
+      this.restoreSnapshot(entry.before)
+      focusNodeId = entry.before.nodeId
+      guard += 1
+    }
+    while (this.history.state().steps < keep && guard < 10000) {
+      const entry = this.history.redo()
+      if (!entry) break
+      this.restoreSnapshot(entry.after)
+      focusNodeId = entry.after.nodeId
+      guard += 1
+    }
+    return { ...this.openResult(), history: this.historyState(), focusNodeId }
+  }
+
+  private applyHistoryStep(snapshot: TreeSnapshot): HistoryResultDto {
+    this.restoreSnapshot(snapshot)
+    return { ...this.openResult(), history: this.historyState(), focusNodeId: snapshot.nodeId }
+  }
+
+  /**
+   * 写回一份子树快照。撤销按后进先出，所以快照覆盖的节点通常都还在；
+   * 万一它已经不在了（栈上更早的步骤才把它删掉），退回根，至少不把这一步丢掉。
+   */
+  private restoreSnapshot(snapshot: TreeSnapshot): void {
+    const tree = this.requireTree()
+    const live = tree.nodeById(snapshot.nodeId) ?? tree.root
+    live.restoreFrom(snapshot.node)
   }
 
   // ================= UI 状态 =================
@@ -496,8 +617,9 @@ export class ProjectService {
     if (!styleDef) {
       throw new ProjectServiceError(`未找到样式模板：${input.styleFileKey}`)
     }
-    // 导出前先落库，保证导出内容与当前编辑一致
+    // 导出前先落库，保证导出内容与当前编辑一致；落库即封口，与保存同一口径
     this.store.save(tree)
+    this.history.seal()
     // 图块链路自动执行（无“占位/预览”用户选项）：Mermaid → VSDX → OLE 嵌入；
     // 预览 = 上游转换附带物（无则为无预览嵌入）；mmd2vsdx 不可用自动降级为文本占位 + 警告
     const withFigs = await exportTreeToDocxWithFigures(tree, styleDef, input.outputPath, {
@@ -523,6 +645,24 @@ export class ProjectService {
     const node = this.requireTree().nodeById(nodeId)
     if (!node) throw new ProjectServiceError('找不到该章节，可能已被删除')
     return node
+  }
+
+  /**
+   * 在快照包裹下执行一次树变更：入口留"改动前"，成功后留"改动后"，并入一步栈。
+   * `scope` 是被改的那个节点（改子级名单的操作传父节点），`coalesceKey` 为 null 表示
+   * 这一步不与任何步骤合并。action 抛错就原样抛出且不入栈——被拒绝的写入等于没发生。
+   */
+  private withSnapshot<T>(
+    label: string,
+    scope: DocumentNode,
+    coalesceKey: string | null,
+    action: () => T
+  ): T {
+    const before: TreeSnapshot = { nodeId: scope.id, node: scope.snapshot() }
+    const result = action()
+    const after: TreeSnapshot = { nodeId: scope.id, node: scope.snapshot() }
+    this.history.push({ label, before, after, coalesceKey })
+    return result
   }
 
   private assertBlocksAllowed(node: DocumentNode): void {
@@ -598,4 +738,23 @@ async function isMermaidConversionAvailable(): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+/** 一个节点固有字段（级别/权限/复制组/子级名单）折算成的固定开销 */
+const NODE_OVERHEAD_BYTES = 128
+
+/**
+ * 一条快照占多少字节：递归累加标题、编制说明与各内容块的长度。
+ * 只逐块 stringify，不对整棵树 stringify（那样既慢，又会被 parent 环挡住）；
+ * 目的是让栈的字节上限生效，量级对就够，不追求精确（中文按字符数算，偏低估）。
+ */
+function estimateSnapshotBytes(snapshot: TreeSnapshot): number {
+  return estimateNodeBytes(snapshot.node)
+}
+
+function estimateNodeBytes(node: DocumentNode): number {
+  let bytes = NODE_OVERHEAD_BYTES + node.title.length + node.description.length
+  for (const block of node.contentBlocks) bytes += JSON.stringify(block).length
+  for (const child of node.children) bytes += estimateNodeBytes(child)
+  return bytes
 }

@@ -1,5 +1,6 @@
 /**
- * 主编辑界面：结构栏(可拖宽) + 节点页/预览（视图开关在节点页顶部右侧）+ 底部状态栏。
+ * 主编辑界面：结构栏(可拖宽) + 节点页/预览（工具行：左侧撤销/重做与历史，右侧视图开关）
+ * + 底部状态栏。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useApp } from '../state/AppContext'
@@ -8,6 +9,7 @@ import NodePage from '../components/editor/NodePage'
 import StatusBar from '../components/editor/StatusBar'
 import { PreviewPage } from '../components/editor/PreviewPage'
 import { ViewToggle } from '../components/editor/ViewToggle'
+import { HistoryControls } from '../components/editor/HistoryControls'
 import '../components/editor/editor.css'
 
 export type EditorView = 'edit' | 'preview'
@@ -116,6 +118,7 @@ export default function Editor(): React.JSX.Element {
         />
         <div className="editor-stage">
           <div className="stage-toolbar">
+            <HistoryControls />
             <ViewToggle view={view} onViewChange={changeView} />
           </div>
           {view === 'edit' ? <NodePage /> : <PreviewPage />}
