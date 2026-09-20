@@ -14,6 +14,8 @@ import type {
   ExportDocxInput,
   FileWriteBytesInput,
   FigureCountsDto,
+  HistoryResultDto,
+  HistoryStateDto,
   ImageImportInput,
   NodeCopyInput,
   NodeDeleteInput,
@@ -122,6 +124,12 @@ export function registerProjectIpc(service: ProjectService): void {
     (input) => service.copyNode(input)
   )
   handle<NodeDeleteInput, void>(ProjectIpc.NodeDelete, (input) => service.deleteNode(input))
+
+  // ---------- 撤销与重做 ----------
+  // 返回与打开工程同形状的整树 + 历史状态，界面整棵替换
+  handle<void, HistoryResultDto>(ProjectIpc.HistoryUndo, () => service.undo())
+  handle<void, HistoryResultDto>(ProjectIpc.HistoryRedo, () => service.redo())
+  handle<void, HistoryStateDto>(ProjectIpc.HistoryState, () => service.historyState())
 
   // ---------- 内容块 ----------
   handle<BlockAddInput, number>(ProjectIpc.BlockAdd, (input) => service.addBlock(input))

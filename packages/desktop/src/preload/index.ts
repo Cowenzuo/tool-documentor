@@ -85,6 +85,11 @@ const api: DesktopApi = {
     writeBytes: (input: FileWriteBytesInput) =>
       invoke(ProjectIpc.FileWriteBytes, input) as ReturnType<DesktopApi['block']['writeBytes']>
   },
+  history: {
+    undo: () => invoke(ProjectIpc.HistoryUndo) as ReturnType<DesktopApi['history']['undo']>,
+    redo: () => invoke(ProjectIpc.HistoryRedo) as ReturnType<DesktopApi['history']['redo']>,
+    state: () => invoke(ProjectIpc.HistoryState) as ReturnType<DesktopApi['history']['state']>
+  },
   uiState: {
     save: (key: string, value: string) =>
       invoke(ProjectIpc.UiStateSave, { key, value }) as Promise<void>,

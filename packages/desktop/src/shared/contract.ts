@@ -8,6 +8,7 @@ import type {
   DesktopDialogApi,
   DesktopExportApi,
   DesktopFileApi,
+  DesktopHistoryApi,
   DesktopProjectApi,
   DesktopSettingsApi,
   DesktopTemplatesApi,
@@ -57,6 +58,7 @@ export interface DesktopApi {
   project: DesktopProjectApi
   tree: DesktopTreeApi
   block: DesktopBlockApi
+  history: DesktopHistoryApi
   uiState: DesktopUiStateApi
   dialog: DesktopDialogApi
   export: DesktopExportApi
