@@ -26,6 +26,7 @@
             "contentBlocks": [
               {
                 "type": "orderedList",
+                "lock": "keep",
                 "items": ["条目一：示例", "条目二：示例", "条目三：示例"]
               }
             ]
@@ -35,7 +36,7 @@
             "title": "概述",
             "headingLevel": 2,
             "contentBlocks": [
-              { "type": "text", "content": "这是一段示例正文，用于验证文本块的编辑与导出。" }
+              { "type": "text", "lock": "readonly", "content": "这是一段示例正文，用于验证文本块的编辑与导出。" }
             ]
           }
         ]
@@ -65,6 +66,7 @@
         "contentBlocks": [
           {
             "type": "mermaid",
+            "lock": "type",
             "caption": "图1 示例流程",
             "content": "graph TD\n  A[示例] --> B[流程]"
           },
