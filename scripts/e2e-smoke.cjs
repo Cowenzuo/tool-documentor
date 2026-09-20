@@ -344,57 +344,54 @@ function checkResult(data) {
     `菜单打开后焦点没有落到可用项上：${data.menuFocus}`
   )
   need(data.menuClosed === true, 'Esc 没有关掉章节菜单')
-  // 表格合并的补齐动作：按钮在、无可补时不改数据、有可补时确认后写跨度且内容不动。
+  // 表格纵向合并：勾选就是合并、取消就是散开，界面上没有第二次操作。
   // 断言放在样例模板里唯一一张表上（表格在「引用文档」，需求章节没有表格块）。
-  need(data.tableCompleteBtn === true, '表格编辑器缺少「补齐合并」按钮')
+  need(data.tableMergeCheckboxFound === true, '表格编辑器里没有纵向合并的勾选框')
   need(
-    typeof data.tableNoopHint === 'string' && data.tableNoopHint.includes('没有可补齐的合并'),
-    `没有可补的合并时缺少提示：${data.tableNoopHint}`
+    data.tableCompleteBtnGone === true,
+    '「补齐合并」按钮还在：合并不该需要第二次操作'
+  )
+  need(data.tableMergeCheckedAtStart === true, '样例表格的纵向合并默认没有勾上')
+  need(
+    Array.isArray(data.tableCellValuesMergeable) &&
+      JSON.stringify(data.tableCellValuesMergeable) === JSON.stringify(['1', '1']),
+    `制造可合并的相邻同值时内容不对：${JSON.stringify(data.tableCellValuesMergeable)}`
   )
   need(
-    data.tableSpanBefore === null && data.tableSpanAfterNoop === null,
-    `没有可补的合并时 rowSpans 被动了：${JSON.stringify(data.tableSpanBefore)} → ` +
-      `${JSON.stringify(data.tableSpanAfterNoop)}`
+    data.tableMergedCellsWhileChecked === 1,
+    `勾选状态下没有把第 2 行标成续格：${data.tableMergedCellsWhileChecked}`
+  )
+  need(data.tableMergeUnchecked === true, '取消勾选没有生效')
+  need(
+    data.tableMergedCellsAfterUncheck === 0,
+    `取消勾选后合并没有散开：${data.tableMergedCellsAfterUncheck}`
   )
   need(
-    Array.isArray(data.tableCellValuesAfterNoop) &&
-      JSON.stringify(data.tableCellValuesAfterNoop) === JSON.stringify(data.tableCellValuesBefore),
-    `无补可补时单元格内容就变了：${JSON.stringify(data.tableCellValuesBefore)} → ` +
-      `${JSON.stringify(data.tableCellValuesAfterNoop)}`
+    Array.isArray(data.tableCellValuesAfterUncheck) &&
+      JSON.stringify(data.tableCellValuesAfterUncheck) === JSON.stringify(['1', '1']),
+    `取消勾选动了单元格内容：${JSON.stringify(data.tableCellValuesAfterUncheck)}`
   )
   need(
-    typeof data.tableConfirmText === 'string' && data.tableConfirmText.includes('将补齐 1 处合并'),
-    `补齐前没有报出补几处：${data.tableConfirmText}`
-  )
-  need(data.tableConfirmBtn === true, '补齐确认里缺少确认按钮')
-  need(
-    JSON.stringify(data.tableSpansAfterComplete) === JSON.stringify({ 0: [[0, 2]] }),
-    `确认补齐后 rowSpans 不对：${JSON.stringify(data.tableSpansAfterComplete)}`
+    data.tableSpanAfterUncheck === null,
+    `合并开关不该往数据里写跨度：${JSON.stringify(data.tableSpanAfterUncheck)}`
   )
   need(
-    data.tableCoveredCells === 1,
-    `补齐后编辑区没有把第 2 行标成续格：${data.tableCoveredCells}`
+    data.tableMergedCellsRechecked === 1,
+    `再勾上时合并没有回来：${data.tableMergedCellsRechecked}`
   )
   need(
-    Array.isArray(data.tableCellValuesAfterComplete) &&
-      JSON.stringify(data.tableCellValuesAfterComplete) === JSON.stringify(data.tableCellValuesBeforeComplete),
-    `补齐写跨度时改动了单元格内容：${JSON.stringify(data.tableCellValuesBeforeComplete)} → ` +
-      `${JSON.stringify(data.tableCellValuesAfterComplete)}`
+    data.tableMergedCellsAfterUndo === 0 && data.tableMergeCheckedAfterUndo === true,
+    `撤销没有把勾选退回去：续格 ${data.tableMergedCellsAfterUndo}，勾选状态 ${data.tableMergeCheckedAfterUndo}`
   )
   need(
-    !(typeof data.tableToast === 'string' && data.tableToast.includes('失败')),
-    `补齐合并不该报错：${data.tableToast}`
+    data.tableMergedCellsFinal === 1,
+    `最后一次勾上没有把合并带回来：${data.tableMergedCellsFinal}`
   )
-  // 缩表后按新尺寸重算 rowSpans：缩列时界内的跨度留着，缩行时越界的跨度裁掉。
-  // 缺陷现场：applySize 原样透传 rowSpans，缩表后旧跨度留在数据里，导出与预览的合并落到表外。
+  // 缩表：确认对话框照旧，数据不动，合并按新尺寸重新判定
   need(
     typeof data.tableShrinkColConfirmText === 'string' &&
       data.tableShrinkColConfirmText.includes('会丢失'),
     `缩列前没有报出会丢内容：${data.tableShrinkColConfirmText}`
-  )
-  need(
-    JSON.stringify(data.tableSpansAfterColShrink) === JSON.stringify({ 0: [[0, 2]] }),
-    `缩列把仍在界内的跨度也动了：${JSON.stringify(data.tableSpansAfterColShrink)}`
   )
   need(
     data.tableCoveredCellsAfterColShrink === 1,
@@ -407,7 +404,7 @@ function checkResult(data) {
   )
   need(
     data.tableSpansAfterRowShrink === null,
-    `缩行后越界的跨度没有被裁掉：${JSON.stringify(data.tableSpansAfterRowShrink)}`
+    `缩表不该往数据里写跨度：${JSON.stringify(data.tableSpansAfterRowShrink)}`
   )
   need(
     data.tableCoveredCellsAfterRowShrink === 0,

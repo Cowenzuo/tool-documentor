@@ -549,10 +549,8 @@ function createMainWindow(): void {
               await sleep(300);
             }
           }
-          // 表格合并的补齐动作：样例模板里表格在「引用文档」，需求章节没有表格块，
-          // 所以这一段按表格所在章节驱动。分两次点：
-          // 第一次这张表两行内容不同，没有可补的合并，只提示、不改数据；
-          // 第二次先把同列相邻两格改成同值，补齐应当报出 1 处并在确认后写出 rowSpans。
+          // 表格纵向合并：勾选就是合并，取消就是散开，界面不该再有第二次操作。
+          // 样例模板里表格在「引用文档」，这一段按表格所在章节驱动。
           const tableRow = [...document.querySelectorAll('.tree-row')].find((r) => r.textContent.includes('引用文档'));
           if (tableRow) {
             tableRow.click();
@@ -561,6 +559,7 @@ function createMainWindow(): void {
             const tableCell = (r, c) => document.querySelector('.be-table-cell[data-cell="' + r + ':' + c + '"]');
             const cellText = (r, c) => { const el = tableCell(r, c); return el ? el.value : null; };
             const values = () => [cellText(0, 0), cellText(1, 0)];
+            const mergedCount = () => document.querySelectorAll('.be-table-cell-merged').length;
             const readSpans = async () => {
               const res = await window.documentor.project.treeGetRoot();
               const walk = (n) => {
@@ -576,65 +575,71 @@ function createMainWindow(): void {
               const tbl = ((node && node.contentBlocks) || []).find((b) => b.type === 'table');
               return tbl ? (tbl.rowSpans || null) : null;
             };
-            const completeBtn = document.querySelector('.be-table-merge-complete');
-            out.tableCompleteBtn = !!completeBtn;
+            const mergeBox = document.querySelector('.be-table-merge input[type="checkbox"]');
+            out.tableMergeCheckboxFound = !!mergeBox;
+            out.tableCompleteBtnGone = document.querySelector('.be-table-merge-complete') === null;
             out.tableSpanBefore = await readSpans();
             out.tableCellValuesBefore = values();
-            if (completeBtn) {
-              completeBtn.click();
-              await sleep(350);
-              out.tableNoopHint = (document.querySelector('.be-table-complete-hint') || {}).textContent || null;
-              out.tableSpanAfterNoop = await readSpans();
-              out.tableCellValuesAfterNoop = values();
-              // 制造一处可补的合并：把第二行第一格改成与上一行同值
-              setNative(tableCell(1, 0), '1');
-              await sleep(350);
-              out.tableCellValuesBeforeComplete = values();
-              completeBtn.click();
-              await sleep(350);
-              const confirmBox = document.querySelector('.be-table-confirm[aria-label="确认补齐合并"]');
-              out.tableConfirmText = confirmBox ? confirmBox.textContent : null;
-              const confirmBtn = document.querySelector('.be-table-complete-confirm');
-              out.tableConfirmBtn = !!confirmBtn;
-              if (confirmBtn) {
-                confirmBtn.click();
-                await sleep(700);
-                out.tableSpansAfterComplete = await readSpans();
-                out.tableCellValuesAfterComplete = values();
-                out.tableCoveredCells = document.querySelectorAll('.be-table-cell-merged').length;
-                out.tableToast = document.querySelector('.toast') ? document.querySelector('.toast').textContent : null;
-              }
-              // 缩表后跨度必须按新尺寸重算（只动跨度、不动 data）：
-              // 先缩列（3 → 2），第 0 列的跨度仍在界内，应当原样留着；
-              // 再缩行（2 → 1），跨两行的跨度整段落到表外，应当被裁掉。
-              // 旧实现把 rowSpans 原样透传，缩表后越界的跨度留在数据里，导出与预览的合并落到表外。
-              const sizeInput = (i) => document.querySelectorAll('.be-table-size input')[i];
-              const shrinkTo = async (i, value) => {
-                const input = sizeInput(i);
-                if (!input) return null;
-                setNative(input, String(value));
-                await sleep(350);
-                const box = document.querySelector('.be-table-confirm[aria-label="确认缩减表格"]');
-                const text = box ? box.textContent : null;
-                const btn = box ? box.querySelector('.be-btn.danger-text') : null;
-                if (btn) {
-                  btn.click();
-                  await sleep(700);
-                }
-                return text;
-              };
-              out.tableShrinkColConfirmText = await shrinkTo(1, 2);
-              out.tableSpansAfterColShrink = await readSpans();
-              out.tableCoveredCellsAfterColShrink = document.querySelectorAll('.be-table-cell-merged').length;
-              out.tableShrinkRowConfirmText = await shrinkTo(0, 1);
-              out.tableSpansAfterRowShrink = await readSpans();
-              out.tableCoveredCellsAfterRowShrink = document.querySelectorAll('.be-table-cell-merged').length;
-              out.tableSizeAfterShrink = [
-                sizeInput(0) ? sizeInput(0).value : null,
-                sizeInput(1) ? sizeInput(1).value : null
-              ];
-              out.tableCellValuesAfterRowShrink = values();
+            out.tableMergeCheckedAtStart = mergeBox ? mergeBox.checked === true : null;
+            // 制造一处可合并的相邻同值：第二行第一格改成与上一行同值
+            setNative(tableCell(1, 0), '1');
+            await sleep(500);
+            out.tableCellValuesMergeable = values();
+            out.tableMergedCellsWhileChecked = mergedCount();
+            // 取消勾选：合并散开，单元格内容还在原处
+            if (mergeBox) {
+              mergeBox.click();
+              await sleep(800);
             }
+            out.tableMergeUnchecked = mergeBox ? mergeBox.checked === false : null;
+            out.tableMergedCellsAfterUncheck = mergedCount();
+            out.tableCellValuesAfterUncheck = values();
+            out.tableSpanAfterUncheck = await readSpans();
+            // 勾回来：又合上
+            if (mergeBox) {
+              mergeBox.click();
+              await sleep(800);
+            }
+            out.tableMergedCellsRechecked = mergedCount();
+            // 勾选本身就是一步编辑，撤销能退回去
+            window.dispatchEvent(
+              new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true, cancelable: true })
+            );
+            await sleep(800);
+            out.tableMergedCellsAfterUndo = mergedCount();
+            out.tableMergeCheckedAfterUndo = mergeBox ? mergeBox.checked === false : null;
+            // 回到勾选：缩表要在自动合并打开的状态下看
+            if (mergeBox) {
+              mergeBox.click();
+              await sleep(800);
+            }
+            out.tableMergedCellsFinal = mergedCount();
+            // 缩表：确认对话框照旧，数据不动，合并按新尺寸重新判定
+            const sizeInput = (i) => document.querySelectorAll('.be-table-size input')[i];
+            const shrinkTo = async (i, value) => {
+              const input = sizeInput(i);
+              if (!input) return null;
+              setNative(input, String(value));
+              await sleep(350);
+              const box = document.querySelector('.be-table-confirm[aria-label="确认缩减表格"]');
+              const text = box ? box.textContent : null;
+              const btn = box ? box.querySelector('.be-btn.danger-text') : null;
+              if (btn) {
+                btn.click();
+                await sleep(700);
+              }
+              return text;
+            };
+            out.tableShrinkColConfirmText = await shrinkTo(1, 2);
+            out.tableCoveredCellsAfterColShrink = mergedCount();
+            out.tableShrinkRowConfirmText = await shrinkTo(0, 1);
+            out.tableSpansAfterRowShrink = await readSpans();
+            out.tableCoveredCellsAfterRowShrink = mergedCount();
+            out.tableSizeAfterShrink = [
+              sizeInput(0) ? sizeInput(0).value : null,
+              sizeInput(1) ? sizeInput(1).value : null
+            ];
+            out.tableCellValuesAfterRowShrink = values();
           }
           // 保存
           const saveBtn = await waitFor('.tb-action[aria-label="保存工程"]');
