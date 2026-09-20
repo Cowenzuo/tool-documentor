@@ -4,7 +4,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   clampRowSpans,
-  completeRowSpans,
   resolveTableMerges,
   countVerticalMerges
 } from '@documentor/core/table-merge'
@@ -188,16 +187,6 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
     lostCols: number
     lostCells: number
   } | null>(null)
-  /**
-   * 补齐合并：把"同列连续相同值""非空值后跟的空串"补成显式跨度。
-   * 先挂起等确认，且**只写 rowSpans、不动 data**——值留在原地，取消合并即可恢复。
-   */
-  const [pendingComplete, setPendingComplete] = useState<{
-    spans: Record<string, Array<[number, number]>>
-    added: number
-  } | null>(null)
-  /** 没有可补的地方时给一句提示，不弹窗也不改数据 */
-  const [completeHint, setCompleteHint] = useState<string | null>(null)
 
   // 显示真实规模：以前行数框显示 clamp 后的 50，而界面渲染 85 行，两处对不上。
   // 上限只用来提示"超出界面舒适区"，不再当作数据的截断依据。
@@ -268,18 +257,6 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
   const setCell = (r: number, c: number, value: string): void => {
     const data = block.data.map((row, ri) => (ri === r ? row.map((cell, ci) => (ci === c ? value : cell)) : row))
     onChange({ ...block, data })
-  }
-
-  /** 点「补齐合并」：先算会补几处，0 处只提示，有补的先确认再写跨度 */
-  const requestComplete = (): void => {
-    const { spans, added } = completeRowSpans(block.data, block.rowSpans)
-    if (added === 0 || !spans) {
-      setPendingComplete(null)
-      setCompleteHint('没有可补齐的合并')
-      return
-    }
-    setCompleteHint(null)
-    setPendingComplete({ spans, added })
   }
 
   const setHeader = (c: number, value: string): void => {
@@ -374,37 +351,6 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
         </div>
       )}
 
-      {/* 补齐会补几处：与缩表确认同一套写法，确认前不落数据 */}
-      {pendingComplete && (
-        <div className="be-table-confirm" role="alertdialog" aria-label="确认补齐合并">
-          <div>
-            将补齐 {pendingComplete.added} 处合并。只写合并跨度，单元格内容保持原样。
-          </div>
-          <div className="be-table-confirm-actions">
-            <button
-              type="button"
-              className="be-btn be-btn-primary be-table-complete-confirm"
-              onClick={() => {
-                onChange({ ...block, rowSpans: pendingComplete.spans })
-                setPendingComplete(null)
-                setCompleteHint(`已补齐 ${pendingComplete.added} 处合并`)
-              }}
-            >
-              确认补齐 {pendingComplete.added} 处合并
-            </button>
-            <button
-              type="button"
-              className="be-btn"
-              onClick={() => {
-                setPendingComplete(null)
-              }}
-            >
-              取消
-            </button>
-          </div>
-        </div>
-      )}
-
       <div className="be-table-merge-bar">
         <label
           className="be-table-merge"
@@ -425,20 +371,10 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
           相同内容自动合并（纵向）
           {block.mergeVertical === true && (
             <span className="be-table-merge-hint">
-              {mergeCount > 0 ? `已检测到 ${mergeCount} 处合并` : '当前没有可合并的相邻单元格'}
+              {mergeCount > 0 ? `已合并 ${mergeCount} 处` : '当前没有可合并的相邻单元格'}
             </span>
           )}
         </label>
-        <button
-          type="button"
-          className="be-btn be-table-merge-complete"
-          title={locked ? '模板规定该表格为定稿，不能改合并' : '把同列相邻的相同内容与留空续格补成显式跨度，只写跨度、不改单元格内容'}
-          onClick={requestComplete}
-          disabled={locked}
-        >
-          补齐合并
-        </button>
-        {completeHint && <span className="be-table-merge-hint be-table-complete-hint">{completeHint}</span>}
       </div>
 
       <div className="be-table-grid" ref={gridRef}>

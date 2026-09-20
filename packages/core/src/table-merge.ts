@@ -204,37 +204,6 @@ export function resolveTableMerges(src: TableSpanSource): TableMergeCell[][] {
 }
 
 /**
- * 补齐合并跨度：把"同列相邻的相同非空值""非空值后跟的空串"这些成组形态，
- * 补成显式跨度（与已有跨度取并集），只写跨度、不碰 data。
- * 返回补齐后的跨度与新增处数；没有可补的返回 added = 0。
- *
- * 用途：接手旧版或外部带进来的残缺跨度时，由用户在界面上确认后调用，不静默改写数据。
- */
-export function completeRowSpans(
-  data: readonly (readonly string[])[],
-  existing?: Record<string, Array<[number, number]>>
-): { spans: Record<string, Array<[number, number]>> | undefined; added: number } {
-  const inferred = inferRowSpansFromData(data) ?? {}
-  const merged: Record<string, Array<[number, number]>> = {}
-  for (const [col, list] of Object.entries(existing ?? {})) {
-    merged[col] = [...list]
-  }
-  let added = 0
-  for (const [col, list] of Object.entries(inferred)) {
-    const current = merged[col] ?? []
-    for (const span of list) {
-      const covered = current.some(([s, n]) => span[0] < s + n && s < span[0] + span[1])
-      if (covered) continue
-      current.push(span)
-      added += 1
-    }
-    if (current.length > 0) merged[col] = current
-  }
-  const spans = Object.keys(merged).length > 0 ? merged : undefined
-  return { spans, added }
-}
-
-/**
  * 缩表后按新尺寸重算显式跨度（纯函数，只动跨度、不动 data）。
  *
  * 表缩小以后，原先记下的跨度可能有一部分落在表外：起点在表外、尾部超出末行、
@@ -304,29 +273,9 @@ export function computeVerticalMerges(
   return legacyMerges(data)
 }
 
-/** 合并块数量（UI 上给「已检测到 N 处合并」用） */
+/** 合并块数量（UI 上给「已合并 N 处」用） */
 export function countVerticalMerges(merges: readonly (readonly TableMergeCell[])[]): number {
   let n = 0
   for (const row of merges) for (const cell of row) if (cell.rowSpan > 1) n++
   return n
-}
-
-/**
- * 从"同列连续相同值"反推显式跨度——**只为老数据自动回填**用（一次性迁移）。
- * 合并只搬运跨度，不改值：返回值直接写进 rowSpans 即可，data 原样保留。
- */
-export function inferRowSpansFromData(
-  data: readonly (readonly string[])[]
-): Record<string, Array<[number, number]>> | undefined {
-  const merges = legacyMerges(data)
-  const out: Record<string, Array<[number, number]>> = {}
-  for (let c = 0; c < (merges[0]?.length ?? 0); c++) {
-    const spans: Array<[number, number]> = []
-    for (let r = 0; r < merges.length; r++) {
-      const m = merges[r]![c]!
-      if (m.rowSpan > 1) spans.push([r, m.rowSpan])
-    }
-    if (spans.length > 0) out[String(c)] = spans
-  }
-  return Object.keys(out).length > 0 ? out : undefined
 }

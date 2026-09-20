@@ -46,9 +46,7 @@ export {
   resolveTableMerges,
   computeVerticalMerges,
   countVerticalMerges,
-  completeRowSpans,
-  clampRowSpans,
-  inferRowSpansFromData
+  clampRowSpans
 } from './table-merge'
 export type { TableMergeCell, TableSpanSource } from './table-merge'
 export { TABLE_MAX_ROWS, TABLE_MAX_COLS, bodyRowCount, checkTableShape } from './table-limits'

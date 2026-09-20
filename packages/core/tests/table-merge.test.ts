@@ -5,8 +5,6 @@ import {
   clampRowSpans,
   computeVerticalMerges,
   countVerticalMerges,
-  completeRowSpans,
-  inferRowSpansFromData,
   resolveTableMerges
 } from '../src/table-merge'
 
@@ -179,31 +177,6 @@ describe('resolveTableMerges（显式跨度与兼容判定取并集）', () => {
     expect(m[0]![0]!.rowSpan).toBe(3)
   })
 
-  it('completeRowSpans：把缺失的组补成跨度，已覆盖的不重复补', () => {
-    const data = [
-      ['甲', 'x'],
-      ['甲', 'y'],
-      ['乙', 'y'],
-      ['乙', 'y']
-    ]
-    // 只声明了第 0 列第 2–3 行；推导会把第 0 列 0–1 行、第 1 列 2–3 行补上
-    const { spans, added } = completeRowSpans(data, { '0': [[2, 2]] })
-    expect(added).toBe(2)
-    expect(spans!['0']).toEqual([[2, 2], [0, 2]])
-    expect(spans!['1']).toEqual([[1, 3]])
-    // 补完再判定：三处合并都在
-    expect(countVerticalMerges(resolveTableMerges({ data, rowSpans: spans }))).toBe(3)
-  })
-
-  it('completeRowSpans：本来就齐全时不新增', () => {
-    const data = [
-      ['甲', 'x'],
-      ['甲', 'y']
-    ]
-    const { added } = completeRowSpans(data, { '0': [[0, 2]] })
-    expect(added).toBe(0)
-  })
-
   it('没有 rowSpans 时退回兼容判定（老工程行为不变）', () => {
     const data = [
       ['1', 'A'],
@@ -334,24 +307,5 @@ describe('clampRowSpans（缩表后按新尺寸重算跨度）', () => {
       resolveTableMerges({ data, rowSpans: spans })
     )
     expect(countVerticalMerges(resolveTableMerges({ data, rowSpans: clamped.spans }))).toBe(1)
-  })
-})
-
-describe('inferRowSpansFromData（老数据回填用）', () => {
-  it('把"连续相同值"反推成显式跨度，值不动', () => {
-    const data = [
-      ['1', 'A'],
-      ['2', 'A'],
-      ['3', 'B']
-    ]
-    const spans = inferRowSpansFromData(data)
-    expect(spans).toEqual({ '1': [[0, 2]] })
-    // 反推的结果喂回 resolveTableMerges 应与兼容判定一致
-    expect(resolveTableMerges({ data, rowSpans: spans })).toEqual(computeVerticalMerges(data))
-  })
-
-  it('没有可合并内容时返回 undefined', () => {
-    expect(inferRowSpansFromData([['a'], ['b']])).toBeUndefined()
-    expect(inferRowSpansFromData([])).toBeUndefined()
   })
 })
