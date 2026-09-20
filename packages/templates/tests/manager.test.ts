@@ -1,8 +1,9 @@
 /** manager.test.ts — 模板加载、配对校验与实例化的单测。 */
 
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { resetIdCounterForTest } from '@documentor/core'
+import type { ContentBlock } from '@documentor/core'
 import { TemplateManager, requiredStyleKeys } from '../src/manager'
 
 const SAMPLE = fileURLToPath(new URL('../../../samples/sample-template/', import.meta.url))
@@ -96,7 +97,8 @@ describe('结构模板实例化（对齐旧版 cloneNode 语义）', () => {
     expect(biaoShi.contentBlocks).toHaveLength(1)
     expect(biaoShi.contentBlocks[0]).toEqual({
       type: 'orderedList',
-      items: ['条目一：示例', '条目二：示例', '条目三：示例']
+      items: ['条目一：示例', '条目二：示例', '条目三：示例'],
+      lock: 'keep'
     })
 
     // 引用文档章节表格
@@ -131,6 +133,87 @@ describe('结构模板实例化（对齐旧版 cloneNode 语义）', () => {
     ).toEqual(
       ['code', 'formula', 'mermaid', 'orderedList', 'table', 'text', 'unorderedList'].sort()
     )
+  })
+})
+
+describe('内容块模板锁 lock（只认三档，非法取值按不锁处理）', () => {
+  it('合法取值随实例化带到块上，没写 lock 的块不带这个字段', () => {
+    resetIdCounterForTest()
+    const mgr = createManager()
+    const demo = mgr.findStructureByName('示例文档模板 (Demo)')!
+    const tree = mgr.instantiate(demo)!
+    const byTitle = new Map<string, ContentBlock[]>()
+    tree.traverse((n) => byTitle.set(n.title, n.contentBlocks))
+
+    expect(byTitle.get('标识')![0]).toEqual({
+      type: 'orderedList',
+      items: ['条目一：示例', '条目二：示例', '条目三：示例'],
+      lock: 'keep'
+    })
+    expect(byTitle.get('概述')![0]!.lock).toBe('readonly')
+    const demand = byTitle.get('需求')!
+    expect(demand.find((b) => b.type === 'mermaid')!.lock).toBe('type')
+    // 没写 lock 的块不长出这个字段（老数据与老模板的行为不变）
+    expect(demand.find((b) => b.type === 'code')!).not.toHaveProperty('lock')
+    expect(byTitle.get('引用文档')![0]!).not.toHaveProperty('lock')
+  })
+
+  it('解析阶段滤掉非法取值：块不带锁，并记一条加载告警', async () => {
+    const { mkdirSync, mkdtempSync, writeFileSync, rmSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const dir = mkdtempSync(join(tmpdir(), 'tpl-lock-'))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    try {
+      const base = join(dir, 'templates')
+      mkdirSync(join(base, 'structures', 'lockcase'), { recursive: true })
+      writeFileSync(
+        join(base, 'manifest.json'),
+        JSON.stringify({
+          structures: [{ id: 'lockcase', name: '锁测试模板', file: 'lock-structure.json' }]
+        }),
+        'utf8'
+      )
+      writeFileSync(
+        join(base, 'structures', 'lockcase', 'lock-structure.json'),
+        JSON.stringify({
+          name: '锁测试模板',
+          root: {
+            nodeType: 'root',
+            title: '锁测试',
+            contentBlocks: [
+              { type: 'text', content: '模板给定的定稿', lock: 'readonly' },
+              { type: 'text', content: '取值写错', lock: '必锁' },
+              { type: 'text', content: '取值不是字符串', lock: 3 },
+              { type: 'text', content: '没写锁' }
+            ]
+          }
+        }),
+        'utf8'
+      )
+      const mgr = new TemplateManager()
+      mgr.loadTemplateDir(base)
+      const def = mgr.findStructureByName('锁测试模板')!
+      expect(def.rootDef.contentBlocks.map((b) => b.lock)).toEqual([
+        'readonly',
+        undefined,
+        undefined,
+        undefined
+      ])
+      // 非法取值要留下痕迹，不能静默
+      const logged = warn.mock.calls.map((call) => call.join(' ')).join('\n')
+      expect(logged).toContain('必锁')
+      expect(logged).toContain('锁测试模板')
+
+      const tree = mgr.instantiate(def)!
+      expect(tree.root.contentBlocks[0]!.lock).toBe('readonly')
+      expect(tree.root.contentBlocks[1]!).not.toHaveProperty('lock')
+      expect(tree.root.contentBlocks[2]!).not.toHaveProperty('lock')
+      expect(tree.root.contentBlocks[3]!).not.toHaveProperty('lock')
+    } finally {
+      warn.mockRestore()
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
 

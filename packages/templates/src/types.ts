@@ -3,6 +3,7 @@
  * 数据完全来自 JSON：结构模板（*-structure.json）+ 样式模板（*-stylemap.json）。
  * 任何 docx 规范文档格式 = 一对「结构模板 + 样式模板（含骨架目录）」注册进 manifest。
  */
+import type { BlockLockLevel } from '@documentor/core'
 
 /** 模板中预置的内容块定义（模板 JSON 的 contentBlocks 条目） */
 export interface TemplateContentBlockDef {
@@ -17,6 +18,11 @@ export interface TemplateContentBlockDef {
   /** 表格纵向自动合并开关（缺省 false），语义见 core TableBlockProps.mergeVertical */
   mergeVertical?: boolean
   items?: string[]
+  /**
+   * 模板锁：`type` 只锁类型 / `keep` 类型锁住且必须存在 / `readonly` 整块只读。
+   * 不写就是不锁；非法取值加载时按不锁处理。语义见 docs/版本开发过程/PLAN-09-内容块锁定方案.md
+   */
+  lock?: BlockLockLevel
 }
 
 /** 模板节点定义（递归） */

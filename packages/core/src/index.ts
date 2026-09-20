@@ -11,7 +11,9 @@ export {
   createBlock,
   propsOf,
   blockFromDb,
-  cloneBlock
+  cloneBlock,
+  parseBlockLock,
+  BLOCK_LOCK_LEVELS
 } from './blocks'
 export type {
   BlockTypeName,
@@ -32,6 +34,8 @@ export type {
   CodeBlockProps,
   MermaidBlockProps,
   ListBlockProps,
+  BlockLockLevel,
+  BlockLockProps,
   BlockPropsMap
 } from './blocks'
 export { DocumentNode, DocumentTree } from './tree'

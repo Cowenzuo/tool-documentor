@@ -34,6 +34,8 @@ interface EditorBaseProps<T extends ContentBlock> {
   onChange: (next: T) => void
   /** 图片块点击预览 */
   onPreview?: (req: LightboxRequest) => void
+  /** 模板锁 `readonly`：内容由模板给定，编辑器只呈现不接收改动 */
+  readOnly?: boolean
 }
 
 // ---------------- 文本 ----------------
@@ -44,6 +46,7 @@ export function TextEditor(props: EditorBaseProps<TextBlock>): React.JSX.Element
       value={props.block.content}
       onChange={(e) => props.onChange({ ...props.block, content: e.target.value })}
       placeholder="输入文本内容…"
+      readOnly={props.readOnly === true}
       rows={Math.min(24, Math.max(3, props.block.content.split('\n').length + 1))}
     />
   )
@@ -51,10 +54,11 @@ export function TextEditor(props: EditorBaseProps<TextBlock>): React.JSX.Element
 
 // ---------------- 图片 ----------------
 export function ImageEditor(props: EditorBaseProps<ImageBlock>): React.JSX.Element {
-  const { block, onChange } = props
+  const { block, onChange, readOnly } = props
   const [thumb, setThumb] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const fileRef = useRef<HTMLInputElement | null>(null)
+  const lockedHint = readOnly === true ? '模板规定该图片为定稿，不能更换' : undefined
 
   useEffect(() => {
     let disposed = false
@@ -70,7 +74,7 @@ export function ImageEditor(props: EditorBaseProps<ImageBlock>): React.JSX.Eleme
   }, [block.imagePath])
 
   const importFromFile = (file: File | undefined | null): void => {
-    if (!file) return
+    if (!file || readOnly === true) return
     setBusy(true)
     const ext = file.name.includes('.') ? '.' + file.name.split('.').pop()!.toLowerCase() : '.png'
     const name = `${crypto.randomUUID()}${ext}`
@@ -112,18 +116,26 @@ export function ImageEditor(props: EditorBaseProps<ImageBlock>): React.JSX.Eleme
           value={block.caption}
           onChange={(e) => onChange({ ...block, caption: e.target.value })}
           placeholder="图名（题注，将显示在图下方）"
+          readOnly={readOnly === true}
         />
         <div className="be-image-actions">
           <button
             type="button"
             className="be-btn"
             onClick={() => fileRef.current?.click()}
-            disabled={busy}
+            disabled={busy || readOnly === true}
+            title={lockedHint}
           >
             {block.imagePath ? '更换图片' : '导入图片'}
           </button>
           {block.imagePath && (
-            <button type="button" className="be-btn" onClick={() => onChange({ ...block, imagePath: '' })}>
+            <button
+              type="button"
+              className="be-btn"
+              onClick={() => onChange({ ...block, imagePath: '' })}
+              disabled={readOnly === true}
+              title={readOnly === true ? '模板规定该图片为定稿，不能移除' : undefined}
+            >
               移除
             </button>
           )}
@@ -159,8 +171,10 @@ export function ImageEditor(props: EditorBaseProps<ImageBlock>): React.JSX.Eleme
 
 // ---------------- 表格 ----------------
 export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Element {
-  const { block, onChange } = props
+  const { block, onChange, readOnly } = props
   const gridRef = useRef<HTMLDivElement | null>(null)
+  /** 整块只读：单元格呈现给定内容，尺寸、合并与补齐都不给入口 */
+  const locked = readOnly === true
   /** 缩表会丢内容时，先挂起等用户确认（不做静默截断） */
   const [pendingShrink, setPendingShrink] = useState<{
     rows: number
@@ -280,6 +294,7 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
           value={block.caption}
           onChange={(e) => onChange({ ...block, caption: e.target.value })}
           placeholder="表名（题注，将显示在表上方）"
+          readOnly={locked}
         />
         <div className="be-table-size">
           <label>
@@ -289,6 +304,8 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
               min={0}
               value={realRows}
               onChange={(e) => requestSize(Number(e.target.value) || 0, realCols)}
+              disabled={locked}
+              title={locked ? '模板规定该表格为定稿，行数不能改' : undefined}
             />
           </label>
           <label>
@@ -298,6 +315,8 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
               min={1}
               value={realCols}
               onChange={(e) => requestSize(realRows, Number(e.target.value) || 1)}
+              disabled={locked}
+              title={locked ? '模板规定该表格为定稿，列数不能改' : undefined}
             />
           </label>
         </div>
@@ -378,6 +397,7 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
           <input
             type="checkbox"
             checked={block.mergeVertical === true}
+            disabled={locked}
             onChange={(e) =>
               onChange(
                 e.target.checked
@@ -396,8 +416,9 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
         <button
           type="button"
           className="be-btn be-table-merge-complete"
-          title="把同列相邻的相同内容与留空续格补成显式跨度，只写跨度、不改单元格内容"
+          title={locked ? '模板规定该表格为定稿，不能改合并' : '把同列相邻的相同内容与留空续格补成显式跨度，只写跨度、不改单元格内容'}
           onClick={requestComplete}
+          disabled={locked}
         >
           补齐合并
         </button>
@@ -414,6 +435,7 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
               className="be-table-header"
               value={block.headers[c] ?? ''}
               placeholder={`列${c + 1}`}
+              readOnly={locked}
               onChange={(e) => setHeader(c, e.target.value)}
               onKeyDown={(e) => {
                 const next =
@@ -448,6 +470,7 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
                 }
                 title={merges?.[r]?.[c]?.covered === true ? '与上方相同，预览/导出时合并' : undefined}
                 value={block.data[r]?.[c] ?? ''}
+                readOnly={locked}
                 onChange={(e) => setCell(r, c, e.target.value)}
                 onKeyDown={(e) => {
                   let next: string | null = null
@@ -535,6 +558,7 @@ export function FormulaEditor(props: EditorBaseProps<FormulaBlock>): React.JSX.E
           onChange={(e) => props.onChange({ ...props.block, latexCode: e.target.value })}
           placeholder="公式源码，如 E = mc^2"
           spellCheck={false}
+          readOnly={props.readOnly === true}
         />
       ) : (
         <div className="be-formula-preview">
@@ -553,7 +577,7 @@ export function FormulaEditor(props: EditorBaseProps<FormulaBlock>): React.JSX.E
 
 // ---------------- 代码（语言下拉 + 编辑/语法高亮浏览切换） ----------------
 export function CodeEditor(props: EditorBaseProps<CodeBlock>): React.JSX.Element {
-  const { block, onChange } = props
+  const { block, onChange, readOnly } = props
   const [view, setView] = useState<'edit' | 'highlight'>('edit')
   const language = (CODE_LANGUAGES as readonly string[]).includes(block.language)
     ? block.language
@@ -563,11 +587,17 @@ export function CodeEditor(props: EditorBaseProps<CodeBlock>): React.JSX.Element
   return (
     <div className="be-code">
       <div className="be-code-tools">
+        {/*
+          语言选择不算"块类型"：只锁类型时照常可改；整块只读时语言也是模板定的那一份，
+          一并关掉。
+        */}
         <select
           className="be-select"
           value={language}
           onChange={(e) => onChange({ ...block, language: e.target.value })}
           aria-label="代码语言"
+          disabled={readOnly === true}
+          title={readOnly === true ? '模板规定该代码块为定稿，语言也不能改' : undefined}
         >
           {CODE_LANGUAGES.map((lang) => (
             <option key={lang} value={lang}>
@@ -600,6 +630,7 @@ export function CodeEditor(props: EditorBaseProps<CodeBlock>): React.JSX.Element
           onChange={(e) => onChange({ ...block, code: e.target.value })}
           placeholder="输入代码…"
           spellCheck={false}
+          readOnly={readOnly === true}
           rows={Math.min(30, Math.max(5, block.code.split('\n').length + 1))}
         />
       ) : (
@@ -616,11 +647,12 @@ export function CodeEditor(props: EditorBaseProps<CodeBlock>): React.JSX.Element
 
 // ---------------- Mermaid（左源码右预览分栏） ----------------
 export function MermaidEditor(props: EditorBaseProps<MermaidBlock>): React.JSX.Element {
-  const { block, onChange } = props
+  const { block, onChange, readOnly } = props
   const [preview, setPreview] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [ready, setReady] = useState<boolean>(false)
   const timerRef = useRef<number | undefined>(undefined)
+  const locked = readOnly === true
 
   useEffect(() => {
     let disposed = false
@@ -664,6 +696,7 @@ export function MermaidEditor(props: EditorBaseProps<MermaidBlock>): React.JSX.E
           value={block.caption}
           onChange={(e) => onChange({ ...block, caption: e.target.value })}
           placeholder="图名（题注，将显示在图下方）"
+          readOnly={locked}
         />
       </div>
       <div className="be-mermaid-split">
@@ -674,12 +707,14 @@ export function MermaidEditor(props: EditorBaseProps<MermaidBlock>): React.JSX.E
           onBlur={() => {
             // 失焦时把源码规整一次并落库：粘进来的围栏与 `mermaid` 语言标签留在这里
             // 会让渲染报 "No diagram type detected"，导出侧也吃同一份源码。
-            // 只清"包裹"，不碰图定义本身。
+            // 只清"包裹"，不碰图定义本身。整块只读时连规整也不写，免得动了模板给定的定稿。
+            if (locked) return
             const cleaned = normalizeMermaidSource(block.code)
             if (cleaned !== block.code) onChange({ ...block, code: cleaned })
           }}
           placeholder={'graph TD\n  A[开始] --> B[结束]'}
           spellCheck={false}
+          readOnly={locked}
         />
         <div className="be-mermaid-preview">
           {!ready && <div className="be-mermaid-hint">加载渲染引擎…</div>}
@@ -725,6 +760,7 @@ export function ListEditor(
       value={text}
       onChange={(e) => handle(e.target.value)}
       placeholder={props.ordered ? '每行一个条目（自动编号）' : '每行一个条目'}
+      readOnly={props.readOnly === true}
       rows={Math.min(20, Math.max(2, text.split('\n').length + 1))}
     />
   )

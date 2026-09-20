@@ -221,19 +221,127 @@ function createMainWindow(): void {
             blockCards: document.querySelectorAll('.block-card').length,
             chips: [...document.querySelectorAll('.np-chip')].map((c) => c.textContent.trim())
           };
-          // 删除内容块：点第一张卡片的删除按钮，卡片数必须减一（且不弹错误提示）
-          const cardsBefore = document.querySelectorAll('.block-card').length;
-          const delBtn = document.querySelector('.block-card .block-card-actions .be-icon-btn.danger');
-          out.deleteBtnFound = !!delBtn;
-          if (delBtn && cardsBefore > 0) {
-            delBtn.click();
-            await sleep(700);
-            out.blockCardsAfterDelete = document.querySelectorAll('.block-card').length;
-            out.deleteToast = document.querySelector('.toast') ? document.querySelector('.toast').textContent : null;
-            out.deleteOk = out.blockCardsAfterDelete === cardsBefore - 1;
-          } else {
-            out.blockCardsAfterDelete = cardsBefore;
-            out.deleteOk = false;
+          // 模板锁：卡片头上有锁标记，keep 档的删除按钮置灰且写明原因
+          const cardAt = (i) => document.querySelectorAll('.block-card')[i] || null;
+          const deleteBtnOf = (card) => card ? card.querySelector('.block-card-actions .be-icon-btn.danger') : null;
+          const moveBtnsOf = (card) => card ? [...card.querySelectorAll('.block-card-actions .be-icon-btn')].slice(0, 2) : [];
+          const lockTagOf = (card) => {
+            const tag = card ? card.querySelector('.block-lock-tag') : null;
+            return tag ? tag.textContent.trim() : null;
+          };
+          const keepCard = cardAt(0);
+          const keepTag = keepCard ? keepCard.querySelector('.block-lock-tag') : null;
+          out.keepLockTag = lockTagOf(keepCard);
+          out.keepLockTagTitle = keepTag ? keepTag.title : null;
+          const keepDel = deleteBtnOf(keepCard);
+          out.keepDeleteDisabled = !!keepDel && keepDel.disabled === true;
+          out.keepDeleteTitle = keepDel ? keepDel.title : null;
+          const keepMoves = moveBtnsOf(keepCard);
+          out.keepMoveDisabled = keepMoves.length === 2 && keepMoves.every((b) => b.disabled === true);
+          out.keepMoveTitles = keepMoves.map((b) => b.title);
+          // 置灰的删除按钮点下去不该有反应（禁用按钮不派发点击）
+          const cardsBeforeLockedDelete = document.querySelectorAll('.block-card').length;
+          if (keepDel) keepDel.click();
+          await sleep(400);
+          out.blockCardsAfterLockedDelete = document.querySelectorAll('.block-card').length;
+          out.lockedDeleteKept = out.blockCardsAfterLockedDelete === cardsBeforeLockedDelete;
+          // 锁跟着块进工程数据；写入侧拒绝改类型，内容变更照常放行
+          const findTreeNode = (n, title) => {
+            if (!n) return null;
+            if (n.title === title) return n;
+            for (const c of n.children || []) {
+              const hit = findTreeNode(c, title);
+              if (hit) return hit;
+            }
+            return null;
+          };
+          const biaoShiNode = findTreeNode((await window.documentor.project.treeGetRoot()).root, '标识');
+          const storeListBlock = biaoShiNode
+            ? (biaoShiNode.contentBlocks || []).find((b) => b.type === 'orderedList')
+            : null;
+          out.storeLockValue = storeListBlock ? (storeListBlock.lock || null) : null;
+          if (biaoShiNode && storeListBlock) {
+            try {
+              await window.documentor.block.update({
+                nodeId: biaoShiNode.id,
+                index: 0,
+                block: { ...storeListBlock, type: 'text', content: '试图改成文本块' }
+              });
+              out.lockedTypeChangeRejected = false;
+              out.lockedTypeChangeError = null;
+            } catch (err) {
+              out.lockedTypeChangeRejected = true;
+              out.lockedTypeChangeError = err && err.message ? err.message : String(err);
+            }
+            try {
+              await window.documentor.block.update({
+                nodeId: biaoShiNode.id,
+                index: 0,
+                block: { ...storeListBlock, items: ['条目一：示例改'] }
+              });
+              const afterEdit = findTreeNode((await window.documentor.project.treeGetRoot()).root, '标识');
+              out.lockedContentEditItems = afterEdit.contentBlocks[0].items;
+              await window.documentor.block.update({
+                nodeId: biaoShiNode.id,
+                index: 0,
+                block: storeListBlock
+              });
+              const afterRestore = findTreeNode((await window.documentor.project.treeGetRoot()).root, '标识');
+              out.lockedContentRestored =
+                JSON.stringify(afterRestore.contentBlocks[0].items) === JSON.stringify(storeListBlock.items);
+            } catch (err) {
+              out.lockedContentEditItems = null;
+              out.lockedContentEditError = err && err.message ? err.message : String(err);
+            }
+          }
+          // readonly 档：内容输入只读，锁标记写「只读」，删除与上下移同样置灰
+          setNative(q, '');
+          await sleep(250);
+          const overviewRow = [...document.querySelectorAll('.tree-row')].find((r) => r.textContent.includes('概述'));
+          if (overviewRow) {
+            overviewRow.click();
+            await sleep(450);
+            const roCard = cardAt(0);
+            out.readonlyLockTag = lockTagOf(roCard);
+            const roTag = roCard ? roCard.querySelector('.block-lock-tag') : null;
+            out.readonlyLockTagTitle = roTag ? roTag.title : null;
+            const roArea = roCard ? roCard.querySelector('.block-card-body .be-textarea') : null;
+            out.readonlyAreaFound = !!roArea;
+            out.readonlyAreaReadOnly = roArea ? roArea.readOnly === true : null;
+            const roDel = deleteBtnOf(roCard);
+            out.readonlyDeleteDisabled = !!roDel && roDel.disabled === true;
+            out.readonlyDeleteTitle = roDel ? roDel.title : null;
+            const roMoves = moveBtnsOf(roCard);
+            out.readonlyMoveDisabled = roMoves.length === 2 && roMoves.every((b) => b.disabled === true);
+            out.readonlyMoveTitles = roMoves.map((b) => b.title);
+          }
+          // type 档只锁类型：删除与上下移照常；不锁的块一切照旧，删除要真的生效
+          const demandRow = [...document.querySelectorAll('.tree-row')].find((r) => r.textContent.includes('需求'));
+          if (demandRow) {
+            demandRow.click();
+            await sleep(450);
+            const demandCards = [...document.querySelectorAll('.block-card')];
+            out.demandCards = demandCards.length;
+            out.demandLockTags = demandCards.map((c) => lockTagOf(c));
+            const typeDel = deleteBtnOf(demandCards[0]);
+            const typeMoves = moveBtnsOf(demandCards[0]);
+            out.typeLockDeleteDisabled = !!typeDel && typeDel.disabled === true;
+            out.typeLockMoveEnabled = typeMoves.length === 2 && typeMoves.some((b) => b.disabled === false);
+            const unlockedCard = demandCards[demandCards.length - 1];
+            out.unlockedLockTag = lockTagOf(unlockedCard);
+            const unlockedDel = deleteBtnOf(unlockedCard);
+            out.unlockedDeleteDisabled = !!unlockedDel && unlockedDel.disabled === true;
+            out.deleteBtnFound = !!unlockedDel;
+            if (unlockedDel && demandCards.length > 0) {
+              unlockedDel.click();
+              await sleep(800);
+              out.blockCardsAfterDelete = document.querySelectorAll('.block-card').length;
+              out.deleteToast = document.querySelector('.toast') ? document.querySelector('.toast').textContent : null;
+              out.deleteOk = out.blockCardsAfterDelete === demandCards.length - 1;
+            } else {
+              out.blockCardsAfterDelete = demandCards.length;
+              out.deleteOk = false;
+            }
           }
           // 标题栏工程操作组：保存、导出、定位、退出四个按钮都应在
           out.tbActions = [...document.querySelectorAll('.tb-right .tb-action')].map((b) => b.textContent.trim());

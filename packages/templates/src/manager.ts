@@ -8,8 +8,8 @@
  */
 import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { createBlock, DocumentNode, DocumentTree } from '@documentor/core'
-import type { ContentBlock } from '@documentor/core'
+import { createBlock, DocumentNode, DocumentTree, parseBlockLock } from '@documentor/core'
+import type { BlockLockLevel, ContentBlock } from '@documentor/core'
 import type {
   CaptionNumberingMode,
   LoadDirResult,
@@ -208,7 +208,7 @@ export class TemplateManager {
     const name = String(root['name'] ?? '')
     const rootObj = root['root']
     if (!name || typeof rootObj !== 'object' || rootObj === null) return null
-    const rootDef = this.parseNodeDef(rootObj as Record<string, unknown>)
+    const rootDef = this.parseNodeDef(rootObj as Record<string, unknown>, name)
     const styleTemplate = String(root['styleTemplate'] ?? '')
     const rawList = asArray(root['styleTemplates']).map((x) => String(x)).filter(Boolean)
     // 兼容：缺 styleTemplates 时回退单元素集合
@@ -227,8 +227,9 @@ export class TemplateManager {
     }
   }
 
-  private parseNodeDef(obj: Record<string, unknown>): TemplateNodeDef {
+  private parseNodeDef(obj: Record<string, unknown>, templateName: string): TemplateNodeDef {
     const nodeType = String(obj['nodeType'] ?? '')
+    const nodeTitle = String(obj['title'] ?? '')
     const contentBlocks: TemplateContentBlockDef[] = []
     for (const raw of asArray(obj['contentBlocks'])) {
       const b = raw as Record<string, unknown>
@@ -241,12 +242,13 @@ export class TemplateManager {
         cols: b['cols'] == null ? undefined : Number(b['cols']),
         headers: asArray(b['headers']).map((x) => String(x)),
         data: asArray(b['data']).map((row) => asArray(row).map((x) => String(x))),
-        items: asArray(b['items']).map((x) => String(x))
+        items: asArray(b['items']).map((x) => String(x)),
+        lock: parseLockValue(b['lock'], templateName, nodeTitle)
       })
     }
     const children: TemplateNodeDef[] = []
     for (const raw of asArray(obj['children'])) {
-      children.push(this.parseNodeDef(raw as Record<string, unknown>))
+      children.push(this.parseNodeDef(raw as Record<string, unknown>, templateName))
     }
     const isSubTitle = nodeType === 'subTitle' || nodeType === 'subtitle'
     return {
@@ -462,12 +464,40 @@ function asArray(value: unknown): unknown[] {
 }
 
 /**
+ * 解析模板块定义的 lock，只认 type / keep / readonly 三个字符串。
+ * 取值不认识时记一条加载告警并按不锁处理；缺省（没有这个字段）视为不锁，不告警。
+ * 模板加载没有专门的告警收集通道，这里走 console.warn，与写入侧的告警方式一致。
+ */
+function parseLockValue(
+  value: unknown,
+  templateName: string,
+  nodeTitle: string
+): BlockLockLevel | undefined {
+  const lock = parseBlockLock(value)
+  if (!lock && value != null) {
+    console.warn(
+      `[templates] 结构模板「${templateName}」节点「${nodeTitle}」的内容块 lock 取值` +
+        `「${String(value)}」不认识，按不锁处理`
+    )
+  }
+  return lock
+}
+
+/**
  * 模板内容块定义 → core 内容块（对齐旧版 instantiate 映射：
  * image.imagePath 取 content；formula.latexCode 取 content；code.code 取 content 等）。
+ * 模板锁 lock 一并带到块上，随块进工程数据。
  */
 export function templateBlockToContentBlock(
   def: TemplateContentBlockDef
 ): ContentBlock | null {
+  const block = templateBlockOfDef(def)
+  if (!block) return null
+  // 非法取值在 parseNodeDef 已经滤掉，这里只负责带上
+  return def.lock ? ({ ...block, lock: def.lock } as ContentBlock) : block
+}
+
+function templateBlockOfDef(def: TemplateContentBlockDef): ContentBlock | null {
   const type = def.type
   switch (type) {
     case 'text': {

@@ -240,6 +240,17 @@
   min-width: 0;
 }
 
+/* 模板锁标记：与类型标签同一行的次要标签，悬停给模板的规定 */
+.block-lock-tag {
+  flex: none;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-3);
+  font-size: 11px;
+  line-height: 16px;
+}
+
 .block-card-actions {
   display: flex;
   gap: 2px;
