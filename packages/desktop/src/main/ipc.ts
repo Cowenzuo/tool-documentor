@@ -2,7 +2,7 @@
  * 主进程 IPC 注册：工程/树/块/对话框/设置/模板查询。
  * handler 抛错统一转为 rejection（renderer 侧可捕获 message）。
  */
-import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { buildTemplateManager } from './services/template-host'
 import type {
   AppConfigDto,
@@ -25,7 +25,16 @@ import type {
   StyleCandidateDto,
   StyleTemplateDto,
   StructureTemplateDto,
+  TemplateCreateInput,
+  TemplateDeleteInput,
+  TemplateDeleteResult,
+  TemplateEditorSnapshotDto,
   TemplateLoadReport,
+  TemplateReadInput,
+  TemplateReadResult,
+  TemplateRenameInput,
+  TemplateSaveInput,
+  TemplateSaveResult,
   UiStateKeyInput
 } from '../shared/project'
 import { ProjectIpc } from '../shared/project'
@@ -37,6 +46,7 @@ import {
 } from './services/config'
 import { ProjectServiceError } from './services/project-service'
 import type { ProjectService } from './services/project-service'
+import { TemplateEditorService } from './services/template-editor-service'
 
 type Handler<T, R> = (arg: T) => R | Promise<R>
 
@@ -56,6 +66,19 @@ function windowOf(): BrowserWindow | null {
 }
 
 export function registerProjectIpc(service: ProjectService): void {
+  // 模板编辑（PLAN-11 批次 1）：只动模板目录里的 JSON，与工程库无关，所以单独一个服务。
+  // 依赖从设置与 Electron 取：模板目录列表每次现读（设置里改完不用重启），
+  // 备份落 userData（绝不写进模板目录，那里通常受版本控制）。
+  const templateEditor = new TemplateEditorService({
+    // 冒烟时只认夹具目录（DOC_E2E_TEMPLATES）：探针会真的往模板文件里写，
+    // 本机真实模板仓库要保护起来；正常启动完全没有这个分支。
+    templateDirs: () => {
+      const e2eTemplates = process.env['DOC_E2E'] ? process.env['DOC_E2E_TEMPLATES'] : undefined
+      return e2eTemplates ? [e2eTemplates] : loadAppSettings().template_dirs
+    },
+    appDataDir: () => app.getPath('userData')
+  })
+
   // ---------- 工程 ----------
   handle<CreateProjectInput, Awaited<ReturnType<ProjectService['createProject']>>>(
     ProjectIpc.ProjectCreate,
@@ -270,6 +293,28 @@ export function registerProjectIpc(service: ProjectService): void {
       isDefault: c.isDefault
     }))
   })
+
+  // ---------- 模板编辑（PLAN-11 批次 1）----------
+  // 入参出参与错误口径见 services/template-editor-service.ts；
+  // 这里的 handle() 统一把抛出的 message 转成 renderer 能 catch 的 rejection。
+  handle<void, TemplateEditorSnapshotDto>(ProjectIpc.TemplateSnapshot, () =>
+    templateEditor.snapshot()
+  )
+  handle<TemplateReadInput, TemplateReadResult>(ProjectIpc.TemplateRead, (input) =>
+    templateEditor.read(input)
+  )
+  handle<TemplateSaveInput, TemplateSaveResult>(ProjectIpc.TemplateSave, (input) =>
+    templateEditor.save(input)
+  )
+  handle<TemplateCreateInput, TemplateReadResult>(ProjectIpc.TemplateCreate, (input) =>
+    templateEditor.create(input)
+  )
+  handle<TemplateDeleteInput, TemplateDeleteResult>(ProjectIpc.TemplateDelete, (input) =>
+    templateEditor.remove(input)
+  )
+  handle<TemplateRenameInput, TemplateReadResult>(ProjectIpc.TemplateRename, (input) =>
+    templateEditor.rename(input)
+  )
 
   // ---------- 导出 ----------
   handle<ExportDocxInput, Awaited<ReturnType<ProjectService['exportDocx']>>>(

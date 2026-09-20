@@ -12,6 +12,7 @@ import type {
   DesktopProjectApi,
   DesktopSettingsApi,
   DesktopTemplatesApi,
+  DesktopTemplateEditorApi,
   DesktopTreeApi,
   DesktopUiStateApi
 } from './project'
@@ -64,5 +65,6 @@ export interface DesktopApi {
   export: DesktopExportApi
   settings: DesktopSettingsApi
   templates: DesktopTemplatesApi
+  templateEditor: DesktopTemplateEditorApi
   files: DesktopFileApi
 }

@@ -22,6 +22,11 @@ import type {
   NodeDescriptionInput,
   NodeTitleInput,
   SavePathDialogOptions,
+  TemplateCreateInput,
+  TemplateDeleteInput,
+  TemplateReadInput,
+  TemplateRenameInput,
+  TemplateSaveInput,
   UiStateKeyInput
 } from '../shared/project'
 
@@ -138,6 +143,28 @@ const api: DesktopApi = {
       >,
     diagnose: () =>
       invoke(ProjectIpc.TemplatesDiagnose) as ReturnType<DesktopApi['templates']['diagnose']>
+  },
+  templateEditor: {
+    snapshot: () =>
+      invoke(ProjectIpc.TemplateSnapshot) as ReturnType<
+        DesktopApi['templateEditor']['snapshot']
+      >,
+    read: (input: TemplateReadInput) =>
+      invoke(ProjectIpc.TemplateRead, input) as ReturnType<DesktopApi['templateEditor']['read']>,
+    save: (input: TemplateSaveInput) =>
+      invoke(ProjectIpc.TemplateSave, input) as ReturnType<DesktopApi['templateEditor']['save']>,
+    create: (input: TemplateCreateInput) =>
+      invoke(ProjectIpc.TemplateCreate, input) as ReturnType<
+        DesktopApi['templateEditor']['create']
+      >,
+    remove: (input: TemplateDeleteInput) =>
+      invoke(ProjectIpc.TemplateDelete, input) as ReturnType<
+        DesktopApi['templateEditor']['remove']
+      >,
+    rename: (input: TemplateRenameInput) =>
+      invoke(ProjectIpc.TemplateRename, input) as ReturnType<
+        DesktopApi['templateEditor']['rename']
+      >
   }
 }
 

@@ -166,6 +166,101 @@ export interface TemplateLoadReport {
   loadedAny: boolean
 }
 
+// ---------- 模板编辑（PLAN-11）----------
+
+/** 一条校验结论：level 决定阻断与否，rule 是规则 id，path 指到具体节点或字段 */
+export interface TemplateIssueDto {
+  level: 'error' | 'warn'
+  rule: string
+  path: string
+  message: string
+}
+
+/** 列表里的一份模板 */
+export interface TemplateEntryDto {
+  kind: 'structure' | 'style'
+  /** 目录里的模板 id（目录名），读写都按它定位 */
+  id: string
+  /** 模板 JSON 里的 name，给人看的 */
+  name: string
+  /** manifest 里登记的文件名 */
+  file: string
+  errors: number
+  warnings: number
+  issues: TemplateIssueDto[]
+}
+
+/** 一个模板目录的现状 */
+export interface TemplateDirSnapshotDto {
+  dir: string
+  exists: boolean
+  /** 目录级问题：manifest 缺失或解析失败、目录不存在、有目录没登记等 */
+  issues: TemplateIssueDto[]
+  structures: TemplateEntryDto[]
+  styles: TemplateEntryDto[]
+}
+
+/** 打开编辑模式时的全貌 */
+export interface TemplateEditorSnapshotDto {
+  /** 应用设置里在用的模板目录，编辑模式默认打开它；没配就是 null */
+  defaultDir: string | null
+  dirs: TemplateDirSnapshotDto[]
+}
+
+export interface TemplateReadInput {
+  dir: string
+  id: string
+}
+
+/** 读一份结构模板：doc 是解析后的原文，界面按字段编辑，没认得的字段原样保留 */
+export interface TemplateReadResult {
+  dir: string
+  id: string
+  file: string
+  doc: Record<string, unknown>
+  issues: TemplateIssueDto[]
+}
+
+export interface TemplateSaveInput {
+  dir: string
+  id: string
+  doc: Record<string, unknown>
+}
+
+export interface TemplateSaveResult {
+  savedAt: string
+  /** 写前备份的路径；首次保存没有可备份的原文件时为 null */
+  backupPath: string | null
+  issues: TemplateIssueDto[]
+}
+
+export interface TemplateCreateInput {
+  dir: string
+  /** 目录名，也是模板 id；必须是合法目录名且不重复 */
+  id: string
+  /** 结构模板 JSON 的 name */
+  name: string
+  /** 默认配对哪份样式模板（stylemap 的 fileKey），可空 */
+  styleTemplate?: string
+}
+
+export interface TemplateDeleteInput {
+  dir: string
+  id: string
+}
+
+export interface TemplateDeleteResult {
+  /** 删除前整份目录备份到哪了 */
+  backupPath: string
+}
+
+export interface TemplateRenameInput {
+  dir: string
+  id: string
+  /** 只改结构模板 JSON 里的 name，目录名与文件名不动 */
+  name: string
+}
+
 export interface UiStateSave {
   key: string
   value: string
@@ -224,6 +319,18 @@ export const ProjectIpc = {
   TemplatesStyleCandidates: 'templates:style-candidates',
   /** 模板加载总览：配了哪些目录、各自加载到几套、没加载到的原因 */
   TemplatesDiagnose: 'templates:diagnose',
+  /** 模板编辑：打开时的全貌（目录、模板、问题徽标） */
+  TemplateSnapshot: 'template:snapshot',
+  /** 模板编辑：读一份结构模板原文 */
+  TemplateRead: 'template:read',
+  /** 模板编辑：写回结构模板（原子写 + .bak），写入前必须零 error */
+  TemplateSave: 'template:save',
+  /** 模板编辑：新建结构模板并同步 manifest */
+  TemplateCreate: 'template:create',
+  /** 模板编辑：删除结构模板（整份目录先备份） */
+  TemplateDelete: 'template:delete',
+  /** 模板编辑：改结构模板的名字 */
+  TemplateRename: 'template:rename',
   /** 导出 DOCX */
   ExportDocx: 'export:docx',
   /** 导出前的图表与表格统计 */
@@ -335,6 +442,19 @@ export interface DesktopBlockApi {
   update(input: BlockUpdateInput): Promise<void>
   importImage(input: ImageImportInput): Promise<ImportImageResult>
   writeBytes(input: FileWriteBytesInput): Promise<string>
+}
+
+/**
+ * 模板编辑（PLAN-11）：只动模板目录里的 JSON，不碰工程库、不进撤销栈。
+ * 结构模板可读可写；样式模板本批只读（对照表编辑在下一批）。
+ */
+export interface DesktopTemplateEditorApi {
+  snapshot(): Promise<TemplateEditorSnapshotDto>
+  read(input: TemplateReadInput): Promise<TemplateReadResult>
+  save(input: TemplateSaveInput): Promise<TemplateSaveResult>
+  create(input: TemplateCreateInput): Promise<TemplateReadResult>
+  remove(input: TemplateDeleteInput): Promise<TemplateDeleteResult>
+  rename(input: TemplateRenameInput): Promise<TemplateReadResult>
 }
 
 export interface DesktopUiStateApi {
