@@ -13,7 +13,8 @@ export {
   nowFileTime,
   CFB_SECTOR,
   CFB_MINI,
-  CFB_MINI_CUTOFF
+  CFB_MINI_CUTOFF,
+  CFB_DIFAT_ENTRIES
 } from './cfb'
 export type { CfbBuildOptions } from './cfb'
 export {
