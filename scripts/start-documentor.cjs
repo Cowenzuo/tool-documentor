@@ -47,11 +47,18 @@ function hold() {
   }
 }
 
-/** 找 release 下的安装包（免安装版缺失时给用户指路） */
+/**
+ * 找 release 下的安装包（免安装版缺失时给用户指路）。
+ * 同一目录里可能并排躺着几版安装包，取**最新那一版**：按文件修改时间排，
+ * 时间相同再按名字倒序，免得指到旧版本上。
+ */
 function findInstaller() {
   if (!existsSync(RELEASE_DIR)) return null
-  const hit = readdirSync(RELEASE_DIR).find((n) => /^Documentor-.*-setup\.exe$/iu.test(n))
-  return hit ? join(RELEASE_DIR, hit) : null
+  const hits = readdirSync(RELEASE_DIR)
+    .filter((n) => /^Documentor-.*-setup\.exe$/iu.test(n))
+    .map((n) => ({ name: n, mtime: statSync(join(RELEASE_DIR, n)).mtimeMs }))
+    .sort((a, b) => b.mtime - a.mtime || b.name.localeCompare(a.name))
+  return hits.length > 0 ? join(RELEASE_DIR, hits[0].name) : null
 }
 
 function hasPnpm() {
