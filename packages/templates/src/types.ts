@@ -131,4 +131,10 @@ export interface LoadDirResult {
    * `structure already loaded: <name>（保留 <胜出目录> 里的那份，忽略本次 <本次目录>）`。
    */
   skipped: string[]
+  /**
+   * 加载成功但有可疑之处的条目：内容块 lock 取值不认识（按不锁处理）、
+   * 样式骨架缺 `word/_rels/document.xml.rels` 之类。不阻断加载，
+   * 但要出现在报告里，界面才能解释"为什么少了什么 / 为什么没生效"。
+   */
+  warnings: string[]
 }

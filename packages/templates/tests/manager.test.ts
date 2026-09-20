@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { resetIdCounterForTest } from '@documentor/core'
 import type { ContentBlock } from '@documentor/core'
 import { TemplateManager, requiredStyleKeys } from '../src/manager'
@@ -185,12 +185,8 @@ describe('内容块模板锁 lock（只认三档，非法取值按不锁处理�
     expect(byTitle.get('引用文档')![0]!).not.toHaveProperty('lock')
   })
 
-  it('解析阶段滤掉非法取值：块不带锁，并记一条加载告警', async () => {
-    const { mkdirSync, mkdtempSync, writeFileSync, rmSync } = await import('node:fs')
-    const { tmpdir } = await import('node:os')
-    const { join } = await import('node:path')
+  it('解析阶段滤掉非法取值：块不带锁，并在加载报告里记一条告警', () => {
     const dir = mkdtempSync(join(tmpdir(), 'tpl-lock-'))
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     try {
       const base = join(dir, 'templates')
       mkdirSync(join(base, 'structures', 'lockcase'), { recursive: true })
@@ -219,7 +215,7 @@ describe('内容块模板锁 lock（只认三档，非法取值按不锁处理�
         'utf8'
       )
       const mgr = new TemplateManager()
-      mgr.loadTemplateDir(base)
+      const result = mgr.loadTemplateDir(base)
       const def = mgr.findStructureByName('锁测试模板')!
       expect(def.rootDef.contentBlocks.map((b) => b.lock)).toEqual([
         'readonly',
@@ -227,10 +223,11 @@ describe('内容块模板锁 lock（只认三档，非法取值按不锁处理�
         undefined,
         undefined
       ])
-      // 非法取值要留下痕迹，不能静默
-      const logged = warn.mock.calls.map((call) => call.join(' ')).join('\n')
-      expect(logged).toContain('必锁')
-      expect(logged).toContain('锁测试模板')
+      // 非法取值要留下痕迹，不能静默：整份模板照常加载，只出一条警告
+      expect(result.skipped).toEqual([])
+      expect(result.warnings).toHaveLength(2)
+      expect(result.warnings.join('\n')).toContain('必锁')
+      expect(result.warnings.join('\n')).toContain('锁测试模板')
 
       const tree = mgr.instantiate(def)!
       expect(tree.root.contentBlocks[0]!.lock).toBe('readonly')
@@ -238,7 +235,117 @@ describe('内容块模板锁 lock（只认三档，非法取值按不锁处理�
       expect(tree.root.contentBlocks[2]!).not.toHaveProperty('lock')
       expect(tree.root.contentBlocks[3]!).not.toHaveProperty('lock')
     } finally {
-      warn.mockRestore()
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('加载报告：跳过的条目与可疑取值都要有记录', () => {
+  it('结构缺 name / 缺 root、stylemap 缺 name / 缺 styleMap 都进 skipped', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tpl-broken-'))
+    try {
+      const base = join(dir, 'templates')
+      mkdirSync(join(base, 'structures', 'n'), { recursive: true })
+      mkdirSync(join(base, 'structures', 'r'), { recursive: true })
+      mkdirSync(join(base, 'styles', 's'), { recursive: true })
+      writeFileSync(
+        join(base, 'manifest.json'),
+        JSON.stringify({
+          structures: [
+            { id: 'n', name: '缺 name', file: 'no-name.json' },
+            { id: 'r', name: '缺 root', file: 'no-root.json' }
+          ],
+          styles: [
+            { id: 's', name: '缺 name 的样式', stylemap_file: 'no-name-stylemap.json' },
+            { id: 's', name: '缺 styleMap 的样式', stylemap_file: 'no-map-stylemap.json' }
+          ]
+        }),
+        'utf8'
+      )
+      writeFileSync(
+        join(base, 'structures', 'n', 'no-name.json'),
+        JSON.stringify({ root: { nodeType: 'root', title: '没有名字' } }),
+        'utf8'
+      )
+      writeFileSync(
+        join(base, 'structures', 'r', 'no-root.json'),
+        JSON.stringify({ name: '缺少 root 的模板' }),
+        'utf8'
+      )
+      writeFileSync(
+        join(base, 'styles', 's', 'no-name-stylemap.json'),
+        JSON.stringify({ styleMap: { body: '1' } }),
+        'utf8'
+      )
+      writeFileSync(
+        join(base, 'styles', 's', 'no-map-stylemap.json'),
+        JSON.stringify({ name: '缺 styleMap 的样式' }),
+        'utf8'
+      )
+
+      const mgr = new TemplateManager()
+      const result = mgr.loadTemplateDir(base)
+      // 一份都没加载到，但报告里必须逐条说清是哪份、为什么
+      expect(result.structuresLoaded).toBe(0)
+      expect(result.stylesLoaded).toBe(0)
+      expect(result.skipped).toHaveLength(4)
+      const joined = result.skipped.join('\n')
+      for (const file of [
+        'no-name.json',
+        'no-root.json',
+        'no-name-stylemap.json',
+        'no-map-stylemap.json'
+      ]) {
+        expect(joined).toContain(file)
+      }
+      expect(joined).toContain('解析失败')
+      expect(result.warnings).toEqual([])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('认不出的内容块类型进 skipped，实例化时确实少那一块', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tpl-unknown-block-'))
+    try {
+      const base = join(dir, 'templates')
+      mkdirSync(join(base, 'structures', 'b'), { recursive: true })
+      writeFileSync(
+        join(base, 'manifest.json'),
+        JSON.stringify({
+          structures: [{ id: 'b', name: '未知块模板', file: 'block-structure.json' }]
+        }),
+        'utf8'
+      )
+      writeFileSync(
+        join(base, 'structures', 'b', 'block-structure.json'),
+        JSON.stringify({
+          name: '未知块模板',
+          root: {
+            nodeType: 'root',
+            title: '未知块',
+            contentBlocks: [
+              { type: 'video', content: '认不出的块' },
+              { type: 'text', content: '留得住的块' },
+              { content: '连 type 都没写' }
+            ]
+          }
+        }),
+        'utf8'
+      )
+      const mgr = new TemplateManager()
+      const result = mgr.loadTemplateDir(base)
+      expect(result.skipped).toHaveLength(2)
+      const joined = result.skipped.join('\n')
+      expect(joined).toContain('video')
+      expect(joined).toContain('（空）')
+      expect(joined).toContain('未知块模板')
+      expect(joined).toContain('未知块') // 节点标题，便于作者定位
+
+      const tree = mgr.instantiate(mgr.findStructureByName('未知块模板')!)!
+      expect(tree.root.contentBlocks).toHaveLength(1)
+      expect(tree.root.contentBlocks[0]).toMatchObject({ type: 'text', content: '留得住的块' })
+    } finally {
       rmSync(dir, { recursive: true, force: true })
     }
   })

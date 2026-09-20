@@ -70,11 +70,17 @@ export function buildTemplateManager(): TemplateHost {
       structures: result.structuresLoaded,
       styles: result.stylesLoaded,
       loadFailed: loaded === 0,
-      reasons: result.skipped.map(toUserReason)
+      reasons: result.skipped.map(toUserReason),
+      // 警告条目本身就是给人看的中文短句，不再经翻译
+      warnings: result.warnings
     }
     dirReports.push(report)
-    if (result.skipped.length > 0) {
-      console.warn('[templates]', dir, result.skipped.join('; '))
+    if (result.skipped.length > 0 || result.warnings.length > 0) {
+      console.warn(
+        '[templates]',
+        dir,
+        [...result.skipped, ...result.warnings].join('; ')
+      )
     }
   }
 

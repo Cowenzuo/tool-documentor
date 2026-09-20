@@ -3,7 +3,12 @@
  * 这里只做转发。
  */
 
-export { TemplateManager, templateBlockToContentBlock, requiredStyleKeys } from './manager'
+export {
+  TemplateManager,
+  templateBlockToContentBlock,
+  requiredStyleKeys,
+  isKnownTemplateBlockType
+} from './manager'
 export type {
   TemplateDef,
   TemplateNodeDef,

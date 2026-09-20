@@ -7,6 +7,8 @@
  * - 样式模板双 key 注册：name 与 stylemap 文件名（不含 .json）；
  * - 结构模板顶层 styleTemplate 字段（= stylemap 文件名）关联样式；
  * - 实例化 = 递归深拷贝模板节点定义 → 文档树，并给每个节点推导 allowedChildLevels。
+ * - 加载不说"成功"就算完：每一条没加载、被跳过的块、认不出的取值都进 LoadDirResult，
+ *   界面据此说明"为什么少了什么"。
  */
 import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
@@ -37,6 +39,16 @@ interface ManifestEntry {
   description?: string
 }
 
+/**
+ * 解析期的两个上报通道（LoadDirResult 结构上就满足）：
+ * - skipped：这一条没加载（整份模板/样式被丢弃、块被跳过）；
+ * - warnings：加载了但有可疑之处（取值不认识、骨架缺部件），不阻断加载。
+ */
+interface ReportSink {
+  skipped: string[]
+  warnings: string[]
+}
+
 export class TemplateManager {
   /** 结构模板注册表（按模板 JSON 的 name） */
   private structures = new Map<string, TemplateDef>()
@@ -60,7 +72,13 @@ export class TemplateManager {
    * 双方来源目录记进 skipped，不再静默替换。
    */
   loadTemplateDir(dirPath: string): LoadDirResult {
-    const result: LoadDirResult = { dirPath, structuresLoaded: 0, stylesLoaded: 0, skipped: [] }
+    const result: LoadDirResult = {
+      dirPath,
+      structuresLoaded: 0,
+      stylesLoaded: 0,
+      skipped: [],
+      warnings: []
+    }
     const manifestPath = join(dirPath, 'manifest.json')
     if (!existsSync(manifestPath)) {
       result.skipped.push(`manifest.json not found in ${dirPath}`)
@@ -84,7 +102,13 @@ export class TemplateManager {
       let def: TemplateDef | null = null
       try {
         const doc = JSON.parse(readFileSync(filePath, 'utf8')) as Record<string, unknown>
-        def = this.parseTemplateDef(doc)
+        def = this.parseTemplateDef(doc, result)
+        // 解析返回 null 也是"这一条没加载"，必须进报告，否则用户只看到少了一套
+        if (!def) {
+          result.skipped.push(
+            `结构模板文件 ${entry.file} 解析失败：缺少 name 或 root，整份未加载`
+          )
+        }
       } catch (err) {
         result.skipped.push(`cannot load structure ${entry.file}: ${String(err)}`)
       }
@@ -116,6 +140,11 @@ export class TemplateManager {
       try {
         const doc = JSON.parse(readFileSync(stylemapPath, 'utf8')) as Record<string, unknown>
         styleDef = this.parseStyleTemplateDef(doc, basePath)
+        if (!styleDef) {
+          result.skipped.push(
+            `样式映射文件 ${entry.stylemap_file} 解析失败：缺少 name 或 styleMap，整份未加载`
+          )
+        }
       } catch (err) {
         result.skipped.push(`cannot load stylemap ${entry.stylemap_file}: ${String(err)}`)
       }
@@ -226,11 +255,14 @@ export class TemplateManager {
 
   // ================= 解析 =================
 
-  private parseTemplateDef(root: Record<string, unknown>): TemplateDef | null {
+  private parseTemplateDef(
+    root: Record<string, unknown>,
+    sink: ReportSink
+  ): TemplateDef | null {
     const name = String(root['name'] ?? '')
     const rootObj = root['root']
     if (!name || typeof rootObj !== 'object' || rootObj === null) return null
-    const rootDef = this.parseNodeDef(rootObj as Record<string, unknown>, name)
+    const rootDef = this.parseNodeDef(rootObj as Record<string, unknown>, name, sink)
     const styleTemplate = String(root['styleTemplate'] ?? '')
     const rawList = asArray(root['styleTemplates']).map((x) => String(x)).filter(Boolean)
     // 兼容：缺 styleTemplates 时回退单元素集合
@@ -249,14 +281,26 @@ export class TemplateManager {
     }
   }
 
-  private parseNodeDef(obj: Record<string, unknown>, templateName: string): TemplateNodeDef {
+  private parseNodeDef(
+    obj: Record<string, unknown>,
+    templateName: string,
+    sink: ReportSink
+  ): TemplateNodeDef {
     const nodeType = String(obj['nodeType'] ?? '')
     const nodeTitle = String(obj['title'] ?? '')
     const contentBlocks: TemplateContentBlockDef[] = []
     for (const raw of asArray(obj['contentBlocks'])) {
       const b = raw as Record<string, unknown>
+      const type = String(b['type'] ?? '')
+      // 认不出的块类型会在实例化时被丢掉，这里就报出来，别让模板静默少块
+      if (!isKnownTemplateBlockType(type)) {
+        sink.skipped.push(
+          `结构模板「${templateName}」节点「${nodeTitle}」的内容块类型「${type || '（空）'}」` +
+            '不认识，实例化时该块会被跳过'
+        )
+      }
       contentBlocks.push({
-        type: String(b['type'] ?? ''),
+        type,
         caption: b['caption'] == null ? undefined : String(b['caption']),
         content: b['content'] == null ? undefined : String(b['content']),
         language: b['language'] == null ? undefined : String(b['language']),
@@ -267,12 +311,12 @@ export class TemplateManager {
         // 表格纵向合并开关只认布尔 true：字符串 'true'、数字 1 这类一律按不设处理
         mergeVertical: b['mergeVertical'] === true ? true : undefined,
         items: asArray(b['items']).map((x) => String(x)),
-        lock: parseLockValue(b['lock'], templateName, nodeTitle)
+        lock: parseLockValue(b['lock'], templateName, nodeTitle, (msg) => sink.warnings.push(msg))
       })
     }
     const children: TemplateNodeDef[] = []
     for (const raw of asArray(obj['children'])) {
-      children.push(this.parseNodeDef(raw as Record<string, unknown>, templateName))
+      children.push(this.parseNodeDef(raw as Record<string, unknown>, templateName, sink))
     }
     const isSubTitle = nodeType === 'subTitle' || nodeType === 'subtitle'
     return {
@@ -489,18 +533,19 @@ function asArray(value: unknown): unknown[] {
 
 /**
  * 解析模板块定义的 lock，只认 type / keep / readonly 三个字符串。
- * 取值不认识时记一条加载告警并按不锁处理；缺省（没有这个字段）视为不锁，不告警。
- * 模板加载没有专门的告警收集通道，这里走 console.warn，与写入侧的告警方式一致。
+ * 取值不认识时按不锁处理，并把原文交回加载报告（warn 回调），不再只打一行控制台日志；
+ * 缺省（没有这个字段）视为不锁，不告警。
  */
 function parseLockValue(
   value: unknown,
   templateName: string,
-  nodeTitle: string
+  nodeTitle: string,
+  warn: (message: string) => void
 ): BlockLockLevel | undefined {
   const lock = parseBlockLock(value)
   if (!lock && value != null) {
-    console.warn(
-      `[templates] 结构模板「${templateName}」节点「${nodeTitle}」的内容块 lock 取值` +
+    warn(
+      `结构模板「${templateName}」节点「${nodeTitle}」的内容块 lock 取值` +
         `「${String(value)}」不认识，按不锁处理`
     )
   }
@@ -519,6 +564,11 @@ export function templateBlockToContentBlock(
   if (!block) return null
   // 非法取值在 parseNodeDef 已经滤掉，这里只负责带上
   return def.lock ? ({ ...block, lock: def.lock } as ContentBlock) : block
+}
+
+/** 模板内容块类型是否认识；判定口径与 templateBlockOfDef 的 switch 同一个来源 */
+export function isKnownTemplateBlockType(type: string): boolean {
+  return templateBlockOfDef({ type }) !== null
 }
 
 function templateBlockOfDef(def: TemplateContentBlockDef): ContentBlock | null {

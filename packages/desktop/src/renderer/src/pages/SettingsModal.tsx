@@ -169,10 +169,24 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
                         </button>
                       </div>
                       {status && (
-                        <p className={`settings-status${bad ? ' bad' : ''}`}>
-                          {status}
-                          {r && r.reasons.length > 0 ? `：${r.reasons.slice(0, 3).join('；')}` : ''}
+                        <p className={`settings-status${bad ? ' bad' : ''}`}>{status}</p>
+                      )}
+                      {/* 少加载了什么就一条一行地说，最多三条，不堆成一段 */}
+                      {r?.reasons.slice(0, 3).map((reason, k) => (
+                        <p key={`reason-${k}`} className={`settings-status${bad ? ' bad' : ''}`}>
+                          {reason}
                         </p>
+                      ))}
+                      {r && r.reasons.length > 3 && (
+                        <p className="settings-status">还有 {r.reasons.length - 3} 条同类问题已省略</p>
+                      )}
+                      {r?.warnings.slice(0, 3).map((warning, k) => (
+                        <p key={`warning-${k}`} className="settings-status">
+                          {warning}
+                        </p>
+                      ))}
+                      {r && r.warnings.length > 3 && (
+                        <p className="settings-status">还有 {r.warnings.length - 3} 条提示已省略</p>
                       )}
                     </div>
                   )

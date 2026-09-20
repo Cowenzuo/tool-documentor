@@ -125,6 +125,11 @@ export interface TemplateDirReport {
   loadFailed: boolean
   /** 已经翻译成用户可读的原因；空数组表示没被跳过任何条目 */
   reasons: string[]
+  /**
+   * 加载了但有可疑之处的条目（一句一条）：块类型不认识、lock 取值不认识、
+   * 样式骨架缺关系表部件等。与 reasons 分开，是因为这些条目本身是加载成功的。
+   */
+  warnings: string[]
 }
 
 /** 模板加载总览 */
