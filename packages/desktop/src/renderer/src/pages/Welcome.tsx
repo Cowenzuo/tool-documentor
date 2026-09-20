@@ -8,7 +8,7 @@ import { BrandDocGlyph } from '../components/icons'
 import { CreateProjectWizard } from './CreateProjectWizard'
 import './welcome.css'
 
-const FALLBACK_VERSION = '0.1.0-alpha2'
+const FALLBACK_VERSION = '0.1.0-alpha3'
 
 interface RecentItem {
   path: string
