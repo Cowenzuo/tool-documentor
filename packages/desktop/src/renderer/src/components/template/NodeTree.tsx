@@ -82,6 +82,8 @@ function Row({
         aria-selected={selected}
         aria-expanded={canToggle ? open : undefined}
         tabIndex={0}
+        // 中栏是窄栏，长标题会被省略号截掉，鼠标停在行上能看到全名
+        title={nodeTitle(node) || '（未命名）'}
         onClick={() => onSelect(path)}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {

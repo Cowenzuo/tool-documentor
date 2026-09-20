@@ -114,13 +114,15 @@
   margin-top: 2px;
 }
 
-/* ===== 三栏 ===== */
+/* ===== 三栏 =====
+   左（模板列表）与中（节点树）都是窄栏，右边那栏表单/内容块占主要面积：
+   模板与节点都是"选一个"，真正要填的是右侧的字段与内容块。 */
 .tpl-body {
   flex: 1;
   min-height: 0;
   min-width: 0;
   display: grid;
-  grid-template-columns: 244px minmax(0, 1fr) 372px;
+  grid-template-columns: 244px 292px minmax(0, 1fr);
 }
 
 .tpl-col {
@@ -423,15 +425,16 @@
   padding: 5px 0;
 }
 
+/* 右栏变宽了，字段最小宽度跟着抬一点：不然一行会摊出五六列窄输入框 */
 .tpl-grid-2 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 0 var(--space-3);
 }
 
 .tpl-grid-3 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 0 var(--space-3);
 }
 
@@ -562,7 +565,7 @@
 
 .tpl-tree-type {
   flex: none;
-  max-width: 88px;
+  max-width: 72px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -761,10 +764,10 @@
   gap: var(--space-2);
 }
 
-/* ===== 窄窗口：三栏一起收，不溢出 ===== */
+/* ===== 窄窗口：三栏一起收，右栏仍占大头 ===== */
 @media (max-width: 1180px) {
   .tpl-body {
-    grid-template-columns: 204px minmax(0, 1fr) 304px;
+    grid-template-columns: 204px 248px minmax(0, 1fr);
   }
 
   .tpl-col-body {
@@ -774,7 +777,7 @@
 
 @media (max-width: 940px) {
   .tpl-body {
-    grid-template-columns: 176px minmax(0, 1fr) 252px;
+    grid-template-columns: 176px 208px minmax(0, 1fr);
   }
 
   .tpl-dir-select {
