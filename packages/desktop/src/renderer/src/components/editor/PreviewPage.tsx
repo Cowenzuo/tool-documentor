@@ -221,9 +221,12 @@ function PreviewBlock({
         </ul>
       )
     case 'table': {
-      // 纵向合并与导出同规则（同一个解析函数）：显式跨度优先，老数据退回兼容判定
+      // 纵向合并与导出同规则（同一个解析函数）：显式跨度逐格优先，兼容判定补空。
+      // 列数按表头、cols 与数据行的最大值取，与导出一致
       const merges = resolveTableMerges({
         data: block.data,
+        headers: block.headers,
+        cols: block.cols,
         rowSpans: block.rowSpans,
         mergeVertical: block.mergeVertical
       })

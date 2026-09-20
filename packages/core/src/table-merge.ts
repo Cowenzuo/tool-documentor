@@ -1,18 +1,23 @@
 /**
  * table-merge.ts — 表格纵向合并的判定（纯函数，编辑区/预览/导出三处共用）。
  *
- * 两种来源，**显式跨度优先**：
+ * 两种来源，**取并集**：
  *
  * 1. **显式跨度** `rowSpans`（推荐，新数据）：`{ 列号: [[起始行, 跨几行], ...] }`。
  *    跨行是数据本身的一部分，不靠内容推断——因此值可以照常保留、取消合并即可恢复。
+ *    逐格优先，认领过的格子不再被兼容判定碰。
  * 2. **兼容判定**（老数据/老模板）：`mergeVertical: true` 时，同列按下述两种形态合并：
  *    - **连续相同**：连续若干行 trim 后非空且完全相同 → 合成一格（老写法，保留）；
  *    - **空串向上合并**：非空值后面跟的**连续空串**并入上面那一格——这正是"留空 = 续格"
  *      的写法，也是合并后的形态。组延续到下一个非空值为止。
  *    列首的空串没有可并入的对象，跳过（不把开头整片空白并成一格）。
+ *    它只补显式跨度没认领的部分，于是加跨度只会增加合并，不会让别处的合并消失。
  *
  * 第 2 条是为既有工程保留的。它靠内容推断，因此**只认得上述两种形态**；
  * 想把跨行与内容彻底解耦（值随你怎么填、合并都成立），用第 1 条的 rowSpans。
+ *
+ * 列数取表头长度、提示性 cols、各数据行长度的最大值：这是导出侧 writer 的口径，
+ * 判定必须跟着走，否则表头比数据行宽的表会在多出来的那几列上丢跨度。
  *
  * 输出与 data 同形状：起点格 rowSpan>1，被覆盖格 covered=true（导出写空续格、预览不渲染）。
  */
@@ -31,19 +36,42 @@ const NONE: TableMergeCell = { rowSpan: 1, covered: false }
 export interface TableSpanSource {
   /** 正文行（不含表头） */
   data: readonly (readonly string[])[]
+  /** 表头。不在 data 里，但和正文行同属这张表的列 */
+  headers?: readonly string[]
+  /** 提示性列数元数据。模板与实例 JSON 可能给 0 或干脆不给 */
+  cols?: number
   /** 显式跨度：{ 列号: [[起始行, 跨几行], ...] } */
   rowSpans?: Record<string, Array<[number, number]>>
   /** 兼容开关 */
   mergeVertical?: boolean
 }
 
-/** 兼容判定：同列连续、trim 后非空且完全相同 → 合并（老口径，逐字保留） */
+/**
+ * 判定用的列数：表头长度、提示性 cols、各数据行长度的最大值，至少 1 列。
+ * 只取 data 宽度会漏掉两类列：表头比数据行宽时表头占的列，
+ * 以及 cols 声明的列。这两类列上的显式跨度会被 `c >= cols` 当成越界丢掉。
+ * data 为空时给 0，调用方据此返回空网格，保持"没有数据行就没有合并"。
+ */
+function tableCols(src: {
+  data: readonly (readonly string[])[]
+  headers?: readonly string[]
+  cols?: number
+}): number {
+  if (src.data.length === 0) return 0
+  return Math.max(1, src.headers?.length ?? 0, src.cols ?? 0, ...src.data.map((r) => r.length))
+}
+
+/**
+ * 兼容判定：同列连续、trim 后非空且完全相同 → 合并（老口径，逐字保留）。
+ * cols 不传时按 data 自身宽度算，这时与旧行为一致。
+ */
 function legacyMerges(
   data: readonly (readonly string[])[],
-  claimed?: readonly (readonly boolean[])[]
+  claimed?: readonly (readonly boolean[])[],
+  colsArg?: number
 ): TableMergeCell[][] {
   const rows = data.length
-  const cols = rows === 0 ? 0 : Math.max(...data.map((r) => r.length))
+  const cols = colsArg ?? (rows === 0 ? 0 : Math.max(...data.map((r) => r.length)))
   const out: TableMergeCell[][] = Array.from({ length: rows }, () =>
     Array.from({ length: cols }, () => ({ ...NONE }))
   )
@@ -102,11 +130,10 @@ function legacyMerges(
 function applyExplicit(
   out: TableMergeCell[][],
   claimed: boolean[][],
-  data: readonly (readonly string[])[],
-  rowSpans: Record<string, Array<[number, number]>>
+  rowSpans: Record<string, Array<[number, number]>>,
+  rows: number,
+  cols: number
 ): void {
-  const rows = data.length
-  const cols = rows === 0 ? 0 : Math.max(...data.map((r) => r.length))
   if (rows === 0 || cols === 0) return
 
   for (const [colKey, spans] of Object.entries(rowSpans)) {
@@ -147,11 +174,14 @@ function emptyGrid(rows: number, cols: number): TableMergeCell[][] {
  *
  * 旧规则是"有 rowSpans 就整体接管"，于是一张表只要带了不完整的跨度，
  * 其余该合的地方就静默不合了；现在加跨度只会增加合并，不会让别处的合并消失。
+ *
+ * 列数取表头长度、提示性 cols 与各数据行长度的最大值：写入侧（导出）就是这个口径，
+ * 判定这边跟着走，否则"表头 3 列、数据行 2 列"的表会在第 3 列上丢跨度。
  */
 export function resolveTableMerges(src: TableSpanSource): TableMergeCell[][] {
   const { data, rowSpans, mergeVertical } = src
   const rows = data.length
-  const cols = rows === 0 ? 0 : Math.max(...data.map((r) => r.length))
+  const cols = tableCols(src)
   const out = emptyGrid(rows, cols)
   if (rows === 0 || cols === 0) return out
 
@@ -159,10 +189,10 @@ export function resolveTableMerges(src: TableSpanSource): TableMergeCell[][] {
     Array.from({ length: cols }, () => false)
   )
   if (rowSpans && Object.keys(rowSpans).length > 0) {
-    applyExplicit(out, claimed, data, rowSpans)
+    applyExplicit(out, claimed, rowSpans, rows, cols)
   }
   if (mergeVertical === true) {
-    const legacy = legacyMerges(data, claimed)
+    const legacy = legacyMerges(data, claimed, cols)
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         if (claimed[r]![c] === true) continue

@@ -493,6 +493,51 @@ describe('DocxWriter 端到端（合成示例模板骨架）', () => {
     expect(table.match(/<w:tc>/g)!).toHaveLength(9)
   })
 
+  it('表头 3 列、数据行 2 列时，第 3 列上的显式跨度不得被丢弃', async () => {
+    resetIdCounterForTest()
+    const { tree, manager } = loadDemo()
+    const demo = manager.findStructureByName('示例文档模板 (Demo)')!
+    const style = manager.styleForStructure(demo)!
+    const target = firstContentNode(tree)
+
+    // 缺陷现场：判定原先只按数据行宽度算列数（2 列），第 3 列（下标 2）的跨度
+    // 被当成越界丢掉，预览与导出都少一处合并。导出侧列数取"表头、每行、cols"
+    // 的最大值，判定必须同口径，否则这一个合并只有导出丢。
+    target.contentBlocks.push({
+      type: 'table',
+      caption: '表1 表头比数据行宽',
+      rows: 2,
+      cols: 3,
+      headers: ['序号', '标识', '标题'],
+      data: [
+        ['1', '补齐-001'],
+        ['2', '补齐-002']
+      ],
+      rowSpans: { '2': [[0, 2]] }
+    })
+
+    const outputPath = join(dir, 'out-span-third-col.docx')
+    await writeDocx(serializeToInstructions(tree, style), style, outputPath)
+    const zip = await JSZip.loadAsync(readFileSync(outputPath))
+    const documentXml = await zip.file('word/document.xml')!.async('string')
+
+    const table = tableAround(documentXml, '>补齐-001<')
+    expect(table.match(/<w:gridCol /g)!).toHaveLength(3)
+    // 第 3 列第 1 行是合并起点，第 2 行是续格；总共各一处
+    expect(table.match(/<w:vMerge w:val="restart"\/>/g)!).toHaveLength(1)
+    expect(table.match(/<w:vMerge\/>/g)!).toHaveLength(1)
+    const firstRow = /<w:tr>(?:(?!<\/w:tr>)[\s\S])*?补齐-001(?:(?!<\/w:tr>)[\s\S])*?<\/w:tr>/.exec(table)!
+    const firstCells = firstRow[0].match(/<w:tc>[\s\S]*?<\/w:tc>/g)!
+    expect(firstCells).toHaveLength(3)
+    expect(firstCells[0]).not.toContain('vMerge')
+    expect(firstCells[1]).not.toContain('vMerge')
+    expect(firstCells[2]).toContain('<w:vMerge w:val="restart"/>')
+    const secondRow = /<w:tr>(?:(?!<\/w:tr>)[\s\S])*?补齐-002(?:(?!<\/w:tr>)[\s\S])*?<\/w:tr>/.exec(table)!
+    const secondCells = secondRow[0].match(/<w:tc>[\s\S]*?<\/w:tc>/g)!
+    expect(secondCells).toHaveLength(3)
+    expect(secondCells[2]).toContain('<w:vMerge/>')
+  })
+
   it('表格参差行补齐到列数，行内单元格数与 tblGrid 一致', async () => {
     resetIdCounterForTest()
     const { tree, manager } = loadDemo()

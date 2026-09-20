@@ -131,7 +131,7 @@ describe('computeVerticalMerges（表格纵向合并判定）', () => {
   })
 })
 
-describe('resolveTableMerges（显式跨度优先）', () => {
+describe('resolveTableMerges（显式跨度与兼容判定取并集）', () => {
   it('有 rowSpans 时按跨度合并，且不要求内容相同（值保留）', () => {
     // 首行有值、下面留空——扁平数组表达不了跨行，靠 rowSpans 明确指定
     const data = [
@@ -236,6 +236,47 @@ describe('resolveTableMerges（显式跨度优先）', () => {
     expect(m[1]![0]!.covered).toBe(true)
     expect(m[2]![0]!.covered).toBe(true)
     expect(countVerticalMerges(m)).toBe(1)
+  })
+
+  it('列数按表头长度、cols 与数据行长度的最大值取', () => {
+    const data = [['A']]
+    expect(resolveTableMerges({ data })[0]!.length).toBe(1)
+    expect(resolveTableMerges({ data: [['A', 'B', 'C']] })[0]!.length).toBe(3)
+    expect(resolveTableMerges({ data, headers: ['H1', 'H2', 'H3', 'H4'] })[0]!.length).toBe(4)
+    expect(resolveTableMerges({ data, cols: 5 })[0]!.length).toBe(5)
+    // 三者同时给出时取最大，且 cols 声明的列上能落跨度
+    const m = resolveTableMerges({
+      data: [['甲'], ['甲']],
+      headers: ['甲'],
+      cols: 2,
+      rowSpans: { '1': [[0, 2]] }
+    })
+    expect(m[0]!.length).toBe(2)
+    expect(m[0]![1]).toEqual({ rowSpan: 2, covered: false })
+    // 没有数据行时仍是 0 行：不给合并，也不凭空造出表头行
+    expect(resolveTableMerges({ data: [], headers: ['A', 'B'], cols: 2 })).toEqual([])
+  })
+
+  it('表头 3 列、数据行 2 列时，第 3 列上的跨度必须成立', () => {
+    // 缺陷现场：判定只取 max(每行长度)，第 3 列被 c >= cols 当成越界丢掉，
+    // 预览与导出都少一处合并。导出侧 writer 的列数是"表头、每行、cols"三者最大值。
+    const data = [
+      ['1', 'DEMO-001'],
+      ['2', 'DEMO-002']
+    ]
+    const m = resolveTableMerges({
+      data,
+      headers: ['序号', '标识', '标题'],
+      rowSpans: { '2': [[0, 2]] }
+    })
+    expect(m[0]!.length).toBe(3)
+    expect(m[0]![2]).toEqual({ rowSpan: 2, covered: false })
+    expect(m[1]![2]!.covered).toBe(true)
+    expect(countVerticalMerges(m)).toBe(1)
+    // 不传表头时退回 data 宽度：第 3 列在网格外，跨度丢掉，与旧行为一致
+    const noHeaders = resolveTableMerges({ data, rowSpans: { '2': [[0, 2]] } })
+    expect(noHeaders[0]!.length).toBe(2)
+    expect(countVerticalMerges(noHeaders)).toBe(0)
   })
 })
 

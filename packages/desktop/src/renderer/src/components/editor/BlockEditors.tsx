@@ -239,9 +239,12 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
     gridRef.current?.querySelector<HTMLElement>(`[data-cell="${rowId}"]`)?.focus()
   }
 
-  // 合并来源：显式跨度优先、老数据退回兼容判定（与导出/预览同一个函数）
+  // 合并来源：显式跨度逐格优先，老数据退回兼容判定（与导出/预览同一个函数）。
+  // 列数按表头、cols 与数据行的最大值取，导出侧就是这个口径
   const merges = resolveTableMerges({
     data: block.data,
+    headers: block.headers,
+    cols: block.cols,
     rowSpans: block.rowSpans,
     mergeVertical: block.mergeVertical
   })

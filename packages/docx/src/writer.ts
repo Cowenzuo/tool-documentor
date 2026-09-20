@@ -682,9 +682,13 @@ function renderTable(
 
   const grid = `<w:tblGrid>${Array.from({ length: cols }, () => `<w:gridCol w:w="${colWidth}"/>`).join('')}</w:tblGrid>`
 
-  // 合并来源：显式跨度优先，老数据退回"同列连续相同内容"兼容判定
+  // 合并来源：显式跨度逐格优先，mergeVertical 开时兼容判定补没认领的部分。
+  // 列数与上面的 cols 同口径：表头、cols 与数据行三者取最大值，
+  // 只按数据行宽度会把表头多出来的那几列上的跨度丢掉
   const merges = resolveTableMerges({
     data: c.rowsData,
+    headers: c.headers,
+    cols: c.cols,
     rowSpans: c.rowSpans,
     mergeVertical: c.mergeVertical
   })
