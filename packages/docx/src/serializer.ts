@@ -4,13 +4,14 @@
  * - kText → body；kTable → 表题注段（剥离手写序号）+ 表格；kImage/kMermaid →
  *   占位段 + 图题注段（图名在图下方）；kFormula/kCode → body 占位文本；
  *   列表 → 每项一段 + 独立列表组 id（重新编号）
- * - warnings：样式键缺失时透出（配对软校验的兜底，不静默）
+ * - warnings：样式键缺失时透出（配对软校验的兜底，不静默）；
+ *   表格形状与声明列数对不上时也走这条通道（参差表不再静默导出）
  */
 import { existsSync } from 'node:fs'
 import { isAbsolute, resolve } from 'node:path'
 import type { DocumentTree, DocumentNode } from '@documentor/core'
-import { stripCaptionNumber } from '@documentor/core'
-import type { ContentBlock } from '@documentor/core'
+import { checkTableShape, stripCaptionNumber } from '@documentor/core'
+import type { ContentBlock, TableBlock, TableShapeIssue } from '@documentor/core'
 import type { StyleTemplateDef, CaptionNumberingMode } from '@documentor/templates'
 import type { WriteInstruction } from './instructions'
 
@@ -175,6 +176,9 @@ export function serializeWithWarnings(
           break
         }
         case 'table': {
+          // 形状先校验再写：表头长度、各行长度与 cols 对不上的表照样导出，
+          // 但要把"哪张表、哪里对不上"报出去，不静默
+          warnTableShape(node, block, warnings)
           if (block.caption.length > 0) {
             emitCaption(
               node,
@@ -266,6 +270,54 @@ function blockText(block: ContentBlock): string {
 
 function blockLabel(block: ContentBlock): string {
   return block.type === 'formula' ? '公式块' : '代码块'
+}
+
+// ================= 表格形状警告（导出侧的最后一道关） =================
+
+/**
+ * 表格形状与声明列数对不上时透出警告。
+ *
+ * 写入侧（project-service.assertTableShape）只拦新改动，模板、实例 JSON 与老工程
+ * 带进来的参差表会一路走到导出；导出侧原来完全不知道表头长度与 cols、各行长度是否一致，
+ * 于是形状不对的表被静默写出去。判定仍只有 core 那一份 checkTableShape。
+ *
+ * 定位优先用表题注（用户在文档里看到的、也是导出后能对上号的就是它），
+ * 题注为空时退回节点标题。同一张表的问题合成一条警告，免得参差表刷出一串。
+ */
+function warnTableShape(node: DocumentNode, block: TableBlock, warnings: string[]): void {
+  const issues = checkTableShape(block)
+  if (issues.length === 0) return
+  const text = issues.map((issue) => tableIssueText(issue, block)).join('；')
+  const caption = block.caption.trim()
+  const label = caption.length > 0 ? `表格“${caption}”` : `“${node.title}”下的表格`
+  // 后果按 writer.renderTable 的口径说：列数取表头、cols 与各行的最大值，短行补空格子
+  warnings.push(
+    `${label}的形状与列数 ${block.cols} 对不上：${text}。` +
+      `导出按表头与最宽的一行为准写表，短行补空格子`
+  )
+}
+
+/**
+ * 把 checkTableShape 的问题说成人话。
+ *
+ * 它的 reason 是给写入侧排查用的，带 cols、data[0] 这类内部字段名，不适合直接给用户看；
+ * 这里按它给的 where 重新组织成"哪张表、什么问题"，判定本身不重复实现。
+ * 认不出的 where（core 以后新增检查项）退回原样透出，宁可口径糙一点也不能丢警告。
+ */
+function tableIssueText(issue: TableShapeIssue, block: TableBlock): string {
+  if (issue.where === 'cols') return `列数不合法（${block.cols}）`
+  if (issue.where === 'headers') {
+    return `表头 ${block.headers.length} 列与列数 ${block.cols} 不一致`
+  }
+  if (issue.where === 'rows') {
+    return `行数写的是 ${block.rows}，比正文的 ${block.data.length} 行少`
+  }
+  const hit = /^data\[(\d+)\]$/.exec(issue.where)
+  if (hit) {
+    const i = Number(hit[1])
+    return `第 ${i + 1} 行 ${block.data[i]?.length ?? 0} 列与列数 ${block.cols} 不一致`
+  }
+  return issue.reason
 }
 
 // ================= Mermaid 收集（M7 图嵌入链路） =================

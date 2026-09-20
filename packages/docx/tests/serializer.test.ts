@@ -309,6 +309,66 @@ describe('题注编号方式（captionNumbering）', () => {
   })
 })
 
+describe('表格形状警告（导出侧不再静默）', () => {
+  /** 造一棵只有一张表的树：表头 3 列、cols=2、第 2 行 4 列 */
+  const raggedTree = (caption: string): DocumentTree => {
+    resetIdCounterForTest()
+    const root = new DocumentNode(0)
+    const section = node(2, '标识')
+    section.contentBlocks.push({
+      type: 'table',
+      caption,
+      rows: 2,
+      cols: 2,
+      headers: ['序号', '标识', '标题'],
+      data: [
+        ['1', 'DEMO-001'],
+        ['2', 'DEMO-002', '示例', '多出来的一列']
+      ]
+    })
+    root.addChild(section)
+    return new DocumentTree(root)
+  }
+
+  it('表头与 cols 不一致、某行超宽：warnings 报出这处问题并指明是哪张表', () => {
+    const { instructions, warnings } = serializeWithWarnings(raggedTree('表2 参差表'), styleDef)
+    // 警告不阻断导出：表照常写出去
+    expect(instructions.filter((i) => i.opType === 'InsertTable')).toHaveLength(1)
+    expect(warnings).toHaveLength(1)
+    const warn = warnings[0]!
+    expect(warn).toContain('表格“表2 参差表”')
+    expect(warn).toContain('表头 3 列与列数 2 不一致')
+    expect(warn).toContain('第 2 行 4 列与列数 2 不一致')
+    // 给用户看的文案不带内部字段名
+    expect(warn).not.toContain('cols')
+    expect(warn).not.toContain('data[')
+  })
+
+  it('形状一致的表不产生警告', () => {
+    resetIdCounterForTest()
+    const root = new DocumentNode(0)
+    const section = node(2, '标识')
+    section.contentBlocks.push({
+      type: 'table',
+      caption: '表3 规整表',
+      rows: 1,
+      cols: 2,
+      headers: ['序号', '标识'],
+      data: [['1', 'DEMO-001']]
+    })
+    root.addChild(section)
+    const { warnings } = serializeWithWarnings(new DocumentTree(root), styleDef)
+    expect(warnings).toEqual([])
+  })
+
+  it('没有表题注时用节点标题定位', () => {
+    const { warnings } = serializeWithWarnings(raggedTree(''), styleDef)
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('“标识”下的表格')
+    expect(warnings[0]).toContain('表头 3 列与列数 2 不一致')
+  })
+})
+
 describe('collectMermaidFigures（M7 图嵌入收集）', () => {
   it('按文档顺序收集 code 非空的 Mermaid 块（跳过空代码）', () => {
     resetIdCounterForTest()
