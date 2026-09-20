@@ -1,7 +1,8 @@
 # Word 实测核对方法
 
 > XML 写对了不等于 Word 认。本页给出用 Word 回读产物的固定动作，逐项确认样式、
-> 编号、域、合并与图形。配套脚本在 [scripts/](scripts/)。
+> 编号、域、合并与图形。配套脚本在本机 `localscripts/word-checks/`，**不入库**：
+> `localscripts/` 整个目录被 `.gitignore` 忽略，clone 下来没有这些文件。
 
 ## 1. 为什么必须用 Word 回读
 
@@ -55,10 +56,11 @@
 
 ## 6. 脚本用法
 
+五个脚本都在本机 `localscripts/word-checks/`，不入库；命令在仓库根执行。
 PowerShell 5.1 直接调：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File docs\WORD处理经验\scripts\word-typography.ps1 -Path 出.docx
+powershell -NoProfile -ExecutionPolicy Bypass -File localscripts\word-checks\word-typography.ps1 -Path 出.docx
 ```
 
 四个脚本各有分工：`word-typography.ps1` 看版式，`word-captions.ps1` 看编号与域，
@@ -66,6 +68,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File docs\WORD处理经验\script
 
 包内的核对不必开 Word，用 `docx-check.cjs` 直接读 zip：媒体数、关系数、域数、
 合并标记数一次给全，适合放进自动化。
+
+```bash
+node localscripts/word-checks/docx-check.cjs temp/export/out.docx
+```
 
 ## 7. 写脚本时的两个注意
 

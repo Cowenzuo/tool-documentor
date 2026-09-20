@@ -30,8 +30,9 @@ packages/              # 本工程的全部模块，平级放在这里（pnpm wo
   core/ templates/     #   纯逻辑库：零 UI 依赖、可单测
   docx/ postprocess/
 samples/               # demo 级实例：示例模板、样例工程、实例样例，供直接打开测试，无外部版权内容
-scripts/               # 入库脚本：上游契约检查、E2E 冒烟、产物校验、按需构建库、一键启动
+scripts/               # 入库脚本：上游契约检查、产物校验、按需构建库、一键启动
 release/               # electron-builder 打包产物（可分发，不入库）
+localscripts/          # 本机脚本（不入库）：单测、E2E 探针、Word 核对脚本、开发工具
 temp/                  # 临时产物（不入库，可随时清空）
 ```
 
@@ -58,16 +59,19 @@ pnpm install    # 首次或依赖变动后
 pnpm dev        # electron-vite dev：渲染层 HMR（需先在 设置→模板目录 配置模板或经 DOC_E2E_TEMPLATES 注入开发模板）
 pnpm typecheck  # 全仓 TS strict 检查
 pnpm build      # 产物 packages/desktop/out/
-pnpm verify     # 门禁：typecheck + 全量单测 + build，收尾再跑上游契约检查（只报告不阻断）
-pnpm verify:local  # 同上但完全跳过上游检查（上游改造期间日常用）
+pnpm verify     # 门禁：typecheck + build，收尾再跑上游契约检查（只报告不阻断；不再跑测试）
 pnpm verify:upstream  # 上游契约检查的严格模式，漂移即退出码 1（发布前用）
-pnpm cli:test-export -- <instance.json> [out.docx] --templates <模板目录>   # 无界面导出
-pnpm --filter @documentor/docx test:real   # 真实图转换契约测试（需 Chromium）
+pnpm test:local     # 本机单测：源码在 localscripts/tests/（不入库）
+pnpm e2e:local      # 先构建，再起真实 Electron 跑生产产物冒烟（工作区落 temp/，见下）
+node localscripts/tools/test-export.cjs <instance.json> [out.docx] --templates <模板目录>   # 无界面导出对照（本机工具）
+DOC_REAL_MMD=1 pnpm test:local   # 真实图转换契约测试（缺省跳过，需 Chromium）
 pnpm package:dir  # 免安装包：release/win-unpacked（仓库根）
 pnpm package      # NSIS 安装包：release/Documentor-<version>-setup.exe
-pnpm e2e          # 先构建，再起真实 Electron 跑生产产物冒烟（工作区落 temp/，见下）
-node scripts/verify-package.cjs   # 校验 asar 内容（必需项齐全 / mmd2vsdx 不入包 / 无开发依赖）
+pnpm verify:package   # 出免安装目录后校验 asar 内容（必需项齐全 / mmd2vsdx 不入包 / 无开发依赖）
 ```
+
+> **单测、E2E 探针、核对脚本、开发工具都在本机 `localscripts/`，不入库**。`.gitignore`
+> 忽略整个目录，clone 下来没有它们；清单与跑法见 `docs/WORD处理经验/03-脚本手册.md`。
 
 > **一键启动的默认行为**：`start-documentor.cmd` 与 `scripts/start-documentor.cjs`
 > **默认启发布版**（`release/win-unpacked/Documentor.exe`，仓库根）——不做构建、秒开，
@@ -84,7 +88,7 @@ node scripts/verify-package.cjs   # 校验 asar 内容（必需项齐全 / mmd2v
 > 用 `pnpm build:libs:mark` 刷新指纹，否则下次启动会白重编一遍。
 
 > **临时产物约定**：E2E 工作区、冒烟导出、打包调试等一律放仓库根 `temp/`，该目录已被 .gitignore 忽略，
-> 不写入系统临时目录。`pnpm e2e` 默认跑完即清理，加 `--keep` 可以保留。
+> 不写入系统临时目录。`pnpm e2e:local` 默认跑完即清理，加 `--keep` 可以保留。
 
 > 模板由外部目录提供，软件不内置。
 > 真身在仓库外，由同级目录 `../tool-documentor-template/` 单独管理，不属本仓库；
