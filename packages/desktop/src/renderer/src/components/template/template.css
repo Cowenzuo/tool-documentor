@@ -116,13 +116,36 @@
 
 /* ===== 三栏 =====
    左（模板列表）与中（节点树）都是窄栏，右边那栏表单/内容块占主要面积：
-   模板与节点都是"选一个"，真正要填的是右侧的字段与内容块。 */
+   模板与节点都是"选一个"，真正要填的是右侧的字段与内容块。
+   宽度由页面按 localStorage 记的值写进 grid-template-columns（可拖，见 .tpl-split），
+   所以这里不写死列宽，只兜底一个默认值。 */
 .tpl-body {
   flex: 1;
   min-height: 0;
   min-width: 0;
   display: grid;
-  grid-template-columns: 244px 292px minmax(0, 1fr);
+  grid-template-columns: 244px 5px 292px 5px minmax(0, 1fr);
+}
+
+/* 三栏之间的拖拽分隔条：宽度必须与页面里的 HANDLE 常量一致 */
+.tpl-split {
+  cursor: col-resize;
+  background: transparent;
+  border-left: 1px solid var(--border);
+  transition: background-color var(--duration-fast) ease;
+}
+
+.tpl-split:hover,
+.tpl-split:focus-visible,
+body.is-splitting .tpl-split {
+  background: var(--accent-soft-strong);
+  outline: none;
+}
+
+/* 拖动期间整页一个光标：跟主编辑器的分隔条同一套 body 类 */
+body.is-splitting {
+  cursor: col-resize;
+  user-select: none;
 }
 
 .tpl-col {
@@ -135,12 +158,10 @@
 
 .tpl-col-list {
   background: var(--bg-panel);
-  border-right: 1px solid var(--border);
 }
 
 .tpl-col-tree {
   background: var(--bg-app);
-  border-right: 1px solid var(--border);
 }
 
 .tpl-col-insp {
@@ -764,22 +785,15 @@
   gap: var(--space-2);
 }
 
-/* ===== 窄窗口：三栏一起收，右栏仍占大头 ===== */
+/* ===== 窄窗口：列宽由页面按容器宽度按比例收（见 TemplateEditorPage 的 layout），
+   这里只管窄窗口下另一些该收的东西 ===== */
 @media (max-width: 1180px) {
-  .tpl-body {
-    grid-template-columns: 204px 248px minmax(0, 1fr);
-  }
-
   .tpl-col-body {
     padding: var(--space-2) var(--space-2) var(--space-6);
   }
 }
 
 @media (max-width: 940px) {
-  .tpl-body {
-    grid-template-columns: 176px 208px minmax(0, 1fr);
-  }
-
   .tpl-dir-select {
     max-width: 46vw;
   }

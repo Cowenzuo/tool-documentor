@@ -2,8 +2,11 @@
  * 模板编辑页（PLAN-11 批次 2）：整页独立，不打开工程、不进撤销栈、不挂编辑器的组件树。
  * 三栏：左栏模板列表（目录与模板、问题徽标），中栏节点树，右栏选中节点的表单。
  * 改动只落在内存草稿里，写文件只发生在页脚那个「保存」按钮。
+ *
+ * 三栏可拖：左与中记宽度（本机 localStorage，口径同主编辑器的结构栏），右栏吃掉剩下的。
+ * 窗口变窄时按比例收左与中，先保右栏的最小可用宽度——要填的字都在右栏。
  */
-import { useEffect, useState, type JSX } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { useApp } from '../state/AppContext'
 import NodeForm from '../components/template/NodeForm'
 import NodeTree from '../components/template/NodeTree'
@@ -14,12 +17,120 @@ import { countIssues, issuesUnder } from '../components/template/templateValidat
 import { useTemplateEditor } from '../components/template/useTemplateEditor'
 import '../components/template/template.css'
 
+/** 分隔条宽度（px），与 template.css 的 .tpl-split 一致 */
+const HANDLE = 5
+const LIST_MIN = 168
+const LIST_MAX = 420
+const TREE_MIN = 200
+const TREE_MAX = 560
+/** 右栏最小可用宽度：窗口不够时先收左与中，不动它 */
+const INSP_MIN = 380
+const LIST_WIDTH_KEY = 'layout.templateListWidth'
+const TREE_WIDTH_KEY = 'layout.templateTreeWidth'
+
+function readWidth(key: string, fallback: number, min: number, max: number): number {
+  try {
+    const saved = Number.parseInt(localStorage.getItem(key) ?? '', 10)
+    if (Number.isFinite(saved)) return Math.min(max, Math.max(min, saved))
+  } catch {
+    /* 忽略：读不到就用默认值 */
+  }
+  return fallback
+}
+
 export default function TemplateEditorPage(): JSX.Element {
   const { closeTemplateEditor } = useApp()
   const editor = useTemplateEditor()
   const counts = countIssues(editor.issues)
   const hasErrors = counts.errors > 0
   const open = editor.doc !== null
+
+  // ---------- 三栏宽度 ----------
+  const bodyRef = useRef<HTMLDivElement | null>(null)
+  const [avail, setAvail] = useState(0)
+  const [listWidth, setListWidth] = useState(() => readWidth(LIST_WIDTH_KEY, 244, LIST_MIN, LIST_MAX))
+  const [treeWidth, setTreeWidth] = useState(() => readWidth(TREE_WIDTH_KEY, 292, TREE_MIN, TREE_MAX))
+
+  useEffect(() => {
+    const el = bodyRef.current
+    if (!el) return
+    const measure = (): void => setAvail(Math.round(el.getBoundingClientRect().width))
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  /**
+   * 真正渲染出去的宽度：窗口不够时按比例收左与中，右栏保底 INSP_MIN。
+   * 拖拽与键盘都以这两个值为起点，所以窄窗口里第一次调不会跳。
+   */
+  const layout = useMemo(() => {
+    let list = listWidth
+    let tree = treeWidth
+    const room = avail - HANDLE * 2 - INSP_MIN
+    if (avail > 0 && list + tree > room) {
+      const scale = Math.max(0, room) / (list + tree)
+      list = Math.max(LIST_MIN, Math.round(list * scale))
+      tree = Math.max(TREE_MIN, Math.round(tree * scale))
+    }
+    return { list, tree }
+  }, [avail, listWidth, treeWidth])
+  const layoutRef = useRef(layout)
+  useEffect(() => {
+    layoutRef.current = layout
+  }, [layout])
+
+  /** 落一个宽度：写进 state（界面）并记到本机（下次打开还是这个宽度） */
+  const commitWidth = useCallback((which: 'list' | 'tree', value: number): void => {
+    const min = which === 'list' ? LIST_MIN : TREE_MIN
+    const max = which === 'list' ? LIST_MAX : TREE_MAX
+    const next = Math.round(Math.min(max, Math.max(min, value)))
+    if (which === 'list') setListWidth(next)
+    else setTreeWidth(next)
+    try {
+      localStorage.setItem(which === 'list' ? LIST_WIDTH_KEY : TREE_WIDTH_KEY, String(next))
+    } catch {
+      /* 忽略：写不进去也不影响本次使用 */
+    }
+  }, [])
+
+  const startDrag = useCallback(
+    (which: 'list' | 'tree', event: React.MouseEvent): void => {
+      event.preventDefault()
+      const startX = event.clientX
+      const from = which === 'list' ? layoutRef.current.list : layoutRef.current.tree
+      // 另一栏与右栏的最小宽度决定了这一栏最多能拖到哪
+      const other = which === 'list' ? layoutRef.current.tree : layoutRef.current.list
+      const base = which === 'list' ? LIST_MIN : TREE_MIN
+      const max = Math.max(
+        base,
+        (avail > 0 ? avail : Number.MAX_SAFE_INTEGER) - HANDLE * 2 - INSP_MIN - other
+      )
+
+      document.body.classList.add('is-splitting')
+      const onMove = (ev: MouseEvent): void => {
+        commitWidth(which, Math.min(max, from + (ev.clientX - startX)))
+      }
+      const onUp = (): void => {
+        document.body.classList.remove('is-splitting')
+        document.removeEventListener('mousemove', onMove)
+        document.removeEventListener('mouseup', onUp)
+      }
+      document.addEventListener('mousemove', onMove)
+      document.addEventListener('mouseup', onUp)
+    },
+    [avail, commitWidth]
+  )
+
+  /** 分隔条也能用键盘推：左右方向键各 16px */
+  const nudge = useCallback(
+    (which: 'list' | 'tree', delta: number): void => {
+      const from = which === 'list' ? layoutRef.current.list : layoutRef.current.tree
+      commitWidth(which, from + delta)
+    },
+    [commitWidth]
+  )
 
   /**
    * 问题清单的展开状态：出现 error 时自动摊开，之后由用户自己开关。
@@ -143,7 +254,13 @@ export default function TemplateEditorPage(): JSX.Element {
         </div>
       )}
 
-      <div className="tpl-body">
+      <div
+        className="tpl-body"
+        ref={bodyRef}
+        style={{
+          gridTemplateColumns: `${layout.list}px ${HANDLE}px ${layout.tree}px ${HANDLE}px minmax(0, 1fr)`
+        }}
+      >
         <TemplateList
           status={editor.status}
           dirSnapshot={editor.dirSnapshot}
@@ -155,6 +272,19 @@ export default function TemplateEditorPage(): JSX.Element {
           onRename={editor.renameTemplate}
           onRemove={editor.removeTemplate}
         />
+        <div
+          className="tpl-split"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="调整模板列表宽度"
+          tabIndex={0}
+          onMouseDown={(event) => startDrag('list', event)}
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+            event.preventDefault()
+            nudge('list', event.key === 'ArrowLeft' ? -16 : 16)
+          }}
+        />
         <NodeTree
           doc={editor.doc}
           status={editor.status}
@@ -165,6 +295,19 @@ export default function TemplateEditorPage(): JSX.Element {
           onToggle={editor.toggleExpand}
           onExpandAll={editor.expandAll}
           onCollapseAll={editor.collapseAll}
+        />
+        <div
+          className="tpl-split"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="调整节点树宽度"
+          tabIndex={0}
+          onMouseDown={(event) => startDrag('tree', event)}
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+            event.preventDefault()
+            nudge('tree', event.key === 'ArrowLeft' ? -16 : 16)
+          }}
         />
         <NodeForm
           doc={editor.doc}
