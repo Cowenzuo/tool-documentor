@@ -124,6 +124,11 @@ export interface LoadDirResult {
   dirPath: string
   structuresLoaded: number
   stylesLoaded: number
-  /** 跳过的原因（同名已注册 / 文件缺失 / 解析失败） */
+  /**
+   * 条目不加载的原因。除「文件缺失 / 解析失败」外，还包含同名冲突：
+   * 结构与样式都按**模板 JSON 顶层的 name** 去重（样式另加 stylemap 文件名），
+   * 先加载者胜出，被忽略的那份记成
+   * `structure already loaded: <name>（保留 <胜出目录> 里的那份，忽略本次 <本次目录>）`。
+   */
   skipped: string[]
 }

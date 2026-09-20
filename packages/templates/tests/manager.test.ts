@@ -1,5 +1,8 @@
 /** manager.test.ts — 模板加载、配对校验与实例化的单测。 */
 
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it, vi } from 'vitest'
 import { resetIdCounterForTest } from '@documentor/core'
@@ -12,6 +15,30 @@ function createManager(): TemplateManager {
   const mgr = new TemplateManager()
   mgr.loadTemplateDir(SAMPLE)
   return mgr
+}
+
+/**
+ * 造一个最小模板目录（只有一份结构模板）。
+ * manifest 的 name 与结构 JSON 的 name 分开传，用于钉住「注册键取 JSON 的 name」。
+ */
+function writeStructureDir(
+  base: string,
+  jsonName: string,
+  rootTitle: string,
+  manifestName: string
+): string {
+  mkdirSync(join(base, 'structures', 's'), { recursive: true })
+  writeFileSync(
+    join(base, 'manifest.json'),
+    JSON.stringify({ structures: [{ id: 's', name: manifestName, file: 's.json' }] }),
+    'utf8'
+  )
+  writeFileSync(
+    join(base, 'structures', 's', 's.json'),
+    JSON.stringify({ name: jsonName, root: { nodeType: 'root', title: rootTitle } }),
+    'utf8'
+  )
+  return base
 }
 
 describe('示例模板资产加载（samples/sample-template，合成无版权数据）', () => {
@@ -232,6 +259,69 @@ describe('用户目录优先与无效目录回退', () => {
     expect(r2.stylesLoaded).toBe(0)
     expect(r2.skipped.length).toBe(4)
     expect(mgr.listStructures()).toHaveLength(1)
+  })
+})
+
+describe('结构模板注册键口径（以模板 JSON 的 name 为准，manifest 只做发现）', () => {
+  it('同名两份：先加载的胜出，报告里记下被忽略的那份与双方来源目录', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tpl-dup-'))
+    try {
+      const first = writeStructureDir(join(dir, 'first'), '同名模板', '先加载的标题', '同名模板')
+      // 第二份的 manifest name 与 JSON name 不一致：旧实现拿 manifest name 去重
+      // （表里没有「别名乙」这个名字），于是解析后按 JSON 的 name 静默替换掉第一份
+      const second = writeStructureDir(join(dir, 'second'), '同名模板', '后加载的标题', '别名乙')
+
+      const mgr = new TemplateManager()
+      const r1 = mgr.loadTemplateDir(first)
+      const r2 = mgr.loadTemplateDir(second)
+
+      expect(r1.structuresLoaded).toBe(1)
+      expect(r2.structuresLoaded).toBe(0)
+      const structures = mgr.listStructures()
+      expect(structures).toHaveLength(1)
+      expect(structures[0]!.rootDef.defaultTitle).toBe('先加载的标题')
+
+      const record = r2.skipped.find((s) => s.startsWith('structure already loaded'))
+      expect(record).toBeDefined()
+      expect(record).toContain('同名模板')
+      expect(record).toContain(first) // 胜出者的来源目录
+      expect(record).toContain(second) // 被忽略者的来源目录
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('manifest 与 JSON 名字不一致时按 JSON 的名字注册', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tpl-manifest-name-'))
+    try {
+      const base = writeStructureDir(join(dir, 'a'), '正名模板', '正名文档', '清单里的旧名')
+      const mgr = new TemplateManager()
+      const result = mgr.loadTemplateDir(base)
+
+      expect(result.structuresLoaded).toBe(1)
+      expect(mgr.findStructureByName('正名模板')).toBeDefined()
+      expect(mgr.findStructureByName('正名模板')!.rootDef.defaultTitle).toBe('正名文档')
+      // manifest 的 name 不参与注册，查不到是预期行为
+      expect(mgr.findStructureByName('清单里的旧名')).toBeUndefined()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('不同名的两份都能加载，互不影响', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tpl-distinct-'))
+    try {
+      const a = writeStructureDir(join(dir, 'a'), '甲模板', '甲文档', '甲模板')
+      const b = writeStructureDir(join(dir, 'b'), '乙模板', '乙文档', '乙模板')
+      const mgr = new TemplateManager()
+      expect(mgr.loadTemplateDir(a).structuresLoaded).toBe(1)
+      const rb = mgr.loadTemplateDir(b)
+      expect(rb.structuresLoaded).toBe(1)
+      expect(rb.skipped).toEqual([])
+      expect(mgr.listStructures().map((s) => s.name).sort()).toEqual(['乙模板', '甲模板'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
 

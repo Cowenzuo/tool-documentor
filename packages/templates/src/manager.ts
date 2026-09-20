@@ -1,7 +1,9 @@
 /**
  * TemplateManager：模板目录加载、检索、实例化（对齐旧版 templatemanager 语义）。
  * - 每个模板目录以 manifest.json 驱动：structures/<id>/<file>、styles/<id>/<stylemap>；
- * - 结构模板按 name 注册（先加载者优先，同名跳过并记录）；
+ * - manifest 只做**发现与索引**（id 定位目录、file/stylemap_file 定位文件），
+ *   模板的对外身份与注册键一律取模板 JSON 顶层的 name；
+ * - 结构模板按 JSON 的 name 去重并注册（先加载者优先，同名者整体忽略并记来源目录）；
  * - 样式模板双 key 注册：name 与 stylemap 文件名（不含 .json）；
  * - 结构模板顶层 styleTemplate 字段（= stylemap 文件名）关联样式；
  * - 实例化 = 递归深拷贝模板节点定义 → 文档树，并给每个节点推导 allowedChildLevels。
@@ -23,7 +25,11 @@ import type {
 
 interface ManifestEntry {
   id: string
-  name: string
+  /**
+   * 模板清单里的显示名，**不参与注册与去重**：软件认的是模板 JSON 顶层的 name。
+   * 两份不一致时以 JSON 为准，这里只影响模板仓库文档的可读性。
+   */
+  name?: string
   file?: string
   stylemap_file?: string
   style_folder?: string
@@ -32,12 +38,16 @@ interface ManifestEntry {
 }
 
 export class TemplateManager {
-  /** 结构模板注册表（按 name） */
+  /** 结构模板注册表（按模板 JSON 的 name） */
   private structures = new Map<string, TemplateDef>()
-  /** 结构定义（按 manifest id，供关联检查） */
+  /** 结构定义（按 manifest id，供关联检查；同名冲突时保留先加载的那份） */
   private structuresById = new Map<string, TemplateDef>()
   /** 样式模板注册表（name 与 filekey 双 key） */
   private styles = new Map<string, StyleTemplateDef>()
+  /** 结构注册键 → 来源目录（同名被忽略时报出来源） */
+  private structureDirs = new Map<string, string>()
+  /** 样式注册键（name 或 filekey）→ 来源目录 */
+  private styleDirs = new Map<string, string>()
   /** 目录加载顺序记录（诊断用） */
   readonly loadedDirs: string[] = []
 
@@ -45,7 +55,9 @@ export class TemplateManager {
 
   /**
    * 加载一个模板目录（manifest 驱动）。目录无效（不存在/无 manifest/无结构）返回失败但不抛错。
-   * 同名注册冲突采用先加载优先（调用方按 用户目录 → 内置 顺序传入，实现用户模板优先）。
+   * 同名注册冲突采用先加载优先（调用方按 用户目录 → 内置 顺序传入，实现用户模板优先）：
+   * 结构模板按**模板 JSON 顶层的 name** 判定重名（与注册键同一个），被忽略的那份连同
+   * 双方来源目录记进 skipped，不再静默替换。
    */
   loadTemplateDir(dirPath: string): LoadDirResult {
     const result: LoadDirResult = { dirPath, structuresLoaded: 0, stylesLoaded: 0, skipped: [] }
@@ -68,10 +80,6 @@ export class TemplateManager {
         result.skipped.push(`invalid structure entry: ${JSON.stringify(entry)}`)
         continue
       }
-      if (this.structures.has(entry.name)) {
-        result.skipped.push(`structure already loaded: ${entry.name}`)
-        continue
-      }
       const filePath = join(dirPath, 'structures', entry.id, entry.file)
       let def: TemplateDef | null = null
       try {
@@ -80,11 +88,20 @@ export class TemplateManager {
       } catch (err) {
         result.skipped.push(`cannot load structure ${entry.file}: ${String(err)}`)
       }
-      if (def) {
-        this.structures.set(def.name, def)
-        this.structuresById.set(entry.id, def)
-        result.structuresLoaded += 1
+      if (!def) continue
+      // 去重与注册必须是同一个键：模板 JSON 的 name（manifest 的 name 只是清单显示名）
+      const winner = this.structureDirs.get(def.name)
+      if (winner) {
+        result.skipped.push(
+          `structure already loaded: ${def.name}（保留 ${winner} 里的那份，忽略本次 ${dirPath}）`
+        )
+        continue
       }
+      this.structures.set(def.name, def)
+      this.structureDirs.set(def.name, dirPath)
+      // 按 manifest id 的索引同样先加载优先，避免后来者把已注册的结构换掉
+      if (!this.structuresById.has(entry.id)) this.structuresById.set(entry.id, def)
+      result.structuresLoaded += 1
     }
 
     // 样式模板
@@ -104,14 +121,19 @@ export class TemplateManager {
       }
       if (styleDef) {
         const fileKey = entry.stylemap_file.replace(/\.json$/u, '')
-        // 样式同结构一样按先加载优先（name 或 filekey 已注册则跳过）
-        if (this.styles.has(styleDef.name) || this.styles.has(fileKey)) {
-          result.skipped.push(`style already loaded: ${styleDef.name}`)
+        // 样式同结构一样按先加载优先（name 或 filekey 已注册则跳过），并记下来源目录
+        const winner = this.styleDirs.get(styleDef.name) ?? this.styleDirs.get(fileKey)
+        if (winner) {
+          result.skipped.push(
+            `style already loaded: ${styleDef.name}（保留 ${winner} 里的那份，忽略本次 ${dirPath}）`
+          )
           continue
         }
         styleDef.fileKey = fileKey
         this.styles.set(styleDef.name, styleDef)
         this.styles.set(fileKey, styleDef)
+        this.styleDirs.set(styleDef.name, dirPath)
+        this.styleDirs.set(fileKey, dirPath)
         result.stylesLoaded += 1
       }
     }
