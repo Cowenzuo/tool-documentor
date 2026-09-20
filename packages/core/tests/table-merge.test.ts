@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
   computeVerticalMerges,
   countVerticalMerges,
+  completeRowSpans,
   inferRowSpansFromData,
   resolveTableMerges
 } from '../src/table-merge'
@@ -147,19 +148,59 @@ describe('resolveTableMerges（显式跨度优先）', () => {
     expect(countVerticalMerges(m)).toBe(1)
   })
 
-  it('显式跨度优先于 mergeVertical：两者都在时按 span 走', () => {
+  it('显式跨度与 mergeVertical 各管一段：跨度逐格优先，兼容判定补空', () => {
     const data = [
       ['A', 'x'],
       ['A', 'y'],
       ['A', 'z']
     ]
-    // 兼容判定会把第 0 列合成 3 行；显式跨度只指定第 1 列
+    // 显式跨度只指定第 1 列的前两行；第 0 列仍由兼容判定合成 3 行。
+    // 旧口径是"有跨度就整体接管"，第 0 列的合开会静默消失，这里钉住并集语义。
     const m = resolveTableMerges({ data, rowSpans: { '1': [[0, 2]] }, mergeVertical: true })
-    expect(m[0]![0]!.rowSpan).toBe(1)
-    expect(m[1]![0]!.rowSpan).toBe(1)
+    expect(m[0]![0]!.rowSpan).toBe(3)
+    expect(m[1]![0]!.covered).toBe(true)
     expect(m[0]![1]).toEqual({ rowSpan: 2, covered: false })
     expect(m[1]![1]!.covered).toBe(true)
     expect(m[2]![1]!.rowSpan).toBe(1)
+  })
+
+  it('显式跨度认领的格子不再被兼容判定重复认领', () => {
+    const data = [
+      ['A', 'x'],
+      ['A', 'x'],
+      ['A', 'x']
+    ]
+    // 第 1 列显式覆盖第 1–2 行，兼容判定只能去补第 0 行那段
+    const m = resolveTableMerges({ data, rowSpans: { '1': [[1, 2]] }, mergeVertical: true })
+    expect(m[1]![1]).toEqual({ rowSpan: 2, covered: false })
+    expect(m[2]![1]!.covered).toBe(true)
+    expect(m[0]![1]!.rowSpan).toBe(1)
+    expect(m[0]![0]!.rowSpan).toBe(3)
+  })
+
+  it('completeRowSpans：把缺失的组补成跨度，已覆盖的不重复补', () => {
+    const data = [
+      ['甲', 'x'],
+      ['甲', 'y'],
+      ['乙', 'y'],
+      ['乙', 'y']
+    ]
+    // 只声明了第 0 列第 2–3 行；推导会把第 0 列 0–1 行、第 1 列 2–3 行补上
+    const { spans, added } = completeRowSpans(data, { '0': [[2, 2]] })
+    expect(added).toBe(2)
+    expect(spans!['0']).toEqual([[2, 2], [0, 2]])
+    expect(spans!['1']).toEqual([[1, 3]])
+    // 补完再判定：三处合并都在
+    expect(countVerticalMerges(resolveTableMerges({ data, rowSpans: spans }))).toBe(3)
+  })
+
+  it('completeRowSpans：本来就齐全时不新增', () => {
+    const data = [
+      ['甲', 'x'],
+      ['甲', 'y']
+    ]
+    const { added } = completeRowSpans(data, { '0': [[0, 2]] })
+    expect(added).toBe(0)
   })
 
   it('没有 rowSpans 时退回兼容判定（老工程行为不变）', () => {

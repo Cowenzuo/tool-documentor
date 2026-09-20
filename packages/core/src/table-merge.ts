@@ -38,7 +38,10 @@ export interface TableSpanSource {
 }
 
 /** 兼容判定：同列连续、trim 后非空且完全相同 → 合并（老口径，逐字保留） */
-function legacyMerges(data: readonly (readonly string[])[]): TableMergeCell[][] {
+function legacyMerges(
+  data: readonly (readonly string[])[],
+  claimed?: readonly (readonly boolean[])[]
+): TableMergeCell[][] {
   const rows = data.length
   const cols = rows === 0 ? 0 : Math.max(...data.map((r) => r.length))
   const out: TableMergeCell[][] = Array.from({ length: rows }, () =>
@@ -62,6 +65,12 @@ function legacyMerges(data: readonly (readonly string[])[]): TableMergeCell[][] 
       sawBlank = false
     }
     for (let r = 0; r < rows; r++) {
+      // 已被显式跨度认领的格子不参与推断，并就地截断当前组——
+      // 兼容判定只补显式跨度没覆盖到的部分，不与它抢格子
+      if (claimed?.[r]?.[c] === true) {
+        close(r)
+        continue
+      }
       const cur = (data[r]?.[c] ?? '').trim()
       if (cur.length === 0) {
         // 空串并入上方那一格（"留空 = 续格"的写法），组延续到下一个非空值
@@ -86,17 +95,19 @@ function legacyMerges(data: readonly (readonly string[])[]): TableMergeCell[][] 
   return out
 }
 
-/** 把显式跨度摊平成与 data 同形状的合并态 */
-function explicitMerges(
+/**
+ * 把显式跨度摊平成与 data 同形状的合并态，并把占用的格子记进 claimed。
+ * 已有显式跨度重叠时以先到的为准，避免同一格被两个跨度重复认领。
+ */
+function applyExplicit(
+  out: TableMergeCell[][],
+  claimed: boolean[][],
   data: readonly (readonly string[])[],
   rowSpans: Record<string, Array<[number, number]>>
-): TableMergeCell[][] {
+): void {
   const rows = data.length
   const cols = rows === 0 ? 0 : Math.max(...data.map((r) => r.length))
-  const out: TableMergeCell[][] = Array.from({ length: rows }, () =>
-    Array.from({ length: cols }, () => ({ ...NONE }))
-  )
-  if (rows === 0 || cols === 0) return out
+  if (rows === 0 || cols === 0) return
 
   for (const [colKey, spans] of Object.entries(rowSpans)) {
     const c = Number.parseInt(colKey, 10)
@@ -105,31 +116,92 @@ function explicitMerges(
       if (!Number.isFinite(start) || !Number.isFinite(span) || span < 2) continue
       const end = Math.min(rows, start + span)
       if (start < 0 || start >= rows || end - start < 2) continue
-      // 已有显式跨度重叠时以先到的为准，避免同一格被两个跨度重复认领
-      if (out[start]![c]!.rowSpan > 1 || out[start]![c]!.covered) continue
-      let conflict = false
-      for (let k = start + 1; k < end; k++) {
-        if (out[k]![c]!.rowSpan > 1 || out[k]![c]!.covered) conflict = true
+      let conflict = claimed[start]![c] === true
+      if (!conflict) {
+        for (let k = start + 1; k < end; k++) {
+          if (claimed[k]![c] === true) conflict = true
+        }
       }
       if (conflict) continue
       out[start]![c] = { rowSpan: end - start, covered: false }
-      for (let k = start + 1; k < end; k++) out[k]![c] = { rowSpan: 1, covered: true }
+      claimed[start]![c] = true
+      for (let k = start + 1; k < end; k++) {
+        out[k]![c] = { rowSpan: 1, covered: true }
+        claimed[k]![c] = true
+      }
+    }
+  }
+}
+
+/** 空白网格 */
+function emptyGrid(rows: number, cols: number): TableMergeCell[][] {
+  return Array.from({ length: rows }, () => Array.from({ length: cols }, () => ({ ...NONE })))
+}
+
+/**
+ * 计算一张表的纵向合并态。编辑区、预览、导出都调这一个函数。
+ *
+ * 两种来源**各管一段，不是二选一**：
+ * 1. 显式跨度 `rowSpans` 逐格优先，认领过的格子不被兼容判定再碰；
+ * 2. `mergeVertical` 开时，兼容判定（连续相同 + 空串向上）**补上没被认领的部分**。
+ *
+ * 旧规则是"有 rowSpans 就整体接管"，于是一张表只要带了不完整的跨度，
+ * 其余该合的地方就静默不合了；现在加跨度只会增加合并，不会让别处的合并消失。
+ */
+export function resolveTableMerges(src: TableSpanSource): TableMergeCell[][] {
+  const { data, rowSpans, mergeVertical } = src
+  const rows = data.length
+  const cols = rows === 0 ? 0 : Math.max(...data.map((r) => r.length))
+  const out = emptyGrid(rows, cols)
+  if (rows === 0 || cols === 0) return out
+
+  const claimed: boolean[][] = Array.from({ length: rows }, () =>
+    Array.from({ length: cols }, () => false)
+  )
+  if (rowSpans && Object.keys(rowSpans).length > 0) {
+    applyExplicit(out, claimed, data, rowSpans)
+  }
+  if (mergeVertical === true) {
+    const legacy = legacyMerges(data, claimed)
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (claimed[r]![c] === true) continue
+        out[r]![c] = legacy[r]![c] ?? { ...NONE }
+      }
     }
   }
   return out
 }
 
 /**
- * 计算一张表的纵向合并态。显式跨度优先；没有显式跨度时才退回兼容判定。
- * 编辑区、预览、导出都调这一个函数，保证三处结果一致。
+ * 补齐合并跨度：把"同列相邻的相同非空值""非空值后跟的空串"这些成组形态，
+ * 补成显式跨度（与已有跨度取并集），只写跨度、不碰 data。
+ * 返回补齐后的跨度与新增处数；没有可补的返回 added = 0。
+ *
+ * 用途：接手旧版或外部带进来的残缺跨度时，由用户在界面上确认后调用，不静默改写数据。
  */
-export function resolveTableMerges(src: TableSpanSource): TableMergeCell[][] {
-  const { data, rowSpans, mergeVertical } = src
-  if (rowSpans && Object.keys(rowSpans).length > 0) return explicitMerges(data, rowSpans)
-  if (mergeVertical === true) return legacyMerges(data)
-  const rows = data.length
-  const cols = rows === 0 ? 0 : Math.max(...data.map((r) => r.length))
-  return Array.from({ length: rows }, () => Array.from({ length: cols }, () => ({ ...NONE })))
+export function completeRowSpans(
+  data: readonly (readonly string[])[],
+  existing?: Record<string, Array<[number, number]>>
+): { spans: Record<string, Array<[number, number]>> | undefined; added: number } {
+  const inferred = inferRowSpansFromData(data) ?? {}
+  const merged: Record<string, Array<[number, number]>> = {}
+  for (const [col, list] of Object.entries(existing ?? {})) {
+    merged[col] = [...list]
+  }
+  let added = 0
+  for (const [col, list] of Object.entries(inferred)) {
+    const current = merged[col] ?? []
+    for (const span of list) {
+      const covered = current.some(([s, n]) => span[0] < s + n && s < span[0] + span[1])
+      if (covered) continue
+      current.push(span)
+      added += 1
+    }
+    if (current.length > 0) merged[col] = current
+  }
+  const spans = Object.keys(merged).length > 0 ? merged : undefined
+  return { spans, added }
 }
 
 /**
