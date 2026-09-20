@@ -101,6 +101,17 @@ function checkResult(data) {
       `错误=${data.lockedContentEditError}`
   )
   need(data.lockedContentRestored === true, '锁定块内容改回原值后没有读回原值')
+  // 界面置灰之外，写入侧自己也要拒：keep 档删不掉也挪不动
+  need(data.keepRemoveRejected === true, '写入侧没有拦住删除 keep 档块')
+  need(
+    typeof data.keepRemoveError === 'string' && data.keepRemoveError.includes('不能删除'),
+    `拒绝删除时没说明原因：${data.keepRemoveError}`
+  )
+  need(data.keepMoveRejected === true, '写入侧没有拦住移动 keep 档块')
+  need(
+    typeof data.keepMoveError === 'string' && data.keepMoveError.includes('不能移动'),
+    `拒绝移动时没说明原因：${data.keepMoveError}`
+  )
   need(data.readonlyLockTag === '只读', `readonly 档块的标记不是「只读」：${data.readonlyLockTag}`)
   need(
     data.readonlyAreaReadOnly === true,
@@ -117,6 +128,23 @@ function checkResult(data) {
       data.readonlyMoveTitles.length === 2 &&
       data.readonlyMoveTitles.every((t) => typeof t === 'string' && t.includes('不能移动')),
     `readonly 档上下移按钮的提示没写原因：${JSON.stringify(data.readonlyMoveTitles)}`
+  )
+  // readonly 档的定稿内容：写入侧既不接受改内容，也不接受删除
+  need(data.readonlyContentRejected === true, '写入侧没有拦住改 readonly 档块的内容')
+  need(
+    typeof data.readonlyContentError === 'string' && data.readonlyContentError.includes('内容不能改'),
+    `拒绝改内容时没说明原因：${data.readonlyContentError}`
+  )
+  need(data.readonlyRemoveRejected === true, '写入侧没有拦住删除 readonly 档块')
+  // 相邻档位：与 keep 块相邻的内容，上移按钮置灰并写清是相邻锁定挡住的
+  need(data.neighborMoveUpDisabled === true, '与锁定块相邻的内容，上移按钮没有置灰')
+  need(
+    typeof data.neighborMoveUpTitle === 'string' && data.neighborMoveUpTitle.includes('相邻内容'),
+    `相邻锁定导致的上移不可用没写原因：${data.neighborMoveUpTitle}`
+  )
+  need(
+    typeof data.neighborCards === 'number' && data.neighborCardsAfterCleanup === data.neighborCards - 1,
+    `验证相邻锁定时添加的内容没清理干净：${data.neighborCards} → ${data.neighborCardsAfterCleanup}`
   )
   // type 档只锁类型：删除与上下移照常可做，不能连删都锁上
   need(data.typeLockDeleteDisabled === false, 'type 档块的删除按钮被误置灰')
