@@ -729,10 +729,9 @@ describe('DocxWriter 端到端（合成示例模板骨架）', () => {
         '<w:r><w:t>-</w:t></w:r>' +
         '<w:fldSimple w:instr=" SEQ 表 \\* ARABIC \\s 1 "><w:r><w:t>1</w:t></w:r></w:fldSimple>'
     )
-    // 手写表号已剥离，题注样式沿用 table.caption
+    // 题注文字原样带出：编号归样式或域，程序不改写作者写的字
     expect(documentXml).toContain('<w:pStyle w:val="48"/>')
-    expect(documentXml).not.toContain('表4.1-1')
-    expect(documentXml).toContain('<w:t xml:space="preserve"> 试验工况表</w:t>')
+    expect(documentXml).toContain('<w:t xml:space="preserve"> 表4.1-1 试验工况表</w:t>')
   })
 
   it('题注域：chapterStyleNames 显式空串时章节号写成文本（不做 STYLEREF）', async () => {
@@ -764,6 +763,42 @@ describe('DocxWriter 端到端（合成示例模板骨架）', () => {
     expect(documentXml).not.toContain('STYLEREF')
     expect(documentXml).toMatch(/<w:r><w:t>表<\/w:t><\/w:r><w:r><w:t>4<\/w:t><\/w:r>/)
     expect(documentXml).toContain('SEQ 表')
+  })
+
+  it('题注域：没有可用标题层级时不留「表-1」残号，也不写 STYLEREF', async () => {
+    resetIdCounterForTest()
+    const { manager } = loadDemo()
+    const demo = manager.findStructureByName('示例文档模板 (Demo)')!
+    const base = manager.styleForStructure(demo)!
+    const style = {
+      ...base,
+      headingStarts: [4, 1, 1, 1, 1],
+      captionNumbering: { table: 'field' as const, chapterStyleNames: { '1': '标题 1' } }
+    }
+    // 副标题直挂根：题注没有可挂靠的标题，章节号无从谈起
+    const root = new DocumentNode(0)
+    const sub = new DocumentNode(1)
+    sub.title = '概述'
+    sub.isSubTitle = true
+    sub.contentBlocks.push({
+      type: 'table',
+      caption: '表1 说明',
+      rows: 1,
+      cols: 1,
+      headers: ['A'],
+      data: [['1']]
+    })
+    root.addChild(sub)
+
+    const outputPath = join(dir, 'out-caption-no-heading.docx')
+    await writeDocx(serializeToInstructions(new DocumentTree(root), style), style, outputPath)
+    const zip = await JSZip.loadAsync(readFileSync(outputPath))
+    const documentXml = await zip.file('word/document.xml')!.async('string')
+    // 不写章节号也不写那个连字符：题注是「表」+ SEQ 域 + 题注文字，不会渲染成「表-1」
+    expect(documentXml).toContain('<w:r><w:t>表</w:t></w:r><w:fldSimple w:instr=" SEQ 表 \\* ARABIC \\s 1 ">')
+    expect(documentXml).toContain('<w:t xml:space="preserve"> 表1 说明</w:t>')
+    expect(documentXml).not.toContain('<w:t>-</w:t>')
+    expect(documentXml).not.toContain('STYLEREF')
   })
 
   it('Mermaid 降级占位段：源码整段写进 document.xml（与「以文本形式导出」一致）', async () => {

@@ -602,8 +602,10 @@ function renderCaption(
     ` SEQ ${content.seqName} \\* ARABIC \\s ${content.seqRestartLevel} `,
     content.seqText
   )
+  // 没有章节号时不写那个连字符：题注就是「表1 标题」，不留「表-1」这种残号
+  const dash = content.chapterStyleName.length > 0 || content.chapterText.length > 0 ? run('-') : ''
   const title = content.title.length > 0 ? run(` ${content.title}`, true) : ''
-  return `<w:p>${pPr}${run(content.label)}${chapter}${run('-')}${seq}${title}</w:p>`
+  return `<w:p>${pPr}${run(content.label)}${chapter}${dash}${seq}${title}</w:p>`
 }
 
 /** 普通文本 run（保留首尾空格） */

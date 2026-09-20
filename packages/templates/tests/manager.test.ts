@@ -133,7 +133,7 @@ describe('结构模板实例化（对齐旧版 cloneNode 语义）', () => {
     const tableBlock = refs.contentBlocks.find((b) => b.type === 'table')
     expect(tableBlock).toBeDefined()
     if (tableBlock && tableBlock.type === 'table') {
-      expect(tableBlock.caption).toBe('表1 示例引用')
+      expect(tableBlock.caption).toBe('示例引用')
       expect(tableBlock.headers[0]).toBe('序号')
       expect(tableBlock.data[0]![1]).toBe('DEMO-001')
     }
