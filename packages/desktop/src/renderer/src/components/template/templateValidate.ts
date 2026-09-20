@@ -377,14 +377,8 @@ function checkTableBlock(
     }
   }
   if (b['mergeVertical'] === true && Array.isArray(b['data'])) {
-    out.push({
-      level: 'warn',
-      rule: 'block.table.mergeVertical.unread',
-      path: `${bp}.mergeVertical`,
-      message:
-        `${bw}：开了 mergeVertical，但模板里的该字段目前不会被程序读进工程` +
-        `（新建工程的表格不会合并，依据见 docs/06-常见问题与排错.md 第 8 节）`
-    })
+    // 与主进程同一口径：mergeVertical 现在会被读进工程（PLAN-06），不再报"程序不读"。
+    // 只留"开了开关但 data 全空"这条真的会导致合并不上来的提示。
     const data = b['data']
     const flat = data.flat()
     const filled = flat.filter((c) => typeof c === 'string' && c.trim() !== '').length

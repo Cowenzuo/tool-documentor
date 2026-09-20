@@ -115,6 +115,12 @@ export interface SkeletonStyleInfo {
   fontSizeHalfPoints?: number
   /** 由 `fontSizeHalfPoints` 换算的磅值（24 → 12） */
   fontSizePt?: number
+  /**
+   * 这条样式自己带不带自动编号：`w:numPr` 里给了非 0 的 `w:numId` 就是带
+   * （`w:numId="0"` 是 OOXML 里"取消编号"的写法，不算带）。
+   * 判题注靠的是它：auto 模式的号就来自样式多级列表，样式没带号时 auto 出不来号。
+   */
+  numbered?: boolean
 }
 
 /** 骨架索引：样式表 + 各级标题起始号 */
@@ -245,6 +251,12 @@ function parseStyleElements(xml: string | null): SkeletonStyleInfo[] {
     }
     const basedOn = attrValue(/<w:basedOn\b[^>]*>/u.exec(body)?.[0] ?? '', 'w:val')
     if (basedOn !== undefined) info.basedOn = basedOn
+    // 自动编号：w:numPr 里的 w:numId 非 0 才算带（0 是"取消编号"）
+    const numPr = /<w:numPr>([\s\S]*?)<\/w:numPr>/u.exec(body)
+    if (numPr) {
+      const numId = attrValue(/<w:numId\b[^>]*>/u.exec(numPr[1] ?? '')?.[0] ?? '', 'w:val')
+      info.numbered = numId !== undefined && numId !== '0'
+    }
     // 字号：w:sz 的单位是半磅（24 = 12pt）
     const sz = /<w:sz w:val="(\d+)"/u.exec(body)
     if (sz?.[1] !== undefined) {
@@ -752,19 +764,10 @@ function checkTableBlock(
     }
   }
   if (b['mergeVertical'] === true && Array.isArray(b['data'])) {
-    // 实测依据：脚本注释说程序 parseNodeDef 只拷
-    // type/caption/content/language/rows/cols/headers/data/items，漏了 mergeVertical。
-    // 注意：这条依据在当前程序侧**已经过期**（manager.ts 的 parseNodeDef 与
-    // templateBlockOfDef 都带上了 mergeVertical，PLAN-06 已落地），但脚本没删这条告警，
-    // 批次 0 的口径是"与脚本一致"，所以照搬，未顺手改判。见报告"未做或不确定的地方"。
-    out.push({
-      level: 'warn',
-      rule: 'block.table.mergeVertical.unread',
-      path: `${bp}.mergeVertical`,
-      message:
-        `${bw}：开了 mergeVertical，但模板里的该字段目前不会被程序读进工程` +
-        `（新建工程的表格不会合并，依据见 docs/06-常见问题与排错.md 第 8 节）`
-    })
+    // 曾经这里还有一条"模板里的 mergeVertical 不会被程序读进工程"的告警（脚本的历史遗留）：
+    // manager.ts 的 parseNodeDef 与 templateBlockOfDef 都带上了这个字段（PLAN-06 已落地），
+    // 新建工程的表格会跟着合并，那句话已经不成立，两边一起删掉。
+    // 留下的这条只管"开了开关但 data 全是空串"——程序按内容判定，空串不上合并。
     const data = b['data']
     const flat = data.flat()
     const filled = flat.filter((c) => typeof c === 'string' && c.trim() !== '').length
@@ -874,6 +877,8 @@ export function validateStyleTemplate(
   }
 
   // 骨架：没有 basePath 就没有骨架可查（编辑模式早期只改映射表时会走这条）
+  /** 骨架里的样式表：题注"号从哪来"要看它，所以在骨架块外也要留着 */
+  let skeletonStyles: SkeletonStyleInfo[] = []
   if (opts.basePath) {
     const skeletonPath = join(opts.basePath, text(docxFolder))
     if (!existsSync(skeletonPath)) {
@@ -897,6 +902,7 @@ export function validateStyleTemplate(
     }
 
     const index = parseSkeletonIndex(skeletonPath)
+    skeletonStyles = index.styles
     if (index.styleIds.length === 0) {
       out.push({
         level: 'error',
@@ -963,15 +969,37 @@ export function validateStyleTemplate(
         })
       }
     }
-  } else {
-    out.push({
-      level: 'warn',
-      rule: 'style.captionNumbering.absent',
-      path: 'captionNumbering',
-      message:
-        `styles/${id}：没有 captionNumbering，题注按 auto 处理` +
-        `（手写"表N"前缀会被剥掉，序号交给样式多级列表）`
+  }
+  /**
+   * 题注的号从哪来：auto 靠骨架题注样式的多级列表，field 靠题注域，static 靠题注文字自带。
+   * 前两种情况下题注文字里再写「表N」就会出两个号——**程序不剥离手写前缀**
+   * （PLAN-07：题注文字原样带出），所以这里只看"文字里到底有没有写号"，不再猜程序会不会剥。
+   */
+  const captionStyleId = (kind: 'table' | 'figure'): string =>
+    text(styleMap[kind === 'table' ? 'table.caption' : 'figure.caption'] ?? '')
+  const styleNumbered = (styleId: string): boolean =>
+    styleId !== '' && skeletonStyles.some((s) => s.styleId === styleId && s.numbered === true)
+  const captionMode = (kind: 'table' | 'figure'): string => text(cnObj?.[kind] ?? 'auto')
+  if (!cnObj && opts.basePath) {
+    // 缺 captionNumbering = 全都按 auto；auto 的号来自骨架样式，样式也没带编号才是真没号。
+    // （原来这条写的是"手写前缀会被剥掉"，剥离已经删掉，那句话不再成立。）
+    // 没配 caption.caption 键的不在这里报：那是"结构所需逻辑键没被覆盖"那条 error 的事。
+    const noSource = (['table', 'figure'] as const).filter((kind) => {
+      const styleId = captionStyleId(kind)
+      return styleId !== '' && !styleNumbered(styleId)
     })
+    if (noSource.length > 0) {
+      out.push({
+        level: 'warn',
+        rule: 'style.captionNumbering.absent',
+        path: 'captionNumbering',
+        message:
+          `styles/${id}：没有 captionNumbering，` +
+          `${noSource.map((k) => (k === 'table' ? '表题' : '图题')).join(' / ')}按 auto 处理，` +
+          `但骨架样式 ${noSource.map((k) => text(JSON.stringify(captionStyleId(k)))).join(' / ')} ` +
+          `没带多级列表编号——这样导出的题注不会有自动号（靠题注文字手写号的话可忽略本条）`
+      })
+    }
   }
 
   // 与配对结构比对逻辑键覆盖
@@ -997,24 +1025,27 @@ export function validateStyleTemplate(
           `（这些位置会按默认样式输出）`
       })
     }
-    // 题注手写号：auto / field 模式下程序只剥「表/图 + 数字」，写成「表【N】」「表 名称」这类
-    // 不会被剥，导出时会和自动编号重复（static 模式原样保留，不在检查范围）
-    const capMode = {
-      table: text(cnObj?.['table'] ?? 'auto'),
-      figure: text(cnObj?.['figure'] ?? 'auto')
-    }
+    // 题注手写号：号已经由样式（auto 且样式带编号）或题注域（field）给出时，
+    // 题注文字里再写「表N」就会出两个号——程序不剥离手写前缀（PLAN-07 口径）。
+    // static 不在范围内：那种模式下号本来就写在文字里。
     const captions = collectCaptions(root)
     for (let i = 0; i < captions.length; i++) {
       const cap = captions[i]!
-      if (capMode[cap.kind] === 'static') continue
-      if (/^(表|图)\s*【/u.test(cap.text) || /^(表|图)[ \u3000]/u.test(cap.text)) {
+      const mode = captionMode(cap.kind)
+      if (mode === 'static') continue
+      if (mode === 'auto' && !styleNumbered(captionStyleId(cap.kind))) continue
+      // 「表」/「图」后面跟数字、空格、全角空格、【 或括号，才算自己写了号；
+      // 「表面处理要求」这种只是碰巧以此开头的不算。
+      if (/^(表|图)[\s\u3000\d【（(]/u.test(cap.text)) {
+        const from = mode === 'auto' ? '样式多级列表' : '题注域'
         out.push({
           level: 'warn',
           rule: 'style.caption.handwritten',
           path: `structure[${stName}].captions[${i}]`,
           message:
-            `样式 ${id}：结构「${stName}」的题注「${cap.text.slice(0, 28)}…」以「表/图」开头` +
-            `但不是「表+数字」，程序不会剥离，会与自动编号重复——题注只写名称，号交给题注域`
+            `样式 ${id}：结构「${stName}」的题注「${cap.text.slice(0, 28)}…」自己写了号，` +
+            `而 ${mode} 模式下号由${from}给——程序不剥离手写前缀，导出会重复` +
+            `（题注只写名称，号交给样式或题注域）`
         })
       }
     }
