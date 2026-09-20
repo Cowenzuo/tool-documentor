@@ -64,9 +64,70 @@ function checkResult(data) {
   need(
     data.deleteOk === true,
     `删除内容块未生效：按钮=${data.deleteBtnFound} ` +
-      `${data.biaoShi && data.biaoShi.blockCards} → ${data.blockCardsAfterDelete}，` +
+      `${data.demandCards} → ${data.blockCardsAfterDelete}，` +
       `提示=${data.deleteToast}`
   )
+  // 内容块模板锁：界面有锁标记，keep / readonly 的删除与上下移置灰并写明原因，只读块的内容不可改
+  need(data.keepLockTag === '锁定', `keep 档块没有锁标记：${data.keepLockTag}`)
+  need(
+    typeof data.keepLockTagTitle === 'string' && data.keepLockTagTitle.includes('模板规定'),
+    `锁标记没写明模板的规定：${data.keepLockTagTitle}`
+  )
+  need(data.keepDeleteDisabled === true, 'keep 档块的删除按钮没有置灰')
+  need(
+    typeof data.keepDeleteTitle === 'string' && data.keepDeleteTitle.includes('不能删除'),
+    `keep 档删除按钮的提示没写原因：${data.keepDeleteTitle}`
+  )
+  need(data.keepMoveDisabled === true, 'keep 档块的上下移按钮没有置灰')
+  need(
+    Array.isArray(data.keepMoveTitles) &&
+      data.keepMoveTitles.length === 2 &&
+      data.keepMoveTitles.every((t) => typeof t === 'string' && t.includes('不能移动')),
+    `keep 档上下移按钮的提示没写原因：${JSON.stringify(data.keepMoveTitles)}`
+  )
+  need(
+    data.lockedDeleteKept === true,
+    `点置灰的删除按钮把块删掉了：${data.blockCardsAfterLockedDelete}`
+  )
+  need(data.storeLockValue === 'keep', `锁没有跟着块进工程数据：${data.storeLockValue}`)
+  need(data.lockedTypeChangeRejected === true, '把锁定块改成别的类型没有被拒绝')
+  need(
+    typeof data.lockedTypeChangeError === 'string' && data.lockedTypeChangeError.includes('模板规定'),
+    `拒绝改类型时没说明原因：${data.lockedTypeChangeError}`
+  )
+  need(
+    JSON.stringify(data.lockedContentEditItems) === JSON.stringify(['条目一：示例改']),
+    `锁定块的内容变更没有放行：${JSON.stringify(data.lockedContentEditItems)}，` +
+      `错误=${data.lockedContentEditError}`
+  )
+  need(data.lockedContentRestored === true, '锁定块内容改回原值后没有读回原值')
+  need(data.readonlyLockTag === '只读', `readonly 档块的标记不是「只读」：${data.readonlyLockTag}`)
+  need(
+    data.readonlyAreaReadOnly === true,
+    `readonly 档块的文本输入没有只读：找到输入=${data.readonlyAreaFound}，readOnly=${data.readonlyAreaReadOnly}`
+  )
+  need(data.readonlyDeleteDisabled === true, 'readonly 档块的删除按钮没有置灰')
+  need(
+    typeof data.readonlyDeleteTitle === 'string' && data.readonlyDeleteTitle.includes('不能删除'),
+    `readonly 档删除按钮的提示没写原因：${data.readonlyDeleteTitle}`
+  )
+  need(data.readonlyMoveDisabled === true, 'readonly 档块的上下移按钮没有置灰')
+  need(
+    Array.isArray(data.readonlyMoveTitles) &&
+      data.readonlyMoveTitles.length === 2 &&
+      data.readonlyMoveTitles.every((t) => typeof t === 'string' && t.includes('不能移动')),
+    `readonly 档上下移按钮的提示没写原因：${JSON.stringify(data.readonlyMoveTitles)}`
+  )
+  // type 档只锁类型：删除与上下移照常可做，不能连删都锁上
+  need(data.typeLockDeleteDisabled === false, 'type 档块的删除按钮被误置灰')
+  need(data.typeLockMoveEnabled === true, 'type 档块的上下移按钮被误置灰')
+  // 不锁的块不受影响：没有锁标记、删除按钮可用，且删除真的生效
+  need(
+    JSON.stringify(data.demandLockTags) === JSON.stringify(['锁定', null, null, null]),
+    `多块章节里的锁标记不对：${JSON.stringify(data.demandLockTags)}`
+  )
+  need(data.unlockedLockTag === null, `没锁的块出现了锁标记：${data.unlockedLockTag}`)
+  need(data.unlockedDeleteDisabled === false, '没锁的块删除按钮被置灰')
   need(data.exportDialogOpen === true, '导出对话框未打开')
   need(
     typeof data.exportToast === 'string' && data.exportToast.includes('导出') && !data.exportToast.includes('失败'),

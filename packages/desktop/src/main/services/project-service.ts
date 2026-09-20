@@ -301,7 +301,12 @@ export class ProjectService {
     const existing = node.contentBlocks[input.index]
     if (!existing) throw new ProjectServiceError('内容位置不对，请刷新后重试')
     if (existing.type !== input.block.type) {
-      throw new ProjectServiceError('内容类型不能直接改，请删除后重新添加')
+      // 模板锁只锁类型：这条拦的是改类型，内容变更照常放行
+      throw new ProjectServiceError(
+        existing.lock
+          ? '模板规定该内容的类型不能改，内容可以照常编辑'
+          : '内容类型不能直接改，请删除后重新添加'
+      )
     }
     assertTableShape(input.block)
     node.contentBlocks[input.index] = structuredClone(input.block)
