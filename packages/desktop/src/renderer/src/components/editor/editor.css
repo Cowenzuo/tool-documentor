@@ -1533,6 +1533,14 @@ body.is-splitting {
   color: var(--text-3);
 }
 
+/* 一段一句话说清点击语义：点一条是"退到它之前"，不是"跳到它之后" */
+.hist-section-hint {
+  margin: 0;
+  padding: 0 10px 4px;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
 .hist-item {
   width: 100%;
   text-align: left;
