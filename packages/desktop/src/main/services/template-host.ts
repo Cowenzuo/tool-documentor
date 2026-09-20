@@ -53,8 +53,8 @@ export function buildTemplateManager(): TemplateHost {
   const settings = loadAppSettings()
   const dirs = [...settings.template_dirs.filter((d) => d.trim().length > 0)]
 
-  // 开发自检（DOC_E2E）：注入测试模板目录，不影响正常用户流程
-  const e2eTemplates = process.env['DOC_E2E_TEMPLATES']
+  // 本机冒烟用：只有显式开了 DOC_E2E 才认这个目录覆盖，正常启动不受环境变量影响
+  const e2eTemplates = process.env['DOC_E2E'] ? process.env['DOC_E2E_TEMPLATES'] : undefined
   if (e2eTemplates) dirs.unshift(e2eTemplates)
 
   const dirReports: TemplateDirReport[] = []

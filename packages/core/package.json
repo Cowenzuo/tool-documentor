@@ -53,11 +53,9 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "set NODE_OPTIONS=--experimental-sqlite&& vitest run",
     "build": "tsc -p tsconfig.build.json"
   },
   "devDependencies": {
-    "@types/node": "^22.20.1",
-    "vitest": "^4.1.11"
+    "@types/node": "^22.20.1"
   }
 }

@@ -15,12 +15,10 @@
     "jszip": "^3.10.1"
   },
   "devDependencies": {
-    "@types/node": "^22.20.1",
-    "vitest": "^4.1.11"
+    "@types/node": "^22.20.1"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run",
     "build": "tsc -p tsconfig.build.json"
   }
 }
