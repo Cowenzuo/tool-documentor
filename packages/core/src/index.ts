@@ -42,12 +42,12 @@ export { DocumentNode, DocumentTree } from './tree'
 export { ProjectStore } from './store'
 export type { ProjectMeta } from './store'
 export { nextNodeId, seedIdCounter, resetIdCounterForTest } from './idgen'
-export { stripCaptionNumber } from './captions'
 export {
   resolveTableMerges,
   computeVerticalMerges,
   countVerticalMerges,
   completeRowSpans,
+  clampRowSpans,
   inferRowSpansFromData
 } from './table-merge'
 export type { TableMergeCell, TableSpanSource } from './table-merge'

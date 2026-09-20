@@ -10,11 +10,18 @@
  *     否则 StgOpenStorage 查找流时走错分支，OLE 激活失败；
  *   - < 4096 字节的流走 mini stream（64 字节 mini 扇区），miniFAT 按分配顺序串链；
  *   - FAT 扇区数需同时覆盖 数据扇区 + miniFAT 扇区 + FAT 自身 + 目录扇区；
- *   - 目录条目用“中位递归”构造平衡 BST（与旧版同构），未使用条目保持 0xFF。
+ *   - 未使用槽（FAT 与 miniFAT）一律写 FREESECT，不写 0 —— 0 是合法扇区号；
+ *   - 目录条目用“中位递归”构造平衡 BST（与旧版同构），未使用条目保持 0xFF；
+ *   - 本写入器不写 DIFAT 链，FAT 扇区数上限即头部的 109 个 DIFAT 槽，超出直接报错。
  */
 export const CFB_SECTOR = 512
 export const CFB_MINI = 64
 export const CFB_MINI_CUTOFF = 4096
+/**
+ * CFB 头部（偏移 76..511）的 DIFAT 槽数。109 × 128 项/扇区 × 512 字节 ≈ 7.1 MB：
+ * 再大就需要 DIFAT 链，而本写入器不写链，只能失败（见 buildCompoundFile 的守卫）。
+ */
+export const CFB_DIFAT_ENTRIES = 109
 const FREESECT = 0xffffffff
 const ENDOFCHAIN = 0xfffffffe
 const FATSECT = 0xfffffffd
@@ -96,6 +103,15 @@ export function buildCompoundFile(
     throw new Error('图表文件解析失败：扇区数过多')
   }
   const nFat = fatNeed(totalRegular)
+  // 头部只有 CFB_DIFAT_ENTRIES 个 DIFAT 槽，且本写入器把 first DIFAT 写成 ENDOFCHAIN（不写链）：
+  // 超出的 FAT 扇区在头部无处登记，读方按 numFat 找过去会拿到空槽，只能读到被截断的流。
+  // 与其静默产出非法容器，不如在这里失败（约 7 MB 的嵌入对象是这条路的上限）。
+  if (nFat > CFB_DIFAT_ENTRIES) {
+    throw new Error(
+      `嵌入对象过大：需要 ${nFat} 个 FAT 扇区，超过 CFB 头部 DIFAT 槽上限 ${CFB_DIFAT_ENTRIES} 个` +
+      '（约 7 MB 的嵌入对象）；当前写入器不生成 DIFAT 链，无法写入该对象'
+    )
+  }
   const totalSecs = totalRegular + miniFatSectors + nFat + dirSectors
 
   // ---- 扇区布局：0..nFat-1=FAT；nFat..=目录；其后数据（miniFAT 链 + 数据流） ----
@@ -232,7 +248,9 @@ export function buildCompoundFile(
   }
   // miniFAT 表：每 mini 扇区 4 字节
   if (nMini > 0) {
-    const mf = new Uint8Array(miniFat.length * 4)
+    // 整扇区先填 FREESECT（0xFFFFFFFF，小端即 4 个 0xFF）：未使用槽写 0 会被读方当成
+    // “链到 mini 扇区 0”，与 FAT 的未使用槽口径不一致；末尾补到整扇区的那部分同样要填。
+    const mf = new Uint8Array(miniFatSectors * sectorSize).fill(0xff)
     miniFat.forEach((v, i) => setU32(mf, i * 4, v))
     for (let i = 0; i < miniFatSectors; i++) {
       putSector(miniFatChainStart + i, mf.subarray(i * sectorSize, (i + 1) * sectorSize))

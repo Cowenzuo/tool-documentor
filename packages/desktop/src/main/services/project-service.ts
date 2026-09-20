@@ -285,6 +285,12 @@ export class ProjectService {
 
   removeBlock(input: BlockIndexInput): number {
     const node = this.requireNode(input.nodeId)
+    const existing = node.contentBlocks[input.index]
+    if (!existing) throw new ProjectServiceError('内容位置不对，请刷新后重试')
+    // 模板锁在这里也要拦一道：界面按档位置灰只是提示，写入侧才是最后一道
+    if (isBlockPinned(existing.lock)) {
+      throw new ProjectServiceError(lockRefusal(existing.lock, 'remove'))
+    }
     if (!node.removeContentBlockAt(input.index)) {
       throw new ProjectServiceError('内容位置不对，请刷新后重试')
     }
@@ -293,6 +299,15 @@ export class ProjectService {
 
   moveBlock(input: BlockMoveInput): void {
     const node = this.requireNode(input.nodeId)
+    const from = node.contentBlocks[input.from]
+    const to = node.contentBlocks[input.to]
+    if (!from || !to) throw new ProjectServiceError('内容位置不对，请刷新后重试')
+    // 交换是双向的：目标位置上的块同样会被挪走，两边都要看
+    for (const block of [from, to]) {
+      if (isBlockPinned(block.lock)) {
+        throw new ProjectServiceError(lockRefusal(block.lock, 'move'))
+      }
+    }
     node.swapContentBlocks(input.from, input.to)
   }
 
@@ -308,8 +323,12 @@ export class ProjectService {
           : '内容类型不能直接改，请删除后重新添加'
       )
     }
+    if (existing.lock === 'readonly') {
+      throw new ProjectServiceError(lockRefusal(existing.lock, 'edit'))
+    }
     assertTableShape(input.block)
-    node.contentBlocks[input.index] = structuredClone(input.block)
+    // 锁随模板来，不随写入方来：落库的档位一律以原块为准，免得被清掉
+    node.contentBlocks[input.index] = { ...structuredClone(input.block), lock: existing.lock }
   }
 
   importImage(input: ImageImportInput): { imagePath: string } {
@@ -318,6 +337,10 @@ export class ProjectService {
     const existing = node.contentBlocks[input.index]
     if (!existing || existing.type !== 'image') {
       throw new ProjectServiceError('目标不是图片块')
+    }
+    // 换图也是改内容：先拦下来，免得图片已经复制进工程目录却被拒绝
+    if (existing.lock === 'readonly') {
+      throw new ProjectServiceError(lockRefusal(existing.lock, 'edit'))
     }
     const ext = extname(input.srcPath).toLowerCase()
     const imageName = `${randomUUID()}${ext}`
@@ -522,6 +545,23 @@ const IMAGE_MIME: Record<string, string> = {
 
 function mimeOf(ext: string): string {
   return IMAGE_MIME[ext.toLowerCase()] ?? 'application/octet-stream'
+}
+
+/**
+ * 模板锁里"必须存在"的两档：不能删、不能挪。`type` 档只锁类型，删除与移动照常。
+ */
+function isBlockPinned(lock: ContentBlock['lock']): lock is 'keep' | 'readonly' {
+  return lock === 'keep' || lock === 'readonly'
+}
+
+/**
+ * 写入侧拒绝时的说法，与界面上按钮置灰的提示同一口径：
+ * 先讲模板的规定，再讲这件事做不了，不写"不可编辑"这类喊话式文案。
+ */
+function lockRefusal(lock: 'keep' | 'readonly', what: 'remove' | 'move' | 'edit'): string {
+  if (what === 'edit') return '模板规定该内容为定稿，内容不能改'
+  const head = lock === 'readonly' ? '模板规定该内容为定稿' : '模板规定该内容必须存在'
+  return what === 'remove' ? `${head}，不能删除` : `${head}，不能移动`
 }
 
 /**

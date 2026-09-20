@@ -36,13 +36,23 @@
 - Word 将 SEQ 标签（图/表）识别为题注标签，交叉引用对话框可用；
 - 导出时把算好的编号写进域缓存值（`w:fldSimple` 的子 run），打开即显示正确，F9 可刷新。
 
+### 题注文字口径
+
+题注文字里只写标题，编号归样式或题注域管：`auto` 由样式多级列表出号，`field` 由 STYLEREF 与
+SEQ 域出号，`static` 把编号写在文字里由模板数据自己给。**程序不剥离、不改写、也不提示**——
+题注文字一律原样带出，作者写了什么就是什么。数据里带了手写编号，那是数据自己的问题，
+出现在文档里比被程序悄悄抹掉更好查。
+
+没有可挂靠的标题时不写章节号，题注仍走 SEQ 域，writer 在没有章节号时不写那个连字符，
+因此不会出现「表-1」这种残号。
+
 ### 关键实现点
 
 | 位置 | 改动 |
 |---|---|
 | `packages/templates` | `captionNumbering` 增加 `field` 模式、`chapterStyleNames`（层级→本地化标题样式名）、`headingStarts`（骨架 numbering.xml 各层级起始号，报告从第 4 章起编号要用） |
-| `packages/docx` serializer | 维护标题计数与每节题注序号；field 模式剥离手写序号并产出 `InsertCaption` 指令 |
-| `packages/docx` writer | 渲染 `w:fldSimple`（STYLEREF / SEQ）+ 缓存值 |
+| `packages/docx` serializer | 维护标题计数与每节题注序号；field 模式产出 `InsertCaption` 指令；题注文字原样带出 |
+| `packages/docx` writer | 渲染 `w:fldSimple`（STYLEREF / SEQ）+ 缓存值；没有章节号时不写连字符 |
 | 模板骨架 | `capF` 去掉 `numPr`；`numbering.xml` 去掉 ilvl=6 上的 `w:pStyle=capF` 绑定（否则样式仍会被列表自动编号） |
 
 ### Word 域语法实测（重要）

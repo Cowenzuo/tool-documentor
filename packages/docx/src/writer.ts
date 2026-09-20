@@ -86,10 +86,14 @@ export async function writeDocx(
   const images: EmbeddedImage[] = []
   const imageByPath = new Map<string, EmbeddedImage>()
   const relsPath = 'word/_rels/document.xml.rels'
-  let relsXml = files.includes(relsPath)
+  /** 骨架自带关系表时逐字节保留，缺时才补一份 */
+  const hasRelsPart = files.includes(relsPath)
+  let relsXml = hasRelsPart
     ? readSkeleton(relsPath).toString('utf8')
     : '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
       '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>'
+  /** rels 被改写过：打包与"骨架缺件补一份"都以它为准 */
+  let relsDirty = false
   let nextRid = maxRid(relsXml) + 1
   let nextMedia = maxMediaIndex(files) + 1
 
@@ -120,6 +124,28 @@ export async function writeDocx(
   const bodyXml = renderInstructions(instructions, groupToNumId, addImage)
   const documentXml = `${XML_HEAD}${bodyXml}${sectPr}</w:body></w:document>`
 
+  // ---------- 2a. 极简骨架的部件关系：styles / numbering 不能成孤儿 ----------
+  // 只在骨架整份缺 word/_rels/document.xml.rels 时补（自带关系表的一律逐字节保留）。
+  // rId 接在已分配的图片关系之后，既有产物的 rId 分配不变；Target 相对 word/ 写。
+  if (!hasRelsPart) {
+    const partRels: Array<{ part: string; type: string }> = [
+      { part: 'word/styles.xml', type: 'styles' },
+      { part: 'word/numbering.xml', type: 'numbering' }
+    ]
+    let injected = ''
+    for (const { part, type } of partRels) {
+      if (!files.includes(part)) continue
+      injected +=
+        `<Relationship Id="rId${nextRid++}" ` +
+        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/' +
+        `${type}" Target="${part.slice('word/'.length)}"/>`
+    }
+    if (injected) {
+      relsXml = relsXml.replace('</Relationships>', injected + '</Relationships>')
+      relsDirty = true
+    }
+  }
+
   // ---------- 2b. 图片部件：rels / Content_Types ----------
   let contentTypesXml: string | null = null
   if (images.length > 0) {
@@ -132,6 +158,7 @@ export async function writeDocx(
       )
       .join('')
     relsXml = relsXml.replace('</Relationships>', newRels + '</Relationships>')
+    relsDirty = true
 
     const ctPath = '[Content_Types].xml'
     if (files.includes(ctPath)) {
@@ -155,7 +182,7 @@ export async function writeDocx(
       content = Buffer.from(documentXml, 'utf8')
     } else if (rel === 'word/numbering.xml' && numberingXml !== null) {
       content = Buffer.from(numberingXml, 'utf8')
-    } else if (rel === relsPath && images.length > 0) {
+    } else if (rel === relsPath && relsDirty) {
       content = Buffer.from(relsXml, 'utf8')
     } else if (rel === '[Content_Types].xml' && contentTypesXml !== null) {
       content = Buffer.from(contentTypesXml, 'utf8')
@@ -165,8 +192,8 @@ export async function writeDocx(
     zip.file(rel, content)
   }
   for (const e of images) zip.file(e.mediaPath, e.data)
-  // 骨架本身没有 document.xml.rels 时（极简骨架），按需补一份
-  if (images.length > 0 && !files.includes(relsPath)) {
+  // 骨架本身没有 document.xml.rels 时（极简骨架）：补进去的部件关系与图片关系都要落盘
+  if (!hasRelsPart && relsDirty) {
     zip.file(relsPath, Buffer.from(relsXml, 'utf8'))
   }
 
@@ -575,8 +602,10 @@ function renderCaption(
     ` SEQ ${content.seqName} \\* ARABIC \\s ${content.seqRestartLevel} `,
     content.seqText
   )
+  // 没有章节号时不写那个连字符：题注就是「表1 标题」，不留「表-1」这种残号
+  const dash = content.chapterStyleName.length > 0 || content.chapterText.length > 0 ? run('-') : ''
   const title = content.title.length > 0 ? run(` ${content.title}`, true) : ''
-  return `<w:p>${pPr}${run(content.label)}${chapter}${run('-')}${seq}${title}</w:p>`
+  return `<w:p>${pPr}${run(content.label)}${chapter}${dash}${seq}${title}</w:p>`
 }
 
 /** 普通文本 run（保留首尾空格） */

@@ -50,6 +50,11 @@ function reconcileKeys(prev: string[], incomingLength: number, op: StructureOp |
   return Array.from({ length: incomingLength }, () => newBlockKey())
 }
 
+/** keep 与 readonly 两档不能挪：相邻块是这样的话，交换位置会把锁定的内容挪走 */
+function isPinnedLock(lock: ContentBlock['lock']): boolean {
+  return lock === 'keep' || lock === 'readonly'
+}
+
 /** 添加内容的下拉菜单：末尾「＋ 添加内容」与块间插入共用同一份 */
 function AddBlockMenu({
   onPick
@@ -432,6 +437,8 @@ export default function NodePage(): React.JSX.Element {
                     onToggleCollapse={toggleCollapse}
                     canMoveUp={index > 0}
                     canMoveDown={index < blocks.length - 1}
+                    neighborLockedUp={index > 0 && isPinnedLock(blocks[index - 1]?.lock)}
+                    neighborLockedDown={index < blocks.length - 1 && isPinnedLock(blocks[index + 1]?.lock)}
                     onChange={handleChange}
                     onMove={(i, d) => void handleMove(i, d)}
                     onRemove={(i) => void handleRemove(i)}

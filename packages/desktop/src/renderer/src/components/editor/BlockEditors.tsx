@@ -2,7 +2,12 @@
  * 8 种内容块编辑器（受控组件：value 由父层 NodePage 提供，onChange 即时回传）。
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { completeRowSpans, resolveTableMerges, countVerticalMerges } from '@documentor/core/table-merge'
+import {
+  clampRowSpans,
+  completeRowSpans,
+  resolveTableMerges,
+  countVerticalMerges
+} from '@documentor/core/table-merge'
 import { TABLE_MAX_COLS, TABLE_MAX_ROWS } from '@documentor/core/table-limits'
 import { normalizeMermaidSource } from '@documentor/core/mermaid-source'
 import type {
@@ -237,7 +242,18 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
       ...block.headers.slice(0, c),
       ...Array.from({ length: Math.max(0, c - block.headers.length) }, () => '')
     ]
-    onChange({ ...block, rows: trimmed.length, cols: c, headers, data: trimmed })
+    // 跨度按新尺寸重算：缩掉的行走列上的旧跨度若原样留着，
+    // 导出与预览会照它去写合并，落到表外或与列错位。
+    // 只动跨度、不动 data（值仍在原处）；没被改动就不写回，省一次入库与重渲染
+    const clamped = clampRowSpans(block.rowSpans, trimmed.length, c)
+    onChange({
+      ...block,
+      rows: trimmed.length,
+      cols: c,
+      headers,
+      data: trimmed,
+      rowSpans: clamped.changed ? clamped.spans : block.rowSpans
+    })
   }
 
   const requestSize = (rows: number, cols: number): void => {

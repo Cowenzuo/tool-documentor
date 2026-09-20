@@ -13,14 +13,16 @@ productName: Documentor
 copyright: Copyright © 2026 Documentor
 
 # 产物落到【仓库根】的 release/，不是本目录。
-# electron-builder 的 directories 默认以本配置文件所在目录为基准，
-# 写裸相对路径会落到 packages/desktop/release，与文档（项目特定规范 §4：release/ 是本地产物目录）
+# electron-builder 把配置里的相对路径解析到 projectDir 上，而 projectDir 默认取进程的
+# 工作目录，不是本配置文件所在目录。打包脚本在 packages/desktop 下执行，写裸相对路径
+# 会落到 packages/desktop/release，与文档（项目特定规范 §4：release/ 是本地产物目录）
 # 以及 .gitignore 的 release/ 规则都对不上——这里显式上溯两级统一到仓库根。
-# 注意 electronDist 是另一套基准（同样相对本目录），别跟着一起改。
+# 换目录执行时基准跟着变，所以不要从别处直接调 electron-builder：
+# 仓库根的 pnpm package:dir 会滤到本包执行，基准即本目录。
 directories:
   output: ../../release
 
-# 复用本地已安装的 Electron（路径相对本配置文件所在目录）。
+# 复用本地已安装的 Electron（与 directories 同一套基准，即 packages/desktop 下的 node_modules）。
 # 正常安装时 electron 的 postinstall 会产出该目录；离线环境若缺失，
 # 可先执行 electron 的 install.js 或从已有缓存补齐，再打包（避免重复下载）。
 electronDist: node_modules/electron/dist
@@ -38,6 +40,7 @@ files:
   - '!**/*.map'
 
 win:
+  # 应用图标取 build/icon.ico（buildResources 默认即本包下的 build/，与 directories 同一套基准）
   target:
     - target: nsis
       arch:

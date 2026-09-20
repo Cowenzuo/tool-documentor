@@ -118,12 +118,28 @@ export interface StyleValidationReport {
   valid: boolean
   /** styleMap 中不在 styles.xml 的条目 */
   missing: Array<{ logicalName: string; styleId: string }>
+  /**
+   * 不影响"可用"判定、但要说出来的问题：如骨架缺 `word/_rels/document.xml.rels`，
+   * styles / numbering 从主文档到达不了。导出侧会补出这两条关系，故只警告不判不可用。
+   */
+  warnings: string[]
 }
 
 export interface LoadDirResult {
   dirPath: string
   structuresLoaded: number
   stylesLoaded: number
-  /** 跳过的原因（同名已注册 / 文件缺失 / 解析失败） */
+  /**
+   * 没加载进来的东西与原因：整份模板/样式被跳过（文件缺失、解析失败、同名冲突），
+   * 或模板里的某个内容块被跳过（类型不认识）。同名冲突的记法是
+   * `structure already loaded: <name>（保留 <胜出目录> 里的那份，忽略本次 <本次目录>）`，
+   * 结构与样式都按**模板 JSON 顶层的 name** 去重（样式另加 stylemap 文件名）。
+   */
   skipped: string[]
+  /**
+   * 加载成功但有可疑之处的条目：内容块 lock 取值不认识（按不锁处理）、
+   * 样式骨架缺 `word/_rels/document.xml.rels` 之类。不阻断加载，
+   * 但要出现在报告里，界面才能解释"为什么少了什么 / 为什么没生效"。
+   */
+  warnings: string[]
 }

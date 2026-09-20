@@ -35,10 +35,10 @@ function toUserReason(raw: string): string {
     return '样式映射文件读不到或解析失败；确认目录名等于 manifest 的 id'
   }
   if (raw.startsWith('structure already loaded')) {
-    return '与已加载目录里的结构模板同名，按「靠前目录优先」被跳过'
+    return `结构模板与已加载目录里的同名，保留先加载的那份：${raw.slice('structure already loaded: '.length)}`
   }
   if (raw.startsWith('style already loaded')) {
-    return '与已加载目录里的样式模板同名，按「靠前目录优先」被跳过'
+    return `样式模板与已加载目录里的同名，保留先加载的那份：${raw.slice('style already loaded: '.length)}`
   }
   return raw
 }
@@ -70,11 +70,17 @@ export function buildTemplateManager(): TemplateHost {
       structures: result.structuresLoaded,
       styles: result.stylesLoaded,
       loadFailed: loaded === 0,
-      reasons: result.skipped.map(toUserReason)
+      reasons: result.skipped.map(toUserReason),
+      // 警告条目本身就是给人看的中文短句，不再经翻译
+      warnings: result.warnings
     }
     dirReports.push(report)
-    if (result.skipped.length > 0) {
-      console.warn('[templates]', dir, result.skipped.join('; '))
+    if (result.skipped.length > 0 || result.warnings.length > 0) {
+      console.warn(
+        '[templates]',
+        dir,
+        [...result.skipped, ...result.warnings].join('; ')
+      )
     }
   }
 

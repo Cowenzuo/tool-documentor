@@ -38,7 +38,7 @@ const instance = {
         contentBlocks: [
           {
             type: 'table',
-            caption: '表1 示例引用',
+            caption: '示例引用',
             rows: 1,
             cols: 3,
             headers: ['序号', '标识', '标题'],

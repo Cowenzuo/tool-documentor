@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { resetIdCounterForTest } from '@documentor/core/idgen'
 import { DocumentNode, DocumentTree } from '@documentor/core/tree'
 import { serializeToInstructions, serializeWithWarnings, collectMermaidFigures } from '../src/serializer'
+import type { TableBlock } from '@documentor/core'
 import type { StyleTemplateDef } from '@documentor/templates'
 import type { WriteInstruction } from '../src/instructions'
 
@@ -96,12 +97,12 @@ describe('DocxSerializer 指令序列', () => {
       'P:45:一段正文',
       'P:65:甲',
       'P:65:乙',
-      'P:48:引用文档', // 表题注在上，手写"表1 "已剥离
+      'P:48:表1 引用文档', // 表题注在上，题注文字原样带出
       'T:1x2',
       'P:45:[图片: x.png]',
-      'P:60:系统组成', // 图题注在下，"图2　"已剥离
+      'P:60:图2　系统组成', // 图题注在下，题注文字原样带出
       'P:45:[Mermaid 图表: graph TD\nA-->B]',
-      'P:60:流程图',
+      'P:60:图3 流程图',
       'P:62:条目'
     ])
 
@@ -210,8 +211,8 @@ describe('题注编号方式（captionNumbering）', () => {
       )
       .map((i) => i.content.text)
 
-  it('默认 auto：剥离手写序号，交由 Word 样式编号', () => {
-    expect(captionTexts(styleDef)).toEqual(['示例表', '示例图'])
+  it('默认 auto：题注文字原样带出，编号交由 Word 样式', () => {
+    expect(captionTexts(styleDef)).toEqual(['表4.1-1 示例表', '图4.1-1 示例图'])
   })
 
   it('static：题注文本原样保留（样式不再编号）', () => {
@@ -220,7 +221,7 @@ describe('题注编号方式（captionNumbering）', () => {
     ).toEqual(['表4.1-1 示例表', '图4.1-1 示例图'])
   })
 
-  it('field：输出题注域指令（章节号 STYLEREF + 本节序号 SEQ），剥离手写序号', () => {
+  it('field：输出题注域指令（章节号 STYLEREF + 本节序号 SEQ），题注文字原样带出', () => {
     const style: StyleTemplateDef = {
       ...styleDef,
       headingStarts: [4, 1, 1, 1, 1],
@@ -246,12 +247,12 @@ describe('题注编号方式（captionNumbering）', () => {
         seqName: '表',
         seqRestartLevel: 1,
         seqText: '1',
-        title: '示例表'
+        title: '表4.1-1 示例表'
       }
     })
     expect(caps[1]!.content.label).toBe('图')
     expect(caps[1]!.content.seqName).toBe('图')
-    expect(caps[1]!.content.title).toBe('示例图')
+    expect(caps[1]!.content.title).toBe('图4.1-1 示例图')
   })
 
   it('field：多级标题下章节号与每节序号正确（4.1 / 4.1.1）', () => {
@@ -306,6 +307,204 @@ describe('题注编号方式（captionNumbering）', () => {
       ['4.1.1', 3, '1'],
       ['4.1.1', 3, '2']
     ])
+  })
+})
+
+describe('题注章节号：缺层 / 副标题 / 无标题前置（域缓存值形状）', () => {
+  const fieldStyle: StyleTemplateDef = {
+    ...styleDef,
+    headingStarts: [4, 1, 1, 1, 1],
+    captionNumbering: {
+      table: 'field',
+      figure: 'field',
+      chapterStyleNames: { '1': '标题 1', '2': '标题 2', '3': '标题 3' }
+    }
+  }
+  const captionBlock = (caption: string): TableBlock => ({
+    type: 'table',
+    caption,
+    rows: 1,
+    cols: 1,
+    headers: ['A'],
+    data: [['1']]
+  })
+  const captions = (
+    tree: DocumentTree
+  ): Extract<WriteInstruction, { opType: 'InsertCaption' }>[] =>
+    serializeToInstructions(tree, fieldStyle).filter(
+      (i): i is Extract<WriteInstruction, { opType: 'InsertCaption' }> =>
+        i.opType === 'InsertCaption'
+    )
+  const captionParagraphs = (
+    tree: DocumentTree
+  ): Extract<WriteInstruction, { opType: 'InsertParagraph' }>[] =>
+    serializeToInstructions(tree, fieldStyle).filter(
+      (i): i is Extract<WriteInstruction, { opType: 'InsertParagraph' }> =>
+        i.opType === 'InsertParagraph'
+    )
+
+  it('缺层（标题1 直挂标题3）：不补 0、不留空段', () => {
+    const build = (): DocumentTree => {
+      resetIdCounterForTest()
+      const root = new DocumentNode(0)
+      const h1 = node(1, '第四章')
+      const h3 = node(3, '特征值')
+      h3.contentBlocks.push(captionBlock('表4.0.1-1 特征值'))
+      h1.addChild(h3)
+      root.addChild(h1)
+      return new DocumentTree(root)
+    }
+    const caps = captions(build())
+    expect(caps).toHaveLength(1)
+    expect(caps[0]!.content.chapterText).toBe('4.1') // 旧实现按层级切片补 0，给「4.0.1」
+    expect(caps[0]!.content.chapterStyleName).toBe('标题 3')
+    expect(caps[0]!.content.seqRestartLevel).toBe(3)
+    // 同一个标题结构重复算两次结果逐字一致（缓存值形状稳定）
+    expect(captions(build())[0]!.content).toEqual(caps[0]!.content)
+  })
+
+  it('副标题不参与编号链：题注挂最近一个普通标题', () => {
+    resetIdCounterForTest()
+    const root = new DocumentNode(0)
+    const h1 = node(1, '第四章')
+    const sub = node(2, '概述')
+    sub.isSubTitle = true
+    sub.contentBlocks.push(captionBlock('表4.1-1 工况表'))
+    h1.addChild(sub)
+    root.addChild(h1)
+    const caps = captions(new DocumentTree(root))
+    expect(caps).toHaveLength(1)
+    // 旧实现拿副标题自身的层级：章节号「4.0」、STYLEREF 指向不存在的「标题 2」
+    expect(caps[0]!.content.chapterText).toBe('4')
+    expect(caps[0]!.content.chapterStyleName).toBe('标题 1')
+    expect(caps[0]!.content.seqRestartLevel).toBe(1)
+  })
+
+  it('无标题前置（副标题直挂根）：不写章节号，序号仍由 SEQ 域给出，不留「表-1」残号', () => {
+    resetIdCounterForTest()
+    const root = new DocumentNode(0)
+    const sub = node(1, '概述')
+    sub.isSubTitle = true
+    sub.contentBlocks.push(captionBlock('表1 说明'))
+    root.addChild(sub)
+    const { instructions, warnings } = serializeWithWarnings(new DocumentTree(root), fieldStyle)
+    // 没有可挂靠的标题：章节号留空，STYLEREF 不写，序号仍走 SEQ 域，题注文字原样带出
+    const cap = instructions.find(
+      (i): i is Extract<WriteInstruction, { opType: 'InsertCaption' }> =>
+        i.opType === 'InsertCaption'
+    )
+    expect(cap?.content.chapterStyleName).toBe('')
+    expect(cap?.content.chapterText).toBe('')
+    expect(cap?.content.seqName).toBe('表')
+    expect(cap?.content.seqRestartLevel).toBe(1)
+    expect(cap?.content.title).toBe('表1 说明')
+    expect(warnings.some((w) => w.includes('没有可用的标题层级'))).toBe(true)
+  })
+})
+
+describe('Mermaid 降级占位段：写进 Word 的内容与「以文本形式导出」一致', () => {
+  const mermaidTree = (code: string): DocumentTree => {
+    resetIdCounterForTest()
+    const root = new DocumentNode(0)
+    const section = node(2, '标识')
+    section.contentBlocks.push({ type: 'mermaid', caption: '图1 流程', code })
+    root.addChild(section)
+    return new DocumentTree(root)
+  }
+  const placeholder = (tree: DocumentTree): string => {
+    const hit = serializeToInstructions(tree, styleDef)
+      .filter(
+        (i): i is Extract<WriteInstruction, { opType: 'InsertParagraph' }> =>
+          i.opType === 'InsertParagraph'
+      )
+      .map((i) => i.content.text)
+      .find((text) => text.startsWith('[Mermaid'))
+    expect(hit).toBeDefined()
+    return hit!
+  }
+
+  it('源码不长时整段照抄（旧实现固定切前 60 字符，尾部无声丢失）', () => {
+    const code = ['graph TD', ...Array.from({ length: 24 }, (_, i) => `  A${i} --> A${i + 1}`)].join('\n')
+    expect(code.length).toBeGreaterThan(260) // review S8 的实测样本量级
+    const text = placeholder(mermaidTree(code))
+    expect(text).toBe(`[Mermaid 图表: ${code}]`)
+    // 尾行还在 → 尾部没有丢
+    expect(text).toContain(`A23 --> A24`)
+  })
+
+  it('超长源码：按行截断并写明「已截断」与真实长度，不留半截 token', () => {
+    const lines = Array.from({ length: 400 }, (_, i) => `  N${i} --> N${i + 1}`)
+    const code = `graph TD\n${lines.join('\n')}`
+    const text = placeholder(mermaidTree(code))
+    expect(code.length).toBeGreaterThan(2000) // 超过占位段上限才截断
+    expect(text.startsWith('[Mermaid 图表: ')).toBe(true) // 嵌入链路的槽位标记前缀不变
+    expect(text).toContain('已截断')
+    expect(text).toContain(`源码共 ${code.length} 字符`)
+    expect(text).toContain('完整源码见工程文件')
+    // 保留部分按整行切：最后一行与源码里的某一行逐字相同，不是半截 token
+    const kept = text.slice('[Mermaid 图表: '.length, text.indexOf('（已截断'))
+    expect(lines).toContain(kept.split('\n').at(-1)!)
+    expect(kept.length).toBeGreaterThan(1000)
+  })
+})
+
+describe('表格形状警告（导出侧不再静默）', () => {
+  /** 造一棵只有一张表的树：表头 3 列、cols=2、第 2 行 4 列 */
+  const raggedTree = (caption: string): DocumentTree => {
+    resetIdCounterForTest()
+    const root = new DocumentNode(0)
+    const section = node(2, '标识')
+    section.contentBlocks.push({
+      type: 'table',
+      caption,
+      rows: 2,
+      cols: 2,
+      headers: ['序号', '标识', '标题'],
+      data: [
+        ['1', 'DEMO-001'],
+        ['2', 'DEMO-002', '示例', '多出来的一列']
+      ]
+    })
+    root.addChild(section)
+    return new DocumentTree(root)
+  }
+
+  it('表头与 cols 不一致、某行超宽：warnings 报出这处问题并指明是哪张表', () => {
+    const { instructions, warnings } = serializeWithWarnings(raggedTree('表2 参差表'), styleDef)
+    // 警告不阻断导出：表照常写出去
+    expect(instructions.filter((i) => i.opType === 'InsertTable')).toHaveLength(1)
+    expect(warnings).toHaveLength(1)
+    const warn = warnings[0]!
+    expect(warn).toContain('表格“表2 参差表”')
+    expect(warn).toContain('表头 3 列与列数 2 不一致')
+    expect(warn).toContain('第 2 行 4 列与列数 2 不一致')
+    // 给用户看的文案不带内部字段名
+    expect(warn).not.toContain('cols')
+    expect(warn).not.toContain('data[')
+  })
+
+  it('形状一致的表不产生警告', () => {
+    resetIdCounterForTest()
+    const root = new DocumentNode(0)
+    const section = node(2, '标识')
+    section.contentBlocks.push({
+      type: 'table',
+      caption: '表3 规整表',
+      rows: 1,
+      cols: 2,
+      headers: ['序号', '标识'],
+      data: [['1', 'DEMO-001']]
+    })
+    root.addChild(section)
+    const { warnings } = serializeWithWarnings(new DocumentTree(root), styleDef)
+    expect(warnings).toEqual([])
+  })
+
+  it('没有表题注时用节点标题定位', () => {
+    const { warnings } = serializeWithWarnings(raggedTree(''), styleDef)
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('“标识”下的表格')
+    expect(warnings[0]).toContain('表头 3 列与列数 2 不一致')
   })
 })
 

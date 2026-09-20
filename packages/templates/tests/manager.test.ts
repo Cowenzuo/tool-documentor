@@ -1,7 +1,10 @@
 /** manager.test.ts — 模板加载、配对校验与实例化的单测。 */
 
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { resetIdCounterForTest } from '@documentor/core'
 import type { ContentBlock } from '@documentor/core'
 import { TemplateManager, requiredStyleKeys } from '../src/manager'
@@ -12,6 +15,30 @@ function createManager(): TemplateManager {
   const mgr = new TemplateManager()
   mgr.loadTemplateDir(SAMPLE)
   return mgr
+}
+
+/**
+ * 造一个最小模板目录（只有一份结构模板）。
+ * manifest 的 name 与结构 JSON 的 name 分开传，用于钉住「注册键取 JSON 的 name」。
+ */
+function writeStructureDir(
+  base: string,
+  jsonName: string,
+  rootTitle: string,
+  manifestName: string
+): string {
+  mkdirSync(join(base, 'structures', 's'), { recursive: true })
+  writeFileSync(
+    join(base, 'manifest.json'),
+    JSON.stringify({ structures: [{ id: 's', name: manifestName, file: 's.json' }] }),
+    'utf8'
+  )
+  writeFileSync(
+    join(base, 'structures', 's', 's.json'),
+    JSON.stringify({ name: jsonName, root: { nodeType: 'root', title: rootTitle } }),
+    'utf8'
+  )
+  return base
 }
 
 describe('示例模板资产加载（samples/sample-template，合成无版权数据）', () => {
@@ -106,7 +133,7 @@ describe('结构模板实例化（对齐旧版 cloneNode 语义）', () => {
     const tableBlock = refs.contentBlocks.find((b) => b.type === 'table')
     expect(tableBlock).toBeDefined()
     if (tableBlock && tableBlock.type === 'table') {
-      expect(tableBlock.caption).toBe('表1 示例引用')
+      expect(tableBlock.caption).toBe('示例引用')
       expect(tableBlock.headers[0]).toBe('序号')
       expect(tableBlock.data[0]![1]).toBe('DEMO-001')
     }
@@ -158,12 +185,8 @@ describe('内容块模板锁 lock（只认三档，非法取值按不锁处理�
     expect(byTitle.get('引用文档')![0]!).not.toHaveProperty('lock')
   })
 
-  it('解析阶段滤掉非法取值：块不带锁，并记一条加载告警', async () => {
-    const { mkdirSync, mkdtempSync, writeFileSync, rmSync } = await import('node:fs')
-    const { tmpdir } = await import('node:os')
-    const { join } = await import('node:path')
+  it('解析阶段滤掉非法取值：块不带锁，并在加载报告里记一条告警', () => {
     const dir = mkdtempSync(join(tmpdir(), 'tpl-lock-'))
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     try {
       const base = join(dir, 'templates')
       mkdirSync(join(base, 'structures', 'lockcase'), { recursive: true })
@@ -192,7 +215,7 @@ describe('内容块模板锁 lock（只认三档，非法取值按不锁处理�
         'utf8'
       )
       const mgr = new TemplateManager()
-      mgr.loadTemplateDir(base)
+      const result = mgr.loadTemplateDir(base)
       const def = mgr.findStructureByName('锁测试模板')!
       expect(def.rootDef.contentBlocks.map((b) => b.lock)).toEqual([
         'readonly',
@@ -200,10 +223,11 @@ describe('内容块模板锁 lock（只认三档，非法取值按不锁处理�
         undefined,
         undefined
       ])
-      // 非法取值要留下痕迹，不能静默
-      const logged = warn.mock.calls.map((call) => call.join(' ')).join('\n')
-      expect(logged).toContain('必锁')
-      expect(logged).toContain('锁测试模板')
+      // 非法取值要留下痕迹，不能静默：整份模板照常加载，只出一条警告
+      expect(result.skipped).toEqual([])
+      expect(result.warnings).toHaveLength(2)
+      expect(result.warnings.join('\n')).toContain('必锁')
+      expect(result.warnings.join('\n')).toContain('锁测试模板')
 
       const tree = mgr.instantiate(def)!
       expect(tree.root.contentBlocks[0]!.lock).toBe('readonly')
@@ -211,7 +235,249 @@ describe('内容块模板锁 lock（只认三档，非法取值按不锁处理�
       expect(tree.root.contentBlocks[2]!).not.toHaveProperty('lock')
       expect(tree.root.contentBlocks[3]!).not.toHaveProperty('lock')
     } finally {
-      warn.mockRestore()
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('加载报告：跳过的条目与可疑取值都要有记录', () => {
+  it('结构缺 name / 缺 root、stylemap 缺 name / 缺 styleMap 都进 skipped', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tpl-broken-'))
+    try {
+      const base = join(dir, 'templates')
+      mkdirSync(join(base, 'structures', 'n'), { recursive: true })
+      mkdirSync(join(base, 'structures', 'r'), { recursive: true })
+      mkdirSync(join(base, 'styles', 's'), { recursive: true })
+      writeFileSync(
+        join(base, 'manifest.json'),
+        JSON.stringify({
+          structures: [
+            { id: 'n', name: '缺 name', file: 'no-name.json' },
+            { id: 'r', name: '缺 root', file: 'no-root.json' }
+          ],
+          styles: [
+            { id: 's', name: '缺 name 的样式', stylemap_file: 'no-name-stylemap.json' },
+            { id: 's', name: '缺 styleMap 的样式', stylemap_file: 'no-map-stylemap.json' }
+          ]
+        }),
+        'utf8'
+      )
+      writeFileSync(
+        join(base, 'structures', 'n', 'no-name.json'),
+        JSON.stringify({ root: { nodeType: 'root', title: '没有名字' } }),
+        'utf8'
+      )
+      writeFileSync(
+        join(base, 'structures', 'r', 'no-root.json'),
+        JSON.stringify({ name: '缺少 root 的模板' }),
+        'utf8'
+      )
+      writeFileSync(
+        join(base, 'styles', 's', 'no-name-stylemap.json'),
+        JSON.stringify({ styleMap: { body: '1' } }),
+        'utf8'
+      )
+      writeFileSync(
+        join(base, 'styles', 's', 'no-map-stylemap.json'),
+        JSON.stringify({ name: '缺 styleMap 的样式' }),
+        'utf8'
+      )
+
+      const mgr = new TemplateManager()
+      const result = mgr.loadTemplateDir(base)
+      // 一份都没加载到，但报告里必须逐条说清是哪份、为什么
+      expect(result.structuresLoaded).toBe(0)
+      expect(result.stylesLoaded).toBe(0)
+      expect(result.skipped).toHaveLength(4)
+      const joined = result.skipped.join('\n')
+      for (const file of [
+        'no-name.json',
+        'no-root.json',
+        'no-name-stylemap.json',
+        'no-map-stylemap.json'
+      ]) {
+        expect(joined).toContain(file)
+      }
+      expect(joined).toContain('解析失败')
+      expect(result.warnings).toEqual([])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('认不出的内容块类型进 skipped，实例化时确实少那一块', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tpl-unknown-block-'))
+    try {
+      const base = join(dir, 'templates')
+      mkdirSync(join(base, 'structures', 'b'), { recursive: true })
+      writeFileSync(
+        join(base, 'manifest.json'),
+        JSON.stringify({
+          structures: [{ id: 'b', name: '未知块模板', file: 'block-structure.json' }]
+        }),
+        'utf8'
+      )
+      writeFileSync(
+        join(base, 'structures', 'b', 'block-structure.json'),
+        JSON.stringify({
+          name: '未知块模板',
+          root: {
+            nodeType: 'root',
+            title: '未知块',
+            contentBlocks: [
+              { type: 'video', content: '认不出的块' },
+              { type: 'text', content: '留得住的块' },
+              { content: '连 type 都没写' }
+            ]
+          }
+        }),
+        'utf8'
+      )
+      const mgr = new TemplateManager()
+      const result = mgr.loadTemplateDir(base)
+      expect(result.skipped).toHaveLength(2)
+      const joined = result.skipped.join('\n')
+      expect(joined).toContain('video')
+      expect(joined).toContain('（空）')
+      expect(joined).toContain('未知块模板')
+      expect(joined).toContain('未知块') // 节点标题，便于作者定位
+
+      const tree = mgr.instantiate(mgr.findStructureByName('未知块模板')!)!
+      expect(tree.root.contentBlocks).toHaveLength(1)
+      expect(tree.root.contentBlocks[0]).toMatchObject({ type: 'text', content: '留得住的块' })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('样式骨架的部件关系表检查', () => {
+  it('骨架缺 word/_rels/document.xml.rels 时加载报告报一条，共用骨架不重复报', () => {
+    const mgr = new TemplateManager()
+    const result = mgr.loadTemplateDir(SAMPLE)
+    // 三份样式共用同一个极简骨架，只报一条；警告不拦加载
+    expect(result.stylesLoaded).toBe(3)
+    expect(result.skipped).toEqual([])
+    expect(result.warnings).toHaveLength(1)
+    expect(result.warnings[0]).toContain('word/_rels/document.xml.rels')
+    expect(result.warnings[0]).toContain('demo-style')
+    expect(result.warnings[0]).toContain('styles.xml')
+  })
+
+  it('校验报告里这一条归 warnings，不算样式不可用', () => {
+    const mgr = createManager()
+    const report = mgr.validateStyleTemplate(mgr.findStyleTemplate('demo-stylemap')!)
+    expect(report.valid).toBe(true)
+    expect(report.missing).toEqual([])
+    expect(report.warnings.join('\n')).toContain('word/_rels/document.xml.rels')
+  })
+
+  it('骨架自带关系表时不报', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tpl-rels-'))
+    try {
+      const base = join(dir, 'templates')
+      const skeleton = join(base, 'styles', 'ok', 'ok-style')
+      mkdirSync(join(skeleton, 'word', '_rels'), { recursive: true })
+      writeFileSync(
+        join(base, 'manifest.json'),
+        JSON.stringify({
+          styles: [{ id: 'ok', name: '带关系表的样式', stylemap_file: 'ok-stylemap.json' }]
+        }),
+        'utf8'
+      )
+      writeFileSync(
+        join(base, 'styles', 'ok', 'ok-stylemap.json'),
+        JSON.stringify({ name: '带关系表的样式', docxFolder: 'ok-style', styleMap: { body: '1' } }),
+        'utf8'
+      )
+      writeFileSync(
+        join(skeleton, 'word', 'styles.xml'),
+        '<w:styles><w:style w:styleId="1"/></w:styles>',
+        'utf8'
+      )
+      writeFileSync(join(skeleton, 'word', 'numbering.xml'), '<w:numbering/>', 'utf8')
+      writeFileSync(
+        join(skeleton, 'word', '_rels', 'document.xml.rels'),
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+          '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+          '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/' +
+          'relationships/styles" Target="styles.xml"/></Relationships>',
+        'utf8'
+      )
+
+      const mgr = new TemplateManager()
+      const result = mgr.loadTemplateDir(base)
+      expect(result.stylesLoaded).toBe(1)
+      expect(result.warnings).toEqual([])
+      expect(mgr.validateStyleTemplate(mgr.findStyleTemplate('ok-stylemap')!).warnings).toEqual([])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('模板块纵向合并开关 mergeVertical（只认布尔 true）', () => {
+  it('模板里写了 true 的表格块，解析与实例化都带上该标志', () => {
+    resetIdCounterForTest()
+    const mgr = createManager()
+    const demo = mgr.findStructureByName('示例文档模板 (Demo)')!
+    // 夹具「引用文档」那张表写了 mergeVertical: true
+    const defTables = demo.rootDef.defaultChildren[1]!.contentBlocks.filter((b) => b.type === 'table')
+    expect(defTables).toHaveLength(1)
+    expect(defTables[0]!.mergeVertical).toBe(true)
+
+    // 旧实现解析阶段从不读这个字段，实例化时那行 if 永远不成立，块上拿不到
+    const tree = mgr.instantiate(demo)!
+    const tables: ContentBlock[] = []
+    tree.traverse((n) => tables.push(...n.contentBlocks.filter((b) => b.type === 'table')))
+    expect(tables).toHaveLength(1)
+    expect(tables[0]).toHaveProperty('mergeVertical', true)
+  })
+
+  it('没写、写了 false / 字符串 / 数字都不产生该键', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tpl-merge-'))
+    try {
+      const base = join(dir, 'templates')
+      mkdirSync(join(base, 'structures', 'merge'), { recursive: true })
+      writeFileSync(
+        join(base, 'manifest.json'),
+        JSON.stringify({
+          structures: [{ id: 'merge', name: '合并开关模板', file: 'merge-structure.json' }]
+        }),
+        'utf8'
+      )
+      writeFileSync(
+        join(base, 'structures', 'merge', 'merge-structure.json'),
+        JSON.stringify({
+          name: '合并开关模板',
+          root: {
+            nodeType: 'root',
+            title: '合并开关',
+            contentBlocks: [
+              { type: 'table', caption: '表1 没写', headers: ['A'], data: [['1']] },
+              { type: 'table', caption: '表2 false', mergeVertical: false, headers: ['A'], data: [['1']] },
+              { type: 'table', caption: '表3 字符串', mergeVertical: 'true', headers: ['A'], data: [['1']] },
+              { type: 'table', caption: '表4 数字', mergeVertical: 1, headers: ['A'], data: [['1']] },
+              { type: 'table', caption: '表5 true', mergeVertical: true, headers: ['A'], data: [['1']] }
+            ]
+          }
+        }),
+        'utf8'
+      )
+      const mgr = new TemplateManager()
+      mgr.loadTemplateDir(base)
+      const def = mgr.findStructureByName('合并开关模板')!
+      expect(def.rootDef.contentBlocks.map((b) => b.mergeVertical)).toEqual([
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        true
+      ])
+      const blocks = mgr.instantiate(def)!.root.contentBlocks
+      for (const block of blocks.slice(0, 4)) expect(block).not.toHaveProperty('mergeVertical')
+      expect(blocks[4]).toHaveProperty('mergeVertical', true)
+    } finally {
       rmSync(dir, { recursive: true, force: true })
     }
   })
@@ -232,6 +498,69 @@ describe('用户目录优先与无效目录回退', () => {
     expect(r2.stylesLoaded).toBe(0)
     expect(r2.skipped.length).toBe(4)
     expect(mgr.listStructures()).toHaveLength(1)
+  })
+})
+
+describe('结构模板注册键口径（以模板 JSON 的 name 为准，manifest 只做发现）', () => {
+  it('同名两份：先加载的胜出，报告里记下被忽略的那份与双方来源目录', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tpl-dup-'))
+    try {
+      const first = writeStructureDir(join(dir, 'first'), '同名模板', '先加载的标题', '同名模板')
+      // 第二份的 manifest name 与 JSON name 不一致：旧实现拿 manifest name 去重
+      // （表里没有「别名乙」这个名字），于是解析后按 JSON 的 name 静默替换掉第一份
+      const second = writeStructureDir(join(dir, 'second'), '同名模板', '后加载的标题', '别名乙')
+
+      const mgr = new TemplateManager()
+      const r1 = mgr.loadTemplateDir(first)
+      const r2 = mgr.loadTemplateDir(second)
+
+      expect(r1.structuresLoaded).toBe(1)
+      expect(r2.structuresLoaded).toBe(0)
+      const structures = mgr.listStructures()
+      expect(structures).toHaveLength(1)
+      expect(structures[0]!.rootDef.defaultTitle).toBe('先加载的标题')
+
+      const record = r2.skipped.find((s) => s.startsWith('structure already loaded'))
+      expect(record).toBeDefined()
+      expect(record).toContain('同名模板')
+      expect(record).toContain(first) // 胜出者的来源目录
+      expect(record).toContain(second) // 被忽略者的来源目录
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('manifest 与 JSON 名字不一致时按 JSON 的名字注册', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tpl-manifest-name-'))
+    try {
+      const base = writeStructureDir(join(dir, 'a'), '正名模板', '正名文档', '清单里的旧名')
+      const mgr = new TemplateManager()
+      const result = mgr.loadTemplateDir(base)
+
+      expect(result.structuresLoaded).toBe(1)
+      expect(mgr.findStructureByName('正名模板')).toBeDefined()
+      expect(mgr.findStructureByName('正名模板')!.rootDef.defaultTitle).toBe('正名文档')
+      // manifest 的 name 不参与注册，查不到是预期行为
+      expect(mgr.findStructureByName('清单里的旧名')).toBeUndefined()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('不同名的两份都能加载，互不影响', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tpl-distinct-'))
+    try {
+      const a = writeStructureDir(join(dir, 'a'), '甲模板', '甲文档', '甲模板')
+      const b = writeStructureDir(join(dir, 'b'), '乙模板', '乙文档', '乙模板')
+      const mgr = new TemplateManager()
+      expect(mgr.loadTemplateDir(a).structuresLoaded).toBe(1)
+      const rb = mgr.loadTemplateDir(b)
+      expect(rb.structuresLoaded).toBe(1)
+      expect(rb.skipped).toEqual([])
+      expect(mgr.listStructures().map((s) => s.name).sort()).toEqual(['乙模板', '甲模板'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
 

@@ -21,7 +21,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSyn
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { stripCaptionNumber, normalizeMermaidSource } from '@documentor/core'
+import { normalizeMermaidSource } from '@documentor/core'
 import type { DocumentTree } from '@documentor/core'
 import type { StyleTemplateDef } from '@documentor/templates'
 import { embedVsdxIntoDocx } from '@documentor/postprocess'
@@ -144,8 +144,8 @@ export async function attachFiguresToDocx(
   try {
     for (let i = 0; i < figures.length; i++) {
       const fig = figures[i]!
-      // 命名为“去号后的题注”，与 docx 中文占位段的下方题注一致（避免名称误报）
-      const base = stripCaptionNumber(fig.caption) || fig.caption || `图${i + 1}`
+      // 名称取题注原文，与文档里的题注文字一致（嵌入时按名称做一致性诊断，名称不再去号）
+      const base = fig.caption.trim() || `图${i + 1}`
       const name = `sdd-${String(i + 1).padStart(3, '0')}-${sanitizeCaption(base)}.vsdx`
       try {
         // 与编辑器渲染共用同一份规整：上游转换器未必容忍 markdown 围栏与语言标签，

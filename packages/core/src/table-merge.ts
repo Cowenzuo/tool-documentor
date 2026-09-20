@@ -235,6 +235,66 @@ export function completeRowSpans(
 }
 
 /**
+ * 缩表后按新尺寸重算显式跨度（纯函数，只动跨度、不动 data）。
+ *
+ * 表缩小以后，原先记下的跨度可能有一部分落在表外：起点在表外、尾部超出末行、
+ * 整列被删掉。原样留着的话，导出与预览会按越界的跨度去写合并——落到空处或与列错位。
+ * 所以每次改尺寸都按新尺寸裁一遍：
+ * - 列号 >= cols 的整列丢弃（该列已经不存在）；
+ * - 起点不在 [0, rows) 的跨度丢弃；
+ * - 尾部超出 rows 的截短到表尾；截短后不足 2 行（含原本就不足 2 行）的丢弃——
+ *   单行没有可合并的对象；
+ * - 列号非法（非整数/负数）与起点、跨度非有限数的丢弃。
+ *
+ * 判定口径与 resolveTableMerges 里 applyExplicit 的接受规则**逐条一致**：
+ * 这里留下的跨度，正是判定与导出还会认的那些；不会裁掉仍能生效的跨度，
+ * 也不会留下判定本来就会忽略的残渣。
+ *
+ * `changed` 表示结果与输入是否真的有差别：没差别就别写回，省一次无谓的入库与重渲染。
+ * 没有任何跨度剩下时 `spans` 返回 undefined（与 completeRowSpans 同口径），
+ * 调用方据此把 rowSpans 字段清掉，而不是留个空对象。
+ */
+export function clampRowSpans(
+  spans: Record<string, Array<[number, number]>> | undefined,
+  rows: number,
+  cols: number
+): { spans: Record<string, Array<[number, number]>> | undefined; changed: boolean } {
+  const maxRows = Number.isFinite(rows) ? Math.max(0, Math.floor(rows)) : 0
+  const maxCols = Number.isFinite(cols) ? Math.max(0, Math.floor(cols)) : 0
+  const entries = Object.entries(spans ?? {})
+  if (entries.length === 0) return { spans: undefined, changed: false }
+  // 表被缩到没有行或没有列：跨度全部作废（有跨度才算动过）
+  if (maxRows === 0 || maxCols === 0) return { spans: undefined, changed: true }
+
+  const out: Record<string, Array<[number, number]>> = {}
+  let changed = false
+  for (const [colKey, list] of entries) {
+    const c = Number.parseInt(colKey, 10)
+    // 列被删掉（或列号本身非法）：整列跨度丢弃
+    if (!Number.isInteger(c) || c < 0 || c >= maxCols || !Array.isArray(list)) {
+      changed = true
+      continue
+    }
+    const kept: Array<[number, number]> = []
+    for (const span of list) {
+      const start = span?.[0]
+      const len = span?.[1]
+      const end = Number.isFinite(start) && Number.isFinite(len) ? Math.min(maxRows, start + len) : 0
+      // 起点在表外、或可用行数不足 2：这处合并已经没有意义
+      if (!Number.isFinite(start) || start < 0 || start >= maxRows || end - start < 2) {
+        changed = true
+        continue
+      }
+      if (end - start !== len) changed = true
+      kept.push([start, end - start])
+    }
+    if (kept.length > 0) out[colKey] = kept
+  }
+  if (Object.keys(out).length === 0) return { spans: undefined, changed: true }
+  return { spans: out, changed }
+}
+
+/**
  * 兼容入口：只给 data（按老口径判定）。
  * 保留给既有调用方与单测；新代码请用 resolveTableMerges 并把 rowSpans 一并传入。
  */

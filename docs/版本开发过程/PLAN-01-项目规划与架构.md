@@ -29,7 +29,7 @@
 | 内容 | 归属 |
 |---|---|
 | 文档树模型、8 种内容块、SQLite 工程存储、模板/样式系统、编号系统 | 阶段一：完整复刻 |
-| DOCX 纯 OOXML 导出（含 Mermaid 占位段、题注剥离、列表独立编号组） | 阶段一：完整复刻 |
+| DOCX 纯 OOXML 导出（含 Mermaid 占位段、列表独立编号组） | 阶段一：完整复刻 |
 | 欢迎页/主编辑界面/8 种块编辑器/导出/设置/图片预览 — **重新设计** | 阶段一 |
 | 深/浅双主题、现代视觉与交互 | 阶段一 |
 | 实例 JSON 交换与 `--test-export` 无界面导出 | 阶段一 |
@@ -50,7 +50,7 @@
    由用户/外部模板目录提供（设置 → 模板目录，manifest 驱动）。本仓库仅含
    resources/test-fixtures/sample-template（自建合成模板，无外部内容，供开发回归）。
 3. **实例 JSON 兼容**：`basedOn → styleTemplate → 首模板回退（告警）` 匹配链照旧，UTF-8。
-4. **导出等价**：同一骨架 + 同一数据应产生等价 document.xml（编号克隆、题注剥离、
+4. **导出等价**：同一骨架 + 同一数据应产生等价 document.xml（编号克隆、
    边框/边距规则与 04/05 文档一致）。
 5. 仅在界面、代码形态上自由；文件格式与语义不自由。
 
@@ -86,7 +86,7 @@ tool-rwdoc/
 ├── pnpm-workspace.yaml
 ├── packages/
 │   ├── core/            # 模型+存储：DocumentTree/Node、ContentBlock×8、
-│   │                    #   ProjectStore(SQLite)、实例JSON、题注剥离、编号工具
+│   │                    #   ProjectStore(SQLite)、实例JSON、编号工具
 │   └── templates/       # 模板目录（外部提供，仅用户配置的多目录加载，无内置）
 │   └── docx/            # DocxSerializer(树→WriteInstruction)、DocxWriter(指令→OOXML 打包)
 ├── apps/
@@ -125,7 +125,7 @@ tool-rwdoc/
 ### packages/core
 - 类型：`DocumentNode`、`ContentBlock`（8 型判别联合）、`DocumentTree`、工程/实例 JSON 类型。
 - `ProjectStore`：open/create/save；node/content_block/ui_state 读写；props_json 序列化。
-- `captions.ts`：stripCaptionNumber（剥离"表N/图N　"前缀，码点安全，UTF-8 原生安全）。
+- 题注文字原样导出：文字里只写标题，编号归样式或题注域，程序不剥离也不改写。口径见 PLAN-07。
 - 纯函数、无 I/O 依赖，可单测。
 
 ### packages/templates

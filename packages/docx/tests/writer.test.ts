@@ -2,7 +2,7 @@
 
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, existsSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { deflateSync } from 'node:zlib'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -162,6 +162,87 @@ describe('DocxWriter 端到端（合成示例模板骨架）', () => {
     expect(documentXml).toContain('<w:sectPr')
   })
 
+  it('骨架自带 document.xml.rels 时逐字节保留，只把图片关系接在既有 rId 之后', async () => {
+    resetIdCounterForTest()
+    const { tree, manager } = loadDemo()
+    const demo = manager.findStructureByName('示例文档模板 (Demo)')!
+    const base = manager.styleForStructure(demo)!
+
+    // 真实样式模板都是「自带关系表」这种骨架：把示例骨架整体抄一份，补上该部件
+    const skeleton = join(dir, 'skeleton-with-rels')
+    for (const rel of [
+      '[Content_Types].xml',
+      '_rels/.rels',
+      'word/document.xml',
+      'word/styles.xml',
+      'word/numbering.xml'
+    ]) {
+      mkdirSync(dirname(join(skeleton, rel)), { recursive: true })
+      writeFileSync(join(skeleton, rel), readFileSync(join(base.skeletonPath, rel)))
+    }
+    const relType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+    const originalRels =
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      `<Relationship Id="rId7" Type="${relType}/styles" Target="styles.xml"/>` +
+      `<Relationship Id="rId9" Type="${relType}/numbering" Target="numbering.xml"/>` +
+      '</Relationships>'
+    mkdirSync(join(skeleton, 'word', '_rels'), { recursive: true })
+    writeFileSync(join(skeleton, 'word', '_rels', 'document.xml.rels'), originalRels, 'utf8')
+    const style = { ...base, skeletonPath: skeleton }
+
+    // 不带图片：骨架的关系表原样带过去（不重排、不补写）
+    const plainOut = join(dir, 'out-rels-kept.docx')
+    await writeDocx(serializeToInstructions(tree, style), style, plainOut)
+    const plainZip = await JSZip.loadAsync(readFileSync(plainOut))
+    const plainRels = await plainZip.file('word/_rels/document.xml.rels')!.async('nodebuffer')
+    expect(Buffer.compare(plainRels, Buffer.from(originalRels, 'utf8'))).toBe(0)
+
+    // 带图片：只追加图片关系，Id 接既有最大值往后排（rId9 之后是 rId10）
+    writeFileSync(join(dir, 'rels-pic.png'), makePng(2, 3))
+    const target = firstContentNode(tree)
+    target.contentBlocks.push({ type: 'image', imagePath: 'rels-pic.png', caption: '图1 关系表测试' })
+    const imgOut = join(dir, 'out-rels-image.docx')
+    const { instructions } = serializeWithWarnings(tree, style, { imageBaseDir: dir })
+    await writeDocx(instructions, style, imgOut)
+    const imgZip = await JSZip.loadAsync(readFileSync(imgOut))
+    const imgRels = await imgZip.file('word/_rels/document.xml.rels')!.async('string')
+    expect(imgRels).toContain(`<Relationship Id="rId7" Type="${relType}/styles" Target="styles.xml"/>`)
+    expect(imgRels).toContain(`<Relationship Id="rId9" Type="${relType}/numbering" Target="numbering.xml"/>`)
+    expect(imgRels).toContain(
+      `<Relationship Id="rId10" Type="${relType}/image" Target="media/image1.png"/>`
+    )
+    const documentXml = await imgZip.file('word/document.xml')!.async('string')
+    expect(documentXml).toContain('<a:blip r:embed="rId10"/>')
+  })
+
+  it('骨架缺 document.xml.rels 时补出 styles 与 numbering 的两条关系', async () => {
+    resetIdCounterForTest()
+    const { tree, manager } = loadDemo()
+    const demo = manager.findStructureByName('示例文档模板 (Demo)')!
+    const style = manager.styleForStructure(demo)!
+    // 夹具就是这种极简骨架：整份没有该部件（四套真实样式模板都自带，风险只落在自定义模板上）
+    expect(existsSync(join(style.skeletonPath, 'word', '_rels', 'document.xml.rels'))).toBe(false)
+
+    const outputPath = join(dir, 'out-rels.docx')
+    await writeDocx(serializeToInstructions(tree, style), style, outputPath)
+    const zip = await JSZip.loadAsync(readFileSync(outputPath))
+    const rels = await zip.file('word/_rels/document.xml.rels')!.async('string')
+
+    const relType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+    expect(rels).toMatch(
+      new RegExp(`<Relationship Id="rId\\d+" Type="${relType}/styles" Target="styles\\.xml"/>`)
+    )
+    expect(rels).toMatch(
+      new RegExp(`<Relationship Id="rId\\d+" Type="${relType}/numbering" Target="numbering\\.xml"/>`)
+    )
+    // Id 唯一，且不与既有关系撞号
+    const ids = [...rels.matchAll(/Id="([^"]+)"/g)].map((m) => m[1])
+    expect(ids).toHaveLength(2)
+    expect(new Set(ids).size).toBe(2)
+    expect(rels).toContain('</Relationships>')
+  })
+
   it('图片块：嵌入 media + rels + Content_Types + drawing（按像素计算显示尺寸）', async () => {
     resetIdCounterForTest()
     const { tree, manager } = loadDemo()
@@ -192,6 +273,12 @@ describe('DocxWriter 端到端（合成示例模板骨架）', () => {
     expect(rels).toContain(
       'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"'
     )
+    // 图片关系与极简骨架补出的 styles / numbering 关系共存，Id 互不重复
+    const relIds = [...rels.matchAll(/Id="([^"]+)"/g)].map((m) => m[1])
+    expect(relIds).toHaveLength(3)
+    expect(new Set(relIds).size).toBe(3)
+    expect(rels).toContain('Target="styles.xml"')
+    expect(rels).toContain('Target="numbering.xml"')
     const ct = await zip.file('[Content_Types].xml')!.async('string')
     expect(ct).toContain('<Default Extension="png" ContentType="image/png"/>')
   })
@@ -642,10 +729,9 @@ describe('DocxWriter 端到端（合成示例模板骨架）', () => {
         '<w:r><w:t>-</w:t></w:r>' +
         '<w:fldSimple w:instr=" SEQ 表 \\* ARABIC \\s 1 "><w:r><w:t>1</w:t></w:r></w:fldSimple>'
     )
-    // 手写表号已剥离，题注样式沿用 table.caption
+    // 题注文字原样带出：编号归样式或域，程序不改写作者写的字
     expect(documentXml).toContain('<w:pStyle w:val="48"/>')
-    expect(documentXml).not.toContain('表4.1-1')
-    expect(documentXml).toContain('<w:t xml:space="preserve"> 试验工况表</w:t>')
+    expect(documentXml).toContain('<w:t xml:space="preserve"> 表4.1-1 试验工况表</w:t>')
   })
 
   it('题注域：chapterStyleNames 显式空串时章节号写成文本（不做 STYLEREF）', async () => {
@@ -677,6 +763,64 @@ describe('DocxWriter 端到端（合成示例模板骨架）', () => {
     expect(documentXml).not.toContain('STYLEREF')
     expect(documentXml).toMatch(/<w:r><w:t>表<\/w:t><\/w:r><w:r><w:t>4<\/w:t><\/w:r>/)
     expect(documentXml).toContain('SEQ 表')
+  })
+
+  it('题注域：没有可用标题层级时不留「表-1」残号，也不写 STYLEREF', async () => {
+    resetIdCounterForTest()
+    const { manager } = loadDemo()
+    const demo = manager.findStructureByName('示例文档模板 (Demo)')!
+    const base = manager.styleForStructure(demo)!
+    const style = {
+      ...base,
+      headingStarts: [4, 1, 1, 1, 1],
+      captionNumbering: { table: 'field' as const, chapterStyleNames: { '1': '标题 1' } }
+    }
+    // 副标题直挂根：题注没有可挂靠的标题，章节号无从谈起
+    const root = new DocumentNode(0)
+    const sub = new DocumentNode(1)
+    sub.title = '概述'
+    sub.isSubTitle = true
+    sub.contentBlocks.push({
+      type: 'table',
+      caption: '表1 说明',
+      rows: 1,
+      cols: 1,
+      headers: ['A'],
+      data: [['1']]
+    })
+    root.addChild(sub)
+
+    const outputPath = join(dir, 'out-caption-no-heading.docx')
+    await writeDocx(serializeToInstructions(new DocumentTree(root), style), style, outputPath)
+    const zip = await JSZip.loadAsync(readFileSync(outputPath))
+    const documentXml = await zip.file('word/document.xml')!.async('string')
+    // 不写章节号也不写那个连字符：题注是「表」+ SEQ 域 + 题注文字，不会渲染成「表-1」
+    expect(documentXml).toContain('<w:r><w:t>表</w:t></w:r><w:fldSimple w:instr=" SEQ 表 \\* ARABIC \\s 1 ">')
+    expect(documentXml).toContain('<w:t xml:space="preserve"> 表1 说明</w:t>')
+    expect(documentXml).not.toContain('<w:t>-</w:t>')
+    expect(documentXml).not.toContain('STYLEREF')
+  })
+
+  it('Mermaid 降级占位段：源码整段写进 document.xml（与「以文本形式导出」一致）', async () => {
+    resetIdCounterForTest()
+    const { manager } = loadDemo()
+    const demo = manager.findStructureByName('示例文档模板 (Demo)')!
+    const style = manager.styleForStructure(demo)!
+    const code = ['graph TD', ...Array.from({ length: 24 }, (_, i) => `  A${i} --> A${i + 1}`)].join('\n')
+    expect(code.length).toBeGreaterThan(260) // review S8 的实测样本量级（旧实现只留 60 字符源码）
+    const root = new DocumentNode(0)
+    const h1 = new DocumentNode(1)
+    h1.title = '第四章'
+    h1.contentBlocks.push({ type: 'mermaid', caption: '图1 流程', code })
+    root.addChild(h1)
+
+    const outputPath = join(dir, 'out-mermaid-placeholder.docx')
+    await writeDocx(serializeToInstructions(new DocumentTree(root), style), style, outputPath)
+    const zip = await JSZip.loadAsync(readFileSync(outputPath))
+    const documentXml = await zip.file('word/document.xml')!.async('string')
+    // 末行在文档里（'>' 按 XML 转义），且不需要「已截断」标注——一个字都没丢
+    expect(documentXml).toContain('A23 --&gt; A24')
+    expect(documentXml).not.toContain('已截断')
   })
 
   it('无工程目录时回退占位文本（CLI/实例 JSON 路径）', () => {

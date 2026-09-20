@@ -46,6 +46,9 @@ export interface BlockCardProps {
   block: ContentBlock
   canMoveUp: boolean
   canMoveDown: boolean
+  /** 相邻块是 keep/readonly 档：交换位置会把它挪走，写入侧也会拒绝 */
+  neighborLockedUp?: boolean
+  neighborLockedDown?: boolean
   collapsed: boolean
   onToggleCollapse: (index: number) => void
   onChange: (index: number, block: ContentBlock) => void
@@ -56,7 +59,19 @@ export interface BlockCardProps {
 }
 
 export function BlockCard(props: BlockCardProps): React.JSX.Element {
-  const { block, index, collapsed, onToggleCollapse, onChange, onMove, onRemove, canMoveUp, canMoveDown } = props
+  const {
+    block,
+    index,
+    collapsed,
+    onToggleCollapse,
+    onChange,
+    onMove,
+    onRemove,
+    canMoveUp,
+    canMoveDown,
+    neighborLockedUp,
+    neighborLockedDown
+  } = props
   const change = (next: ContentBlock): void => onChange(index, next)
   const lock = block.lock
   const typeLabel = BLOCK_TYPE_LABELS[block.type]
@@ -66,9 +81,12 @@ export function BlockCard(props: BlockCardProps): React.JSX.Element {
    * 卡片上只用锁标记与提示交代模板的规定。
    */
   const keepLocked = lock === 'keep' || lock === 'readonly'
-  const moveUp = canMoveUp && !keepLocked
-  const moveDown = canMoveDown && !keepLocked
-  const moveTitle = keepLocked && lock ? lockReason(lock, 'move') : null
+  const moveUp = canMoveUp && !keepLocked && !neighborLockedUp
+  const moveDown = canMoveDown && !keepLocked && !neighborLockedDown
+  // 交换是双向的：相邻块被模板钉住时，本块也挪不过去，原因要照样说清
+  const neighborReason = '相邻内容是模板锁定的，交换位置会把它挪走'
+  const moveUpTitle = keepLocked && lock ? lockReason(lock, 'move') : neighborLockedUp ? neighborReason : null
+  const moveDownTitle = keepLocked && lock ? lockReason(lock, 'move') : neighborLockedDown ? neighborReason : null
   const removeTitle = keepLocked && lock ? lockReason(lock, 'remove') : null
 
   /**
@@ -121,7 +139,7 @@ export function BlockCard(props: BlockCardProps): React.JSX.Element {
           <button
             type="button"
             className="be-icon-btn"
-            title={moveTitle ?? '上移（Alt+↑）'}
+            title={moveUpTitle ?? '上移（Alt+↑）'}
             aria-label="上移此内容"
             disabled={!moveUp}
             onClick={() => onMove(index, -1)}
@@ -133,7 +151,7 @@ export function BlockCard(props: BlockCardProps): React.JSX.Element {
           <button
             type="button"
             className="be-icon-btn"
-            title={moveTitle ?? '下移（Alt+↓）'}
+            title={moveDownTitle ?? '下移（Alt+↓）'}
             aria-label="下移此内容"
             disabled={!moveDown}
             onClick={() => onMove(index, 1)}

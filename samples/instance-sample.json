@@ -25,7 +25,7 @@
         "contentBlocks": [
           {
             "type": "table",
-            "caption": "表1 示例引用",
+            "caption": "示例引用",
             "rows": 1,
             "cols": 3,
             "headers": ["序号", "标识", "标题"],
@@ -39,7 +39,7 @@
         "contentBlocks": [
           {
             "type": "mermaid",
-            "caption": "图1 示例流程",
+            "caption": "示例流程",
             "content": "graph TD\n  A[示例] --> B[流程]"
           }
         ]

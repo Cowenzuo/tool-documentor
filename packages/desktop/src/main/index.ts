@@ -229,6 +229,20 @@ function createMainWindow(): void {
             const tag = card ? card.querySelector('.block-lock-tag') : null;
             return tag ? tag.textContent.trim() : null;
           };
+          const findTreeNode = (n, title) => {
+            if (!n) return null;
+            if (n.title === title) return n;
+            for (const c of n.children || []) {
+              const hit = findTreeNode(c, title);
+              if (hit) return hit;
+            }
+            return null;
+          };
+          const biaoShiNode = findTreeNode((await window.documentor.project.treeGetRoot()).root, '标识');
+          const storeListBlock = biaoShiNode
+            ? (biaoShiNode.contentBlocks || []).find((b) => b.type === 'orderedList')
+            : null;
+          out.storeLockValue = storeListBlock ? (storeListBlock.lock || null) : null;
           const keepCard = cardAt(0);
           const keepTag = keepCard ? keepCard.querySelector('.block-lock-tag') : null;
           out.keepLockTag = lockTagOf(keepCard);
@@ -245,22 +259,54 @@ function createMainWindow(): void {
           await sleep(400);
           out.blockCardsAfterLockedDelete = document.querySelectorAll('.block-card').length;
           out.lockedDeleteKept = out.blockCardsAfterLockedDelete === cardsBeforeLockedDelete;
-          // 锁跟着块进工程数据；写入侧拒绝改类型，内容变更照常放行
-          const findTreeNode = (n, title) => {
-            if (!n) return null;
-            if (n.title === title) return n;
-            for (const c of n.children || []) {
-              const hit = findTreeNode(c, title);
-              if (hit) return hit;
+          // 相邻档位：与 keep 块相邻的内容，上移会把锁定的块挪走，按钮该置灰并写清原因
+          const addEndBtn = document.querySelector('.np-add-btn');
+          if (addEndBtn) {
+            addEndBtn.click();
+            await sleep(250);
+            const textItem = [...document.querySelectorAll('.np-add-menu .np-add-label')].find(
+              (el) => el.textContent.trim() === '文本'
+            );
+            const textBtn = textItem ? textItem.closest('button') : null;
+            if (textBtn) {
+              textBtn.click();
+              await sleep(700);
+              const cardsWithNeighbor = [...document.querySelectorAll('.block-card')];
+              out.neighborCards = cardsWithNeighbor.length;
+              const neighborCard = cardsWithNeighbor[cardsWithNeighbor.length - 1];
+              const neighborUp = neighborCard ? moveBtnsOf(neighborCard)[0] : null;
+              out.neighborMoveUpDisabled = !!neighborUp && neighborUp.disabled === true;
+              out.neighborMoveUpTitle = neighborUp ? neighborUp.title : null;
+              // 目标位置上有块时，keep 档的移动由写入侧拒绝（上一处删除检查同理）
+              if (biaoShiNode) {
+                try {
+                  await window.documentor.block.move({ nodeId: biaoShiNode.id, from: 0, to: 1 });
+                  out.keepMoveRejected = false;
+                  out.keepMoveError = null;
+                } catch (err) {
+                  out.keepMoveRejected = true;
+                  out.keepMoveError = err && err.message ? err.message : String(err);
+                }
+              }
+              const neighborDel = neighborCard ? deleteBtnOf(neighborCard) : null;
+              if (neighborDel) {
+                neighborDel.click();
+                await sleep(700);
+              }
+              out.neighborCardsAfterCleanup = document.querySelectorAll('.block-card').length;
             }
-            return null;
-          };
-          const biaoShiNode = findTreeNode((await window.documentor.project.treeGetRoot()).root, '标识');
-          const storeListBlock = biaoShiNode
-            ? (biaoShiNode.contentBlocks || []).find((b) => b.type === 'orderedList')
-            : null;
-          out.storeLockValue = storeListBlock ? (storeListBlock.lock || null) : null;
+          }
+          // 锁跟着块进工程数据；写入侧拒绝改类型，内容变更照常放行
           if (biaoShiNode && storeListBlock) {
+            // 界面置灰只是提示，写入侧才是最后一道：keep 档的删除与移动都要拒
+            try {
+              await window.documentor.block.remove({ nodeId: biaoShiNode.id, index: 0 });
+              out.keepRemoveRejected = false;
+              out.keepRemoveError = null;
+            } catch (err) {
+              out.keepRemoveRejected = true;
+              out.keepRemoveError = err && err.message ? err.message : String(err);
+            }
             try {
               await window.documentor.block.update({
                 nodeId: biaoShiNode.id,
@@ -314,6 +360,31 @@ function createMainWindow(): void {
             const roMoves = moveBtnsOf(roCard);
             out.readonlyMoveDisabled = roMoves.length === 2 && roMoves.every((b) => b.disabled === true);
             out.readonlyMoveTitles = roMoves.map((b) => b.title);
+            // readonly 档：内容由模板给定，写入侧的改内容与删除都要拒
+            const gaiShuNode = findTreeNode((await window.documentor.project.treeGetRoot()).root, '概述');
+            const roStoreBlock = gaiShuNode ? (gaiShuNode.contentBlocks || [])[0] : null;
+            if (gaiShuNode && roStoreBlock && roStoreBlock.lock === 'readonly') {
+              try {
+                await window.documentor.block.update({
+                  nodeId: gaiShuNode.id,
+                  index: 0,
+                  block: { ...roStoreBlock, content: '试图改定稿' }
+                });
+                out.readonlyContentRejected = false;
+                out.readonlyContentError = null;
+              } catch (err) {
+                out.readonlyContentRejected = true;
+                out.readonlyContentError = err && err.message ? err.message : String(err);
+              }
+              try {
+                await window.documentor.block.remove({ nodeId: gaiShuNode.id, index: 0 });
+                out.readonlyRemoveRejected = false;
+                out.readonlyRemoveError = null;
+              } catch (err) {
+                out.readonlyRemoveRejected = true;
+                out.readonlyRemoveError = err && err.message ? err.message : String(err);
+              }
+            }
           }
           // type 档只锁类型：删除与上下移照常；不锁的块一切照旧，删除要真的生效
           const demandRow = [...document.querySelectorAll('.tree-row')].find((r) => r.textContent.includes('需求'));
@@ -370,8 +441,16 @@ function createMainWindow(): void {
             const titleInput = document.querySelector('.np-title');
             if (titleInput) {
               setNative(titleInput, '需求改');
-              await sleep(1000);
-              out.titleSynced = [...document.querySelectorAll('.tree-row')].some((r) => r.textContent.includes('需求改'));
+              // 标题是防抖入库：轮询等树上的行真的变了，别拿固定等待赌时间
+              const titleDeadline = Date.now() + 4000;
+              out.titleSynced = false;
+              while (Date.now() < titleDeadline) {
+                await sleep(200);
+                if ([...document.querySelectorAll('.tree-row')].some((r) => r.textContent.includes('需求改'))) {
+                  out.titleSynced = true;
+                  break;
+                }
+              }
             }
           }
           // 清空搜索恢复全树
@@ -525,6 +604,36 @@ function createMainWindow(): void {
                 out.tableCoveredCells = document.querySelectorAll('.be-table-cell-merged').length;
                 out.tableToast = document.querySelector('.toast') ? document.querySelector('.toast').textContent : null;
               }
+              // 缩表后跨度必须按新尺寸重算（只动跨度、不动 data）：
+              // 先缩列（3 → 2），第 0 列的跨度仍在界内，应当原样留着；
+              // 再缩行（2 → 1），跨两行的跨度整段落到表外，应当被裁掉。
+              // 旧实现把 rowSpans 原样透传，缩表后越界的跨度留在数据里，导出与预览的合并落到表外。
+              const sizeInput = (i) => document.querySelectorAll('.be-table-size input')[i];
+              const shrinkTo = async (i, value) => {
+                const input = sizeInput(i);
+                if (!input) return null;
+                setNative(input, String(value));
+                await sleep(350);
+                const box = document.querySelector('.be-table-confirm[aria-label="确认缩减表格"]');
+                const text = box ? box.textContent : null;
+                const btn = box ? box.querySelector('.be-btn.danger-text') : null;
+                if (btn) {
+                  btn.click();
+                  await sleep(700);
+                }
+                return text;
+              };
+              out.tableShrinkColConfirmText = await shrinkTo(1, 2);
+              out.tableSpansAfterColShrink = await readSpans();
+              out.tableCoveredCellsAfterColShrink = document.querySelectorAll('.be-table-cell-merged').length;
+              out.tableShrinkRowConfirmText = await shrinkTo(0, 1);
+              out.tableSpansAfterRowShrink = await readSpans();
+              out.tableCoveredCellsAfterRowShrink = document.querySelectorAll('.be-table-cell-merged').length;
+              out.tableSizeAfterShrink = [
+                sizeInput(0) ? sizeInput(0).value : null,
+                sizeInput(1) ? sizeInput(1).value : null
+              ];
+              out.tableCellValuesAfterRowShrink = values();
             }
           }
           // 保存

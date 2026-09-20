@@ -1,13 +1,17 @@
 /**
  * TemplateManager：模板目录加载、检索、实例化（对齐旧版 templatemanager 语义）。
  * - 每个模板目录以 manifest.json 驱动：structures/<id>/<file>、styles/<id>/<stylemap>；
- * - 结构模板按 name 注册（先加载者优先，同名跳过并记录）；
+ * - manifest 只做**发现与索引**（id 定位目录、file/stylemap_file 定位文件），
+ *   模板的对外身份与注册键一律取模板 JSON 顶层的 name；
+ * - 结构模板按 JSON 的 name 去重并注册（先加载者优先，同名者整体忽略并记来源目录）；
  * - 样式模板双 key 注册：name 与 stylemap 文件名（不含 .json）；
  * - 结构模板顶层 styleTemplate 字段（= stylemap 文件名）关联样式；
  * - 实例化 = 递归深拷贝模板节点定义 → 文档树，并给每个节点推导 allowedChildLevels。
+ * - 加载不说"成功"就算完：每一条没加载、被跳过的块、认不出的取值都进 LoadDirResult，
+ *   界面据此说明"为什么少了什么"。
  */
 import { readFileSync, existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, basename } from 'node:path'
 import { createBlock, DocumentNode, DocumentTree, parseBlockLock } from '@documentor/core'
 import type { BlockLockLevel, ContentBlock } from '@documentor/core'
 import type {
@@ -23,7 +27,11 @@ import type {
 
 interface ManifestEntry {
   id: string
-  name: string
+  /**
+   * 模板清单里的显示名，**不参与注册与去重**：软件认的是模板 JSON 顶层的 name。
+   * 两份不一致时以 JSON 为准，这里只影响模板仓库文档的可读性。
+   */
+  name?: string
   file?: string
   stylemap_file?: string
   style_folder?: string
@@ -31,13 +39,27 @@ interface ManifestEntry {
   description?: string
 }
 
+/**
+ * 解析期的两个上报通道（LoadDirResult 结构上就满足）：
+ * - skipped：这一条没加载（整份模板/样式被丢弃、块被跳过）；
+ * - warnings：加载了但有可疑之处（取值不认识、骨架缺部件），不阻断加载。
+ */
+interface ReportSink {
+  skipped: string[]
+  warnings: string[]
+}
+
 export class TemplateManager {
-  /** 结构模板注册表（按 name） */
+  /** 结构模板注册表（按模板 JSON 的 name） */
   private structures = new Map<string, TemplateDef>()
-  /** 结构定义（按 manifest id，供关联检查） */
+  /** 结构定义（按 manifest id，供关联检查；同名冲突时保留先加载的那份） */
   private structuresById = new Map<string, TemplateDef>()
   /** 样式模板注册表（name 与 filekey 双 key） */
   private styles = new Map<string, StyleTemplateDef>()
+  /** 结构注册键 → 来源目录（同名被忽略时报出来源） */
+  private structureDirs = new Map<string, string>()
+  /** 样式注册键（name 或 filekey）→ 来源目录 */
+  private styleDirs = new Map<string, string>()
   /** 目录加载顺序记录（诊断用） */
   readonly loadedDirs: string[] = []
 
@@ -45,10 +67,18 @@ export class TemplateManager {
 
   /**
    * 加载一个模板目录（manifest 驱动）。目录无效（不存在/无 manifest/无结构）返回失败但不抛错。
-   * 同名注册冲突采用先加载优先（调用方按 用户目录 → 内置 顺序传入，实现用户模板优先）。
+   * 同名注册冲突采用先加载优先（调用方按 用户目录 → 内置 顺序传入，实现用户模板优先）：
+   * 结构模板按**模板 JSON 顶层的 name** 判定重名（与注册键同一个），被忽略的那份连同
+   * 双方来源目录记进 skipped，不再静默替换。
    */
   loadTemplateDir(dirPath: string): LoadDirResult {
-    const result: LoadDirResult = { dirPath, structuresLoaded: 0, stylesLoaded: 0, skipped: [] }
+    const result: LoadDirResult = {
+      dirPath,
+      structuresLoaded: 0,
+      stylesLoaded: 0,
+      skipped: [],
+      warnings: []
+    }
     const manifestPath = join(dirPath, 'manifest.json')
     if (!existsSync(manifestPath)) {
       result.skipped.push(`manifest.json not found in ${dirPath}`)
@@ -68,23 +98,34 @@ export class TemplateManager {
         result.skipped.push(`invalid structure entry: ${JSON.stringify(entry)}`)
         continue
       }
-      if (this.structures.has(entry.name)) {
-        result.skipped.push(`structure already loaded: ${entry.name}`)
-        continue
-      }
       const filePath = join(dirPath, 'structures', entry.id, entry.file)
       let def: TemplateDef | null = null
       try {
         const doc = JSON.parse(readFileSync(filePath, 'utf8')) as Record<string, unknown>
-        def = this.parseTemplateDef(doc)
+        def = this.parseTemplateDef(doc, result)
+        // 解析返回 null 也是"这一条没加载"，必须进报告，否则用户只看到少了一套
+        if (!def) {
+          result.skipped.push(
+            `结构模板文件 ${entry.file} 解析失败：缺少 name 或 root，整份未加载`
+          )
+        }
       } catch (err) {
         result.skipped.push(`cannot load structure ${entry.file}: ${String(err)}`)
       }
-      if (def) {
-        this.structures.set(def.name, def)
-        this.structuresById.set(entry.id, def)
-        result.structuresLoaded += 1
+      if (!def) continue
+      // 去重与注册必须是同一个键：模板 JSON 的 name（manifest 的 name 只是清单显示名）
+      const winner = this.structureDirs.get(def.name)
+      if (winner) {
+        result.skipped.push(
+          `structure already loaded: ${def.name}（保留 ${winner} 里的那份，忽略本次 ${dirPath}）`
+        )
+        continue
       }
+      this.structures.set(def.name, def)
+      this.structureDirs.set(def.name, dirPath)
+      // 按 manifest id 的索引同样先加载优先，避免后来者把已注册的结构换掉
+      if (!this.structuresById.has(entry.id)) this.structuresById.set(entry.id, def)
+      result.structuresLoaded += 1
     }
 
     // 样式模板
@@ -99,20 +140,35 @@ export class TemplateManager {
       try {
         const doc = JSON.parse(readFileSync(stylemapPath, 'utf8')) as Record<string, unknown>
         styleDef = this.parseStyleTemplateDef(doc, basePath)
+        if (!styleDef) {
+          result.skipped.push(
+            `样式映射文件 ${entry.stylemap_file} 解析失败：缺少 name 或 styleMap，整份未加载`
+          )
+        }
       } catch (err) {
         result.skipped.push(`cannot load stylemap ${entry.stylemap_file}: ${String(err)}`)
       }
       if (styleDef) {
         const fileKey = entry.stylemap_file.replace(/\.json$/u, '')
-        // 样式同结构一样按先加载优先（name 或 filekey 已注册则跳过）
-        if (this.styles.has(styleDef.name) || this.styles.has(fileKey)) {
-          result.skipped.push(`style already loaded: ${styleDef.name}`)
+        // 样式同结构一样按先加载优先（name 或 filekey 已注册则跳过），并记下来源目录
+        const winner = this.styleDirs.get(styleDef.name) ?? this.styleDirs.get(fileKey)
+        if (winner) {
+          result.skipped.push(
+            `style already loaded: ${styleDef.name}（保留 ${winner} 里的那份，忽略本次 ${dirPath}）`
+          )
           continue
         }
         styleDef.fileKey = fileKey
         this.styles.set(styleDef.name, styleDef)
         this.styles.set(fileKey, styleDef)
+        this.styleDirs.set(styleDef.name, dirPath)
+        this.styleDirs.set(fileKey, dirPath)
         result.stylesLoaded += 1
+        // 骨架缺关系表：不拦加载，但要说出来（同一骨架被多份样式共用时只报一条）
+        const relsWarning = skeletonRelsWarning(styleDef.skeletonPath)
+        if (relsWarning && !result.warnings.includes(relsWarning)) {
+          result.warnings.push(relsWarning)
+        }
       }
     }
 
@@ -204,11 +260,14 @@ export class TemplateManager {
 
   // ================= 解析 =================
 
-  private parseTemplateDef(root: Record<string, unknown>): TemplateDef | null {
+  private parseTemplateDef(
+    root: Record<string, unknown>,
+    sink: ReportSink
+  ): TemplateDef | null {
     const name = String(root['name'] ?? '')
     const rootObj = root['root']
     if (!name || typeof rootObj !== 'object' || rootObj === null) return null
-    const rootDef = this.parseNodeDef(rootObj as Record<string, unknown>, name)
+    const rootDef = this.parseNodeDef(rootObj as Record<string, unknown>, name, sink)
     const styleTemplate = String(root['styleTemplate'] ?? '')
     const rawList = asArray(root['styleTemplates']).map((x) => String(x)).filter(Boolean)
     // 兼容：缺 styleTemplates 时回退单元素集合
@@ -227,14 +286,26 @@ export class TemplateManager {
     }
   }
 
-  private parseNodeDef(obj: Record<string, unknown>, templateName: string): TemplateNodeDef {
+  private parseNodeDef(
+    obj: Record<string, unknown>,
+    templateName: string,
+    sink: ReportSink
+  ): TemplateNodeDef {
     const nodeType = String(obj['nodeType'] ?? '')
     const nodeTitle = String(obj['title'] ?? '')
     const contentBlocks: TemplateContentBlockDef[] = []
     for (const raw of asArray(obj['contentBlocks'])) {
       const b = raw as Record<string, unknown>
+      const type = String(b['type'] ?? '')
+      // 认不出的块类型会在实例化时被丢掉，这里就报出来，别让模板静默少块
+      if (!isKnownTemplateBlockType(type)) {
+        sink.skipped.push(
+          `结构模板「${templateName}」节点「${nodeTitle}」的内容块类型「${type || '（空）'}」` +
+            '不认识，实例化时该块会被跳过'
+        )
+      }
       contentBlocks.push({
-        type: String(b['type'] ?? ''),
+        type,
         caption: b['caption'] == null ? undefined : String(b['caption']),
         content: b['content'] == null ? undefined : String(b['content']),
         language: b['language'] == null ? undefined : String(b['language']),
@@ -242,13 +313,15 @@ export class TemplateManager {
         cols: b['cols'] == null ? undefined : Number(b['cols']),
         headers: asArray(b['headers']).map((x) => String(x)),
         data: asArray(b['data']).map((row) => asArray(row).map((x) => String(x))),
+        // 表格纵向合并开关只认布尔 true：字符串 'true'、数字 1 这类一律按不设处理
+        mergeVertical: b['mergeVertical'] === true ? true : undefined,
         items: asArray(b['items']).map((x) => String(x)),
-        lock: parseLockValue(b['lock'], templateName, nodeTitle)
+        lock: parseLockValue(b['lock'], templateName, nodeTitle, (msg) => sink.warnings.push(msg))
       })
     }
     const children: TemplateNodeDef[] = []
     for (const raw of asArray(obj['children'])) {
-      children.push(this.parseNodeDef(raw as Record<string, unknown>, templateName))
+      children.push(this.parseNodeDef(raw as Record<string, unknown>, templateName, sink))
     }
     const isSubTitle = nodeType === 'subTitle' || nodeType === 'subtitle'
     return {
@@ -318,10 +391,17 @@ export class TemplateManager {
 
   // ================= 校验 =================
 
-  /** 校验样式模板骨架：styles.xml 中存在 styleMap 引用的全部 styleId（C++ 同法：字符串扫描 styleId="..."） */
+  /**
+   * 校验样式模板骨架：styles.xml 中存在 styleMap 引用的全部 styleId（C++ 同法：字符串扫描 styleId="..."）。
+   * 另外报一条骨架部件关系表的警告（不参与 valid）：缺 word/_rels/document.xml.rels 时
+   * styles 与 numbering 从主文档到达不了，Word 可能当它们不存在。
+   */
   validateStyleTemplate(styleDef: StyleTemplateDef): StyleValidationReport {
     const stylesPath = join(styleDef.skeletonPath, 'word', 'styles.xml')
     const missing: StyleValidationReport['missing'] = []
+    const warnings: string[] = []
+    const relsWarning = skeletonRelsWarning(styleDef.skeletonPath)
+    if (relsWarning) warnings.push(relsWarning)
     try {
       const xml = readFileSync(stylesPath, 'utf8')
       const validIds = new Set<string>()
@@ -338,7 +418,7 @@ export class TemplateManager {
     } catch {
       missing.push({ logicalName: '(styles.xml unreadable)', styleId: stylesPath })
     }
-    return { valid: missing.length === 0, missing }
+    return { valid: missing.length === 0, missing, warnings }
   }
 
   // ================= 结构 × 样式配对（软校验候选） =================
@@ -464,19 +544,37 @@ function asArray(value: unknown): unknown[] {
 }
 
 /**
+ * 骨架部件关系表检查：缺 `word/_rels/document.xml.rels` 时，styles 与 numbering
+ * 无法从主文档到达，Word 可能当它们不存在（四套真实样式模板都自带该部件，
+ * 只有自定义与极简骨架会缺）。导出侧会补出这两条关系，所以只报警告、不判不可用。
+ */
+function skeletonRelsWarning(skeletonPath: string): string | null {
+  if (existsSync(join(skeletonPath, 'word', '_rels', 'document.xml.rels'))) return null
+  const parts: string[] = []
+  if (existsSync(join(skeletonPath, 'word', 'styles.xml'))) parts.push('styles.xml')
+  if (existsSync(join(skeletonPath, 'word', 'numbering.xml'))) parts.push('numbering.xml')
+  if (parts.length === 0) return null
+  return (
+    `样式骨架 ${basename(skeletonPath)} 缺少 word/_rels/document.xml.rels，` +
+    `${parts.join(' 与 ')} 可能不被 Word 识别（导出时会补出这两条关系）`
+  )
+}
+
+/**
  * 解析模板块定义的 lock，只认 type / keep / readonly 三个字符串。
- * 取值不认识时记一条加载告警并按不锁处理；缺省（没有这个字段）视为不锁，不告警。
- * 模板加载没有专门的告警收集通道，这里走 console.warn，与写入侧的告警方式一致。
+ * 取值不认识时按不锁处理，并把原文交回加载报告（warn 回调），不再只打一行控制台日志；
+ * 缺省（没有这个字段）视为不锁，不告警。
  */
 function parseLockValue(
   value: unknown,
   templateName: string,
-  nodeTitle: string
+  nodeTitle: string,
+  warn: (message: string) => void
 ): BlockLockLevel | undefined {
   const lock = parseBlockLock(value)
   if (!lock && value != null) {
-    console.warn(
-      `[templates] 结构模板「${templateName}」节点「${nodeTitle}」的内容块 lock 取值` +
+    warn(
+      `结构模板「${templateName}」节点「${nodeTitle}」的内容块 lock 取值` +
         `「${String(value)}」不认识，按不锁处理`
     )
   }
@@ -495,6 +593,11 @@ export function templateBlockToContentBlock(
   if (!block) return null
   // 非法取值在 parseNodeDef 已经滤掉，这里只负责带上
   return def.lock ? ({ ...block, lock: def.lock } as ContentBlock) : block
+}
+
+/** 模板内容块类型是否认识；判定口径与 templateBlockOfDef 的 switch 同一个来源 */
+export function isKnownTemplateBlockType(type: string): boolean {
+  return templateBlockOfDef({ type }) !== null
 }
 
 function templateBlockOfDef(def: TemplateContentBlockDef): ContentBlock | null {
