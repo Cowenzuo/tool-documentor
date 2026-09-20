@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from 'vitest'
 import {
+  clampRowSpans,
   computeVerticalMerges,
   countVerticalMerges,
   completeRowSpans,
@@ -277,6 +278,62 @@ describe('resolveTableMerges（显式跨度与兼容判定取并集）', () => {
     const noHeaders = resolveTableMerges({ data, rowSpans: { '2': [[0, 2]] } })
     expect(noHeaders[0]!.length).toBe(2)
     expect(countVerticalMerges(noHeaders)).toBe(0)
+  })
+})
+
+describe('clampRowSpans（缩表后按新尺寸重算跨度）', () => {
+  it('行列都缩：超出末尾的跨度截短，截短后不足 2 行的丢弃', () => {
+    // 2 行 2 列的表：第 0 列原来跨 3 行（表尾被裁掉 1 行），第 1 列跨 2 行仍成立
+    const res = clampRowSpans({ '0': [[0, 3]], '1': [[0, 2]] }, 2, 2)
+    expect(res.changed).toBe(true)
+    expect(res.spans).toEqual({ '0': [[0, 2]], '1': [[0, 2]] })
+    // 起点 1、跨 3 行 → 截到第 2 行只剩 1 行，凑不成合并 → 丢弃
+    expect(clampRowSpans({ '0': [[1, 3]] }, 2, 2)).toEqual({ spans: undefined, changed: true })
+  })
+
+  it('整段越界：起点在表外的跨度丢弃', () => {
+    expect(clampRowSpans({ '0': [[2, 2]] }, 2, 3)).toEqual({ spans: undefined, changed: true })
+    // 表缩到 0 行时跨度全部作废（没有行就没有合并）
+    expect(clampRowSpans({ '0': [[0, 2]] }, 0, 3)).toEqual({ spans: undefined, changed: true })
+  })
+
+  it('列被删：该列的跨度整列丢弃，其余列照旧', () => {
+    const res = clampRowSpans({ '0': [[0, 2]], '2': [[0, 2]] }, 2, 2)
+    expect(res.changed).toBe(true)
+    expect(res.spans).toEqual({ '0': [[0, 2]] })
+  })
+
+  it('本来就不需要改：changed=false，跨度原样', () => {
+    const spans: Record<string, Array<[number, number]>> = { '0': [[0, 2]], '1': [[1, 2]] }
+    const res = clampRowSpans(spans, 3, 3)
+    expect(res.changed).toBe(false)
+    expect(res.spans).toEqual(spans)
+    // 扩容也不动跨度
+    expect(clampRowSpans({ '0': [[0, 2]] }, 9, 9).changed).toBe(false)
+  })
+
+  it('没有跨度（undefined 或空对象）时返回 undefined 且没动过', () => {
+    expect(clampRowSpans(undefined, 2, 2)).toEqual({ spans: undefined, changed: false })
+    expect(clampRowSpans({}, 2, 2)).toEqual({ spans: undefined, changed: false })
+    // 跨度不足 2 行的残渣会被清掉（判定侧本来也不会认它）
+    expect(clampRowSpans({ '0': [[0, 1]] }, 2, 2)).toEqual({ spans: undefined, changed: true })
+  })
+
+  it('裁完的跨度与判定口径一致：剩下的正是导出还会认的那些', () => {
+    // 缩表后的数据（2 行 2 列）配上越界的旧跨度
+    const data = [
+      ['a', 'b'],
+      ['c', 'd']
+    ]
+    const spans: Record<string, Array<[number, number]>> = { '0': [[0, 3]], '1': [[1, 2]], '2': [[0, 2]] }
+    const clamped = clampRowSpans(spans, data.length, 2)
+    expect(clamped.spans).toEqual({ '0': [[0, 2]] })
+    // 判定本来就忽略越界跨度，所以裁与不裁的合并结果必须一致——
+    // 裁只是把"判定会丢掉的东西"从数据里清出去，不改变渲染与导出
+    expect(resolveTableMerges({ data, rowSpans: clamped.spans })).toEqual(
+      resolveTableMerges({ data, rowSpans: spans })
+    )
+    expect(countVerticalMerges(resolveTableMerges({ data, rowSpans: clamped.spans }))).toBe(1)
   })
 })
 

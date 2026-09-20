@@ -48,6 +48,7 @@ export {
   computeVerticalMerges,
   countVerticalMerges,
   completeRowSpans,
+  clampRowSpans,
   inferRowSpansFromData
 } from './table-merge'
 export type { TableMergeCell, TableSpanSource } from './table-merge'

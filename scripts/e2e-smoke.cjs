@@ -316,6 +316,42 @@ function checkResult(data) {
     !(typeof data.tableToast === 'string' && data.tableToast.includes('失败')),
     `补齐合并不该报错：${data.tableToast}`
   )
+  // 缩表后按新尺寸重算 rowSpans：缩列时界内的跨度留着，缩行时越界的跨度裁掉。
+  // 缺陷现场：applySize 原样透传 rowSpans，缩表后旧跨度留在数据里，导出与预览的合并落到表外。
+  need(
+    typeof data.tableShrinkColConfirmText === 'string' &&
+      data.tableShrinkColConfirmText.includes('会丢失'),
+    `缩列前没有报出会丢内容：${data.tableShrinkColConfirmText}`
+  )
+  need(
+    JSON.stringify(data.tableSpansAfterColShrink) === JSON.stringify({ 0: [[0, 2]] }),
+    `缩列把仍在界内的跨度也动了：${JSON.stringify(data.tableSpansAfterColShrink)}`
+  )
+  need(
+    data.tableCoveredCellsAfterColShrink === 1,
+    `缩列后编辑区没把第 2 行标成续格：${data.tableCoveredCellsAfterColShrink}`
+  )
+  need(
+    typeof data.tableShrinkRowConfirmText === 'string' &&
+      data.tableShrinkRowConfirmText.includes('会丢失'),
+    `缩行前没有报出会丢内容：${data.tableShrinkRowConfirmText}`
+  )
+  need(
+    data.tableSpansAfterRowShrink === null,
+    `缩行后越界的跨度没有被裁掉：${JSON.stringify(data.tableSpansAfterRowShrink)}`
+  )
+  need(
+    data.tableCoveredCellsAfterRowShrink === 0,
+    `缩行后编辑区还留着合并的续格：${data.tableCoveredCellsAfterRowShrink}`
+  )
+  need(
+    JSON.stringify(data.tableSizeAfterShrink) === JSON.stringify(['1', '2']),
+    `缩表后的尺寸不是新尺寸：${JSON.stringify(data.tableSizeAfterShrink)}`
+  )
+  need(
+    JSON.stringify(data.tableCellValuesAfterRowShrink) === JSON.stringify(['1', null]),
+    `缩表动了单元格内容：${JSON.stringify(data.tableCellValuesAfterRowShrink)}`
+  )
   return problems
 }
 

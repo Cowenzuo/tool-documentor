@@ -525,6 +525,36 @@ function createMainWindow(): void {
                 out.tableCoveredCells = document.querySelectorAll('.be-table-cell-merged').length;
                 out.tableToast = document.querySelector('.toast') ? document.querySelector('.toast').textContent : null;
               }
+              // 缩表后跨度必须按新尺寸重算（只动跨度、不动 data）：
+              // 先缩列（3 → 2），第 0 列的跨度仍在界内，应当原样留着；
+              // 再缩行（2 → 1），跨两行的跨度整段落到表外，应当被裁掉。
+              // 旧实现把 rowSpans 原样透传，缩表后越界的跨度留在数据里，导出与预览的合并落到表外。
+              const sizeInput = (i) => document.querySelectorAll('.be-table-size input')[i];
+              const shrinkTo = async (i, value) => {
+                const input = sizeInput(i);
+                if (!input) return null;
+                setNative(input, String(value));
+                await sleep(350);
+                const box = document.querySelector('.be-table-confirm[aria-label="确认缩减表格"]');
+                const text = box ? box.textContent : null;
+                const btn = box ? box.querySelector('.be-btn.danger-text') : null;
+                if (btn) {
+                  btn.click();
+                  await sleep(700);
+                }
+                return text;
+              };
+              out.tableShrinkColConfirmText = await shrinkTo(1, 2);
+              out.tableSpansAfterColShrink = await readSpans();
+              out.tableCoveredCellsAfterColShrink = document.querySelectorAll('.be-table-cell-merged').length;
+              out.tableShrinkRowConfirmText = await shrinkTo(0, 1);
+              out.tableSpansAfterRowShrink = await readSpans();
+              out.tableCoveredCellsAfterRowShrink = document.querySelectorAll('.be-table-cell-merged').length;
+              out.tableSizeAfterShrink = [
+                sizeInput(0) ? sizeInput(0).value : null,
+                sizeInput(1) ? sizeInput(1).value : null
+              ];
+              out.tableCellValuesAfterRowShrink = values();
             }
           }
           // 保存
