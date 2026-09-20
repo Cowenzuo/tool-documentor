@@ -135,3 +135,33 @@ describe('HistoryStack 上限', () => {
     expect(merged).toBe(false)
   })
 })
+
+describe('HistoryStack 历史列表', () => {
+  it('已应用的按旧到新、已撤销的下一个重做排最前', () => {
+    const stack = new HistoryStack<string>()
+    stack.push({ label: '第一步', before: 'A', after: 'B' })
+    stack.push({ label: '第二步', before: 'B', after: 'C' })
+    stack.push({ label: '第三步', before: 'C', after: 'D' })
+    expect(stack.undoLabels()).toEqual(['第一步', '第二步', '第三步'])
+    expect(stack.redoLabels()).toEqual([])
+
+    stack.undo()
+    stack.undo()
+    expect(stack.undoLabels()).toEqual(['第一步'])
+    // 下一步重做的是"第二步"，再往后才是"第三步"
+    expect(stack.redoLabels()).toEqual(['第二步', '第三步'])
+
+    stack.redo()
+    expect(stack.undoLabels()).toEqual(['第一步', '第二步'])
+    expect(stack.redoLabels()).toEqual(['第三步'])
+  })
+
+  it('合并过的连续编辑在列表里只算一步', () => {
+    const clock = fakeClock()
+    const stack = new HistoryStack<string>({ now: clock.now })
+    stack.push({ label: '修改内容', coalesceKey: 'block:1', before: 'A', after: 'B' })
+    clock.tick(100)
+    stack.push({ label: '修改内容', coalesceKey: 'block:1', before: 'B', after: 'C' })
+    expect(stack.undoLabels()).toEqual(['修改内容'])
+  })
+})

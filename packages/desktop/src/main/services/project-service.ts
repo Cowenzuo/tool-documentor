@@ -43,6 +43,7 @@ import type {
   FileWriteBytesInput,
   HistoryResultDto,
   HistoryStateDto,
+  HistoryJumpInput,
   ImageImportInput,
   NodeCopyInput,
   NodeDeleteInput,
@@ -450,7 +451,7 @@ export class ProjectService {
     return this.applyHistoryStep(entry.after)
   }
 
-  /** 界面用：按钮置灰与悬停提示（bytes 不给界面，只用于栈自己的上限） */
+  /** 界面用：按钮置灰、悬停提示与历史列表（bytes 不给界面，只用于栈自己的上限） */
   historyState(): HistoryStateDto {
     const state = this.history.state()
     return {
@@ -458,8 +459,36 @@ export class ProjectService {
       canRedo: state.canRedo,
       undoLabel: state.undoLabel,
       redoLabel: state.redoLabel,
-      steps: state.steps
+      steps: state.steps,
+      undoLabels: this.history.undoLabels(),
+      redoLabels: this.history.redoLabels()
     }
+  }
+
+  /**
+   * 跳到历史中的某一步：界面点历史列表里的某一条就走这里。
+   * keep 是保留多少步已应用的编辑，界面会把越界值夹在 0 到总步数之间，这里再夹一次。
+   */
+  jump(input: HistoryJumpInput): HistoryResultDto {
+    const total = this.history.undoLabels().length + this.history.redoLabels().length
+    const keep = Math.max(0, Math.min(total, Math.trunc(input.keep)))
+    let focusNodeId: string | null = null
+    let guard = 0
+    while (this.history.state().steps > keep && guard < 10000) {
+      const entry = this.history.undo()
+      if (!entry) break
+      this.restoreSnapshot(entry.before)
+      focusNodeId = entry.before.nodeId
+      guard += 1
+    }
+    while (this.history.state().steps < keep && guard < 10000) {
+      const entry = this.history.redo()
+      if (!entry) break
+      this.restoreSnapshot(entry.after)
+      focusNodeId = entry.after.nodeId
+      guard += 1
+    }
+    return { ...this.openResult(), history: this.historyState(), focusNodeId }
   }
 
   private applyHistoryStep(snapshot: TreeSnapshot): HistoryResultDto {

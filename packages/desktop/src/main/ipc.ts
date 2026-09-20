@@ -16,6 +16,7 @@ import type {
   FigureCountsDto,
   HistoryResultDto,
   HistoryStateDto,
+  HistoryJumpInput,
   ImageImportInput,
   NodeCopyInput,
   NodeDeleteInput,
@@ -130,6 +131,7 @@ export function registerProjectIpc(service: ProjectService): void {
   handle<void, HistoryResultDto>(ProjectIpc.HistoryUndo, () => service.undo())
   handle<void, HistoryResultDto>(ProjectIpc.HistoryRedo, () => service.redo())
   handle<void, HistoryStateDto>(ProjectIpc.HistoryState, () => service.historyState())
+  handle<HistoryJumpInput, HistoryResultDto>(ProjectIpc.HistoryJump, (input) => service.jump(input))
 
   // ---------- 内容块 ----------
   handle<BlockAddInput, number>(ProjectIpc.BlockAdd, (input) => service.addBlock(input))

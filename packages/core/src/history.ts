@@ -133,6 +133,18 @@ export class HistoryStack<S> {
     }
   }
 
+  /** 已应用的步骤名，旧到新；界面按倒序显示，最近一步在最上面 */
+  undoLabels(): string[] {
+    return this.undoStack.map((entry) => entry.label)
+  }
+
+  /** 已撤销的步骤名，下一个要重做的排在最前 */
+  redoLabels(): string[] {
+    const labels: string[] = []
+    for (let i = this.redoStack.length - 1; i >= 0; i -= 1) labels.push(this.redoStack[i]!.label)
+    return labels
+  }
+
   clear(): void {
     this.undoStack = []
     this.redoStack = []
