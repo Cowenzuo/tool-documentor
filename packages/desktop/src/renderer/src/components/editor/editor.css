@@ -1466,15 +1466,17 @@ body.is-splitting {
   opacity: 1;
 }
 
-/* 撤销/重做：与状态标签同一行，靠右；没有可用步骤时置灰 */
-.np-history {
-  margin-left: auto;
+/* 撤销/重做与历史列表：工具行左侧；没有可用步骤时置灰 */
+.hist-bar {
+  position: relative;
   flex: none;
   display: flex;
+  align-items: center;
   gap: var(--space-1);
 }
 
-.np-history-btn {
+.hist-btn,
+.hist-caret {
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-control);
   background: var(--bg-panel);
@@ -1484,13 +1486,75 @@ body.is-splitting {
   transition: background-color var(--duration-fast) ease;
 }
 
-.np-history-btn:hover:not(:disabled) {
+.hist-btn:hover:not(:disabled),
+.hist-caret:hover {
   background: var(--bg-hover);
   color: var(--text-1);
 }
 
-.np-history-btn:disabled {
+.hist-btn:disabled {
   opacity: 0.45;
+}
+
+/* 面板开着时开关保持着色，看得出这个列表是从哪儿弹出来的 */
+.hist-caret[aria-expanded='true'] {
+  background: var(--bg-hover);
+  color: var(--text-1);
+}
+
+/* 历史面板：盖在正文之上；窄窗口下也不越过窗口右边界（左侧结构栏最窄 180px） */
+.hist-panel {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  z-index: 40;
+  min-width: 176px;
+  max-width: min(320px, calc(100vw - 210px));
+  max-height: 320px;
+  overflow-y: auto;
+  padding: var(--space-1);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-overlay);
+  box-shadow: var(--overlay-shadow);
+}
+
+.hist-section + .hist-section {
+  margin-top: var(--space-1);
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--border);
+}
+
+.hist-section-title {
+  padding: 4px 10px;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+.hist-item {
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: var(--radius-control);
+  font-size: var(--text-sm);
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hist-item:hover,
+.hist-item:focus-visible {
+  background: var(--bg-hover);
+}
+
+.hist-empty {
+  margin: 0;
+  padding: var(--space-2) 10px;
+  font-size: var(--text-xs);
+  color: var(--text-3);
 }
 
 /* ===== 视图切换（节点页顶部右侧 / 预览页顶部） ===== */
@@ -1515,7 +1579,7 @@ body.is-splitting {
   font-weight: 600;
 }
 
-/* 中间视图顶层：视图开关固定槽位（与内容流无关，切换不位移） */
+/* 中间视图顶层：工具行固定槽位（左侧历史、右侧视图开关，切换不位移） */
 .editor-stage {
   min-width: 0;
   min-height: 0;
@@ -1528,7 +1592,7 @@ body.is-splitting {
   height: 44px;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   padding: 0 var(--space-4);
   border-bottom: 1px solid var(--border);
   background: var(--bg-app);

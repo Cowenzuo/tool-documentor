@@ -87,10 +87,7 @@ export default function NodePage(): React.JSX.Element {
     updateContentBlock,
     setNodeTitle,
     setNodeDescription,
-    registerFlushAll,
-    undo,
-    redo,
-    historyState
+    registerFlushAll
   } = useApp()
 
   const [blocks, setBlocks] = useState<ContentBlock[]>(node?.contentBlocks ?? [])
@@ -402,26 +399,6 @@ export default function NodePage(): React.JSX.Element {
                   只读
                 </span>
               )}
-              <div className="np-history">
-                <button
-                  type="button"
-                  className="np-history-btn"
-                  disabled={!historyState.canUndo}
-                  title={historyState.undoLabel ? `撤销：${historyState.undoLabel}` : '撤销'}
-                  onClick={() => void undo()}
-                >
-                  撤销
-                </button>
-                <button
-                  type="button"
-                  className="np-history-btn"
-                  disabled={!historyState.canRedo}
-                  title={historyState.redoLabel ? `重做：${historyState.redoLabel}` : '重做'}
-                  onClick={() => void redo()}
-                >
-                  重做
-                </button>
-              </div>
             </div>
           </div>
 

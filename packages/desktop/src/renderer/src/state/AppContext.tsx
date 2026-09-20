@@ -61,7 +61,9 @@ interface AppContextValue {
   /** 撤销/重做：先冲刷挂起的编辑，成功后整棵替换会话 */
   undo: () => Promise<void>
   redo: () => Promise<void>
-  /** 历史栈状态：驱动按钮置灰与悬停提示 */
+  /** 跳到历史里的某一步：keep = 保留多少步已应用的编辑，0 表示回到最初 */
+  jumpHistory: (keep: number) => Promise<void>
+  /** 历史栈状态：驱动按钮置灰、悬停提示与历史列表 */
   historyState: HistoryStateDto
   selectNode: (id: string | null) => void
   /** 变更（await IPC 后本地生效） */
@@ -101,7 +103,9 @@ const EMPTY_HISTORY: HistoryStateDto = {
   canRedo: false,
   undoLabel: null,
   redoLabel: null,
-  steps: 0
+  steps: 0,
+  undoLabels: [],
+  redoLabels: []
 }
 
 export function AppProvider({ children }: { children: ReactNode }): React.JSX.Element {
@@ -445,6 +449,13 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
     await runHistory(() => window.documentor.history.redo())
   }, [runHistory])
 
+  const jumpHistory = useCallback(
+    async (keep: number): Promise<void> => {
+      await runHistory(() => window.documentor.history.jump({ keep }))
+    },
+    [runHistory]
+  )
+
   // Ctrl+S 全局保存
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
@@ -492,6 +503,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
       saveProject,
       undo,
       redo,
+      jumpHistory,
       historyState,
       selectNode,
       setNodeTitle,
@@ -523,6 +535,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
       saveProject,
       undo,
       redo,
+      jumpHistory,
       historyState,
       selectNode,
       setNodeTitle,
