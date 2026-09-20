@@ -1,10 +1,8 @@
 /**
  * 撤销/重做与历史列表：放在「编辑 / 预览」那一行的左侧。
  *
- * 面板按 Word 的读法列历史，列出来的每一条就是一步动作，点它即退到这一步之前：
- * - 已应用：已经做过的步骤，最近的排最上面；点一条会把这一步连同它后面的一起退掉，
- *   所以点最旧的那条就是回到最初，不需要另立一行；
- * - 已撤销：撤销掉的事，下一个能重做的排在最前；点一条即重做到这一步。
+ * 面板按 Word 的读法列历史：列出来的每一条就是一步动作，点它即退到这一步之前，
+ * 所以点最旧的那条就是回到最初，不需要另立一行；已撤销段的每一条点下去即重做到那一步。
  * 当前状态本身不列：它不是一个动作，点了也等于什么都没发生。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -14,8 +12,6 @@ import { useApp } from '../../state/AppContext'
 interface HistoryRow {
   label: string
   keep: number
-  /** 悬停提示：说清点下去会连带退掉几步，或者会重做到哪 */
-  title: string
 }
 
 export function HistoryControls(): React.JSX.Element {
@@ -67,22 +63,13 @@ export function HistoryControls(): React.JSX.Element {
   // 已应用段：最近的排最上面；每条 keep 取它在时间顺序里的下标，
   // 点第 k 条就是"退到第 k 步之前"，最旧那条自然等于回到最初
   const appliedRows: HistoryRow[] = applied
-    .map((label, index) => ({
-      label,
-      keep: index,
-      title:
-        index === applied.length - 1
-          ? `撤销这一步：${label}`
-          : `撤销这一步连同它后面的 ${applied.length - 1 - index} 步：${label}`
-    }))
+    .map((label, index) => ({ label, keep: index }))
     .reverse()
 
   // 已撤销段：下一个能重做的排最上面，点它就等于重做到这一步
   const undoneRows: HistoryRow[] = undone.map((label, j) => ({
     label,
-    keep: applied.length + j + 1,
-    title:
-      j === 0 ? `重做到这一步：${label}` : `重做到这一步，连同它前面的 ${j} 步：${label}`
+    keep: applied.length + j + 1
   }))
 
   return (
@@ -110,7 +97,6 @@ export function HistoryControls(): React.JSX.Element {
         className="hist-caret"
         ref={caretRef}
         aria-expanded={open}
-        title="回到某一步"
         onClick={() => setOpen((v) => !v)}
       >
         历史 <span aria-hidden="true">▾</span>
@@ -124,14 +110,12 @@ export function HistoryControls(): React.JSX.Element {
               {applied.length > 0 && (
                 <div className="hist-section">
                   <div className="hist-section-title">已应用</div>
-                  <p className="hist-section-hint">点一条退回它之前</p>
                   {appliedRows.map((row) => (
                     <button
                       key={row.keep}
                       type="button"
                       className="hist-item"
                       data-keep={row.keep}
-                      title={row.title}
                       onClick={() => pick(row.keep)}
                     >
                       {row.label}
@@ -142,14 +126,12 @@ export function HistoryControls(): React.JSX.Element {
               {undone.length > 0 && (
                 <div className="hist-section">
                   <div className="hist-section-title">已撤销</div>
-                  <p className="hist-section-hint">点一条重做到它</p>
                   {undoneRows.map((row) => (
                     <button
                       key={row.keep}
                       type="button"
                       className="hist-item"
                       data-keep={row.keep}
-                      title={row.title}
                       onClick={() => pick(row.keep)}
                     >
                       {row.label}
