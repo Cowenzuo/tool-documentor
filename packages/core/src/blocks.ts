@@ -47,6 +47,34 @@ export function blockTypeName(index: number | string): BlockTypeName {
   return name
 }
 
+/**
+ * 模板锁档位（模板节点定义的 contentBlocks[].lock 带过来，随块进工程数据）：
+ * - `type` 只锁类型：内容可改，类型不能改，可删可挪；
+ * - `keep` 类型锁住且必须存在：内容可改，不能改类型、不能删、不能挪；
+ * - `readonly` 整块只读：内容也由模板给定。
+ * 不写就是不锁，与没有这个字段的老数据完全一致。
+ */
+export const BLOCK_LOCK_LEVELS = ['type', 'keep', 'readonly'] as const
+
+export type BlockLockLevel = (typeof BLOCK_LOCK_LEVELS)[number]
+
+/** 每类内容块都可带的可选模板锁 */
+export interface BlockLockProps {
+  lock?: BlockLockLevel
+}
+
+/**
+ * 宽松解析模板锁：只认 type / keep / readonly 三个字符串。
+ * 读库侧用它，非法值一律丢弃（按不锁处理），不让脏数据把界面锁死。
+ */
+export function parseBlockLock(value: unknown): BlockLockLevel | undefined {
+  if (typeof value !== 'string') return undefined
+  const raw = value.trim()
+  return (BLOCK_LOCK_LEVELS as readonly string[]).includes(raw)
+    ? (raw as BlockLockLevel)
+    : undefined
+}
+
 export interface TextBlockProps {
   content: string
 }
@@ -97,14 +125,14 @@ export interface ListBlockProps {
 }
 
 export type ContentBlock =
-  | ({ type: 'text' } & TextBlockProps)
-  | ({ type: 'image' } & ImageBlockProps)
-  | ({ type: 'table' } & TableBlockProps)
-  | ({ type: 'formula' } & FormulaBlockProps)
-  | ({ type: 'code' } & CodeBlockProps)
-  | ({ type: 'mermaid' } & MermaidBlockProps)
-  | ({ type: 'orderedList' } & ListBlockProps)
-  | ({ type: 'unorderedList' } & ListBlockProps)
+  | ({ type: 'text' } & TextBlockProps & BlockLockProps)
+  | ({ type: 'image' } & ImageBlockProps & BlockLockProps)
+  | ({ type: 'table' } & TableBlockProps & BlockLockProps)
+  | ({ type: 'formula' } & FormulaBlockProps & BlockLockProps)
+  | ({ type: 'code' } & CodeBlockProps & BlockLockProps)
+  | ({ type: 'mermaid' } & MermaidBlockProps & BlockLockProps)
+  | ({ type: 'orderedList' } & ListBlockProps & BlockLockProps)
+  | ({ type: 'unorderedList' } & ListBlockProps & BlockLockProps)
 
 /** 各具体块类型（判别联合成员别名，供编辑器/序列化器按类型收窄） */
 export type TextBlock = Extract<ContentBlock, { type: 'text' }>
@@ -171,7 +199,7 @@ export function createBlock<T extends BlockTypeName>(type: T): ContentBlock & { 
 /**
  * 块 → db props_json 对象（不含 type；键与旧版 projectstore 一致：
  * content / imagePath+caption / caption+rows+cols+headers+data / latexCode /
- * language+code / caption+code / items）
+ * language+code / caption+code / items）。可选字段 lock 一并落库。
  */
 export function propsOf(block: ContentBlock): Record<string, unknown> {
   const { type: _type, ...rest } = block
@@ -182,6 +210,14 @@ export function propsOf(block: ContentBlock): Record<string, unknown> {
 export function blockFromDb(type: string | number, props: Record<string, unknown>): ContentBlock {
   const name = blockTypeName(type)
   const rest = { ...props }
+  const block = blockOfProps(name, rest)
+  // 模板锁随 props_json 落库读回；非法值丢弃，按不锁处理（老数据没有这个键）
+  const lock = parseBlockLock(rest['lock'])
+  return lock ? ({ ...block, lock } as ContentBlock) : block
+}
+
+/** 按类型把 props 还原成块（不含 lock，由 blockFromDb 统一补） */
+function blockOfProps(name: BlockTypeName, rest: Record<string, unknown>): ContentBlock {
   switch (name) {
     case 'text': {
       const content = rest['content']

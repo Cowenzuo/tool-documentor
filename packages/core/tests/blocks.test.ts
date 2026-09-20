@@ -2,12 +2,14 @@
 
 import { describe, expect, it } from 'vitest'
 import {
+  BLOCK_LOCK_LEVELS,
   BLOCK_TYPE_NAMES,
   blockFromDb,
   blockTypeIndex,
   blockTypeName,
   cloneBlock,
   createBlock,
+  parseBlockLock,
   parseBlockType,
   propsOf,
   type ContentBlock
@@ -102,5 +104,67 @@ describe('props 往返（含中文，db props_json 键与旧版一致）', () =>
     tableClone.data[0]![1] = 'changed'
     const original = block as Extract<ContentBlock, { type: 'table' }>
     expect(original.data[0]![1]).toBe('2')
+  })
+})
+
+describe('模板锁 lock（随 props_json 往返，非法值丢弃）', () => {
+  it('三档取值经 db 形态往返一致，且落在 props 里', () => {
+    for (const lock of BLOCK_LOCK_LEVELS) {
+      const block: ContentBlock = { type: 'orderedList', items: ['一', '二'], lock }
+      const props = propsOf(block)
+      expect(props['lock']).toBe(lock)
+      expect(props).not.toHaveProperty('type')
+      expect(blockFromDb(String(blockTypeIndex(block.type)), props)).toEqual(block)
+    }
+  })
+
+  it('各类型都能带 lock，读回不丢', () => {
+    const blocks: ContentBlock[] = [
+      { type: 'text', content: '正文', lock: 'readonly' },
+      { type: 'image', imagePath: 'images/a.png', caption: '图', lock: 'keep' },
+      {
+        type: 'table',
+        caption: '表',
+        rows: 1,
+        cols: 1,
+        headers: ['列'],
+        data: [['值']],
+        lock: 'type'
+      },
+      { type: 'formula', latexCode: 'a+b', lock: 'keep' },
+      { type: 'code', language: 'cpp', code: 'return 0;', lock: 'readonly' },
+      { type: 'mermaid', caption: '图', code: 'graph TD', lock: 'type' },
+      { type: 'unorderedList', items: ['项'], lock: 'keep' }
+    ]
+    for (const block of blocks) {
+      expect(blockFromDb(String(blockTypeIndex(block.type)), propsOf(block))).toEqual(block)
+    }
+  })
+
+  it('老数据没有 lock 时不长出这个键', () => {
+    const block: ContentBlock = { type: 'text', content: '老数据' }
+    expect(blockFromDb('0', { content: '老数据' })).toEqual(block)
+    expect(propsOf(block)).not.toHaveProperty('lock')
+    expect(createBlock('text')).not.toHaveProperty('lock')
+  })
+
+  it('非法取值一律丢弃，按不锁处理', () => {
+    expect(parseBlockLock('keep')).toBe('keep')
+    expect(parseBlockLock(' type ')).toBe('type')
+    expect(parseBlockLock('readonly')).toBe('readonly')
+    expect(parseBlockLock('locked')).toBeUndefined()
+    expect(parseBlockLock('')).toBeUndefined()
+    expect(parseBlockLock(true)).toBeUndefined()
+    expect(parseBlockLock(3)).toBeUndefined()
+    expect(parseBlockLock(null)).toBeUndefined()
+
+    const restored = blockFromDb('6', { items: ['一'], lock: '必锁' })
+    expect(restored).toEqual({ type: 'orderedList', items: ['一'] })
+    expect(restored).not.toHaveProperty('lock')
+  })
+
+  it('cloneBlock 保住 lock', () => {
+    const block: ContentBlock = { type: 'text', content: '定稿', lock: 'readonly' }
+    expect(cloneBlock(block)).toEqual(block)
   })
 })
