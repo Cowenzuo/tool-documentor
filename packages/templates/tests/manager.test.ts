@@ -351,6 +351,71 @@ describe('加载报告：跳过的条目与可疑取值都要有记录', () => {
   })
 })
 
+describe('样式骨架的部件关系表检查', () => {
+  it('骨架缺 word/_rels/document.xml.rels 时加载报告报一条，共用骨架不重复报', () => {
+    const mgr = new TemplateManager()
+    const result = mgr.loadTemplateDir(SAMPLE)
+    // 三份样式共用同一个极简骨架，只报一条；警告不拦加载
+    expect(result.stylesLoaded).toBe(3)
+    expect(result.skipped).toEqual([])
+    expect(result.warnings).toHaveLength(1)
+    expect(result.warnings[0]).toContain('word/_rels/document.xml.rels')
+    expect(result.warnings[0]).toContain('demo-style')
+    expect(result.warnings[0]).toContain('styles.xml')
+  })
+
+  it('校验报告里这一条归 warnings，不算样式不可用', () => {
+    const mgr = createManager()
+    const report = mgr.validateStyleTemplate(mgr.findStyleTemplate('demo-stylemap')!)
+    expect(report.valid).toBe(true)
+    expect(report.missing).toEqual([])
+    expect(report.warnings.join('\n')).toContain('word/_rels/document.xml.rels')
+  })
+
+  it('骨架自带关系表时不报', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tpl-rels-'))
+    try {
+      const base = join(dir, 'templates')
+      const skeleton = join(base, 'styles', 'ok', 'ok-style')
+      mkdirSync(join(skeleton, 'word', '_rels'), { recursive: true })
+      writeFileSync(
+        join(base, 'manifest.json'),
+        JSON.stringify({
+          styles: [{ id: 'ok', name: '带关系表的样式', stylemap_file: 'ok-stylemap.json' }]
+        }),
+        'utf8'
+      )
+      writeFileSync(
+        join(base, 'styles', 'ok', 'ok-stylemap.json'),
+        JSON.stringify({ name: '带关系表的样式', docxFolder: 'ok-style', styleMap: { body: '1' } }),
+        'utf8'
+      )
+      writeFileSync(
+        join(skeleton, 'word', 'styles.xml'),
+        '<w:styles><w:style w:styleId="1"/></w:styles>',
+        'utf8'
+      )
+      writeFileSync(join(skeleton, 'word', 'numbering.xml'), '<w:numbering/>', 'utf8')
+      writeFileSync(
+        join(skeleton, 'word', '_rels', 'document.xml.rels'),
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+          '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+          '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/' +
+          'relationships/styles" Target="styles.xml"/></Relationships>',
+        'utf8'
+      )
+
+      const mgr = new TemplateManager()
+      const result = mgr.loadTemplateDir(base)
+      expect(result.stylesLoaded).toBe(1)
+      expect(result.warnings).toEqual([])
+      expect(mgr.validateStyleTemplate(mgr.findStyleTemplate('ok-stylemap')!).warnings).toEqual([])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
 describe('模板块纵向合并开关 mergeVertical（只认布尔 true）', () => {
   it('模板里写了 true 的表格块，解析与实例化都带上该标志', () => {
     resetIdCounterForTest()

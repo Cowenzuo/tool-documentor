@@ -11,7 +11,7 @@
  *   界面据此说明"为什么少了什么"。
  */
 import { readFileSync, existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, basename } from 'node:path'
 import { createBlock, DocumentNode, DocumentTree, parseBlockLock } from '@documentor/core'
 import type { BlockLockLevel, ContentBlock } from '@documentor/core'
 import type {
@@ -164,6 +164,11 @@ export class TemplateManager {
         this.styleDirs.set(styleDef.name, dirPath)
         this.styleDirs.set(fileKey, dirPath)
         result.stylesLoaded += 1
+        // 骨架缺关系表：不拦加载，但要说出来（同一骨架被多份样式共用时只报一条）
+        const relsWarning = skeletonRelsWarning(styleDef.skeletonPath)
+        if (relsWarning && !result.warnings.includes(relsWarning)) {
+          result.warnings.push(relsWarning)
+        }
       }
     }
 
@@ -386,10 +391,17 @@ export class TemplateManager {
 
   // ================= 校验 =================
 
-  /** 校验样式模板骨架：styles.xml 中存在 styleMap 引用的全部 styleId（C++ 同法：字符串扫描 styleId="..."） */
+  /**
+   * 校验样式模板骨架：styles.xml 中存在 styleMap 引用的全部 styleId（C++ 同法：字符串扫描 styleId="..."）。
+   * 另外报一条骨架部件关系表的警告（不参与 valid）：缺 word/_rels/document.xml.rels 时
+   * styles 与 numbering 从主文档到达不了，Word 可能当它们不存在。
+   */
   validateStyleTemplate(styleDef: StyleTemplateDef): StyleValidationReport {
     const stylesPath = join(styleDef.skeletonPath, 'word', 'styles.xml')
     const missing: StyleValidationReport['missing'] = []
+    const warnings: string[] = []
+    const relsWarning = skeletonRelsWarning(styleDef.skeletonPath)
+    if (relsWarning) warnings.push(relsWarning)
     try {
       const xml = readFileSync(stylesPath, 'utf8')
       const validIds = new Set<string>()
@@ -406,7 +418,7 @@ export class TemplateManager {
     } catch {
       missing.push({ logicalName: '(styles.xml unreadable)', styleId: stylesPath })
     }
-    return { valid: missing.length === 0, missing }
+    return { valid: missing.length === 0, missing, warnings }
   }
 
   // ================= 结构 × 样式配对（软校验候选） =================
@@ -529,6 +541,23 @@ export function requiredStyleKeys(def: TemplateDef): string[] {
 
 function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : []
+}
+
+/**
+ * 骨架部件关系表检查：缺 `word/_rels/document.xml.rels` 时，styles 与 numbering
+ * 无法从主文档到达，Word 可能当它们不存在（四套真实样式模板都自带该部件，
+ * 只有自定义与极简骨架会缺）。导出侧会补出这两条关系，所以只报警告、不判不可用。
+ */
+function skeletonRelsWarning(skeletonPath: string): string | null {
+  if (existsSync(join(skeletonPath, 'word', '_rels', 'document.xml.rels'))) return null
+  const parts: string[] = []
+  if (existsSync(join(skeletonPath, 'word', 'styles.xml'))) parts.push('styles.xml')
+  if (existsSync(join(skeletonPath, 'word', 'numbering.xml'))) parts.push('numbering.xml')
+  if (parts.length === 0) return null
+  return (
+    `样式骨架 ${basename(skeletonPath)} 缺少 word/_rels/document.xml.rels，` +
+    `${parts.join(' 与 ')} 可能不被 Word 识别（导出时会补出这两条关系）`
+  )
 }
 
 /**

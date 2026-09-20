@@ -118,6 +118,11 @@ export interface StyleValidationReport {
   valid: boolean
   /** styleMap 中不在 styles.xml 的条目 */
   missing: Array<{ logicalName: string; styleId: string }>
+  /**
+   * 不影响"可用"判定、但要说出来的问题：如骨架缺 `word/_rels/document.xml.rels`，
+   * styles / numbering 从主文档到达不了。导出侧会补出这两条关系，故只警告不判不可用。
+   */
+  warnings: string[]
 }
 
 export interface LoadDirResult {
@@ -125,10 +130,10 @@ export interface LoadDirResult {
   structuresLoaded: number
   stylesLoaded: number
   /**
-   * 条目不加载的原因。除「文件缺失 / 解析失败」外，还包含同名冲突：
-   * 结构与样式都按**模板 JSON 顶层的 name** 去重（样式另加 stylemap 文件名），
-   * 先加载者胜出，被忽略的那份记成
-   * `structure already loaded: <name>（保留 <胜出目录> 里的那份，忽略本次 <本次目录>）`。
+   * 没加载进来的东西与原因：整份模板/样式被跳过（文件缺失、解析失败、同名冲突），
+   * 或模板里的某个内容块被跳过（类型不认识）。同名冲突的记法是
+   * `structure already loaded: <name>（保留 <胜出目录> 里的那份，忽略本次 <本次目录>）`，
+   * 结构与样式都按**模板 JSON 顶层的 name** 去重（样式另加 stylemap 文件名）。
    */
   skipped: string[]
   /**
