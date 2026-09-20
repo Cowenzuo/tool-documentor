@@ -18,13 +18,16 @@ export {
   parseSkeletonIndex,
   requiredStyleKeys,
   validateStructureTemplate,
-  validateStyleTemplate
+  validateStyleTemplate,
+  validateTemplateDir
 } from './validate'
 export type {
   SkeletonIndex,
   SkeletonStyleInfo,
   StructureValidateOptions,
   StyleValidateOptions,
+  TemplateDirEntry,
+  TemplateDirValidation,
   ValidationIssue,
   ValidationLevel
 } from './validate'

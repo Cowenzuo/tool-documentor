@@ -10,24 +10,30 @@
  * 想改判定条件或文案时，脚本与本模块必须一起改（脚本保留到编辑模式稳定为止，
  * 见 PLAN-11 第 8 节第 7 条）。
  *
- * 三件事：
+ * 四件事：
  *   1. `parseSkeletonIndex(skeletonPath)`：读骨架 styles.xml / numbering.xml，给出可读样式表
  *      （styleId、样式名、段落或字符、字号）与各级标题起始号；
  *   2. `requiredStyleKeys(structureDef)`：按结构模板**实际用到的块**推导必需逻辑样式键；
  *   3. `validateStructureTemplate` / `validateStyleTemplate`：产出
  *      `{ level, path, message }` 列表，`path` 指到具体节点或字段
- *      （如 `root.children[2].contentBlocks[0].lock`）。
+ *      （如 `root.children[2].contentBlocks[0].lock`）；
+ *   4. `validateTemplateDir(dir)`：目录级校验（批次 1），把脚本里"要读模板目录与清单才知道"
+ *      的那批规则补齐——manifest 缺失或解析失败、条目缺 id/file、目录与文件不存在、
+ *      JSON 解析失败、目录没登记、模板名重复、"结构声明的样式没有 manifest 条目"。
+ *      它同时按 manifest 逐份跑上面两个单份校验，产出可直接给界面用的模板列表。
  *
  * 输入一律是**模板 JSON 原文**（`JSON.parse` 的结果），不是加载器解析后的
  * `TemplateDef`：脚本判的是原文（节点上有没有写 lock、headingLevel 是不是整数、
  * 块上有没有多写节点级字段），这些信息在解析成 TemplateDef 时就丢了。
  *
- * 不在本模块（目录级规则，批次 1 的服务层拿模板目录时再报，见报告里的规则清单）：
- * manifest 条目缺 id/file、目录与文件不存在、JSON 解析失败、manifest 与 JSON 的 name
- * 不一致、目录里有但 manifest 没登记、同名冲突、"结构声明的样式在 manifest 里没有条目"。
- * 真实模板这七类结论当前都是零条，`parallel-check.test.ts` 会盯住这一点。
+ * 目录级规则（批次 1 的 `validateTemplateDir`）与单份模板规则共用同一份文案：
+ * 每条 message 仍是 `check-templates.cjs` 里的原句（脚本输出前缀 `[check-templates] ✗` 除外），
+ * `path` 是产品侧新增的结构化位置（`structures/<id>/<file>`、`manifest.structures[0]` 这类）。
+ * 脚本里读目录的那几处（`checkStructure` / `checkStyle` / 主流程）与本模块一一对应，
+ * 只有两处产品侧口径不同、都写在 `validateTemplateDir` 的注释里：
+ * 脚本遇到目录不存在或坏 manifest 会 `process.exit`/抛错，本模块一律返回结论不崩。
  */
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import type { BlockLockLevel } from '@documentor/core'
 
@@ -1029,6 +1035,412 @@ export function validateStyleTemplate(
           rule: 'style.listKey.unread',
           path: `styleMap['${k}']`,
           message: `样式 ${id}：${k} 程序不读，配了不生效`
+        })
+      }
+    }
+  }
+
+  return out
+}
+
+// ================= 目录级校验（批次 1） =================
+
+/**
+ * 目录里的一份模板：定位信息 + 这一份模板自己的全部结论。
+ *
+ * `issues` 两层含义合一（界面按它出问题徽标）：
+ *   - 这一份的**文件级**结论：目录不存在、文件不存在、JSON 解析失败；
+ *   - `validateStructureTemplate` / `validateStyleTemplate` 的逐条结论。
+ * 整个目录共有的结论（manifest、目录没登记、重名、样式引用）在 `TemplateDirValidation.issues`，
+ * 不重复放进这里；`manifest` 条目本身缺 id/file 时连定位都谈不上，也只能留在目录级。
+ */
+export interface TemplateDirEntry {
+  kind: 'structure' | 'style'
+  /** 目录名，也是模板 id */
+  id: string
+  /** 给人看的名字：模板 JSON 的 name → manifest 的 name → id */
+  name: string
+  /** manifest 登记的文件名（结构是 file，样式是 stylemap_file） */
+  file: string
+  issues: ValidationIssue[]
+}
+
+/** 一个模板目录的校验结论（供编辑模式与加载报告共用） */
+export interface TemplateDirValidation {
+  dir: string
+  /** 目录本身存不存在；false 时只有一条 `dir.missing` */
+  exists: boolean
+  /** 目录级结论：manifest、structures//styles/ 目录、登记、重名、样式引用 */
+  issues: ValidationIssue[]
+  /** manifest 登记且能定位到的结构模板（含读不出来的那些，方便界面显示问题条目） */
+  structures: TemplateDirEntry[]
+  /** manifest 登记且能定位到的样式模板 */
+  styles: TemplateDirEntry[]
+}
+
+/** 读 JSON 文件；成功给原文，失败给原因（`Error.message` 或 `String(err)`） */
+function readJsonFile(path: string): { doc: unknown } | { error: string } {
+  let raw: string
+  try {
+    raw = readFileSync(path, 'utf8')
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) }
+  }
+  try {
+    return { doc: JSON.parse(raw) as unknown }
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/** 列一层子目录名（读不到就是空表；脚本在这里会因 readdirSync 抛错而崩） */
+function listSubDirs(path: string): string[] {
+  try {
+    return readdirSync(path, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => e.name)
+      .sort()
+  } catch {
+    return []
+  }
+}
+
+/** manifest 条目的字段名按加载器（manager.ts）：结构用 file，样式用 stylemap_file */
+function entryString(entry: Record<string, unknown> | null, key: string): string {
+  const value = entry?.[key]
+  return typeof value === 'string' ? value : ''
+}
+
+/** 模板名口径与脚本一致：`doc.name ?? entry.name ?? id` */
+function nameOfDoc(doc: unknown, fallback: string): string {
+  const name = asObject(doc)?.['name']
+  return name ? text(name) : fallback
+}
+
+/**
+ * 结构声明的样式 key 列表（脚本 `st.styleTemplates` 的照抄）：
+ * 有 `styleTemplates` 数组就只用它，否则退到单个 `styleTemplate`。
+ */
+function styleTemplateKeys(doc: unknown): string[] {
+  const obj = asObject(doc)
+  if (!obj) return []
+  if (Array.isArray(obj['styleTemplates'])) {
+    return obj['styleTemplates'].filter((k): k is string => typeof k === 'string' && k !== '')
+  }
+  return obj['styleTemplate'] ? [text(obj['styleTemplate'])] : []
+}
+
+/**
+ * 校验一个模板目录（对应脚本 `checkStructure` / `checkStyle` / 主流程里读目录与清单的那部分）。
+ *
+ * 与脚本同法、逐条照抄：
+ *   - manifest 不存在 / 解析失败 → 整个目录只报这一条，不再往下查（脚本这里 `process.exit(1)`）；
+ *   - 缺 `structures/` 或 `styles/` 目录各报一条，条目检查照常进行（脚本也照常报"目录不存在"）；
+ *   - 条目缺 id/file（样式是 id/stylemap_file）报一条并跳过该条；
+ *   - 条目指向的目录、文件不存在，或 JSON 解析失败，各报一条并跳过该条（脚本 `return null`）；
+ *   - 读到的结构/样式再走单份模板校验，结论挂到该条目上；
+ *   - 反向查目录里没登记的、同名冲突、结构声明的样式 key 没有 manifest 条目。
+ *
+ * 两处产品侧口径（脚本会崩，本模块不崩）：
+ *   - 目录不存在：脚本下一条就是"没有 manifest.json"，这里只报一条 `dir.missing`；
+ *   - `manifest.structures/styles` 不是数组：脚本 `.map` 会抛错，这里按空表处理，
+ *     于是所有目录都会被报"存在但没登记"，用户能看出是清单写坏了。
+ *
+ * 结论顺序：manifest → structures//styles/ 目录 → 结构条目（manifest 顺序）→ 样式条目 →
+ * 没登记的目录 → 重名 → 样式引用。
+ */
+export function validateTemplateDir(dir: string): TemplateDirValidation {
+  const out: TemplateDirValidation = {
+    dir,
+    exists: false,
+    issues: [],
+    structures: [],
+    styles: []
+  }
+
+  if (!existsSync(dir)) {
+    out.issues.push({
+      level: 'error',
+      rule: 'dir.missing',
+      path: dir,
+      message: `模板目录不存在：${dir}`
+    })
+    return out
+  }
+  out.exists = true
+
+  const manifestPath = join(dir, 'manifest.json')
+  if (!existsSync(manifestPath)) {
+    out.issues.push({
+      level: 'error',
+      rule: 'dir.manifest.missing',
+      path: 'manifest.json',
+      message: '目录下没有 manifest.json，程序会整个跳过这个模板目录'
+    })
+    return out
+  }
+  const manifestRead = readJsonFile(manifestPath)
+  if ('error' in manifestRead) {
+    out.issues.push({
+      level: 'error',
+      rule: 'dir.manifest.parse',
+      path: 'manifest.json',
+      message: `manifest.json 解析失败：${manifestRead.error}（整个目录失效）`
+    })
+    return out
+  }
+  const manifest = asObject(manifestRead.doc)
+  if (!manifest) {
+    out.issues.push({
+      level: 'error',
+      rule: 'dir.manifest.parse',
+      path: 'manifest.json',
+      message: 'manifest.json 解析失败：顶层不是对象（整个目录失效）'
+    })
+    return out
+  }
+
+  const structureRoot = join(dir, 'structures')
+  const styleRoot = join(dir, 'styles')
+  if (!existsSync(structureRoot)) {
+    out.issues.push({
+      level: 'error',
+      rule: 'dir.structuresDir.missing',
+      path: 'structures',
+      message: '缺少 structures/ 目录（目录名是硬约定）'
+    })
+  }
+  if (!existsSync(styleRoot)) {
+    out.issues.push({
+      level: 'error',
+      rule: 'dir.stylesDir.missing',
+      path: 'styles',
+      message: '缺少 styles/ 目录（目录名是硬约定）'
+    })
+  }
+
+  // ---------- 结构条目 ----------
+  const rawStructureEntries = asArray(manifest['structures'])
+  const declaredStructureIds = new Set<string>()
+  /** 读成功的结构原文（样式侧的"必需键覆盖"与题注比对要用） */
+  const loadedStructureDocs: unknown[] = []
+  /** 读成功的结构（重名与样式引用检查只用它们，与脚本 filter(Boolean) 同法） */
+  const loadedStructures: Array<{ id: string; name: string; doc: unknown }> = []
+
+  for (let i = 0; i < rawStructureEntries.length; i++) {
+    const raw = rawStructureEntries[i]
+    const entry = asObject(raw)
+    const id = entryString(entry, 'id')
+    const file = entryString(entry, 'file')
+    if (!entry || id === '' || file === '') {
+      out.issues.push({
+        level: 'error',
+        rule: 'dir.structureEntry.incomplete',
+        path: `manifest.structures[${i}]`,
+        message: `manifest.structures 有一条缺 id 或 file：${text(
+          JSON.stringify(raw)
+        )}（程序会跳过该条）`
+      })
+      continue
+    }
+    declaredStructureIds.add(id)
+
+    const manifestName = entryString(entry, 'name')
+    const issues: ValidationIssue[] = []
+    const item: TemplateDirEntry = {
+      kind: 'structure',
+      id,
+      name: manifestName || id,
+      file,
+      issues
+    }
+    out.structures.push(item)
+
+    const itemDir = join(structureRoot, id)
+    if (!existsSync(itemDir)) {
+      issues.push({
+        level: 'error',
+        rule: 'structure.dir.missing',
+        path: label('structures', id),
+        message: `structures/${id} 目录不存在（程序找的是 structures/<id>/<file>）`
+      })
+      continue
+    }
+    const filePath = join(itemDir, file)
+    if (!existsSync(filePath)) {
+      issues.push({
+        level: 'error',
+        rule: 'structure.file.missing',
+        path: label('structures', id, file),
+        message: `structures/${id}/${file} 不存在（目录名必须等于 manifest 的 id）`
+      })
+      continue
+    }
+    const read = readJsonFile(filePath)
+    if ('error' in read) {
+      issues.push({
+        level: 'error',
+        rule: 'structure.file.parse',
+        path: label('structures', id, file),
+        message: `structures/${id}/${file} JSON 解析失败：${read.error}`
+      })
+      continue
+    }
+    issues.push(
+      ...validateStructureTemplate(read.doc, {
+        id,
+        file,
+        manifestName: manifestName || undefined
+      })
+    )
+    item.name = nameOfDoc(read.doc, item.name)
+    loadedStructureDocs.push(read.doc)
+    loadedStructures.push({ id, name: item.name, doc: read.doc })
+  }
+
+  // ---------- 样式条目 ----------
+  const rawStyleEntries = asArray(manifest['styles'])
+  const declaredStyleIds = new Set<string>()
+  const declaredStyleKeys = new Set<string>()
+  const loadedStyles: Array<{ id: string; name: string }> = []
+
+  for (let i = 0; i < rawStyleEntries.length; i++) {
+    const raw = rawStyleEntries[i]
+    const entry = asObject(raw)
+    const id = entryString(entry, 'id')
+    const stylemapFile = entryString(entry, 'stylemap_file')
+    if (entry && stylemapFile !== '') {
+      declaredStyleKeys.add(stylemapFile.replace(/\.json$/u, ''))
+    }
+    if (!entry || id === '' || stylemapFile === '') {
+      out.issues.push({
+        level: 'error',
+        rule: 'dir.styleEntry.incomplete',
+        path: `manifest.styles[${i}]`,
+        message: `manifest.styles 有一条缺 id 或 stylemap_file：${text(
+          JSON.stringify(raw)
+        )}（程序会跳过该条）`
+      })
+      continue
+    }
+    declaredStyleIds.add(id)
+
+    const manifestName = entryString(entry, 'name')
+    const manifestStyleFolder = entryString(entry, 'style_folder')
+    const issues: ValidationIssue[] = []
+    const item: TemplateDirEntry = {
+      kind: 'style',
+      id,
+      name: manifestName || id,
+      file: stylemapFile,
+      issues
+    }
+    out.styles.push(item)
+
+    const basePath = join(styleRoot, id)
+    if (!existsSync(basePath)) {
+      issues.push({
+        level: 'error',
+        rule: 'style.dir.missing',
+        path: label('styles', id),
+        message: `styles/${id} 目录不存在（程序找的是 styles/<id>/<stylemap_file>）`
+      })
+      continue
+    }
+    const filePath = join(basePath, stylemapFile)
+    if (!existsSync(filePath)) {
+      issues.push({
+        level: 'error',
+        rule: 'style.file.missing',
+        path: label('styles', id, stylemapFile),
+        message: `styles/${id}/${stylemapFile} 不存在（目录名必须等于 manifest 的 id）`
+      })
+      continue
+    }
+    const read = readJsonFile(filePath)
+    if ('error' in read) {
+      issues.push({
+        level: 'error',
+        rule: 'style.file.parse',
+        path: label('styles', id, stylemapFile),
+        message: `styles/${id}/${stylemapFile} JSON 解析失败：${read.error}`
+      })
+      continue
+    }
+    issues.push(
+      ...validateStyleTemplate(read.doc, loadedStructureDocs, {
+        id,
+        stylemapFile,
+        basePath,
+        manifestStyleFolder: manifestStyleFolder || undefined
+      })
+    )
+    item.name = nameOfDoc(read.doc, item.name)
+    loadedStyles.push({ id, name: item.name })
+  }
+
+  // ---------- 目录里有、manifest 没登记 ----------
+  for (const name of listSubDirs(structureRoot)) {
+    if (!declaredStructureIds.has(name)) {
+      out.issues.push({
+        level: 'warn',
+        rule: 'dir.structure.unregistered',
+        path: label('structures', name),
+        message: `structures/${name} 目录存在但 manifest 里没有登记，程序不会加载它`
+      })
+    }
+  }
+  for (const name of listSubDirs(styleRoot)) {
+    if (!declaredStyleIds.has(name)) {
+      out.issues.push({
+        level: 'warn',
+        rule: 'dir.style.unregistered',
+        path: label('styles', name),
+        message: `styles/${name} 目录存在但 manifest 里没有登记，程序不会加载它`
+      })
+    }
+  }
+
+  // ---------- 同名冲突（程序按先加载优先） ----------
+  const structureNameSeen = new Map<string, string>()
+  for (const s of loadedStructures) {
+    const first = structureNameSeen.get(s.name)
+    if (first !== undefined) {
+      out.issues.push({
+        level: 'error',
+        rule: 'dir.structureName.duplicate',
+        path: label('structures', s.id),
+        message: `结构模板名「${s.name}」重复（${first} 与 ${s.id}），程序只保留先加载的那个`
+      })
+    } else {
+      structureNameSeen.set(s.name, s.id)
+    }
+  }
+  const styleNameSeen = new Map<string, string>()
+  for (const s of loadedStyles) {
+    const first = styleNameSeen.get(s.name)
+    if (first !== undefined) {
+      out.issues.push({
+        level: 'error',
+        rule: 'dir.styleName.duplicate',
+        path: label('styles', s.id),
+        message: `样式模板名「${s.name}」重复（${first} 与 ${s.id}），程序只保留先加载的那个`
+      })
+    } else {
+      styleNameSeen.set(s.name, s.id)
+    }
+  }
+
+  // ---------- 结构声明的样式 key 有没有 manifest 条目 ----------
+  // 只认"manifest 里声明了 stylemap_file"，与那一份样式本身能否读出来无关（脚本同法）
+  for (const s of loadedStructures) {
+    for (const key of styleTemplateKeys(s.doc)) {
+      if (!declaredStyleKeys.has(key)) {
+        out.issues.push({
+          level: 'error',
+          rule: 'dir.styleTemplate.unregistered',
+          path: label('structures', s.id, 'styleTemplate'),
+          message: `结构「${s.name}」声明的样式 key「${key}」在 manifest.styles 里没有对应条目`
         })
       }
     }
