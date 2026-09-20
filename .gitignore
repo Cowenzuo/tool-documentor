@@ -32,6 +32,10 @@ Thumbs.db
 *.local
 # 本机开发模式标记：存在时开始脚本会走开发版而非发布版（见 scripts/start-documentor.cjs）
 .dev-mode
+# 功能立项备忘不进仓库（维护者本机保存）
+docs/待讨论功能备忘.md
+# 本机脚本：单测、E2E 探针与冒烟、Word 核对脚本、开发工具
+localscripts/
 
 # 外部模板资产：模板不在本仓库（版权分发边界），也不在本仓库建目录。
 # 真身在仓库外，由同级目录 tool-documentor-template 单独管理（结构与样式两个模板包）。
