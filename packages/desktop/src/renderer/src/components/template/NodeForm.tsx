@@ -57,15 +57,52 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
   const { doc, status, node, path, issues, nodeTypes, canMove } = props
   const [addType, setAddType] = useState<string>(BLOCK_TYPE_NAMES[0])
   /**
-   * 展开哪一张内容块卡片（手风琴：同时只开一张，-1 表示都收着）。
-   * 一屏摊开所有块的字段是"看着杂乱"的主要来源；折叠时卡片头有一行摘要，
-   * 不必展开也知道每块是什么。切换节点时按 path 归零（见下面 useEffect）。
+   * 展开着哪几张内容块卡片：各自独立开合（同时开多张是常态——对照两张表的列或两段文本时要用）。
+   * 默认开第一张；新增块自动展开它；移动/删除时下标跟着挪，别让"开着的"落到别的块上。
    */
-  const [openBlock, setOpenBlock] = useState(0)
+  const [openBlocks, setOpenBlocks] = useState<ReadonlySet<number>>(new Set([0]))
   const pathKeyValue = nodeJsonPath(path)
   useEffect(() => {
-    setOpenBlock(0)
+    setOpenBlocks(new Set([0]))
   }, [pathKeyValue])
+
+  const toggleBlock = (index: number): void => {
+    setOpenBlocks((current) => {
+      const next = new Set(current)
+      if (next.has(index)) next.delete(index)
+      else next.add(index)
+      return next
+    })
+  }
+
+  /** 块换位置时把"开着的下标"跟着换，删除时把后面的下标前移 */
+  const moveBlock = (index: number, delta: -1 | 1): void => {
+    const to = index + delta
+    setOpenBlocks((current) => {
+      if (!current.has(index) && !current.has(to)) return current
+      const next = new Set(current)
+      const fromOpen = next.has(index)
+      const toOpen = next.has(to)
+      if (fromOpen) next.delete(index)
+      else next.add(index)
+      if (toOpen) next.delete(to)
+      else next.add(to)
+      return next
+    })
+    props.onBlockMove(index, delta)
+  }
+
+  const removeBlock = (index: number): void => {
+    setOpenBlocks((current) => {
+      const next = new Set<number>()
+      for (const i of current) {
+        if (i === index) continue
+        next.add(i > index ? i - 1 : i)
+      }
+      return next
+    })
+    props.onBlockRemove(index)
+  }
 
   if (!node) {
     return (
@@ -100,17 +137,15 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
         </code>
       </header>
       <div className="tpl-col-body">
-        {/* 主字段：标题占整行，进面板第一眼就落在要改的地方 */}
-        <TextField
-          label="标题"
-          tip={jsonTip('title', '这个节点在文档里的标题文字')}
-          value={nodeTitle(node)}
-          placeholder="章节标题"
-          onChange={(value) => props.onPatch({ title: value })}
-        />
-
-        {/* 次要字段一行放完：级别 / 类型 / 三个开关，不再各占一行 */}
+        {/* 第一行：标题 / 级别 / 类型 —— 进面板第一眼就落在要改的地方 */}
         <div className="tpl-row">
+          <TextField
+            label="标题"
+            tip={jsonTip('title', '这个节点在文档里的标题文字')}
+            value={nodeTitle(node)}
+            placeholder="章节标题"
+            onChange={(value) => props.onPatch({ title: value })}
+          />
           <NumberField
             label="级别"
             tip={jsonTip('headingLevel', '0 是根节点，1 起是章、节、条')}
@@ -128,46 +163,48 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
             ]}
             onChange={(value) => props.onPatch({ nodeType: value })}
           />
-          <div className="tpl-switches">
-            <CheckField
-              label="可复制"
-              tip={jsonTip('copyable', '用户在新工程里可以复制这个节点')}
-              checked={nodeSwitch(node, 'copyable')}
-              onChange={(checked) => props.onPatch({ copyable: checked })}
-            />
-            <CheckField
-              label="可删除"
-              tip={jsonTip('deletable', '用户在新工程里可以删除这个节点')}
-              checked={nodeSwitch(node, 'deletable')}
-              onChange={(checked) => props.onPatch({ deletable: checked })}
-            />
-            <CheckField
-              label="可加内容块"
-              tip={jsonTip('allowContentBlocks', '用户在新工程里可以往这个节点加内容块')}
-              checked={nodeSwitch(node, 'allowContentBlocks')}
-              onChange={(checked) => props.onPatch({ allowContentBlocks: checked })}
-            />
-          </div>
         </div>
 
-        {/* 说明是给作者的提示，不是每份模板都有：收起来，写了才在标题上露一行 */}
-        <details className="tpl-fold">
-          <summary>
-            说明
-            {str(node['description']).trim() !== '' && (
-              <span className="tpl-fold-preview">
-                {str(node['description']).split('\n').find((line) => line.trim() !== '') ?? ''}
-              </span>
-            )}
-          </summary>
-          <TextAreaField
-            label=""
-            value={str(node['description'])}
-            placeholder="给作者与用户看的填写提示（可留空）"
-            rows={3}
-            onChange={(value) => props.onPatch({ description: value })}
+        {/* 第二行：三个开关 + 说明（说明的标题也排在这一行，展开才占一整行） */}
+        <div className="tpl-row tpl-row-flat">
+          <CheckField
+            label="可复制"
+            tip={jsonTip('copyable', '用户在新工程里可以复制这个节点')}
+            checked={nodeSwitch(node, 'copyable')}
+            onChange={(checked) => props.onPatch({ copyable: checked })}
           />
-        </details>
+          <CheckField
+            label="可删除"
+            tip={jsonTip('deletable', '用户在新工程里可以删除这个节点')}
+            checked={nodeSwitch(node, 'deletable')}
+            onChange={(checked) => props.onPatch({ deletable: checked })}
+          />
+          <CheckField
+            label="可加内容块"
+            tip={jsonTip('allowContentBlocks', '用户在新工程里可以往这个节点加内容块')}
+            checked={nodeSwitch(node, 'allowContentBlocks')}
+            onChange={(checked) => props.onPatch({ allowContentBlocks: checked })}
+          />
+          <details className="tpl-fold tpl-fold-inline">
+            <summary title={jsonTip('description', '写给作者和用户看的填写提示')}>
+              说明
+              {str(node['description']).trim() !== '' && (
+                <span className="tpl-fold-preview">
+                  {str(node['description']).split('\n').find((line) => line.trim() !== '') ?? ''}
+                </span>
+              )}
+            </summary>
+            <div className="tpl-fold-body">
+              <TextAreaField
+                label=""
+                value={str(node['description'])}
+                placeholder="给作者与用户看的填写提示（可留空）"
+                rows={3}
+                onChange={(value) => props.onPatch({ description: value })}
+              />
+            </div>
+          </details>
+        </div>
 
         {extra.length > 0 && (
           <p className="tpl-note">
@@ -233,8 +270,8 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
                 className="tpl-mini"
                 onClick={() => {
                   props.onBlockAdd(addType)
-                  // 新块加在末尾，直接展开它，省得再点一次
-                  setOpenBlock(blocks.length)
+                  // 新块加在末尾，直接展开它，省得再点一次（已经开着的保持开着）
+                  setOpenBlocks((current) => new Set([...current, blocks.length]))
                 }}
               >
                 添加
@@ -267,12 +304,12 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
                   block={block}
                   index={index}
                   count={blocks.length}
-                  open={openBlock === index}
-                  onToggle={() => setOpenBlock(openBlock === index ? -1 : index)}
+                  open={openBlocks.has(index)}
+                  onToggle={() => toggleBlock(index)}
                   issues={issuesUnder(issues, `${jsonPath}.contentBlocks[${index}]`)}
                   onPatch={(patch) => props.onBlockPatch(index, patch)}
-                  onMove={(delta) => props.onBlockMove(index, delta)}
-                  onRemove={() => props.onBlockRemove(index)}
+                  onMove={(delta) => moveBlock(index, delta)}
+                  onRemove={() => removeBlock(index)}
                 />
               )
             })

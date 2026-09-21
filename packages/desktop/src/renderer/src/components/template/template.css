@@ -477,13 +477,6 @@ body.is-splitting {
   font-size: 12.5px;
 }
 
-.tpl-switches {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-4);
-  margin: var(--space-1) 0 var(--space-3);
-}
-
 .tpl-switch {
   display: inline-flex;
   align-items: center;
@@ -563,8 +556,7 @@ body.is-splitting {
   margin: var(--space-3) 0 var(--space-1);
 }
 
-/* 次要字段一行放完（级别 / 类型 / 三个开关）：各占一行会把面板拉得很长，
-   视线也散；窄了自动换行 */
+/* 一行放几个字段：标题 / 级别 / 类型；窄了自动换行 */
 .tpl-row {
   display: flex;
   flex-wrap: wrap;
@@ -575,6 +567,15 @@ body.is-splitting {
 
 .tpl-row > .tpl-field {
   margin-bottom: 0;
+  min-width: 0;
+}
+
+/* 第一行：标题占大份，级别与类型各自够用就行 */
+.tpl-row > .tpl-field:first-child {
+  flex: 1 1 220px;
+}
+
+.tpl-row > .tpl-field + .tpl-field {
   flex: 0 1 132px;
 }
 
@@ -582,8 +583,50 @@ body.is-splitting {
   width: 88px;
 }
 
-.tpl-row .tpl-switches {
-  margin: 0 0 1px;
+/* 第二行是开关行：开关与「说明」的标题都排在这一行，纵向居中对齐 */
+.tpl-row-flat {
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin-bottom: var(--space-2);
+}
+
+.tpl-row-flat .tpl-switch {
+  flex: none;
+  font-size: var(--text-xs);
+}
+
+/* 说明：标题排在上面那一行，展开后才占一整行 */
+.tpl-fold-inline {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0 0 0 auto;
+  border-top: none;
+  padding-top: 0;
+}
+
+.tpl-fold-inline > summary {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: 0 4px;
+  border-radius: var(--radius-control);
+  color: var(--text-3);
+}
+
+.tpl-fold-inline > summary:hover {
+  background: var(--bg-hover);
+  color: var(--text-2);
+}
+
+.tpl-fold-inline[open] {
+  flex: 1 1 100%;
+  margin-left: 0;
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-2);
+}
+
+.tpl-fold-body {
+  min-width: 0;
 }
 
 /* 折叠的一行（说明）：默认收着，写了才在标题后面露一行预览 */
@@ -845,13 +888,10 @@ body.is-splitting {
 
 .tpl-block-actions {
   flex: none;
+  /* 卡片动作贴右：展开的卡片没有摘要撑着，不加这句按钮会挤在标题后面 */
+  margin-left: auto;
   display: flex;
   gap: 4px;
-}
-
-/* 收起时放大头针：右侧只剩动作按钮，左边是摘要 */
-.tpl-block:not(.is-open) .tpl-block-actions {
-  margin-left: 0;
 }
 
 .tpl-block-body {
