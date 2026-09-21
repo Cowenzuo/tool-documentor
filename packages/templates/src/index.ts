@@ -16,8 +16,11 @@ export {
 export {
   KNOWN_BLOCK_TYPES,
   LOCK_TIERS,
+  SKELETON_REQUIRED_PARTS,
   parseSkeletonIndex,
   requiredStyleKeys,
+  styleFactsOfStructure,
+  styleFactsOfStructures,
   styleTemplateKeys,
   validateStructureTemplate,
   validateStyleTemplate,
@@ -52,7 +55,12 @@ export type {
  * 直接拿，渲染层实时跑与主进程**同一份**判定。
  */
 export { validateStyleMap } from './style-rules'
-export type { SkeletonFacts, StyleRulesOptions } from './style-rules'
+export type {
+  SkeletonFacts,
+  StyleCaptionFact,
+  StyleRulesOptions,
+  StyleStructureFacts
+} from './style-rules'
 export type {
   TemplateDef,
   TemplateNodeDef,

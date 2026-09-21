@@ -31,10 +31,11 @@ import {
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import { localIsoNow } from '@documentor/core/time'
 import {
+  SKELETON_REQUIRED_PARTS,
   buildStyleMapRows,
   parseSkeletonIndex,
-  requiredStyleKeys,
-  styleTemplateKeys,
+  styleFactsOfStructure,
+  styleFactsOfStructures,
   unusedSkeletonStyleIds,
   validateStructureTemplate,
   validateStyleTemplate,
@@ -58,7 +59,11 @@ import type {
   TemplateSaveInput,
   TemplateSaveResult,
   TemplateStyleReadInput,
-  TemplateStyleReadResult
+  TemplateStyleReadResult,
+  TemplateStyleSaveInput,
+  TemplateStyleSaveResult,
+  TemplateStyleSkeletonDto,
+  TemplateStyleUserDto
 } from '../../shared/project'
 
 /** 服务层错误：ipc 的 handle() 会把 message 原样交给渲染层 */
@@ -337,19 +342,26 @@ interface ManifestStyleEntry {
 
 // ================= 定位 =================
 
-interface LocatedStructure {
+/**
+ * 一份模板文件的最小定位信息（结构模板与样式模板共用）：
+ * 备份只用到这四处，所以备份那一段不关心眼前是结构还是样式。
+ */
+interface LocatedFile {
   /** 模板目录（绝对路径） */
   dir: string
   /** 模板 id（= 目录名） */
   id: string
-  /** manifest 登记的文件名；没登记时按 `<id>-structure.json` 回落 */
+  /** 文件名（结构是 `<id>-structure.json`，样式是 manifest 里的 stylemap_file） */
   file: string
+  /** 文件绝对路径 */
+  filePath: string
+}
+
+interface LocatedStructure extends LocatedFile {
   /** 文件名是 manifest 给的还是按约定回落的（出错时要说清是按哪个名字找的） */
   fileFromManifest: boolean
   /** `structures/<id>` 绝对路径 */
   dirPath: string
-  /** 结构模板 JSON 绝对路径 */
-  filePath: string
   /** manifest 里的 name（有才传，用于"清单名与文件内 name 不一致"的告警） */
   manifestName: string
   manifest: ManifestState
@@ -360,17 +372,11 @@ interface LocatedStructure {
  * （结构侧还能按 `<id>-structure.json` 回落，样式侧的 fileKey 与目录名并不总是一致）。
  * 所以 manifest 里没这条登记时直接报错，不猜。
  */
-interface LocatedStyle {
-  dir: string
-  id: string
-  /** manifest 登记的 stylemap 文件名（含 .json） */
-  file: string
+interface LocatedStyle extends LocatedFile {
   /** 引用它时写的 key：文件名去掉 .json */
   fileKey: string
   /** `styles/<id>` 绝对路径 */
   dirPath: string
-  /** stylemap JSON 绝对路径 */
-  filePath: string
   /** manifest 里的 name */
   manifestName: string
   /** manifest 里的 style_folder（与 stylemap 的 docxFolder 不一致时要告警） */
@@ -434,30 +440,31 @@ export class TemplateEditorService {
     const located = this.locateStyle(input.dir, input.id)
     const doc = this.readStyleDoc(located)
     const structureDocs = this.loadStructureDocs(located.dir)
-    const usedBy = structureDocs
-      .filter((s) => styleTemplateKeys(s.doc).includes(located.fileKey))
-      .map((s) => ({
+    const facts = styleFactsOfStructures(structureDocs.map((s) => s.doc))
+    /** 引用这份对照表的结构 + 它们的诉求（按 manifest 顺序） */
+    const usedBy: TemplateStyleUserDto[] = []
+    for (const s of structureDocs) {
+      const fact = styleFactsOfStructure(s.doc)
+      if (!fact || !fact.fileKeys.includes(located.fileKey)) continue
+      usedBy.push({
         id: s.id,
         name: s.name,
-        isDefault: text(s.doc['styleTemplate'] ?? '') === located.fileKey
-      }))
-    const requirements = structureDocs
-      .filter((s) => styleTemplateKeys(s.doc).includes(located.fileKey))
-      .map((s) => ({ name: s.name, keys: requiredStyleKeys(s.doc) }))
+        isDefault: text(s.doc['styleTemplate'] ?? '') === located.fileKey,
+        requiredKeys: fact.keys,
+        captions: fact.captions
+      })
+    }
 
     const docxFolder = typeof doc['docxFolder'] === 'string' ? doc['docxFolder'] : ''
     const skeletonPath = docxFolder === '' ? located.dirPath : join(located.dirPath, docxFolder)
-    const skeletonExists = docxFolder !== '' && existsSync(skeletonPath)
-    const index = skeletonExists ? parseSkeletonIndex(skeletonPath) : null
-    const skeletonStyles = index?.styles ?? []
-    // 一个 styleId 都读不到时不做 dangling 判定：那是"没得核对"，交给校验去报缺部件
-    const skeletonStyleIds = index !== null && index.styleIds.length > 0 ? index.styleIds : null
+    const skeleton = this.skeletonFacts(located, docxFolder)
+    const skeletonStyles = skeleton.styles
     const styleMap = isPlainObject(doc['styleMap']) ? doc['styleMap'] : {}
 
     const rows: StyleMapRowDto[] = buildStyleMapRows({
       styleMap,
-      requirements,
-      skeletonStyleIds,
+      requirements: usedBy.map((u) => ({ name: u.name, keys: u.requiredKeys })),
+      skeletonStyleIds: skeleton.dto.styleIds.length > 0 ? skeleton.dto.styleIds : null,
       skeletonStyles
     })
 
@@ -468,7 +475,9 @@ export class TemplateEditorService {
       fileKey: located.fileKey,
       doc,
       skeletonPath,
-      skeletonExists,
+      skeletonExists: skeleton.dto.exists,
+      skeleton: skeleton.dto,
+      manifestStyleFolder: located.manifestStyleFolder,
       skeletonStyles: skeletonStyles.map(toSkeletonStyleDto),
       unusedStyleIds: unusedSkeletonStyleIds(styleMap, skeletonStyles),
       rows,
@@ -480,6 +489,33 @@ export class TemplateEditorService {
         manifestStyleFolder: located.manifestStyleFolder || undefined
       }).map(toIssueDto)
     }
+  }
+
+  /**
+   * 写回样式模板的对照表：与结构模板同一套（先校验，有 error 就抛不落盘；
+   * 再备份原文件，最后原子写）。写回只动 styleMap 与 captionNumbering 这些字段，
+   * 其余字段与键顺序按解析后的顺序原样保留。
+   */
+  saveStyle(input: TemplateStyleSaveInput): TemplateStyleSaveResult {
+    if (!isPlainObject(input.doc)) {
+      throw new TemplateEditorError('保存内容必须是 JSON 对象')
+    }
+    const located = this.locateStyle(input.dir, input.id)
+    const structureDocs = this.loadStructureDocs(located.dir)
+    const issues = validateStyleTemplate(input.doc, structureDocs.map((s) => s.doc), {
+      id: located.id,
+      stylemapFile: located.file,
+      basePath: located.dirPath,
+      manifestStyleFolder: located.manifestStyleFolder || undefined
+    })
+    const firstError = issues.find((i) => i.level === 'error')
+    if (firstError) {
+      throw new TemplateEditorError(
+        `样式模板校验未通过，未写入（${firstError.path}）：${firstError.message}`
+      )
+    }
+    const backupPath = this.writeStyleDoc(located, input.doc)
+    return { savedAt: localIsoNow(), backupPath, issues: issues.map(toIssueDto) }
   }
 
   /**
@@ -903,6 +939,54 @@ export class TemplateEditorService {
   }
 
   /**
+   * 骨架的事实：目录在不在、缺哪些必需部件、有哪些 styleId、可读样式表、起始编号。
+   * 编辑模式要在本地跑同一套规则，所以事实随读结果一起给出去（`skeleton` 字段）。
+   */
+  private skeletonFacts(
+    located: LocatedStyle,
+    docxFolder: string
+  ): { dto: TemplateStyleSkeletonDto; styles: SkeletonStyleInfo[] } {
+    const empty: TemplateStyleSkeletonDto = {
+      folder: docxFolder,
+      exists: false,
+      missingParts: [],
+      styleIds: []
+    }
+    if (docxFolder === '') return { dto: empty, styles: [] }
+    const skeletonPath = join(located.dirPath, docxFolder)
+    if (!existsSync(skeletonPath)) return { dto: empty, styles: [] }
+    const missingParts = SKELETON_REQUIRED_PARTS.filter(
+      (part) => !existsSync(join(skeletonPath, part))
+    )
+    const index = parseSkeletonIndex(skeletonPath)
+    return {
+      dto: {
+        folder: docxFolder,
+        exists: true,
+        missingParts: [...missingParts],
+        styleIds: index.styleIds,
+        ...(index.headingStarts === undefined ? {} : { headingStarts: index.headingStarts })
+      },
+      styles: index.styles
+    }
+  }
+
+  /** 备份原文件并原子写回样式模板；返回备份路径（原文件不存在时是 null） */
+  private writeStyleDoc(located: LocatedStyle, doc: Record<string, unknown>): string | null {
+    mkdirSync(located.dirPath, { recursive: true })
+    const exists = existsSync(located.filePath)
+    const backupPath = exists ? this.backupFile(located) : null
+    const raw = exists ? readFileSync(located.filePath, 'utf8') : ''
+    // 缩进与行尾都按原文件认（真实 stylemap 是 2 空格，但别猜）：认不出退回结构那一套
+    const indent = exists ? detectIndent(raw) : STRUCTURE_INDENT
+    writeFileAtomic(
+      located.filePath,
+      serializeJson(doc, indent, eolOf(located.filePath), exists ? /\r?\n$/u.test(raw) : true)
+    )
+    return backupPath
+  }
+
+  /**
    * 读模板目录里全部能读出来的结构模板原文（算"必需样式键"与"共用影响面"的输入）。
    * 读不出来的那份直接跳过：那是目录级校验要报的事，这里只是算必需键的原料，
    * 不该因为它把整份样式读不出来。
@@ -958,7 +1042,7 @@ export class TemplateEditorService {
   }
 
   /** 单文件备份：`<备份根>/<目录名>-<路径哈希>/<文件名>-<yyyyMMdd-HHmmss>.bak` */
-  private backupFile(located: LocatedStructure): string {
+  private backupFile(located: LocatedFile): string {
     const folder = join(this.backupRoot(), backupFolderName(located.dir))
     mkdirSync(folder, { recursive: true })
     const target = uniquePath(join(folder, `${located.file}-${backupStamp()}.bak`))

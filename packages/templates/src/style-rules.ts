@@ -29,6 +29,26 @@ export interface SkeletonFacts {
   headingStarts?: number[]
 }
 
+/** 题注：结构里的表题 / 图题（判"文字里自己写了号"用） */
+export interface StyleCaptionFact {
+  kind: 'table' | 'figure'
+  text: string
+}
+
+/**
+ * 结构模板对样式提出的诉求（由 validate.ts 从结构 JSON 原文算出来，编辑模式从 DTO 里拿）：
+ *   - `fileKeys`：这份结构声明引用了哪些样式文件键（`styleTemplates` 优先，缺省回退 `styleTemplate`）；
+ *   - `keys`：这份结构实际用到的逻辑样式键（`requiredStyleKeys` 的结果）；
+ *   - `captions`：结构里的题注。
+ * 只有 `fileKeys` 含本 stylemap 文件键的结构才参与比对（与脚本同法）。
+ */
+export interface StyleStructureFacts {
+  name: string
+  fileKeys: string[]
+  keys: string[]
+  captions: StyleCaptionFact[]
+}
+
 export interface StyleRulesOptions {
   /** 模板 id（脚本用 manifest 的 id）；缺省取 stylemap 的 name */
   id?: string
@@ -67,90 +87,17 @@ function label(...parts: string[]): string {
   return parts.join('/')
 }
 
-/** 结构节点 → 递归收集它用到的逻辑样式键（与 validate.ts 的 collectStyleKeys 同法） */
-function collectStyleKeys(node: unknown, subDepth = 0, keys = new Set<string>()): Set<string> {
-  const obj = asObject(node)
-  if (!obj) return keys
-  const nodeType = obj['nodeType']
-  const isSub = nodeType === 'subTitle' || nodeType === 'subtitle'
-  if (isSub) {
-    for (let d = 1; d <= subDepth + 1; d++) keys.add(`subtitle.${d}`)
-  } else if (Number(obj['headingLevel'] ?? 1) > 0) {
-    keys.add(`heading.${Number(obj['headingLevel'] ?? 1)}`)
-  }
-  for (const raw of Array.isArray(obj['contentBlocks']) ? (obj['contentBlocks'] as unknown[]) : []) {
-    const b = asObject(raw)
-    if (!b) continue
-    switch (b['type']) {
-      case 'text':
-      case 'formula':
-      case 'code':
-        keys.add('body')
-        break
-      case 'image':
-      case 'mermaid':
-        keys.add('body')
-        keys.add('figure.caption')
-        break
-      case 'table':
-        keys.add('table.caption')
-        keys.add('table.header')
-        keys.add('table.body')
-        break
-      case 'orderedList':
-        keys.add('list.ordered.1')
-        break
-      case 'unorderedList':
-        keys.add('list.unordered.1')
-        break
-      default:
-        break
-    }
-  }
-  const children = Array.isArray(obj['children'])
-    ? (obj['children'] as unknown[])
-    : Array.isArray(obj['defaultChildren'])
-      ? (obj['defaultChildren'] as unknown[])
-      : []
-  for (const child of children) collectStyleKeys(child, isSub ? subDepth + 1 : 0, keys)
-  return keys
-}
-
-/** 结构里的题注（表题 / 图题），用于核对与题注编号模式是否打架（脚本 collectCaptions 照抄） */
-function collectCaptions(
-  node: unknown,
-  out: Array<{ kind: 'table' | 'figure'; text: string }> = []
-): Array<{ kind: 'table' | 'figure'; text: string }> {
-  const obj = asObject(node)
-  if (!obj) return out
-  for (const raw of Array.isArray(obj['contentBlocks']) ? (obj['contentBlocks'] as unknown[]) : []) {
-    const b = asObject(raw)
-    if (!b || !b['caption']) continue
-    if (b['type'] === 'table') out.push({ kind: 'table', text: text(b['caption']) })
-    else if (b['type'] === 'image' || b['type'] === 'mermaid') {
-      out.push({ kind: 'figure', text: text(b['caption']) })
-    }
-  }
-  const children = Array.isArray(obj['children'])
-    ? (obj['children'] as unknown[])
-    : Array.isArray(obj['defaultChildren'])
-      ? (obj['defaultChildren'] as unknown[])
-      : []
-  for (const child of children) collectCaptions(child, out)
-  return out
-}
-
 /**
  * 校验一份 stylemap（脚本 `checkStyle` 的照抄版）。
  *
  * @param styleDef stylemap JSON 原文（`{ name, styleMap, docxFolder, captionNumbering }`）
- * @param structureDefs 结构模板 JSON 原文列表，用于"结构需要的逻辑键有没有被覆盖"与题注口径比对；
- *   只比对 `styleTemplate`（或 `styleTemplates` 里）等于本 stylemap 文件键的那些结构
+ * @param structures 结构模板对样式提出的诉求（见 `StyleStructureFacts`）；
+ *   只比对 `fileKeys` 含本 stylemap 文件键的那些
  * @param opts `id`、`stylemapFile`、`manifestStyleFolder`、`skeleton`（骨架事实；不给就跳过需要骨架的检查）
  */
 export function validateStyleMap(
   styleDef: unknown,
-  structureDefs: readonly unknown[] = [],
+  structures: readonly StyleStructureFacts[] = [],
   opts: StyleRulesOptions = {}
 ): ValidationIssue[] {
   const out: ValidationIssue[] = []
@@ -325,16 +272,14 @@ export function validateStyleMap(
   // 与配对结构比对逻辑键覆盖
   const fileKey =
     opts.stylemapFile !== undefined ? opts.stylemapFile.replace(/\.json$/u, '') : undefined
-  for (const rawStructure of structureDefs) {
-    const st = asObject(rawStructure)
-    if (!st) continue
-    const root = asObject(st['root'])
-    if (!root) continue // 脚本里结构整份没加载时不参与比对
-    if (fileKey === undefined) continue
-    if (text(st['styleTemplate'] ?? '') !== fileKey) continue
-    const stName = text(st['name'] ?? '')
-    const keys = collectStyleKeys(root)
-    const missing = [...keys].filter((k) => !(k in styleMap))
+  if (fileKey === undefined) return out
+  for (const st of structures) {
+    // 只有声明引用了这份 stylemap 的结构才参与比对（脚本里没声明就不比）
+    if (!st.fileKeys.includes(fileKey)) continue
+    const stName = st.name
+    const keys = new Set(st.keys)
+    const styleMapKeys = styleMap
+    const missing = [...keys].filter((k) => !(k in styleMapKeys))
     if (missing.length > 0) {
       out.push({
         level: 'error',
@@ -348,9 +293,8 @@ export function validateStyleMap(
     // 题注手写号：号已经由样式（auto 且样式带编号）或题注域（field）给出时，
     // 题注文字里再写「表N」就会出两个号——程序不剥离手写前缀（PLAN-07 口径）。
     // static 不在范围内：那种模式下号本来就写在文字里。
-    const captions = collectCaptions(root)
-    for (let i = 0; i < captions.length; i++) {
-      const cap = captions[i]!
+    for (let i = 0; i < st.captions.length; i++) {
+      const cap = st.captions[i]!
       const mode = captionMode(cap.kind)
       if (mode === 'static') continue
       if (mode === 'auto' && !styleNumbered(captionStyleId(cap.kind))) continue

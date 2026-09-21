@@ -319,6 +319,33 @@ export interface TemplateStyleReadInput {
 }
 
 /**
+ * 骨架的事实（目录在不在、缺哪些部件、有哪些 styleId、起始编号）。
+ * 编辑模式拿它在本地跑**同一套**样式规则（`@documentor/templates/style-rules`），
+ * 所以这里给的是事实，不是结论。
+ */
+export interface TemplateStyleSkeletonDto {
+  /** 骨架文件夹名（stylemap 的 docxFolder） */
+  folder: string
+  exists: boolean
+  /** 缺哪些必需部件（顺序固定） */
+  missingParts: string[]
+  styleIds: string[]
+  headingStarts?: number[]
+}
+
+/** 引用这份对照表的结构模板：共用影响面 + 它对样式的诉求（判"必需键"用） */
+export interface TemplateStyleUserDto {
+  id: string
+  name: string
+  /** 是不是这份结构的默认样式（结构 JSON 的 styleTemplate 就写它） */
+  isDefault: boolean
+  /** 这份结构实际用到的逻辑样式键（`requiredStyleKeys` 的结果） */
+  requiredKeys: string[]
+  /** 结构里的题注（判"题注文字里自己写了号"用） */
+  captions: Array<{ kind: 'table' | 'figure'; text: string }>
+}
+
+/**
  * 读一份样式模板：stylemap 原文（界面按字段改，没认得的字段原样保留）、
  * 骨架里的样式表（下拉的选项）、按**引用它的结构模板**算出的对照表，
  * 以及这份对照表被哪些结构模板共用（改它之前要知道影响面）。
@@ -334,14 +361,31 @@ export interface TemplateStyleReadResult {
   /** 骨架目录绝对路径（`docxFolder` 拼出来的；不看它存不存在） */
   skeletonPath: string
   skeletonExists: boolean
+  /** 骨架的事实（本地跑规则用） */
+  skeleton: TemplateStyleSkeletonDto
+  /** manifest 里的 style_folder（判"与 stylemap 的 docxFolder 不一致"用） */
+  manifestStyleFolder: string
   /** 骨架里的样式表；读不到是空表 */
   skeletonStyles: SkeletonStyleDto[]
   /** 骨架里有、这份对照表没人用的 styleId（顺便看看有没有漏配） */
   unusedStyleIds: string[]
   /** 对照表：认得的逻辑键全在，外加文件里多出来的键 */
   rows: StyleMapRowDto[]
-  /** 哪些结构模板引用这份对照表 */
-  usedBy: Array<{ id: string; name: string; isDefault: boolean }>
+  /** 哪些结构模板引用这份对照表（含它们的诉求） */
+  usedBy: TemplateStyleUserDto[]
+  issues: TemplateIssueDto[]
+}
+
+export interface TemplateStyleSaveInput {
+  dir: string
+  id: string
+  doc: Record<string, unknown>
+}
+
+export interface TemplateStyleSaveResult {
+  savedAt: string
+  /** 写前备份的路径；首次保存没有可备份的原文件时为 null */
+  backupPath: string | null
   issues: TemplateIssueDto[]
 }
 
@@ -409,6 +453,8 @@ export const ProjectIpc = {
   TemplateRead: 'template:read',
   /** 模板编辑：读一份样式模板（stylemap 原文 + 骨架样式表 + 对照表） */
   TemplateReadStyle: 'template:read-style',
+  /** 模板编辑：写回样式模板的对照表（原子写 + .bak），写入前必须零 error */
+  TemplateSaveStyle: 'template:save-style',
   /** 模板编辑：写回结构模板（原子写 + .bak），写入前必须零 error */
   TemplateSave: 'template:save',
   /** 模板编辑：新建结构模板并同步 manifest */
@@ -538,6 +584,7 @@ export interface DesktopTemplateEditorApi {
   snapshot(): Promise<TemplateEditorSnapshotDto>
   read(input: TemplateReadInput): Promise<TemplateReadResult>
   readStyle(input: TemplateStyleReadInput): Promise<TemplateStyleReadResult>
+  saveStyle(input: TemplateStyleSaveInput): Promise<TemplateStyleSaveResult>
   save(input: TemplateSaveInput): Promise<TemplateSaveResult>
   create(input: TemplateCreateInput): Promise<TemplateReadResult>
   remove(input: TemplateDeleteInput): Promise<TemplateDeleteResult>

@@ -9,6 +9,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
+  StyleMapRowDto,
   TemplateDirSnapshotDto,
   TemplateEditorSnapshotDto,
   TemplateEntryDto,
@@ -47,6 +48,14 @@ import {
   type TemplateObject
 } from './templateDoc'
 import { validateStructureDoc } from './templateValidate'
+import {
+  styleIssuesFor,
+  styleRowsFor,
+  withCaptionMode,
+  withChapterStyleName,
+  withStyleMapEntry,
+  type CaptionKind
+} from './styleDraft'
 
 export type TemplateEditorStatus = 'loading' | 'ready' | 'failed'
 export type TemplateIssuesSource = 'local' | 'server'
@@ -120,9 +129,17 @@ export interface UseTemplateEditorResult {
   doc: TemplateDoc | null
   /** 眼前开的是结构模板还是样式模板；都没开是 null */
   openKind: TemplateOpenKind | null
-  /** 开着的样式模板（对照表）与其读回来的结果 */
+  /** 开着的样式模板（对照表事实）与其草稿、按草稿算出来的行与结论 */
   styleEntry: TemplateEntryDto | null
   style: TemplateStyleReadResult | null
+  styleDoc: TemplateObject | null
+  styleRows: StyleMapRowDto[]
+  /** 改一行映射（styleId 为 null = 不配，把这一项从 styleMap 删掉） */
+  patchStyleMap: (key: string, styleId: string | null) => void
+  /** 改一种题注的编号方式（null = 删掉这一项，等于按 auto） */
+  patchCaptionMode: (kind: CaptionKind, mode: string | null) => void
+  /** 改 field 模式用的章节样式名（null = 删掉这一层） */
+  patchChapterStyleName: (level: string, name: string | null) => void
   busy: boolean
   dirty: boolean
   issues: TemplateIssueDto[]
@@ -174,19 +191,23 @@ export function useTemplateEditor(): UseTemplateEditorResult {
   const [file, setFile] = useState<string | null>(null)
   const [serverIssues, setServerIssues] = useState<TemplateIssueDto[]>([])
   const [issuesSource, setIssuesSource] = useState<TemplateIssuesSource>('local')
-  const [dirty, setDirty] = useState(false)
+  const [structureDirty, setDirty] = useState(false)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<TemplateNotice | null>(null)
   const [pending, setPending] = useState<TemplatePending | null>(null)
   const [selectedPath, setSelectedPath] = useState<NodePath>(ROOT_PATH)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   /**
-   * 样式侧：开着的样式模板 id 与读回来的对照表。
+   * 样式侧：开着的样式模板 id、读回来的对照表（含骨架与结构诉求的事实），以及**草稿**。
    * 与结构侧的草稿并存——两份模板各留各的，在左栏来回点不用重读（结构草稿也不会被样式覆盖）。
-   * `styleIdRef.current !== null` 就表示"眼前是样式视图"。
+   * `styleId !== null` 就表示"眼前是样式视图"。
    */
   const [styleId, setStyleId] = useState<string | null>(null)
   const [style, setStyle] = useState<TemplateStyleReadResult | null>(null)
+  const [styleDoc, setStyleDoc] = useState<TemplateObject | null>(null)
+  const [styleServerIssues, setStyleServerIssues] = useState<TemplateIssueDto[]>([])
+  const [styleIssuesSource, setStyleIssuesSource] = useState<TemplateIssuesSource>('local')
+  const [styleDirty, setStyleDirty] = useState(false)
 
   const dirRef = useRef<string | null>(null)
   const entryIdRef = useRef<string | null>(null)
@@ -225,8 +246,17 @@ export function useTemplateEditor(): UseTemplateEditorResult {
   }, [doc, entryId, file])
 
   const issues = issuesSource === 'server' ? serverIssues : localIssues
+  /** 样式侧的即时结论：同一套规则（主进程那份）跑在草稿上 */
+  const localStyleIssues = useMemo(() => styleIssuesFor(style, styleDoc), [style, styleDoc])
+  const styleIssues = styleIssuesSource === 'server' ? styleServerIssues : localStyleIssues
+  /** 对照表行：始终按草稿算（改了映射当场就变），读回来的那份只在服务层与测试里用 */
+  const styleRows = useMemo(() => styleRowsFor(style, styleDoc), [style, styleDoc])
   /** 状态栏与页脚看的是"眼前这一份"的结论：样式视图就用样式侧的 */
-  const visibleIssues = openKind === 'style' ? (style?.issues ?? []) : issues
+  const visibleIssues = openKind === 'style' ? styleIssues : issues
+  /** 有未保存改动的是眼前这一份（切换对象会把它丢掉，所以要问一句） */
+  const dirty = openKind === 'style' ? styleDirty : structureDirty
+  /** 结论的来源也按眼前这一份算：样式侧只管样式那次读/存 */
+  const visibleIssuesSource = openKind === 'style' ? styleIssuesSource : issuesSource
 
   /** 打开一份读回来的结构模板：草稿、选中、展开、问题列表一起归位 */
   const applyRead = useCallback((result: TemplateReadResult) => {
@@ -244,31 +274,45 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     setPending(null)
   }, [])
 
+  /** 收起样式视图（草稿跟着丢掉：能走到这里说明它没有未保存的改动） */
+  const closeStyleView = useCallback((): void => {
+    setStyleId(null)
+    setStyle(null)
+    setStyleDoc(null)
+    setStyleServerIssues([])
+    setStyleDirty(false)
+  }, [])
+
   const readEntry = useCallback(
     async (api: EditorApi, targetDir: string, target: TemplateEntryDto): Promise<void> => {
       setBusy(true)
       try {
         applyRead(await api.read({ dir: targetDir, id: target.id }))
-        // 结构视图在前：样式那一段收起来（草稿留着，点回样式不用重读）
-        setStyleId(null)
+        // 结构视图在前：样式那一段收起来（能走到这里说明它没有未保存的改动）
+        closeStyleView()
       } catch (err) {
         setNotice({ kind: 'error', text: '读不到这份模板', detail: errorText(err) })
       } finally {
         setBusy(false)
       }
     },
-    [applyRead]
+    [applyRead, closeStyleView]
   )
 
   /**
-   * 打开一份样式模板：读回对照表（stylemap 原文 + 骨架样式表 + 必需键与共用影响面）。
-   * 结构草稿不动也不清——两份模板各留各的，来回点不用重读、也不会把结构草稿弄丢。
+   * 打开一份样式模板：读回对照表（stylemap 原文 + 骨架事实 + 引用它的结构诉求），
+   * 草稿就是这份原文；结构草稿不动也不清——两份模板各留各的。
    */
   const readStyleEntry = useCallback(
     async (api: EditorApi, targetDir: string, target: TemplateEntryDto): Promise<void> => {
       setBusy(true)
       try {
-        setStyle(await api.readStyle({ dir: targetDir, id: target.id }))
+        const result = await api.readStyle({ dir: targetDir, id: target.id })
+        setStyle(result)
+        setStyleDoc(result.doc)
+        setStyleServerIssues(result.issues)
+        setStyleIssuesSource('server')
+        setStyleDirty(false)
         setStyleId(target.id)
         setDir(targetDir)
         setNotice(null)
@@ -322,15 +366,14 @@ export function useTemplateEditor(): UseTemplateEditorResult {
         setDirty(false)
       }
       // 重新加载是"按文件重来"：样式那一段也收起来（点回去会重新读）
-      setStyleId(null)
-      setStyle(null)
+      closeStyleView()
     } catch (err) {
       setStatus('failed')
       setNotice({ kind: 'error', text: '读不到模板目录', detail: errorText(err) })
     } finally {
       setBusy(false)
     }
-  }, [readEntry])
+  }, [closeStyleView, readEntry])
 
   useEffect(() => {
     void reload()
@@ -341,8 +384,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
       const api = templateApi()
       setDir(nextDir)
       // 换目录：样式那一段收起来（它属于上一个目录）
-      setStyleId(null)
-      setStyle(null)
+      closeStyleView()
       const target = snapshot?.dirs.find((item) => item.dir === nextDir) ?? null
       const nextEntry = pickEntry(target, null)
       if (!api || !nextEntry) {
@@ -357,7 +399,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
       setEntryId(nextEntry.id)
       void readEntry(api, nextDir, nextEntry)
     },
-    [readEntry, snapshot]
+    [closeStyleView, readEntry, snapshot]
   )
 
   const requestDir = useCallback(
@@ -468,10 +510,80 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     [doc]
   )
 
+  /**
+   * 样式侧的所有编辑走这一条：只改内存里的 stylemap 草稿，写文件只在 save 里发生。
+   * 改完把结论切回"本地即时结论"（同一套规则跑在草稿上）。
+   */
+  const mutateStyle = useCallback(
+    (op: (current: TemplateObject) => TemplateObject): void => {
+      if (!styleDoc) return
+      const next = op(styleDoc)
+      if (next === styleDoc) return
+      setStyleDoc(next)
+      setStyleDirty(true)
+      setStyleIssuesSource('local')
+      setNotice((current) => (current?.staleOnEdit ? null : current))
+    },
+    [styleDoc]
+  )
+
+  /** 改一行映射；`styleId` 为 null 表示「不配」（把这一项从 styleMap 里删掉） */
+  const patchStyleMap = useCallback(
+    (key: string, styleId: string | null): void =>
+      mutateStyle((current) => withStyleMapEntry(current, key, styleId)),
+    [mutateStyle]
+  )
+
+  /** 改一种题注的编号方式（表题 / 图题） */
+  const patchCaptionMode = useCallback(
+    (kind: CaptionKind, mode: string | null): void =>
+      mutateStyle((current) => withCaptionMode(current, kind, mode)),
+    [mutateStyle]
+  )
+
+  /** 改 field 模式用的章节样式名（按标题层级）；`name` 为 null 表示删掉这一层 */
+  const patchChapterStyleName = useCallback(
+    (level: string, name: string | null): void =>
+      mutateStyle((current) => withChapterStyleName(current, level, name)),
+    [mutateStyle]
+  )
+
   const save = useCallback(async (): Promise<void> => {
     const api = templateApi()
-    if (!api || !doc || !dir || !entryId) return
+    if (!api || !dir) return
     setBusy(true)
+    // 眼前是样式模板：写回对照表（同一套：先校验，有 error 主进程会拒并且不落盘）
+    if (openKind === 'style') {
+      if (!styleDoc || !styleId) {
+        setBusy(false)
+        return
+      }
+      try {
+        const result = await api.saveStyle({ dir, id: styleId, doc: styleDoc })
+        setStyleServerIssues(result.issues)
+        setStyleIssuesSource('server')
+        setStyleDirty(false)
+        const time = result.savedAt.slice(11, 19)
+        setNotice({
+          kind: 'info',
+          text: result.backupPath
+            ? `已保存 ${time}`
+            : `已保存 ${time}（首次保存，没有可备份的原文件）`,
+          detail: result.backupPath ?? undefined,
+          staleOnEdit: true
+        })
+        void refreshSnapshot()
+      } catch (err) {
+        setNotice({ kind: 'error', text: '保存失败，文件没有被改动', detail: errorText(err) })
+      } finally {
+        setBusy(false)
+      }
+      return
+    }
+    if (!doc || !entryId) {
+      setBusy(false)
+      return
+    }
     try {
       const result = await api.save({ dir, id: entryId, doc })
       setServerIssues(result.issues)
@@ -493,7 +605,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     } finally {
       setBusy(false)
     }
-  }, [dir, doc, entryId, refreshSnapshot])
+  }, [dir, doc, entryId, openKind, refreshSnapshot, styleDoc, styleId])
 
   const createTemplate = useCallback(
     async (input: { id: string; name: string; styleTemplate?: string }): Promise<boolean> => {
@@ -768,10 +880,15 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     openKind,
     styleEntry,
     style,
+    styleDoc,
+    styleRows,
+    patchStyleMap,
+    patchCaptionMode,
+    patchChapterStyleName,
     busy,
     dirty,
     issues: visibleIssues,
-    issuesSource,
+    issuesSource: visibleIssuesSource,
     notice,
     pending,
     selectedPath,

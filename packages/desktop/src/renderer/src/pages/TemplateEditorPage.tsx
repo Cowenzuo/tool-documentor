@@ -168,43 +168,36 @@ export default function TemplateEditorPage(): JSX.Element {
    * 保存按钮为什么不能按：一句话说清，按钮与那盏灯的悬停提示都用它。
    * （顶栏只放最短的「N 个错误 / 未保存」，完整理由在提示里，状态栏里有索引可跳。）
    */
-  const saveWhy = styleOpen
-    ? '样式对照表的写回还没接上（这一步先看清每一行配到了哪条样式）'
-    : !open
-      ? '没有打开模板'
-      : counts.errors > 0
-        ? `有 ${counts.errors} 个错误，先改好再保存`
-        : !editor.dirty
-          ? '没有未保存的改动'
-          : editor.busy
-            ? '正在处理…'
-            : ''
-  const canSave = !styleOpen && open && editor.dirty && counts.errors === 0 && !editor.busy
+  const saveWhy = !styleOpen && !open
+    ? '没有打开模板'
+    : counts.errors > 0
+      ? `有 ${counts.errors} 个错误，先改好再保存`
+      : !editor.dirty
+        ? '没有未保存的改动'
+        : editor.busy
+          ? '正在处理…'
+          : ''
+  const canSave = (open || styleOpen) && editor.dirty && counts.errors === 0 && !editor.busy
 
   /**
    * 右端那盏灯与它的短句：红=有错误（挡住保存）、琥珀=有未保存的改动、绿=与文件一致。
    * 文字只留最短的（「3 个错误」「未保存」），完整理由进悬停提示——
    * 顶栏不是写解释的地方，要看的细节在状态栏与问题索引里。
    */
-  const draftState = styleOpen
-    ? 'is-clean'
-    : !open || counts.errors > 0
-      ? 'is-blocked'
+  const draftState = (!open && !styleOpen) || counts.errors > 0
+    ? 'is-blocked'
+    : editor.dirty
+      ? 'is-dirty'
+      : 'is-clean'
+  const draftWhy = !open && !styleOpen
+    ? '没有打开模板'
+    : counts.errors > 0
+      ? `有 ${counts.errors} 个错误，先改好再保存`
       : editor.dirty
-        ? 'is-dirty'
-        : 'is-clean'
-  const draftWhy = styleOpen
-    ? '样式对照表这一步只看：每一行配到了哪条样式、缺了什么，都在中栏'
-    : !open
-      ? '没有打开模板'
-      : counts.errors > 0
-        ? `有 ${counts.errors} 个错误，先改好再保存`
-        : editor.dirty
-          ? '有未保存的改动，点「保存」写回文件'
-          : '没有未保存的改动'
-  const draftLabel = styleOpen
-    ? ''
-    : !open
+        ? '有未保存的改动，点「保存」写回文件'
+        : '没有未保存的改动'
+  const draftLabel =
+    !open && !styleOpen
       ? ''
       : counts.errors > 0
         ? `${counts.errors} 个错误`
@@ -330,7 +323,17 @@ export default function TemplateEditorPage(): JSX.Element {
         />
         {/* 样式视图占中栏与右栏两栏：一行五列，292px 的树栏里摆不下 */}
         {styleOpen ? (
-          <StyleTable status={editor.status} result={editor.style} />
+          <StyleTable
+            status={editor.status}
+            result={editor.style}
+            doc={editor.styleDoc}
+            rows={editor.styleRows}
+            issues={editor.issues}
+            issuesFromServer={editor.issuesSource === 'server'}
+            onMap={editor.patchStyleMap}
+            onCaptionMode={editor.patchCaptionMode}
+            onChapterStyleName={editor.patchChapterStyleName}
+          />
         ) : (
           <>
             <NodeTree
@@ -441,7 +444,7 @@ export default function TemplateEditorPage(): JSX.Element {
               groups={issueGroups}
               errors={counts.errors}
               warnings={counts.warnings}
-              fromServer={styleOpen || editor.issuesSource === 'server'}
+              fromServer={editor.issuesSource === 'server'}
               {...(styleOpen ? {} : { onJump: editor.revealNode })}
             />
           )}

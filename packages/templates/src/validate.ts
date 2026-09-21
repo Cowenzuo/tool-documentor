@@ -37,7 +37,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import type { BlockLockLevel } from '@documentor/core'
 import { validateStyleMap } from './style-rules'
-import type { SkeletonFacts } from './style-rules'
+import type { SkeletonFacts, StyleStructureFacts } from './style-rules'
 
 // ================= 常量（与脚本同值；改动前先改脚本） =================
 
@@ -64,7 +64,7 @@ export const KNOWN_BLOCK_TYPES = [
 export const LOCK_TIERS: readonly BlockLockLevel[] = ['type', 'keep', 'readonly']
 
 /** 骨架必需部件（脚本 checkStyle 的 needParts），顺序参与文案 */
-const SKELETON_REQUIRED_PARTS = [
+export const SKELETON_REQUIRED_PARTS = [
   '[Content_Types].xml',
   '_rels/.rels',
   'word/document.xml',
@@ -855,7 +855,7 @@ export function validateStyleTemplate(
       ...(index?.headingStarts === undefined ? {} : { headingStarts: index.headingStarts })
     }
   }
-  return validateStyleMap(styleDef, structureDefs, {
+  return validateStyleMap(styleDef, styleFactsOfStructures(structureDefs), {
     ...(opts.id === undefined ? {} : { id: opts.id }),
     ...(opts.stylemapFile === undefined ? {} : { stylemapFile: opts.stylemapFile }),
     ...(opts.manifestStyleFolder === undefined
@@ -863,6 +863,35 @@ export function validateStyleTemplate(
       : { manifestStyleFolder: opts.manifestStyleFolder }),
     ...(skeleton === undefined ? {} : { skeleton })
   })
+}
+
+/**
+ * 结构 JSON 原文 → 样式规则要的"诉求"事实：这份结构引用了哪些样式文件键、
+ * 用到哪些逻辑键、有哪些题注。整份没加载的（缺 root）返回 null，与脚本同法。
+ */
+export function styleFactsOfStructure(doc: unknown): StyleStructureFacts | null {
+  const st = asObject(doc)
+  if (!st) return null
+  const root = asObject(st['root'])
+  if (!root) return null
+  return {
+    name: text(st['name'] ?? ''),
+    fileKeys: styleTemplateKeys(st),
+    keys: [...collectStyleKeys(root)],
+    captions: collectCaptions(root)
+  }
+}
+
+/** 一批结构模板的诉求事实（编辑模式与主进程都用它，缺 root 的整份跳过） */
+export function styleFactsOfStructures(
+  structureDefs: readonly unknown[]
+): StyleStructureFacts[] {
+  const out: StyleStructureFacts[] = []
+  for (const raw of structureDefs) {
+    const fact = styleFactsOfStructure(raw)
+    if (fact) out.push(fact)
+  }
+  return out
 }
 
 // ================= 目录级校验（批次 1） =================
