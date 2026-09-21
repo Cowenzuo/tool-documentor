@@ -384,6 +384,7 @@ body.is-splitting {
   gap: 4px;
 }
 
+/* 左栏模板项上的问题计数徽标：按内容宽（一两位数都要装得下） */
 .tpl-badge {
   display: inline-flex;
   align-items: center;
@@ -760,15 +761,59 @@ body.is-splitting {
   cursor: not-allowed;
 }
 
-.tpl-tree-level {
+/* 层级标记：与常规文档编辑的结构栏同一套尺码与配色——
+   根=品牌色块、常规标题=素色数字、副标题=带色圆圈数字（同级里第几项） */
+.tpl-tree-badge {
   flex: none;
   width: 18px;
-  text-align: center;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-3);
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: var(--bg-active);
+  color: var(--text-2);
+  font-size: 10.5px;
+  font-weight: 650;
 }
 
+/* 层级标题：素色数字，数字本身就是层级 */
+.tpl-tree-badge-level {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 副标题：带色圆圈数字，颜色按层级区分，与层级标题的素色数字一眼分得开 */
+.tpl-tree-badge-list {
+  background: color-mix(in srgb, var(--lv-1) 16%, transparent);
+  color: var(--lv-1);
+  font-size: 12px;
+}
+
+.tpl-tree-badge-list.lv2 {
+  background: color-mix(in srgb, var(--lv-2) 16%, transparent);
+  color: var(--lv-2);
+}
+
+.tpl-tree-badge-list.lv3 {
+  background: color-mix(in srgb, var(--lv-3) 16%, transparent);
+  color: var(--lv-3);
+}
+
+.tpl-tree-badge-list.lv4 {
+  background: color-mix(in srgb, var(--lv-4) 16%, transparent);
+  color: var(--lv-4);
+}
+
+.tpl-tree-badge-list.lv5 {
+  background: color-mix(in srgb, var(--lv-5) 16%, transparent);
+  color: var(--lv-5);
+}
+
+.tpl-tree-badge-root {
+  background: var(--gradient-brand);
+  color: #fff;
+}
 .tpl-tree-title {
   flex: 1 1 auto;
   min-width: 0;
