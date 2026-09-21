@@ -27,6 +27,7 @@
     "verify": "pnpm typecheck && pnpm build && node scripts/check-upstream.cjs",
     "verify:upstream": "node scripts/check-upstream.cjs --strict",
     "test:local": "set NODE_OPTIONS=--experimental-sqlite&& vitest run -c localscripts/vitest.config.ts",
-    "e2e:local": "pnpm build && node localscripts/e2e/e2e-smoke.cjs"
+    "e2e:local": "pnpm build && node localscripts/e2e/e2e-smoke.cjs",
+    "e2e:quick": "pnpm build && node localscripts/e2e/e2e-smoke.cjs --scope=template"
   }
 }
