@@ -1,11 +1,13 @@
 /**
- * 右栏的一张内容块卡片：类型、锁、按类型的初始内容字段，加上块自己的增删移。
+ * 右栏的一张内容块卡片：收起时一行摘要（第几块、类型、锁、内容概览），展开才给字段。
+ * 一张张摊开所有块的字段是"看着杂乱"的主要来源，所以按手风琴来（同时只开一张）。
  * 常驻文字只留必要的：字段标签用人话，JSON 字段名与解释走悬停提示（jsonTip）；
  * 「不锁」不写一行说明——绝大多数块都是不锁，那一行纯粹是噪音。
  */
 import type { JSX } from 'react'
 import { BLOCK_TYPE_NAMES } from '@documentor/core/blocks'
 import { BLOCK_TYPE_LABELS, CODE_LANGUAGES, CODE_LANGUAGE_LABELS } from '../editor/blockTypes'
+import { ChevronDownIcon } from '../icons'
 import type { TemplateIssueDto } from '../../../../shared/project'
 import {
   CheckField,
@@ -20,6 +22,7 @@ import {
 import {
   arrayToLines,
   blockLock,
+  blockSummary,
   blockType,
   headersToText,
   linesToArray,
@@ -65,6 +68,9 @@ export interface BlockFormProps {
   block: TemplateObject
   index: number
   count: number
+  /** 卡片是否展开（手风琴，同时只开一张） */
+  open: boolean
+  onToggle: () => void
   /** 已经过滤到这个块下面的校验结论 */
   issues: TemplateIssueDto[]
   onPatch: (patch: TemplateObject) => void
@@ -73,13 +79,15 @@ export interface BlockFormProps {
 }
 
 export function BlockForm(props: BlockFormProps): JSX.Element {
-  const { block, index, count, issues, onPatch, onMove, onRemove } = props
+  const { block, index, count, open, onToggle, issues, onPatch, onMove, onRemove } = props
   const type = blockType(block)
   const lock = blockLock(block)
   const unknownLock = rawBlockLock(block)
   const typeLabel = (BLOCK_TYPE_LABELS as Record<string, string>)[type] ?? type
   const extra = unknownKeys(block, BLOCK_FIELDS)
   const tag = lockTag(lock)
+  const hasError = issues.some((i) => i.level === 'error')
+  const hasWarn = !hasError && issues.some((i) => i.level === 'warn')
 
   const typeOptions = BLOCK_TYPE_NAMES.map((name) => ({
     value: name as string,
@@ -102,13 +110,33 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
   const colMismatch = type === 'table' && headers.length !== cols
 
   return (
-    <article className={`tpl-block${issues.some((i) => i.level === 'error') ? ' has-error' : ''}`}>
+    <article
+      className={`tpl-block${open ? ' is-open' : ''}${hasError ? ' has-error' : ''}`}
+    >
       <header className="tpl-block-head">
+        <button
+          type="button"
+          className="tpl-block-toggle"
+          aria-expanded={open}
+          title={open ? '收起这一块' : '展开这一块'}
+          onClick={onToggle}
+        >
+          <ChevronDownIcon size={13} className={open ? 'open' : ''} />
+        </button>
         {/* 类型只写一遍：原来左边还有个单字角标（「表」）和「1. 表格」重复 */}
-        <span className="tpl-block-title">
+        <button type="button" className="tpl-block-title" onClick={onToggle}>
           {index + 1}. {typeLabel || '（未写类型）'}
-        </span>
+        </button>
         {tag && <span className="tpl-tag">{tag}</span>}
+        {/* 收起时给一行摘要：不展开也知道这块是什么 */}
+        {!open && <span className="tpl-block-summary">{blockSummary(block)}</span>}
+        {/* 收起时也要能看出这块有没有问题 */}
+        {!open && (hasError || hasWarn) && (
+          <span
+            className={`tpl-dot ${hasError ? 'tpl-dot-error' : 'tpl-dot-warn'}`}
+            title={hasError ? '这一块有错误' : '这一块有提示'}
+          />
+        )}
         <div className="tpl-block-actions">
           <button
             type="button"
@@ -138,6 +166,7 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
           </button>
         </div>
       </header>
+      {open && (
       <div className="tpl-block-body">
         <div className="tpl-grid-2">
           <Field label="类型" tip={jsonTip('type')}>
@@ -348,6 +377,7 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
 
         <IssueLines issues={issues} />
       </div>
+      )}
     </article>
   )
 }

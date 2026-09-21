@@ -119,6 +119,54 @@ export function blockType(block: TemplateObject): string {
 }
 
 /**
+ * 内容块的一行摘要：折叠时卡片头上显示它，让人不必展开就知道这块是什么。
+ * 口径与主编辑器 `summarizeBlock` 一致（那边读的是工程块，这边读模板 JSON），
+ * 标题优先，其次内容首行，最后按类型给规模。
+ */
+export function blockSummary(block: TemplateObject): string {
+  const cut = (text: string, max = 60): string => {
+    const one = text.split('\n').find((line) => line.trim().length > 0)?.trim() ?? text.trim()
+    return one.length > max ? `${one.slice(0, max)}…` : one
+  }
+  const type = blockType(block)
+  const caption = str(block['caption']).trim()
+  const content = str(block['content'])
+  switch (type) {
+    case 'text':
+      return cut(content) || '（空段落）'
+    case 'orderedList':
+    case 'unorderedList': {
+      const items = Array.isArray(block['items']) ? (block['items'] as unknown[]) : []
+      if (items.length === 0) return '（空列表）'
+      return `${items.length} 条 · ${cut(str(items[0]))}`
+    }
+    case 'table': {
+      const rows = Array.isArray(block['data']) ? (block['data'] as unknown[]) : []
+      const cols = Math.max(
+        num(block['cols'], 0),
+        Array.isArray(block['headers']) ? (block['headers'] as unknown[]).length : 0,
+        ...rows.map((row) => (Array.isArray(row) ? row.length : 0))
+      )
+      const size = `${rows.length} 行 × ${cols} 列`
+      return caption ? `${caption} · ${size}` : size
+    }
+    case 'image':
+      return caption || cut(content) || '（没给图片路径）'
+    case 'mermaid':
+      return caption ? `${caption} · ${cut(content, 40)}` : cut(content) || '（空图）'
+    case 'code': {
+      const lang = str(block['language']).trim()
+      const head = cut(content, 50)
+      return head ? `${lang ? `${lang} · ` : ''}${head}` : lang || '（空代码）'
+    }
+    case 'formula':
+      return cut(content) || '（空公式）'
+    default:
+      return type === '' ? '（未写类型）' : `${type}（界面不认的类型）`
+  }
+}
+
+/**
  * 三个开关的生效值（与模板加载器的缺省一致，见 packages/templates/src/manager.ts）：
  * copyable / deletable 缺省 false；allowContentBlocks 缺省 true。
  */

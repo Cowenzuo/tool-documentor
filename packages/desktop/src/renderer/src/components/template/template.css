@@ -555,11 +555,67 @@ body.is-splitting {
   margin-bottom: var(--space-2);
 }
 
+/* 节点操作：放在属性之后，安静一点；真正的分界在下面「内容块」那一条 */
 .tpl-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
-  margin-bottom: var(--space-3);
+  margin: var(--space-3) 0 var(--space-1);
+}
+
+/* 次要字段一行放完（级别 / 类型 / 三个开关）：各占一行会把面板拉得很长，
+   视线也散；窄了自动换行 */
+.tpl-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.tpl-row > .tpl-field {
+  margin-bottom: 0;
+  flex: 0 1 132px;
+}
+
+.tpl-row .tpl-number {
+  width: 88px;
+}
+
+.tpl-row .tpl-switches {
+  margin: 0 0 1px;
+}
+
+/* 折叠的一行（说明）：默认收着，写了才在标题后面露一行预览 */
+.tpl-fold {
+  margin: var(--space-1) 0 var(--space-2);
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-2);
+}
+
+.tpl-fold > summary {
+  cursor: pointer;
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.tpl-fold-preview {
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tpl-fold[open] > summary {
+  margin-bottom: var(--space-1);
+}
+
+.tpl-fold .tpl-field {
+  margin-bottom: 0;
 }
 
 /* ===== 中栏：节点树 ===== */
@@ -710,6 +766,10 @@ body.is-splitting {
   margin-bottom: var(--space-2);
 }
 
+.tpl-block.is-open {
+  border-color: var(--border-strong);
+}
+
 .tpl-block.has-error {
   border-color: color-mix(in srgb, var(--danger) 60%, var(--border));
 }
@@ -718,25 +778,80 @@ body.is-splitting {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: 5px var(--space-2);
+  padding: 4px var(--space-2);
   border-bottom: 1px solid var(--border);
   min-width: 0;
 }
 
+.tpl-block:not(.is-open) .tpl-block-head {
+  border-bottom: none;
+}
+
+/* 展开箭头：与中栏节点树的收放一个语言 */
+.tpl-block-toggle {
+  flex: none;
+  width: 16px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: var(--text-3);
+}
+
+.tpl-block-toggle:hover {
+  background: var(--bg-active);
+  color: var(--text-1);
+}
+
+.tpl-block-toggle svg {
+  transition: transform var(--duration-fast) ease;
+}
+
+.tpl-block-toggle svg.open {
+  transform: rotate(0deg);
+}
+
+.tpl-block-toggle svg:not(.open) {
+  transform: rotate(-90deg);
+}
+
 .tpl-block-title {
-  flex: 1;
+  flex: none;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--text-xs);
   color: var(--text-2);
+  cursor: pointer;
+}
+
+.tpl-block.is-open .tpl-block-title {
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+/* 收起时的一行摘要：占满剩余宽度，不换行 */
+.tpl-block-summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  color: var(--text-3);
 }
 
 .tpl-block-actions {
   flex: none;
   display: flex;
   gap: 4px;
+}
+
+/* 收起时放大头针：右侧只剩动作按钮，左边是摘要 */
+.tpl-block:not(.is-open) .tpl-block-actions {
+  margin-left: 0;
 }
 
 .tpl-block-body {

@@ -21,10 +21,13 @@ export function Field({
 }): JSX.Element {
   return (
     <label className="tpl-field">
-      <span className="tpl-field-label" title={tip ?? ''}>
-        {label}
-        {hint && <span className="tpl-field-hint">{hint}</span>}
-      </span>
+      {/* 标签为空就不渲染标签行：折叠区里的字段靠 summary 说明自己是什么 */}
+      {label !== '' && (
+        <span className="tpl-field-label" title={tip ?? ''}>
+          {label}
+          {hint && <span className="tpl-field-hint">{hint}</span>}
+        </span>
+      )}
       {children}
     </label>
   )
