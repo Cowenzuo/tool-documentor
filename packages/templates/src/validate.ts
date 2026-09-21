@@ -1151,8 +1151,11 @@ function nameOfDoc(doc: unknown, fallback: string): string {
 /**
  * 结构声明的样式 key 列表（脚本 `st.styleTemplates` 的照抄）：
  * 有 `styleTemplates` 数组就只用它，否则退到单个 `styleTemplate`。
+ *
+ * 对外也用这个口径回答"这份结构模板引用了哪些样式对照表"（PLAN-11 批次 3 的
+ * 共用影响面）：加载器 `TemplateDef.styleTemplates` 同样是"缺省回退为 [styleTemplate]"。
  */
-function styleTemplateKeys(doc: unknown): string[] {
+export function styleTemplateKeys(doc: unknown): string[] {
   const obj = asObject(doc)
   if (!obj) return []
   if (Array.isArray(obj['styleTemplates'])) {

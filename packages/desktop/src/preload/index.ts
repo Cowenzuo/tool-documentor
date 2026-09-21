@@ -27,6 +27,7 @@ import type {
   TemplateReadInput,
   TemplateRenameInput,
   TemplateSaveInput,
+  TemplateStyleReadInput,
   UiStateKeyInput
 } from '../shared/project'
 
@@ -151,6 +152,10 @@ const api: DesktopApi = {
       >,
     read: (input: TemplateReadInput) =>
       invoke(ProjectIpc.TemplateRead, input) as ReturnType<DesktopApi['templateEditor']['read']>,
+    readStyle: (input: TemplateStyleReadInput) =>
+      invoke(ProjectIpc.TemplateReadStyle, input) as ReturnType<
+        DesktopApi['templateEditor']['readStyle']
+      >,
     save: (input: TemplateSaveInput) =>
       invoke(ProjectIpc.TemplateSave, input) as ReturnType<DesktopApi['templateEditor']['save']>,
     create: (input: TemplateCreateInput) =>

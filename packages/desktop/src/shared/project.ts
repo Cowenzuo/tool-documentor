@@ -273,6 +273,78 @@ export interface TemplateRenameResult extends TemplateReadResult {
   backupPath: string | null
 }
 
+// ---------- 样式对照表（PLAN-11 批次 3）----------
+
+/** 骨架里的一条样式：对照表下拉的选项（来源 `word/styles.xml`） */
+export interface SkeletonStyleDto {
+  /** `w:styleId`，styleMap 的值引用的就是它 */
+  styleId: string
+  /** `w:name`，Word 界面上的样式名（如「标题 1」）；没写是空串 */
+  name: string
+  /** paragraph 段落 / character 字符 / table / numbering；没写是空串 */
+  type: string
+  isDefault: boolean
+  basedOn?: string
+  /** 字号（磅，由 `w:sz` 的半磅换算） */
+  fontSizePt?: number
+  /** 样式自带多级列表编号（题注 auto 模式的号来自它） */
+  numbered?: boolean
+}
+
+/** 对照表的一行：一个逻辑键 */
+export interface StyleMapRowDto {
+  key: string
+  /** 分区（标题 / 列表子标题 / 正文 / 表格 / 图片 / 列表 / 其他），界面按它分组 */
+  group: string
+  /** 用途：这一行管哪些内容的样式 */
+  usage: string
+  /** 程序读不读这个键；false = 配了不生效（列表的第 2/3 档） */
+  read: boolean
+  /** 当前指向的 styleId（空串 = 没配这一行） */
+  styleId: string
+  /** 需要它的结构模板名（去重）；空数组 = 这份对照表里没人需要它 */
+  requiredBy: string[]
+  required: boolean
+  /** ok 正常 / missing 必需但没配 / dangling 指向的样式不在骨架里 / inert 配了不生效 / unset 没配 / unchecked 骨架没读到没核对 */
+  status: 'ok' | 'missing' | 'dangling' | 'inert' | 'unset' | 'unchecked'
+  /** 一句话结论（直接展示） */
+  message: string
+  /** 没配时程序回退用哪个逻辑键；null = 按 Word 默认样式输出 */
+  fallback: string | null
+}
+
+export interface TemplateStyleReadInput {
+  dir: string
+  id: string
+}
+
+/**
+ * 读一份样式模板：stylemap 原文（界面按字段改，没认得的字段原样保留）、
+ * 骨架里的样式表（下拉的选项）、按**引用它的结构模板**算出的对照表，
+ * 以及这份对照表被哪些结构模板共用（改它之前要知道影响面）。
+ */
+export interface TemplateStyleReadResult {
+  dir: string
+  id: string
+  /** manifest 登记的 stylemap 文件名 */
+  file: string
+  /** 结构模板引用它时写的 key：stylemap 文件名去掉 `.json` */
+  fileKey: string
+  doc: Record<string, unknown>
+  /** 骨架目录绝对路径（`docxFolder` 拼出来的；不看它存不存在） */
+  skeletonPath: string
+  skeletonExists: boolean
+  /** 骨架里的样式表；读不到是空表 */
+  skeletonStyles: SkeletonStyleDto[]
+  /** 骨架里有、这份对照表没人用的 styleId（顺便看看有没有漏配） */
+  unusedStyleIds: string[]
+  /** 对照表：认得的逻辑键全在，外加文件里多出来的键 */
+  rows: StyleMapRowDto[]
+  /** 哪些结构模板引用这份对照表 */
+  usedBy: Array<{ id: string; name: string; isDefault: boolean }>
+  issues: TemplateIssueDto[]
+}
+
 export interface UiStateSave {
   key: string
   value: string
@@ -335,6 +407,8 @@ export const ProjectIpc = {
   TemplateSnapshot: 'template:snapshot',
   /** 模板编辑：读一份结构模板原文 */
   TemplateRead: 'template:read',
+  /** 模板编辑：读一份样式模板（stylemap 原文 + 骨架样式表 + 对照表） */
+  TemplateReadStyle: 'template:read-style',
   /** 模板编辑：写回结构模板（原子写 + .bak），写入前必须零 error */
   TemplateSave: 'template:save',
   /** 模板编辑：新建结构模板并同步 manifest */
@@ -458,11 +532,12 @@ export interface DesktopBlockApi {
 
 /**
  * 模板编辑（PLAN-11）：只动模板目录里的 JSON，不碰工程库、不进撤销栈。
- * 结构模板可读可写；样式模板本批只读（对照表编辑在下一批）。
+ * 结构模板可读可写；样式模板可读，对照表（styleMap 与 captionNumbering）可写（批次 3）。
  */
 export interface DesktopTemplateEditorApi {
   snapshot(): Promise<TemplateEditorSnapshotDto>
   read(input: TemplateReadInput): Promise<TemplateReadResult>
+  readStyle(input: TemplateStyleReadInput): Promise<TemplateStyleReadResult>
   save(input: TemplateSaveInput): Promise<TemplateSaveResult>
   create(input: TemplateCreateInput): Promise<TemplateReadResult>
   remove(input: TemplateDeleteInput): Promise<TemplateDeleteResult>

@@ -35,6 +35,8 @@ import type {
   TemplateRenameInput,
   TemplateSaveInput,
   TemplateSaveResult,
+  TemplateStyleReadInput,
+  TemplateStyleReadResult,
   UiStateKeyInput
 } from '../shared/project'
 import { ProjectIpc } from '../shared/project'
@@ -302,6 +304,9 @@ export function registerProjectIpc(service: ProjectService): void {
   )
   handle<TemplateReadInput, TemplateReadResult>(ProjectIpc.TemplateRead, (input) =>
     templateEditor.read(input)
+  )
+  handle<TemplateStyleReadInput, TemplateStyleReadResult>(ProjectIpc.TemplateReadStyle, (input) =>
+    templateEditor.readStyle(input)
   )
   handle<TemplateSaveInput, TemplateSaveResult>(ProjectIpc.TemplateSave, (input) =>
     templateEditor.save(input)

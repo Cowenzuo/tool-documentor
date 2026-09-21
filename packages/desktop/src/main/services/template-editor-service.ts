@@ -3,7 +3,8 @@
  *
  * 边界：
  *   - 不依赖工程库/数据库，不进撤销栈（编辑模式与文档会话是两套东西）；
- *   - 结构模板可读可写；样式模板本批只读列出（对照表编辑在批次 3）；
+ *   - 结构模板可读可写；样式模板可读（stylemap 原文、骨架样式表、按结构用法算出的对照表），
+ *     写回与导入在批次 3 的后续步骤里接上；
  *   - 校验口径全部来自 `@documentor/templates` 的 validate：目录级用 `validateTemplateDir`，
  *     单份用 `validateStructureTemplate`，本文件不重写任何规则；
  *   - 写盘一律"先备份 → 写临时文件 → 改名覆盖"：任何一步失败都不留半截文件；
@@ -29,9 +30,20 @@ import {
 } from 'node:fs'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import { localIsoNow } from '@documentor/core/time'
-import { validateStructureTemplate, validateTemplateDir } from '@documentor/templates'
-import type { TemplateDirEntry, ValidationIssue } from '@documentor/templates'
+import {
+  buildStyleMapRows,
+  parseSkeletonIndex,
+  requiredStyleKeys,
+  styleTemplateKeys,
+  unusedSkeletonStyleIds,
+  validateStructureTemplate,
+  validateStyleTemplate,
+  validateTemplateDir
+} from '@documentor/templates'
+import type { SkeletonStyleInfo, TemplateDirEntry, ValidationIssue } from '@documentor/templates'
 import type {
+  SkeletonStyleDto,
+  StyleMapRowDto,
   TemplateCreateInput,
   TemplateDeleteInput,
   TemplateDeleteResult,
@@ -44,7 +56,9 @@ import type {
   TemplateRenameInput,
   TemplateRenameResult,
   TemplateSaveInput,
-  TemplateSaveResult
+  TemplateSaveResult,
+  TemplateStyleReadInput,
+  TemplateStyleReadResult
 } from '../../shared/project'
 
 /** 服务层错误：ipc 的 handle() 会把 message 原样交给渲染层 */
@@ -188,6 +202,52 @@ function toEntryDto(entry: TemplateDirEntry): TemplateEntryDto {
   }
 }
 
+/** 骨架样式 → DTO：界面上的下拉要的是"名字 + 能在 styles.xml 里认出它"，其余是顺带的线索 */
+function toSkeletonStyleDto(style: SkeletonStyleInfo): SkeletonStyleDto {
+  return {
+    styleId: style.styleId,
+    name: style.name,
+    type: style.type,
+    isDefault: style.isDefault,
+    ...(style.basedOn === undefined ? {} : { basedOn: style.basedOn }),
+    ...(style.fontSizePt === undefined ? {} : { fontSizePt: style.fontSizePt }),
+    ...(style.numbered === undefined ? {} : { numbered: style.numbered })
+  }
+}
+
+/** 与 `@documentor/templates` 同法：任意 JSON 值按 JS 插值语义转成文案 */
+function text(value: unknown): string {
+  return String(value)
+}
+
+/** 读一份 JSON 对象文件：不存在 / 读失败 / 解析失败 / 顶层不是对象都抛，消息里带上按哪个名字找的 */
+function readJsonObjectFile(
+  what: string,
+  label: string,
+  filePath: string,
+  hint = ''
+): Record<string, unknown> {
+  if (!existsSync(filePath)) {
+    throw new TemplateEditorError(`${what}文件不存在：${label}${hint}`)
+  }
+  let raw: string
+  try {
+    raw = readFileSync(filePath, 'utf8')
+  } catch (err) {
+    throw new TemplateEditorError(`${what}读取失败：${label}：${messageOf(err)}`)
+  }
+  let doc: unknown
+  try {
+    doc = JSON.parse(raw) as unknown
+  } catch (err) {
+    throw new TemplateEditorError(`${what} JSON 解析失败：${label}：${messageOf(err)}`)
+  }
+  if (!isPlainObject(doc)) {
+    throw new TemplateEditorError(`${what}顶层必须是 JSON 对象：${label}`)
+  }
+  return doc
+}
+
 /** 目录"可用"的判据：存在且 manifest 能解析（编辑模式默认打开它） */
 function isUsableDir(issues: readonly ValidationIssue[], exists: boolean): boolean {
   if (!exists) return false
@@ -266,6 +326,15 @@ interface ManifestStructureEntry {
   file: string
 }
 
+/** manifest 里的样式条目（与真实仓库同形：id / name / description / stylemap_file / style_folder） */
+interface ManifestStyleEntry {
+  id: string
+  name: string
+  description: string
+  stylemapFile: string
+  styleFolder: string
+}
+
 // ================= 定位 =================
 
 interface LocatedStructure {
@@ -283,6 +352,29 @@ interface LocatedStructure {
   filePath: string
   /** manifest 里的 name（有才传，用于"清单名与文件内 name 不一致"的告警） */
   manifestName: string
+  manifest: ManifestState
+}
+
+/**
+ * 定位 `styles/<id>/<stylemap_file>`：样式那份**没有**文件名约定，名字只能来自 manifest
+ * （结构侧还能按 `<id>-structure.json` 回落，样式侧的 fileKey 与目录名并不总是一致）。
+ * 所以 manifest 里没这条登记时直接报错，不猜。
+ */
+interface LocatedStyle {
+  dir: string
+  id: string
+  /** manifest 登记的 stylemap 文件名（含 .json） */
+  file: string
+  /** 引用它时写的 key：文件名去掉 .json */
+  fileKey: string
+  /** `styles/<id>` 绝对路径 */
+  dirPath: string
+  /** stylemap JSON 绝对路径 */
+  filePath: string
+  /** manifest 里的 name */
+  manifestName: string
+  /** manifest 里的 style_folder（与 stylemap 的 docxFolder 不一致时要告警） */
+  manifestStyleFolder: string
   manifest: ManifestState
 }
 
@@ -324,6 +416,69 @@ export class TemplateEditorService {
       file: located.file,
       doc,
       issues: this.validate(located, doc)
+    }
+  }
+
+  /**
+   * 读一份样式模板（PLAN-11 批次 3）：stylemap 原文 + 骨架样式表 + 对照表。
+   *
+   * 对照表里的"必需"不是把逻辑键一刀切，而是按**引用这份对照表的结构模板实际用到的块**
+   * 推导（`requiredStyleKeys`）：有表格才要 `table.*`，有图才要 `figure.caption`。
+   * 共用影响面（`usedBy`）与必需键用的是同一个引用口径（`styleTemplateKeys`，
+   * 加载器 `def.styleTemplates` 的"缺省回退为 [styleTemplate]"）。
+   *
+   * `issues` 是 `validateStyleTemplate` 的原话，与模板列表里的徽标、保存前的闸门同一份；
+   * `rows` 只是它的逐行视图，两者看的是同一份 styleMap 与同一个骨架索引。
+   */
+  readStyle(input: TemplateStyleReadInput): TemplateStyleReadResult {
+    const located = this.locateStyle(input.dir, input.id)
+    const doc = this.readStyleDoc(located)
+    const structureDocs = this.loadStructureDocs(located.dir)
+    const usedBy = structureDocs
+      .filter((s) => styleTemplateKeys(s.doc).includes(located.fileKey))
+      .map((s) => ({
+        id: s.id,
+        name: s.name,
+        isDefault: text(s.doc['styleTemplate'] ?? '') === located.fileKey
+      }))
+    const requirements = structureDocs
+      .filter((s) => styleTemplateKeys(s.doc).includes(located.fileKey))
+      .map((s) => ({ name: s.name, keys: requiredStyleKeys(s.doc) }))
+
+    const docxFolder = typeof doc['docxFolder'] === 'string' ? doc['docxFolder'] : ''
+    const skeletonPath = docxFolder === '' ? located.dirPath : join(located.dirPath, docxFolder)
+    const skeletonExists = docxFolder !== '' && existsSync(skeletonPath)
+    const index = skeletonExists ? parseSkeletonIndex(skeletonPath) : null
+    const skeletonStyles = index?.styles ?? []
+    // 一个 styleId 都读不到时不做 dangling 判定：那是"没得核对"，交给校验去报缺部件
+    const skeletonStyleIds = index !== null && index.styleIds.length > 0 ? index.styleIds : null
+    const styleMap = isPlainObject(doc['styleMap']) ? doc['styleMap'] : {}
+
+    const rows: StyleMapRowDto[] = buildStyleMapRows({
+      styleMap,
+      requirements,
+      skeletonStyleIds,
+      skeletonStyles
+    })
+
+    return {
+      dir: located.dir,
+      id: located.id,
+      file: located.file,
+      fileKey: located.fileKey,
+      doc,
+      skeletonPath,
+      skeletonExists,
+      skeletonStyles: skeletonStyles.map(toSkeletonStyleDto),
+      unusedStyleIds: unusedSkeletonStyleIds(styleMap, skeletonStyles),
+      rows,
+      usedBy,
+      issues: validateStyleTemplate(doc, structureDocs.map((s) => s.doc), {
+        id: located.id,
+        stylemapFile: located.file,
+        basePath: located.dirPath,
+        manifestStyleFolder: located.manifestStyleFolder || undefined
+      }).map(toIssueDto)
     }
   }
 
@@ -670,28 +825,110 @@ export class TemplateEditorService {
   /** 读一份结构模板原文（读不到 / 不是对象都抛，消息里带上按哪个名字找的） */
   private readStructureDoc(located: LocatedStructure): Record<string, unknown> {
     const label = `${STRUCTURES_DIR}/${located.id}/${located.file}`
-    if (!existsSync(located.filePath)) {
-      const hint = located.fileFromManifest
-        ? ''
-        : '（manifest 里没有该 id 的登记，按 <id>-structure.json 找的）'
-      throw new TemplateEditorError(`结构模板文件不存在：${label}${hint}`)
+    const hint = located.fileFromManifest
+      ? ''
+      : '（manifest 里没有该 id 的登记，按 <id>-structure.json 找的）'
+    return readJsonObjectFile('结构模板', label, located.filePath, hint)
+  }
+
+  /** manifest 里的样式条目（与结构条目同一套口径：缺 id 或缺文件名的整条丢掉） */
+  private declaredStyleEntries(manifest: ManifestState): ManifestStyleEntry[] {
+    if (manifest.status !== 'ok') return []
+    const raw = manifest.doc[STYLES_DIR]
+    if (!Array.isArray(raw)) return []
+    return raw.filter(isPlainObject).flatMap((e) => {
+      const id = typeof e['id'] === 'string' ? e['id'] : ''
+      const stylemapFile = typeof e['stylemap_file'] === 'string' ? e['stylemap_file'] : ''
+      if (id === '' || stylemapFile === '') return []
+      return [
+        {
+          id,
+          name: typeof e['name'] === 'string' ? e['name'] : '',
+          description: typeof e['description'] === 'string' ? e['description'] : '',
+          stylemapFile,
+          styleFolder: typeof e['style_folder'] === 'string' ? e['style_folder'] : ''
+        }
+      ]
+    })
+  }
+
+  /**
+   * 定位 `styles/<id>/<stylemap_file>`：文件名只能从 manifest 取（样式侧没有命名约定），
+   * 所以没登记就报错，不猜文件名。
+   */
+  private locateStyle(dir: string, id: string): LocatedStyle {
+    const root = this.requireTemplateDir(dir)
+    assertSafeId(id, '样式模板 id')
+    const manifest = readManifest(root)
+    if (manifest.status === 'broken') {
+      throw new TemplateEditorError(
+        `manifest.json 解析失败，读不到样式文件登记（先修好清单）：${manifest.reason}`
+      )
     }
-    let raw: string
-    try {
-      raw = readFileSync(located.filePath, 'utf8')
-    } catch (err) {
-      throw new TemplateEditorError(`结构模板读取失败：${label}：${messageOf(err)}`)
+    const entry = this.declaredStyleEntries(manifest).find((e) => e.id === id)
+    if (!entry) {
+      throw new TemplateEditorError(
+        `manifest.styles 里没有 id 为「${id}」的登记：样式文件名只能从清单取，没法按约定猜`
+      )
     }
-    let doc: unknown
-    try {
-      doc = JSON.parse(raw) as unknown
-    } catch (err) {
-      throw new TemplateEditorError(`结构模板 JSON 解析失败：${label}：${messageOf(err)}`)
+    const dirPath = join(root, STYLES_DIR, id)
+    const filePath = join(dirPath, entry.stylemapFile)
+    // manifest 的 stylemap_file 理论上是文件名：写了 `..\..\x.json` 也不能让它跑出模板目录
+    const base = resolve(dirPath)
+    if (resolve(filePath) !== base && !resolve(filePath).startsWith(base + sep)) {
+      throw new TemplateEditorError(
+        `manifest 登记的 stylemap_file 越出模板目录：styles/${id}/${entry.stylemapFile}`
+      )
     }
-    if (!isPlainObject(doc)) {
-      throw new TemplateEditorError(`结构模板顶层必须是 JSON 对象：${label}`)
+    return {
+      dir: root,
+      id,
+      file: entry.stylemapFile,
+      fileKey: entry.stylemapFile.replace(/\.json$/u, ''),
+      dirPath,
+      filePath,
+      manifestName: entry.name,
+      manifestStyleFolder: entry.styleFolder,
+      manifest
     }
-    return doc
+  }
+
+  /** 读一份样式模板原文 */
+  private readStyleDoc(located: LocatedStyle): Record<string, unknown> {
+    return readJsonObjectFile(
+      '样式模板',
+      `${STYLES_DIR}/${located.id}/${located.file}`,
+      located.filePath
+    )
+  }
+
+  /**
+   * 读模板目录里全部能读出来的结构模板原文（算"必需样式键"与"共用影响面"的输入）。
+   * 读不出来的那份直接跳过：那是目录级校验要报的事，这里只是算必需键的原料，
+   * 不该因为它把整份样式读不出来。
+   */
+  private loadStructureDocs(
+    dir: string
+  ): Array<{ id: string; name: string; doc: Record<string, unknown> }> {
+    const manifest = readManifest(dir)
+    if (manifest.status !== 'ok') return []
+    const out: Array<{ id: string; name: string; doc: Record<string, unknown> }> = []
+    for (const entry of this.declaredStructureEntries(manifest)) {
+      const itemDir = join(dir, STRUCTURES_DIR, entry.id)
+      const filePath = join(itemDir, entry.file)
+      if (resolve(filePath) !== resolve(itemDir) && !resolve(filePath).startsWith(resolve(itemDir) + sep)) {
+        continue
+      }
+      let doc: Record<string, unknown>
+      try {
+        doc = readJsonObjectFile('结构模板', `${STRUCTURES_DIR}/${entry.id}/${entry.file}`, filePath)
+      } catch {
+        continue
+      }
+      const name = typeof doc['name'] === 'string' && doc['name'] !== '' ? doc['name'] : entry.name || entry.id
+      out.push({ id: entry.id, name, doc })
+    }
+    return out
   }
 
   private validate(located: LocatedStructure, doc: Record<string, unknown>): ValidationIssue[] {
