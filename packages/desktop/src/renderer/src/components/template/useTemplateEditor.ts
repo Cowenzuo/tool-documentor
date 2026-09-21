@@ -35,7 +35,7 @@ import {
   patchNodeAt,
   rawChildren,
   removeBlockAt,
-  removeNodeAt,
+  removeNodeAt as removeNodeAtInDoc,
   type NodePath,
   type TemplateDoc,
   type TemplateObject
@@ -128,11 +128,10 @@ export interface UseTemplateEditorResult {
   expandAll: () => void
   collapseAll: () => void
   patchSelectedNode: (patch: TemplateObject) => void
-  addChildNode: () => void
-  addSiblingNode: () => void
-  moveSelectedNode: (delta: -1 | 1) => void
-  canMoveSelected: { up: boolean; down: boolean }
-  removeSelectedNode: () => void
+  addChildAt: (path: NodePath) => void
+  addSiblingAt: (path: NodePath) => void
+  moveNodeAt: (path: NodePath, delta: -1 | 1) => void
+  removeNodeAt: (path: NodePath) => void
   patchBlock: (index: number, patch: TemplateObject) => void
   addBlock: (type: string) => void
   moveBlock: (index: number, delta: -1 | 1) => void
@@ -491,54 +490,58 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     [mutate, selectedPath]
   )
 
-  const addChildNode = useCallback((): void => {
-    if (!doc) return
-    const parent = nodeAt(doc, selectedPath)
-    if (!parent) return
-    const index = rawChildren(parent).length
-    const level = headingLevel(parent) + 1
-    // 一级给 chapter、更深给 section：与现有模板的写法一致（nodeType 只在 subTitle 上有语义）
-    const child = createTemplateNode(level, level <= 1 ? 'chapter' : 'section')
-    mutate((current) => insertChildAt(current, selectedPath, child))
-    setExpanded((current) => new Set(current).add(pathKey(selectedPath)))
-    setSelectedPath([...selectedPath, index])
-  }, [doc, mutate, selectedPath])
-
-  const addSiblingNode = useCallback((): void => {
-    if (!doc || selectedPath.length === 0) return
-    const node = nodeAt(doc, selectedPath)
-    if (!node) return
-    const sibling = createTemplateNode(headingLevel(node), nodeType(node) || 'section')
-    mutate((current) => insertSiblingAfter(current, selectedPath, sibling))
-    const index = selectedPath[selectedPath.length - 1] ?? 0
-    setSelectedPath([...selectedPath.slice(0, -1), index + 1])
-  }, [doc, mutate, selectedPath])
-
-  const moveSelectedNode = useCallback(
-    (delta: -1 | 1): void => {
-      mutate((current) => moveNodeIn(current, selectedPath, delta))
-      const index = selectedPath[selectedPath.length - 1]
-      if (index === undefined) return
-      setSelectedPath([...selectedPath.slice(0, -1), index + delta])
+  /**
+   * 树上的四个结构操作：都按**传进来的那个节点**办事，不看当前选中谁是——
+   * 节点树每一行悬停就能出这排按钮，点的必须是那一行，而不是"碰巧选中的那个"。
+   */
+  const addChildAt = useCallback(
+    (path: NodePath): void => {
+      if (!doc) return
+      const parent = nodeAt(doc, path)
+      if (!parent) return
+      const index = rawChildren(parent).length
+      const level = headingLevel(parent) + 1
+      // 一级给 chapter、更深给 section：与现有模板的写法一致（nodeType 只在 subTitle 上有语义）
+      const child = createTemplateNode(level, level <= 1 ? 'chapter' : 'section')
+      mutate((current) => insertChildAt(current, path, child))
+      setExpanded((current) => new Set(current).add(pathKey(path)))
+      setSelectedPath([...path, index])
     },
-    [mutate, selectedPath]
+    [doc, mutate]
   )
 
-  const canMoveSelected = useMemo(() => {
-    if (!doc || selectedPath.length === 0) return { up: false, down: false }
-    const parentPath = selectedPath.slice(0, -1)
-    const index = selectedPath[selectedPath.length - 1] ?? 0
-    const parent = nodeAt(doc, parentPath)
-    if (!parent) return { up: false, down: false }
-    const count = rawChildren(parent).length
-    return { up: index > 0, down: index < count - 1 }
-  }, [doc, selectedPath])
+  const addSiblingAt = useCallback(
+    (path: NodePath): void => {
+      if (!doc || path.length === 0) return
+      const node = nodeAt(doc, path)
+      if (!node) return
+      const sibling = createTemplateNode(headingLevel(node), nodeType(node) || 'section')
+      mutate((current) => insertSiblingAfter(current, path, sibling))
+      const index = path[path.length - 1] ?? 0
+      setSelectedPath([...path.slice(0, -1), index + 1])
+    },
+    [doc, mutate]
+  )
 
-  const removeSelectedNode = useCallback((): void => {
-    if (selectedPath.length === 0) return
-    mutate((current) => removeNodeAt(current, selectedPath))
-    setSelectedPath(selectedPath.slice(0, -1))
-  }, [mutate, selectedPath])
+  const moveNodeAt = useCallback(
+    (path: NodePath, delta: -1 | 1): void => {
+      if (path.length === 0) return
+      mutate((current) => moveNodeIn(current, path, delta))
+      const index = path[path.length - 1]
+      if (index === undefined) return
+      setSelectedPath([...path.slice(0, -1), index + delta])
+    },
+    [mutate]
+  )
+
+  const removeNodeAt = useCallback(
+    (path: NodePath): void => {
+      if (path.length === 0) return
+      mutate((current) => removeNodeAtInDoc(current, path))
+      setSelectedPath(path.slice(0, -1))
+    },
+    [mutate]
+  )
 
   const patchBlock = useCallback(
     (index: number, patch: TemplateObject): void =>
@@ -604,11 +607,10 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     expandAll,
     collapseAll,
     patchSelectedNode,
-    addChildNode,
-    addSiblingNode,
-    moveSelectedNode,
-    canMoveSelected,
-    removeSelectedNode,
+    addChildAt,
+    addSiblingAt,
+    moveNodeAt,
+    removeNodeAt,
     patchBlock,
     addBlock,
     moveBlock,

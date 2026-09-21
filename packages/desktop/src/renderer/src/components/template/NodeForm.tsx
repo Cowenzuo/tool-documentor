@@ -37,12 +37,7 @@ interface NodeFormProps {
   /** 该节点下的全部结论（含内容块） */
   issues: TemplateIssueDto[]
   nodeTypes: string[]
-  canMove: { up: boolean; down: boolean }
   onPatch: (patch: TemplateObject) => void
-  onAddChild: () => void
-  onAddSibling: () => void
-  onMove: (delta: -1 | 1) => void
-  onRemove: () => void
   onBlockPatch: (index: number, patch: TemplateObject) => void
   onBlockMove: (index: number, delta: -1 | 1) => void
   onBlockRemove: (index: number) => void
@@ -55,7 +50,7 @@ const BLOCK_TYPE_OPTIONS = BLOCK_TYPE_NAMES.map((name) => ({
 }))
 
 export function NodeForm(props: NodeFormProps): JSX.Element {
-  const { doc, status, node, path, issues, nodeTypes, canMove } = props
+  const { doc, status, node, path, issues, nodeTypes } = props
   const [addType, setAddType] = useState<string>(BLOCK_TYPE_NAMES[0])
   /**
    * 展开着哪几张内容块卡片：各自独立开合（同时开多张是常态——对照两张表的列或两段文本时要用）。
@@ -214,59 +209,6 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
         )}
 
         <IssueLines issues={nodeIssues} />
-
-        {/* 节点操作放在属性之后：面板开头先是"内容是什么"，再是"拿这个节点怎么办" */}
-        <div className="tpl-actions">
-          <button
-            type="button"
-            className="tpl-icon-btn"
-            title="在它下面加一个子节点"
-            aria-label="添加子节点"
-            onClick={props.onAddChild}
-          >
-            <AddChildIcon />
-          </button>
-          <button
-            type="button"
-            className="tpl-icon-btn"
-            title={isRoot ? '根节点没有同级' : '在它后面加一个同级节点'}
-            aria-label="添加同级"
-            disabled={isRoot}
-            onClick={props.onAddSibling}
-          >
-            <AddSiblingIcon />
-          </button>
-          <button
-            type="button"
-            className="tpl-icon-btn"
-            title="上移"
-            aria-label="上移"
-            disabled={!canMove.up}
-            onClick={() => props.onMove(-1)}
-          >
-            <MoveUpIcon />
-          </button>
-          <button
-            type="button"
-            className="tpl-icon-btn"
-            title="下移"
-            aria-label="下移"
-            disabled={!canMove.down}
-            onClick={() => props.onMove(1)}
-          >
-            <MoveDownIcon />
-          </button>
-          <button
-            type="button"
-            className="tpl-icon-btn tpl-danger"
-            title={isRoot ? '根节点不能删除' : '删除该节点及其子节点'}
-            aria-label="删除节点"
-            disabled={isRoot}
-            onClick={props.onRemove}
-          >
-            <TrashIcon />
-          </button>
-        </div>
 
         <section className="tpl-blocks">
           <header className="tpl-blocks-head">

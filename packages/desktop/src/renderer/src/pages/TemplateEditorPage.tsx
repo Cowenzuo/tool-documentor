@@ -314,6 +314,10 @@ export default function TemplateEditorPage(): JSX.Element {
           onToggle={editor.toggleExpand}
           onExpandAll={editor.expandAll}
           onCollapseAll={editor.collapseAll}
+          onAddChild={editor.addChildAt}
+          onAddSibling={editor.addSiblingAt}
+          onMove={editor.moveNodeAt}
+          onRemove={editor.removeNodeAt}
         />
         <div
           className="tpl-split"
@@ -335,12 +339,7 @@ export default function TemplateEditorPage(): JSX.Element {
           path={editor.selectedPath}
           issues={nodeIssues}
           nodeTypes={editor.nodeTypes}
-          canMove={editor.canMoveSelected}
           onPatch={editor.patchSelectedNode}
-          onAddChild={editor.addChildNode}
-          onAddSibling={editor.addSiblingNode}
-          onMove={editor.moveSelectedNode}
-          onRemove={editor.removeSelectedNode}
           onBlockPatch={editor.patchBlock}
           onBlockMove={editor.moveBlock}
           onBlockRemove={editor.removeBlock}

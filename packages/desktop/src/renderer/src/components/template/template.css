@@ -577,6 +577,7 @@ body.is-splitting {
 }
 
 /* 节点操作：放在属性之后，安静一点；真正的分界在下面「内容块」那一条 */
+/* 节点操作已挪到节点树的每一行上（见 .tpl-tree-actions），这里只留内容块那一段的间距 */
 .tpl-actions {
   display: flex;
   flex-wrap: wrap;
@@ -691,6 +692,7 @@ body.is-splitting {
 
 /* ===== 中栏：节点树 ===== */
 .tpl-tree-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -698,6 +700,46 @@ body.is-splitting {
   border-radius: var(--radius-control);
   min-width: 0;
   cursor: default;
+}
+
+/* 结构操作浮在行的右端：悬停、选中或键盘走进来时出现。
+   用浮层而不是挤进流里——不然每行的标题都会被这排按钮压短。 */
+.tpl-tree-actions {
+  display: none;
+  position: absolute;
+  right: 4px;
+  top: 1px;
+  bottom: 1px;
+  align-items: center;
+  gap: 1px;
+  padding-left: 10px;
+  border-radius: var(--radius-control);
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--bg-hover) 10px,
+    var(--bg-hover)
+  );
+}
+
+.tpl-tree-row.is-selected .tpl-tree-actions {
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--accent-soft) 10px,
+    var(--accent-soft)
+  );
+}
+
+.tpl-tree-row:hover .tpl-tree-actions,
+.tpl-tree-row:focus-within .tpl-tree-actions,
+.tpl-tree-row.is-selected .tpl-tree-actions {
+  display: flex;
+}
+
+.tpl-tree-actions .tpl-icon-btn {
+  width: 22px;
+  height: 22px;
 }
 
 .tpl-tree-row:hover {

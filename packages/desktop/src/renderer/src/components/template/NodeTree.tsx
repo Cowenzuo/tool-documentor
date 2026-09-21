@@ -6,7 +6,7 @@
 import { useEffect, useRef, type JSX } from 'react'
 import type { TemplateIssueDto } from '../../../../shared/project'
 import { ChevronDownIcon } from '../icons'
-import { CollapseAllIcon, ExpandAllIcon } from './icons'
+import { AddChildIcon, AddSiblingIcon, CollapseAllIcon, ExpandAllIcon, MoveDownIcon, MoveUpIcon, TrashIcon } from './icons'
 import {
   asObject,
   hasChildren,
@@ -35,6 +35,11 @@ interface NodeTreeProps {
   onToggle: (key: string) => void
   onExpandAll: () => void
   onCollapseAll: () => void
+  /** 结构操作按"点的是哪一行"办事，所以都带 path */
+  onAddChild: (path: NodePath) => void
+  onAddSibling: (path: NodePath) => void
+  onMove: (path: NodePath, delta: -1 | 1) => void
+  onRemove: (path: NodePath) => void
 }
 
 function IssueDot({ issues }: { issues: TemplateIssueDto[] }): JSX.Element | null {
@@ -48,20 +53,33 @@ function Row({
   node,
   path,
   depth,
+  index,
+  siblingCount,
   selectedPath,
   expanded,
   issues,
   onSelect,
-  onToggle
+  onToggle,
+  onAddChild,
+  onAddSibling,
+  onMove,
+  onRemove
 }: {
   node: TemplateObject
   path: NodePath
   depth: number
+  /** 在父节点里的次序与同层节点数：决定上移/下移/加同级能不能用 */
+  index: number
+  siblingCount: number
   selectedPath: NodePath
   expanded: Set<string>
   issues: TemplateIssueDto[]
   onSelect: (path: NodePath) => void
   onToggle: (key: string) => void
+  onAddChild: (path: NodePath) => void
+  onAddSibling: (path: NodePath) => void
+  onMove: (path: NodePath, delta: -1 | 1) => void
+  onRemove: (path: NodePath) => void
 }): JSX.Element {
   const key = pathKey(path)
   const isRoot = path.length === 0
@@ -73,6 +91,8 @@ function Row({
   const blocks = rawBlocks(node).length
   const typeBadge = nodeTypeBadge(node)
   const under = issuesUnder(issues, nodeJsonPath(path))
+  const canMoveUp = !isRoot && index > 0
+  const canMoveDown = !isRoot && index < siblingCount - 1
 
   return (
     <div>
@@ -115,23 +135,97 @@ function Row({
         {typeBadge !== null && <span className="tpl-tree-type">{typeBadge}</span>}
         {blocks > 0 && <span className="tpl-tree-count">{blocks} 块</span>}
         <IssueDot issues={under} />
+        {/* 结构操作在这一行上：悬停或选中时右侧浮出，点的是这一行的节点 */}
+        <span className="tpl-tree-actions">
+          <button
+            type="button"
+            className="tpl-icon-btn"
+            title="在它下面加一个子节点"
+            aria-label="添加子节点"
+            onClick={(event) => {
+              event.stopPropagation()
+              onAddChild(path)
+            }}
+          >
+            <AddChildIcon size={12} />
+          </button>
+          <button
+            type="button"
+            className="tpl-icon-btn"
+            title={isRoot ? '根节点没有同级' : '在它后面加一个同级节点'}
+            aria-label="添加同级"
+            disabled={isRoot}
+            onClick={(event) => {
+              event.stopPropagation()
+              onAddSibling(path)
+            }}
+          >
+            <AddSiblingIcon size={12} />
+          </button>
+          <button
+            type="button"
+            className="tpl-icon-btn"
+            title={isRoot ? '根节点不能移动' : canMoveUp ? '上移' : '已经是第一个'}
+            aria-label="上移"
+            disabled={!canMoveUp}
+            onClick={(event) => {
+              event.stopPropagation()
+              onMove(path, -1)
+            }}
+          >
+            <MoveUpIcon size={12} />
+          </button>
+          <button
+            type="button"
+            className="tpl-icon-btn"
+            title={isRoot ? '根节点不能移动' : canMoveDown ? '下移' : '已经是最后一个'}
+            aria-label="下移"
+            disabled={!canMoveDown}
+            onClick={(event) => {
+              event.stopPropagation()
+              onMove(path, 1)
+            }}
+          >
+            <MoveDownIcon size={12} />
+          </button>
+          <button
+            type="button"
+            className="tpl-icon-btn tpl-danger"
+            title={isRoot ? '根节点不能删除' : '删除该节点及其子节点'}
+            aria-label="删除节点"
+            disabled={isRoot}
+            onClick={(event) => {
+              event.stopPropagation()
+              onRemove(path)
+            }}
+          >
+            <TrashIcon size={12} />
+          </button>
+        </span>
       </div>
       {hasChild &&
         open &&
-        rawChildren(node).map((raw, index) => {
+        rawChildren(node).map((raw, childIndex) => {
           const child = asObject(raw)
           if (!child) return null
+          const siblings = rawChildren(node)
           return (
             <Row
-              key={`${key}.${index}`}
+              key={`${key}.${childIndex}`}
               node={child}
-              path={[...path, index]}
+              path={[...path, childIndex]}
               depth={depth + 1}
+              index={childIndex}
+              siblingCount={siblings.length}
               selectedPath={selectedPath}
               expanded={expanded}
               issues={issues}
               onSelect={onSelect}
               onToggle={onToggle}
+              onAddChild={onAddChild}
+              onAddSibling={onAddSibling}
+              onMove={onMove}
+              onRemove={onRemove}
             />
           )
         })}
@@ -191,11 +285,17 @@ export function NodeTree(props: NodeTreeProps): JSX.Element {
             node={root}
             path={[]}
             depth={0}
+            index={0}
+            siblingCount={1}
             selectedPath={selectedPath}
             expanded={expanded}
             issues={issues}
             onSelect={onSelect}
             onToggle={onToggle}
+            onAddChild={props.onAddChild}
+            onAddSibling={props.onAddSibling}
+            onMove={props.onMove}
+            onRemove={props.onRemove}
           />
         )}
       </div>
