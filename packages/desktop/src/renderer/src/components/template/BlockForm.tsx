@@ -151,7 +151,7 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
           type="button"
           className="tpl-block-toggle"
           aria-expanded={open}
-          title={open ? '收起这一块' : '展开这一块'}
+          aria-label={open ? '收起这一块' : '展开这一块'}
           onClick={onToggle}
         >
           <ChevronDownIcon size={13} className={open ? 'open' : ''} />
@@ -174,7 +174,7 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
           <button
             type="button"
             className="tpl-icon-btn"
-            title={moveUpTitle ?? '上移'}
+            title={moveUpTitle}
             aria-label="上移这一块"
             onClick={() => onMove(-1)}
             disabled={index === 0 || locked || prevLocked}
@@ -184,7 +184,7 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
           <button
             type="button"
             className="tpl-icon-btn"
-            title={moveDownTitle ?? '下移'}
+            title={moveDownTitle}
             aria-label="下移这一块"
             onClick={() => onMove(1)}
             disabled={index === count - 1 || locked || nextLocked}
@@ -194,7 +194,7 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
           <button
             type="button"
             className="tpl-icon-btn tpl-danger"
-            title={locked ? deleteLockedWhy : '删除这个内容块'}
+            title={locked ? deleteLockedWhy : undefined}
             aria-label="删除这一块"
             onClick={onRemove}
             disabled={locked}
@@ -221,7 +221,7 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
           </Field>
           <Field
             label="锁"
-            tip={jsonTip('lock', 'type 只锁类型 / keep 锁删除与移动 / readonly 连内容也锁')}
+            tip={jsonTip('lock', '取值：type / keep / readonly')}
           >
             <select
               className="tpl-select"

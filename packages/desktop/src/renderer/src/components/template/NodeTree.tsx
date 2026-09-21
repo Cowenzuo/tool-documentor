@@ -162,7 +162,7 @@ function Row({
             根
           </span>
         ) : kind === 'listSubTitle' ? (
-          <span className={`tpl-tree-badge tpl-tree-badge-list lv${levelClass(level)}`} title={`列表子标题，第 ${level} 级`}>
+          <span className={`tpl-tree-badge tpl-tree-badge-list lv${levelClass(level)}`} title={`列表子标题 · 本层第 ${listIndex} 个`}>
             {circled(listIndex)}
           </span>
         ) : (

@@ -14,8 +14,8 @@ export interface MenuPoint {
 
 export interface MenuItem {
   label: string
-  /** 悬停提示：能做的说清做什么，按不了的说清为什么 */
-  title: string
+  /** 悬停提示：只在能做的说不了（按不了的原因、有副作用的地方）才给，别复述 label */
+  title?: string
   disabled?: boolean
   danger?: boolean
   run: () => void

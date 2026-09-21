@@ -202,7 +202,7 @@ export function StyleTable({
                 <button
                   type="button"
                   className="tpl-mini"
-                  title="加一层：默认写「标题 N」，可以改成 Word 里那个样式名"
+                  title="加一层：默认写「标题 N」，也可以改成 Word 里那个样式名"
                   onClick={() => {
                     const used = new Set(chapterLevels.map((level) => Number(level)))
                     let level = 2
@@ -231,7 +231,7 @@ export function StyleTable({
                       <button
                         type="button"
                         className="tpl-icon-btn"
-                        title={`删掉「${level} 级标题」这一条`}
+                        title={`删掉后这一级按「标题 N」兜底`}
                         aria-label={`删掉 ${level} 级标题的章节样式名`}
                         onClick={() => onChapterStyleName(level, null)}
                       >
@@ -337,24 +337,20 @@ function GroupRows({
               <code className="tpl-mono">{row.key}</code>
               {/* 「不读」是键自己的属性（不是这一行配得对不对），所以挂在键这一格 */}
               {!row.read && (
-                <span className="tpl-count" title="程序不读这个键：列表各层都用第 1 档">
+                <span className="tpl-count" title="程序不读：列表各层都用第 1 档">
                   不读
                 </span>
               )}
             </th>
             <td className="tpl-map-usage">{row.usage}</td>
             <td className="tpl-map-target">
-              {/* 映射就是这一列的活：选骨架里的一条样式；「（不配）」= 把这一项从 styleMap 里删掉 */}
+              {/* 映射就是这一列的活：选骨架里的一条样式；「（不配）」= 把这一项从 styleMap 里删掉。
+                  选中项的说明只说下拉里看不到的（类型、字号、编号）——
+                  "没配 / 骨架里没有"这种话选项文字与状态列都已经写着 */}
               <select
                 className="tpl-select tpl-map-select"
                 value={row.styleId}
-                title={
-                  target
-                    ? skeletonStyleTip(target)
-                    : row.styleId === ''
-                      ? '这一行现在没配'
-                      : `骨架 styles.xml 里没有 ${row.styleId}`
-                }
+                title={target ? skeletonStyleTip(target) : undefined}
                 onChange={(event) => onMap(row.key, event.target.value === '' ? null : event.target.value)}
               >
                 <option value="">（不配）</option>

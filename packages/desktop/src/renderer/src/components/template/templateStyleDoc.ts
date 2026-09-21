@@ -38,16 +38,16 @@ export function styleStatusTone(status: StyleRowStatus): 'error' | 'warn' | 'pla
   return 'plain'
 }
 
-/** 骨架里一条样式的悬停说明：名字、类型、字号、带不带自动编号 */
+/**
+ * 骨架里一条样式的悬停说明：只说下拉框上看不到的那几项（类型、字号、带不带自动编号）。
+ * 名字与 styleId 就摆在选项里（选完还在下拉右边又写一遍），不再念第三遍。
+ */
 export function skeletonStyleTip(style: {
-  styleId: string
-  name: string
   type: string
   fontSizePt?: number
   numbered?: boolean
 }): string {
-  const parts = [style.name === '' ? style.styleId : `${style.name}（${style.styleId}）`]
-  parts.push(style.type === '' ? '未写类型' : style.type)
+  const parts = [style.type === '' ? '未写类型' : style.type]
   if (style.fontSizePt !== undefined) parts.push(`${style.fontSizePt} 磅`)
   if (style.numbered === true) parts.push('自带多级列表编号')
   return parts.join(' · ')

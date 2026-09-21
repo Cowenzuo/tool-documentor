@@ -71,10 +71,10 @@ function AddBlockMenu({ onPick }: { onPick: (type: string) => void }): JSX.Eleme
           key={name}
           type="button"
           role="menuitem"
-          title={describeBlockType(name)}
           onClick={() => onPick(name as string)}
         >
           <span className="tpl-add-label">{BLOCK_TYPE_LABELS[name]}</span>
+          {/* 说明就在按钮上写着，不再挂一份一样的 title */}
           <span className="tpl-add-desc">{describeBlockType(name)}</span>
         </button>
       ))}
@@ -294,7 +294,7 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
         {/* 级别当信息看（跟树上那枚徽标同一个数）：它决定导出用哪套标题样式 */}
         <span
           className="tpl-level"
-          title={isRoot ? '根节点：整篇文档' : `第 ${level} 级标题：导出用这套标题样式`}
+          title={isRoot ? '根节点' : `第 ${level} 级标题（导出按它取样式）`}
         >
           {isRoot ? '根' : `${level} 级`}
         </span>
@@ -310,29 +310,26 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
           <TextField
             label="标题"
             htmlFor="tpl-node-title"
-            tip={jsonTip('title', '这个节点在文档里的标题文字')}
+            tip={jsonTip('title')}
             value={nodeTitle(node)}
             placeholder="章节标题"
             extra={
               <span className="tpl-switches" role="group" aria-label="用户在新工程里能做什么">
                 <CheckField
                   label="复制"
-                  tip={jsonTip('copyable', '用户在新工程里可以复制这个节点')}
+                  tip={jsonTip('copyable')}
                   checked={nodeSwitch(node, 'copyable')}
                   onChange={(checked) => props.onPatch({ copyable: checked })}
                 />
                 <CheckField
                   label="裁剪"
-                  tip={jsonTip('deletable', '用户在新工程里可以删除（裁剪掉）这个节点')}
+                  tip={jsonTip('deletable')}
                   checked={nodeSwitch(node, 'deletable')}
                   onChange={(checked) => props.onPatch({ deletable: checked })}
                 />
                 <CheckField
                   label="编辑"
-                  tip={jsonTip(
-                    'allowContentBlocks',
-                    '用户在新工程里可以往这个节点加内容块（已有的内容能不能改，看每一块自己的锁）'
-                  )}
+                  tip={jsonTip('allowContentBlocks')}
                   checked={nodeSwitch(node, 'allowContentBlocks')}
                   onChange={(checked) => props.onPatch({ allowContentBlocks: checked })}
                 />
@@ -342,10 +339,7 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
           />
           <SelectField
             label="类型"
-            tip={jsonTip(
-              'nodeType',
-              '只按用途分两种：层级标题（进章节编号链） / 列表子标题（不占编号链，导出按 a/b/c 编号）'
-            )}
+            tip={jsonTip('nodeType')}
             value={isRoot ? 'heading' : kind}
             options={kindOptions}
             disabled={kindLocked}
@@ -376,15 +370,14 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
 
         {kind === 'listSubTitle' && (
           <p className="tpl-note">
-            列表子标题：不占章节编号链，导出时按同级里的 a/b/c 编号（样式 subtitle.
-            {subTitleDepthOf(doc, path)}）
+            不占章节编号链，导出按 a/b/c 编号（样式 subtitle.{subTitleDepthOf(doc, path)}）
           </p>
         )}
 
         {/* 第二行：说明常驻（写给作者与用户的填写提示），排在三个开关前面 */}
         <TextAreaField
           label="说明"
-          tip={jsonTip('description', '写给作者和用户看的填写提示')}
+          tip={jsonTip('description')}
           value={str(node['description'])}
           placeholder="给作者与用户看的填写提示（可留空）"
           rows={3}
@@ -422,10 +415,7 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
                         checked={ref.available}
                         onChange={(checked) => toggleRef(ref.fileKey, checked)}
                       />
-                      <label
-                        className="tpl-ref-default"
-                        title="导出时默认用这份（要先把左边的「可用」打上）"
-                      >
+                      <label className="tpl-ref-default" title="导出时默认用这份">
                         <input
                           type="radio"
                           name="tpl-default-style"
@@ -439,9 +429,9 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
                         <button
                           type="button"
                           className="tpl-mini tpl-inline-action"
-                          title={`这份对照表还被 ${ref.usedBy
+                          title={`还被 ${ref.usedBy
                             .filter((name) => name !== docName)
-                            .join('、')} 共用：另存一份给这份结构专用，改起来不影响别人`}
+                            .join('、')} 共用：另存一份，改它不影响那边`}
                           onClick={() => props.onForkStyle(ref.id)}
                         >
                           另存为专用
@@ -452,8 +442,7 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
                 </ul>
                 {sharedNames.length > 0 && (
                   <p className="tpl-note">
-                    共用的对照表：{sharedNames.join('、')} 还被别的结构模板用着，改它会影响那边；
-                    只想改这一份就点「另存为专用」。
+                    共用的对照表：{sharedNames.join('、')} 还被别的结构模板用着，改它会影响那边。
                   </p>
                 )}
                 {noDefault && (
@@ -499,7 +488,6 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
                       className="tpl-insert-btn"
                       aria-expanded={insertAt === index}
                       aria-label={`在第 ${index + 1} 块上方插入内容块`}
-                      title="在第这一块上方插入"
                       onClick={() => setInsertAt(insertAt === index ? null : index)}
                     >
                       ＋ 在此插入
@@ -533,7 +521,6 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
               type="button"
               className="tpl-add-btn"
               aria-expanded={insertAt === blocks.length}
-              title="在末尾添加内容块"
               onClick={() => setInsertAt(insertAt === blocks.length ? null : blocks.length)}
             >
               ＋ 添加内容

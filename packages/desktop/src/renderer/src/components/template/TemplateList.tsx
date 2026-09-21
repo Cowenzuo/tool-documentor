@@ -56,10 +56,9 @@ function badges(entry: TemplateEntryDto, what: 'structure' | 'style'): JSX.Eleme
   ]
     .filter((part) => part !== '')
     .join(' · ')
-  const hint =
-    what === 'structure'
-      ? `校验结论：${counts}。打开这份模板，右栏与页脚会逐条说清`
-      : `校验结论：${counts}。打开它看对照表：每一行配到了哪条样式、缺了什么。样式文件本身不改`
+  // 徽标上只有两个数字：悬停要说的是"这两个数字是什么"（红=错误、琥珀=提示），
+  // 不是把数字再念一遍，也不是"打开后去哪儿看"那类旁白。
+  const hint = `校验结论：${counts}`
   return (
     <span className="tpl-badges" title={hint}>
       {entry.errors > 0 && <span className="tpl-badge tpl-badge-error">{entry.errors}</span>}
@@ -121,7 +120,7 @@ function CreateForm({
       <label className="tpl-field">
         <span
           className="tpl-field-label"
-          title={jsonTip('styleTemplate', '写样式对照表的文件键：stylemap 文件名去掉 .json')}
+          title={jsonTip('styleTemplate', '写对照表的文件键：文件名去掉 .json')}
         >
           配对的样式模板<span className="tpl-field-hint">可留空</span>
         </span>
@@ -214,7 +213,7 @@ function ImportForm({
       <div className="tpl-field">
         <span
           className="tpl-field-label"
-          title="程序只解包与检查，一个字节的 XML 都不改；导入后按样式名生成映射草稿"
+          title="不改样式文件；导入后按样式名生成映射草稿"
         >
           样式文件<span className="tpl-field-hint">.docx 或已解包的骨架目录</span>
         </span>
@@ -404,7 +403,7 @@ export function TemplateList(props: TemplateListProps): JSX.Element {  const { s
             {mode === 'rename' && openKind === 'structure' && selected && (
               <div className="tpl-form">
                 <label className="tpl-field">
-                  <span className="tpl-field-label" title={jsonTip('id', '目录名，也是文件名前缀；改它会连同目录与文件一起改名')}>
+                  <span className="tpl-field-label" title={jsonTip('id', '目录名，也是文件名前缀')}>
                     模板 id<span className="tpl-field-hint">目录名</span>
                   </span>
                   <input
@@ -479,7 +478,7 @@ export function TemplateList(props: TemplateListProps): JSX.Element {  const { s
                 样式文件（stylemap 的骨架）程序一个字节都不改，所以这里没有新建/改名/删除。 */}
             <div
               className="tpl-section-head"
-              title="样式文件由作者提供，程序只解包与检查；这里改的是结构与样式之间的对照表（styleMap 与题注编号）"
+              title="样式文件由作者提供（只解包不修改）；这里改的是对照表"
             >
               <h3>样式模板</h3>
               <span className="tpl-count">点开看对照表</span>
@@ -488,8 +487,8 @@ export function TemplateList(props: TemplateListProps): JSX.Element {  const { s
                 type="button"
                 className="tpl-icon-btn"
                 disabled={busy}
-                title="导入自备样式（.docx 或已解包的骨架目录）"
-                aria-label="导入自备样式"
+                title="导入样式文件（.docx 或已解包的骨架目录）"
+                aria-label="导入样式文件"
                 onClick={() => setMode(mode === 'import' ? 'none' : 'import')}
               >
                 <ImportIcon />
@@ -522,12 +521,13 @@ export function TemplateList(props: TemplateListProps): JSX.Element {  const { s
                       }`}
                       data-entry={entry.id}
                       data-kind="style"
-                      title={`打开这份样式对照表：${entry.file}`}
                       onClick={() => props.onOpenStyle(entry)}
                     >
                       <span className="tpl-item-name">{entry.name || entry.id}</span>
                       {/* 与结构模板同一顺序：问题徽标跟名字，id · fileKey 放最后 */}
                       {badges(entry, 'style')}
+                      {/* 这一条不挂悬停：id 与文件键（fileKey）常驻在右边，文件名就是把 .json 接上去，
+                          再悬停念一遍只是噪音 */}
                       <span className="tpl-item-id">
                         {entry.id} · {styleFileKey(entry)}
                       </span>
@@ -552,11 +552,12 @@ export function TemplateList(props: TemplateListProps): JSX.Element {  const { s
           items={[
             {
               label: '改名',
+              // 菜单项自己是看得懂的：悬停只在灰着的时候说清为什么灰
               title: !isOpenEntry
-                ? '改名作用在当前打开的那一份：先点开这份模板'
+                ? '改名只作用于当前打开的那一份：先点开这份模板'
                 : dirty
                   ? '先保存改动'
-                  : '改这份模板的 id 与名称',
+                  : undefined,
               disabled: busy || dirty || !isOpenEntry,
               run: () => {
                 setRenameValue(selected?.name || selected?.id || '')
@@ -567,10 +568,10 @@ export function TemplateList(props: TemplateListProps): JSX.Element {  const { s
             {
               label: '删除',
               title: !isOpenEntry
-                ? '删除作用在当前打开的那一份：先点开这份模板'
+                ? '删除只作用于当前打开的那一份：先点开这份模板'
                 : dirty
                   ? '先保存改动'
-                  : '删除这份模板（删除前会先备份）',
+                  : undefined,
               disabled: busy || dirty || !isOpenEntry,
               danger: true,
               run: () => setMode('remove')

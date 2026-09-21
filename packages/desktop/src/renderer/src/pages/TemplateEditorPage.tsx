@@ -236,7 +236,7 @@ export default function TemplateEditorPage(): JSX.Element {
           type="button"
           className="tpl-icon-btn"
           disabled={editor.busy}
-          title="重新读取模板目录"
+          title="重新加载模板目录"
           aria-label="重新加载"
           onClick={editor.requestReload}
         >
@@ -284,11 +284,12 @@ export default function TemplateEditorPage(): JSX.Element {
         >
           试跑
         </button>
+        {/* 能按的时候按钮自己写着"保存"：悬停只在灰着时给理由 */}
         <button
           type="button"
           className="tpl-mini tpl-primary"
           disabled={!canSave}
-          title={saveWhy || '写入这份模板文件'}
+          title={saveWhy || undefined}
           onClick={() => void editor.save()}
         >
           保存
@@ -296,7 +297,6 @@ export default function TemplateEditorPage(): JSX.Element {
         <button
           type="button"
           className="tpl-mini"
-          title="退出模板编辑"
           onClick={closeTemplateEditor}
         >
           退出
@@ -526,11 +526,12 @@ function IssueIndex({
   const [open, setOpen] = useState(false)
   return (
     <span className="tpl-pop-host">
+      {/* 结论是草稿现算的就不挂提示：这一行自己写着"几个错误、几处提示" */}
       <button
         type="button"
         className="tpl-pop-trigger tpl-foot-summary"
         aria-expanded={open}
-        title={fromServer ? '这些是主进程给出的结论；点开看问题在哪' : '点开看问题在哪'}
+        title={fromServer ? '主进程给出的结论' : undefined}
         onClick={() => setOpen((value) => !value)}
       >
         {errors} 个错误 · {warnings} 处提示
