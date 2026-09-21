@@ -66,6 +66,8 @@ import type {
   TemplateRenameResult,
   TemplateSaveInput,
   TemplateSaveResult,
+  TemplateStyleForkInput,
+  TemplateStyleForkResult,
   TemplateStyleImportInput,
   TemplateStyleImportResult,
   TemplateStyleReadInput,
@@ -408,12 +410,21 @@ export class TemplateEditorService {
     let defaultDir: string | null = null
     for (const dir of this.templateDirList()) {
       const validation = validateTemplateDir(dir)
+      // 样式条目带上"被谁引用"：界面上要说清这份对照表被哪几份结构模板共用
+      const structureDocs = validation.exists ? this.loadStructureDocs(dir) : []
+      const facts = styleFactsOfStructures(structureDocs.map((s) => s.doc))
+      const usersOf = (fileKey: string): string[] =>
+        facts.filter((f) => f.fileKeys.includes(fileKey)).map((f) => f.name)
+      const styles = validation.styles.map((entry) => ({
+        ...toEntryDto(entry),
+        usedBy: usersOf(entry.file.replace(/\.json$/u, ''))
+      }))
       dirs.push({
         dir: validation.dir,
         exists: validation.exists,
         issues: validation.issues.map(toIssueDto),
         structures: validation.structures.map(toEntryDto),
-        styles: validation.styles.map(toEntryDto)
+        styles
       })
       if (defaultDir === null && isUsableDir(validation.issues, validation.exists)) {
         defaultDir = validation.dir
@@ -627,6 +638,127 @@ export class TemplateEditorService {
       writeFileSync(target, await entry.async('nodebuffer'))
     }
   }
+  /**
+   * 把一份（可能被多份结构共用的）对照表**另存为某份结构模板专用**：
+   * 整份 `styles/<sourceId>/` 复制到 `styles/<newId>/`（骨架与映射一起）、
+   * 映照表改名成 `<newId>-stylemap.json` 并把 name 换掉、manifest 追加一条；
+   * 给了 structureId 就顺手把那棵结构的 `styleTemplate`（与 `styleTemplates` 里那一项）指过去。
+   *
+   * 全有或全无：结构模板那一步没成就把新样式撤掉（目录 + 清单一起退回去）。
+   */
+  forkStyle(input: TemplateStyleForkInput): TemplateStyleForkResult {
+    const dir = this.requireTemplateDir(input.dir)
+    const source = this.locateStyle(dir, input.sourceId)
+    assertSafeId(input.newId, '新样式模板 id')
+    const newId = input.newId
+    const name = typeof input.name === 'string' ? input.name.trim() : ''
+    if (name === '') throw new TemplateEditorError('新样式模板名不能为空')
+    const manifest = readManifest(dir)
+    if (manifest.status === 'broken') {
+      throw new TemplateEditorError(`manifest.json 解析失败，未另存：${manifest.reason}`)
+    }
+    const newFile = `${newId}-stylemap.json`
+    // 结构引用写的是**文件键**（文件名去掉 .json），不是目录名：两份不总是一样
+    const newFileKey = newFile.replace(/\.json$/u, '')
+    if (
+      this.declaredStyleEntries(manifest).some((e) => e.id === newId) ||
+      existsSync(join(dir, STYLES_DIR, newId))
+    ) {
+      throw new TemplateEditorError(`样式模板 id「${newId}」已存在（目录里或 manifest 里已有）`)
+    }
+    const sourceManifestEntry = this.declaredStyleEntries(manifest).find(
+      (e) => e.id === input.sourceId
+    )
+    const styleFolder = sourceManifestEntry?.styleFolder || source.file.replace(/\.json$/u, '')
+
+    const newDir = join(dir, STYLES_DIR, newId)
+    cpSync(source.dirPath, newDir, { recursive: true })
+    try {
+      // 映照表改名（骨架原样留着：一个字节都不改）
+      if (source.file !== newFile) {
+        renameSync(join(newDir, source.file), join(newDir, newFile))
+      }
+      const doc = this.readJsonDocAt(join(newDir, newFile), `样式模板 ${STYLES_DIR}/${newId}/${newFile}`)
+      writeFileAtomic(
+        join(newDir, newFile),
+        serializeJson({ ...doc, name }, STRUCTURE_INDENT, '\n', true)
+      )
+
+      const nextManifest: Record<string, unknown> =
+        manifest.status === 'ok'
+          ? { ...manifest.doc }
+          : { [STRUCTURES_DIR]: [], [STYLES_DIR]: [] }
+      const entries = Array.isArray(nextManifest[STYLES_DIR]) ? nextManifest[STYLES_DIR] : []
+      nextManifest[STYLES_DIR] = [
+        ...entries,
+        { id: newId, name, description: '', stylemap_file: newFile, style_folder: styleFolder }
+      ]
+      if (!Array.isArray(nextManifest[STRUCTURES_DIR])) nextManifest[STRUCTURES_DIR] = []
+      writeManifest(dir, manifest, nextManifest)
+
+      let structure: { id: string; fileKey: string } | null = null
+      if (input.structureId !== undefined && input.structureId !== '') {
+        const located = this.locateStructure(dir, input.structureId)
+        const structureDoc = this.readStructureDoc(located)
+        const nextDoc = this.retargetStructureStyle(structureDoc, source.fileKey, newFileKey)
+        const issues = this.validate(located, nextDoc)
+        const firstError = issues.find((i) => i.level === 'error')
+        if (firstError) {
+          throw new TemplateEditorError(
+            `改结构「${input.structureId}」的引用时校验没过（${firstError.path}）：${firstError.message}`
+          )
+        }
+        this.writeStructure(located, nextDoc)
+        structure = { id: located.id, fileKey: newFileKey }
+      }
+
+      return { style: this.readStyle({ dir, id: newId }), structure }
+    } catch (err) {
+      // 撤掉新样式（目录 + 清单里那一条），别留下"多出来一份没人用"的东西
+      try {
+        rmSync(newDir, { recursive: true, force: true })
+        const again = readManifest(dir)
+        if (again.status === 'ok') {
+          const raw = Array.isArray(again.doc[STYLES_DIR]) ? (again.doc[STYLES_DIR] as unknown[]) : []
+          const kept = raw.filter((entry) => !(isPlainObject(entry) && entry['id'] === newId))
+          if (kept.length !== raw.length) {
+            writeManifest(dir, again, { ...again.doc, [STYLES_DIR]: kept })
+          }
+        }
+      } catch {
+        // 回滚失败也不能盖掉真正的错误
+      }
+      throw err instanceof TemplateEditorError
+        ? err
+        : new TemplateEditorError(`另存为专用失败：${messageOf(err)}`)
+    }
+  }
+
+  /**
+   * 把结构模板的引用从 `from` 换到 `to`：默认样式（`styleTemplate`）与可用集合
+   * （`styleTemplates`）里那一项都换；集合里没有这一项（结构只写了默认样式）时只换默认样式。
+   * 返回新对象（不可变），字段顺序按解析后的顺序保留。
+   */
+  private retargetStructureStyle(
+    doc: Record<string, unknown>,
+    from: string,
+    to: string
+  ): Record<string, unknown> {
+    const next: Record<string, unknown> = { ...doc }
+    if (next['styleTemplate'] === from) next['styleTemplate'] = to
+    if (Array.isArray(next['styleTemplates'])) {
+      next['styleTemplates'] = (next['styleTemplates'] as unknown[]).map((key) =>
+        key === from ? to : key
+      )
+    }
+    return next
+  }
+
+  /** 读一份 JSON 对象文件（路径已知时用；错误消息里带上这是哪一份） */
+  private readJsonDocAt(filePath: string, label: string): Record<string, unknown> {
+    return readJsonObjectFile('样式模板', label, filePath)
+  }
+
   /**
    * 写回样式模板的对照表：与结构模板同一套（先校验，有 error 就抛不落盘；
    * 再备份原文件，最后原子写）。写回只动 styleMap 与 captionNumbering 这些字段，

@@ -188,6 +188,11 @@ export interface TemplateEntryDto {
   errors: number
   warnings: number
   issues: TemplateIssueDto[]
+  /**
+   * 样式条目：哪些结构模板引用了它（写的是文件键）。
+   * 结构条目上没有这一项；界面靠它显示"这份对照表被谁共用"。
+   */
+  usedBy?: string[]
 }
 
 /** 一个模板目录的现状 */
@@ -416,6 +421,29 @@ export interface TemplateStyleImportResult {
   }
 }
 
+/**
+ * 把一份共用的对照表**另存为某份结构模板专用**（PLAN-11 批次 3 步骤 5）：
+ * 骨架与映射整份复制到新目录，结构模板的引用指过去——改一处不再影响别人。
+ */
+export interface TemplateStyleForkInput {
+  dir: string
+  /** 源样式模板 id */
+  sourceId: string
+  /** 新样式模板 id（目录名），不能与已有的重复 */
+  newId: string
+  /** 新样式模板的 name（界面按「源名（结构名专用）」拼好传来） */
+  name: string
+  /** 顺手把哪份结构模板的引用改到新样式上（不传就只另存，先不动引用） */
+  structureId?: string
+}
+
+export interface TemplateStyleForkResult {
+  /** 新样式（已经读回来，界面可以直接打开） */
+  style: TemplateStyleReadResult
+  /** 改了引用的那份结构模板（没改引用时是 null） */
+  structure: { id: string; fileKey: string } | null
+}
+
 export interface UiStateSave {
   key: string
   value: string
@@ -486,6 +514,8 @@ export const ProjectIpc = {
   TemplateSaveStyle: 'template:save-style',
   /** 模板编辑：导入自备样式（.docx 解包或骨架目录 + 部件检查 + 映射草稿） */
   TemplateImportStyle: 'template:import-style',
+  /** 模板编辑：把共用的对照表另存为某份结构模板专用（复制骨架与映射，并改引用） */
+  TemplateForkStyle: 'template:fork-style',
   /** 模板编辑：写回结构模板（原子写 + .bak），写入前必须零 error */
   TemplateSave: 'template:save',
   /** 模板编辑：新建结构模板并同步 manifest */
@@ -617,6 +647,7 @@ export interface DesktopTemplateEditorApi {
   readStyle(input: TemplateStyleReadInput): Promise<TemplateStyleReadResult>
   saveStyle(input: TemplateStyleSaveInput): Promise<TemplateStyleSaveResult>
   importStyle(input: TemplateStyleImportInput): Promise<TemplateStyleImportResult>
+  forkStyle(input: TemplateStyleForkInput): Promise<TemplateStyleForkResult>
   save(input: TemplateSaveInput): Promise<TemplateSaveResult>
   create(input: TemplateCreateInput): Promise<TemplateReadResult>
   remove(input: TemplateDeleteInput): Promise<TemplateDeleteResult>

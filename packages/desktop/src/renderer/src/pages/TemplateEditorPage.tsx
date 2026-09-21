@@ -375,8 +375,10 @@ export default function TemplateEditorPage(): JSX.Element {
               node={editor.selectedNode}
               path={editor.selectedPath}
               issues={nodeIssues}
+              styles={editor.dirSnapshot?.styles ?? []}
               onPatch={editor.patchSelectedNode}
               onGroupFix={() => editor.fixGroupAt(editor.selectedPath)}
+              onForkStyle={(styleId) => void editor.forkStyleFor(styleId)}
               onBlockPatch={editor.patchBlock}
               onBlockMove={editor.moveBlock}
               onBlockRemove={editor.removeBlock}

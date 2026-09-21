@@ -6,7 +6,7 @@
  */
 import { useEffect, useState, type JSX } from 'react'
 import { BLOCK_TYPE_NAMES } from '@documentor/core/blocks'
-import type { TemplateIssueDto } from '../../../../shared/project'
+import type { TemplateEntryDto, TemplateIssueDto } from '../../../../shared/project'
 import { BLOCK_TYPE_LABELS, describeBlockType } from '../editor/blockTypes'
 import BlockForm from './BlockForm'
 import { ContextMenu, useContextMenu } from './ContextMenu'
@@ -45,9 +45,13 @@ interface NodeFormProps {
   path: NodePath
   /** 该节点下的全部结论（含内容块） */
   issues: TemplateIssueDto[]
+  /** 这个目录里的样式模板（根节点那一节选引用用；带"被谁引用"） */
+  styles: TemplateEntryDto[]
   onPatch: (patch: TemplateObject) => void
   /** 把这一组改齐（同级不许混的"直接修复"） */
   onGroupFix: () => void
+  /** 把共用的对照表另存为这份结构模板专用 */
+  onForkStyle: (styleId: string) => void
   onBlockPatch: (index: number, patch: TemplateObject) => void
   onBlockMove: (index: number, delta: -1 | 1) => void
   onBlockRemove: (index: number) => void
@@ -202,6 +206,55 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
       }`
     : ''
 
+  /**
+   * 根节点上的"这份结构用哪些样式对照表"：
+   *   - `styleTemplates`（可用集合，1:N）缺省时按加载器的口径回退成 `[styleTemplate]`；
+   *   - `styleTemplate` 是导出时的默认那一份；默认必须在可用集合里（否则导出会找不到）。
+   * 注意"这份结构是谁"用的是**模板的 name**（`doc.name`，usedBy 里记的就是它），
+   * 不是根节点的标题——两者常常不一样（模板名"甲结构"、根标题可能叫别的）。
+   */
+  const docName = doc ? str(doc['name']) : ''
+  const declaredDefault = doc ? str(doc['styleTemplate']) : ''
+  const declaredList =
+    doc && Array.isArray(doc['styleTemplates'])
+      ? (doc['styleTemplates'] as unknown[]).filter(
+          (key): key is string => typeof key === 'string'
+        )
+      : null
+  const availableKeys = declaredList ?? (declaredDefault === '' ? [] : [declaredDefault])
+  const refs = props.styles.map((entry) => {
+    const fileKey = entry.file.replace(/\.json$/iu, '')
+    return {
+      id: entry.id,
+      fileKey,
+      label: `${entry.name || entry.id}`,
+      available: availableKeys.includes(fileKey),
+      isDefault: declaredDefault === fileKey,
+      usedBy: entry.usedBy ?? []
+    }
+  })
+  const sharedNames = refs
+    .filter((ref) => ref.available && ref.usedBy.filter((name) => name !== docName).length > 0)
+    .map((ref) => ref.label)
+  /** 一份都没标默认（或默认不在集合里）：导出会不知道用哪份 */
+  const noDefault = refs.length > 0 && !refs.some((ref) => ref.isDefault && ref.available)
+
+  /** 打上/取消「可用」：写进 styleTemplates（取消时先从默认上让开，避免默认不在集合里） */
+  const toggleRef = (fileKey: string, checked: boolean): void => {
+    if (checked) {
+      const next = availableKeys.includes(fileKey) ? availableKeys : [...availableKeys, fileKey]
+      props.onPatch({
+        styleTemplates: next,
+        ...(declaredDefault === '' ? { styleTemplate: fileKey } : {})
+      })
+      return
+    }
+    // 默认那一份不让取消：它必须在集合里（要换就先换默认）
+    if (declaredDefault === fileKey) return
+    const next = availableKeys.filter((key) => key !== fileKey)
+    props.onPatch({ styleTemplates: next })
+  }
+
   /** 类型只按用途选，两种：层级标题 / 列表子标题（chapter、section 这些词程序不读） */
   const kindOptions: Array<{ value: string; label: string }> = [
     { value: 'heading', label: '层级标题' },
@@ -342,6 +395,75 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
           <p className="tpl-note tpl-note-bad">
             这份节点里的「{typo.key}」与「{typo.known}」只差大小写，程序按没写处理（改过来才会生效）
           </p>
+        )}
+
+        {/* 引用关系只在根节点上设：一份结构模板用哪些样式对照表，是"整份模板"的事 */}
+        {isRoot && (
+          <section className="tpl-style-refs">
+            <header className="tpl-blocks-head">
+              <h3>样式对照表</h3>
+              <span className="tpl-count">
+                {refs.length === 0 ? '这个目录里还没有样式模板' : `${refs.length} 份可选`}
+              </span>
+            </header>
+            {refs.length === 0 ? (
+              <p className="tpl-empty">先在左栏「样式模板」那一段导入一份，或直接放一份进模板目录</p>
+            ) : (
+              <>
+                <ul className="tpl-ref-list">
+                  {refs.map((ref) => (
+                    <li key={ref.id}>
+                      {/* 「可用」= 写进 styleTemplates；「默认」= 写进 styleTemplate */}
+                      <CheckField
+                        label={ref.label}
+                        tip={`${ref.fileKey}${
+                          ref.usedBy.length > 0 ? ` · 已被 ${ref.usedBy.join('、')} 引用` : ''
+                        }`}
+                        checked={ref.available}
+                        onChange={(checked) => toggleRef(ref.fileKey, checked)}
+                      />
+                      <label
+                        className="tpl-ref-default"
+                        title="导出时默认用这份（要先把左边的「可用」打上）"
+                      >
+                        <input
+                          type="radio"
+                          name="tpl-default-style"
+                          checked={ref.isDefault}
+                          disabled={!ref.available}
+                          onChange={() => props.onPatch({ styleTemplate: ref.fileKey })}
+                        />
+                        <span>默认</span>
+                      </label>
+                      {ref.usedBy.filter((name) => name !== docName).length > 0 && (
+                        <button
+                          type="button"
+                          className="tpl-mini tpl-inline-action"
+                          title={`这份对照表还被 ${ref.usedBy
+                            .filter((name) => name !== docName)
+                            .join('、')} 共用：另存一份给这份结构专用，改起来不影响别人`}
+                          onClick={() => props.onForkStyle(ref.id)}
+                        >
+                          另存为专用
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                {sharedNames.length > 0 && (
+                  <p className="tpl-note">
+                    共用的对照表：{sharedNames.join('、')} 还被别的结构模板用着，改它会影响那边；
+                    只想改这一份就点「另存为专用」。
+                  </p>
+                )}
+                {noDefault && (
+                  <p className="tpl-note tpl-note-bad">
+                    还没选默认样式：导出时不知道用哪份，挑一个「默认」。
+                  </p>
+                )}
+              </>
+            )}
+          </section>
         )}
 
         <IssueLines issues={nodeIssues} />

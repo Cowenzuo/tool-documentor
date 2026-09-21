@@ -27,6 +27,7 @@ import type {
   TemplateReadInput,
   TemplateRenameInput,
   TemplateSaveInput,
+  TemplateStyleForkInput,
   TemplateStyleImportInput,
   TemplateStyleReadInput,
   TemplateStyleSaveInput,
@@ -167,6 +168,10 @@ const api: DesktopApi = {
     importStyle: (input: TemplateStyleImportInput) =>
       invoke(ProjectIpc.TemplateImportStyle, input) as ReturnType<
         DesktopApi['templateEditor']['importStyle']
+      >,
+    forkStyle: (input: TemplateStyleForkInput) =>
+      invoke(ProjectIpc.TemplateForkStyle, input) as ReturnType<
+        DesktopApi['templateEditor']['forkStyle']
       >,
     save: (input: TemplateSaveInput) =>
       invoke(ProjectIpc.TemplateSave, input) as ReturnType<DesktopApi['templateEditor']['save']>,

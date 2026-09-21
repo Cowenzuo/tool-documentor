@@ -1442,6 +1442,48 @@ button.tpl-issue-where:hover {
   color: var(--danger);
 }
 
+/* 引用关系（根节点那一节）：每行一份可选样式，左边"可用"、右边"默认" */
+.tpl-style-refs {
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+}
+
+.tpl-ref-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.tpl-ref-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.tpl-ref-list .tpl-switch {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.tpl-ref-default {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.tpl-ref-list .tpl-inline-action {
+  margin-left: auto;
+}
+
 /* 导入自备样式：两个"选源"的按钮并排，下面一行显示选了哪个 */
 .tpl-import-pick {
   display: flex;

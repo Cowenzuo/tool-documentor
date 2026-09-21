@@ -102,6 +102,12 @@ function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
 
+/** 结构模板的显示名：JSON 里的 name，没有就用模板 id */
+function nodeTitleOfDoc(doc: TemplateDoc): string {
+  const name = doc['name']
+  return typeof name === 'string' && name !== '' ? name : '（未命名）'
+}
+
 /** 选中目录：保留当前目录，否则用默认目录，再否则第一份 */
 function pickDir(snapshot: TemplateEditorSnapshotDto, current: string | null): string | null {
   const has = (dir: string): boolean => snapshot.dirs.some((d) => d.dir === dir)
@@ -160,6 +166,8 @@ export interface UseTemplateEditorResult {
   createTemplate: (input: { id: string; name: string; styleTemplate?: string }) => Promise<boolean>
   /** 导入自备样式（.docx 或已解包的骨架目录） */
   importStyle: (input: { id: string; name: string; source: string }) => Promise<boolean>
+  /** 把共用的对照表另存为眼前这份结构模板专用（复制骨架与映射 + 改引用） */
+  forkStyleFor: (sourceStyleId: string) => Promise<boolean>
   removeTemplate: () => Promise<boolean>
   renameTemplate: (input: { newId: string; name: string }) => Promise<boolean>
   dismissNotice: () => void
@@ -678,6 +686,47 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     [dir, refreshSnapshot, styleDirty]
   )
 
+  /**
+   * 把共用的对照表另存为**眼前这份结构模板专用**：主进程整份复制骨架与映射、改引用，
+   * 回来之后重新读这份结构与目录（引用变了，徽标与样式那一段都要跟着刷新）。
+   */
+  const forkStyleFor = useCallback(
+    async (sourceStyleId: string): Promise<boolean> => {
+      const api = templateApi()
+      if (!api || !dir || !entryId || !doc) return false
+      const source = dirSnapshot?.styles.find((item) => item.id === sourceStyleId)
+      const sourceName = source?.name || sourceStyleId
+      const newId = `${sourceStyleId}-${entryId}`
+      setBusy(true)
+      try {
+        const forked = await api.forkStyle({
+          dir,
+          sourceId: sourceStyleId,
+          newId,
+          name: `${sourceName}（${nodeTitleOfDoc(doc)}专用）`,
+          structureId: entryId
+        })
+        const next = await api.snapshot()
+        setSnapshot(next)
+        const target = next.dirs.find((item) => item.dir === dir) ?? null
+        const nextEntry = target?.structures.find((item) => item.id === entryId) ?? null
+        if (nextEntry) await readEntry(api, dir, nextEntry)
+        // 回执放在重新读之后：读那一趟会把状态栏清干净（applyRead 里 setNotice(null)）
+        setNotice({
+          kind: 'info',
+          text: `已另存为专用：「${forked.style.id}」，这份结构的默认样式已经指过去`
+        })
+        return true
+      } catch (err) {
+        setNotice({ kind: 'error', text: '另存为专用失败', detail: errorText(err) })
+        return false
+      } finally {
+        setBusy(false)
+      }
+    },
+    [dir, dirSnapshot, doc, entryId, readEntry]
+  )
+
   const removeTemplate = useCallback(async (): Promise<boolean> => {    const api = templateApi()
     if (!api || !dir || !entryId) return false
     setBusy(true)
@@ -950,6 +999,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     save,
     createTemplate,
     importStyle,
+    forkStyleFor,
     removeTemplate,
     renameTemplate,
     dismissNotice,

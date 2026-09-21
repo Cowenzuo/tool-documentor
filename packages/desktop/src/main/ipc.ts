@@ -35,6 +35,8 @@ import type {
   TemplateRenameInput,
   TemplateSaveInput,
   TemplateSaveResult,
+  TemplateStyleForkInput,
+  TemplateStyleForkResult,
   TemplateStyleImportInput,
   TemplateStyleImportResult,
   TemplateStyleReadInput,
@@ -329,6 +331,9 @@ export function registerProjectIpc(service: ProjectService): void {
   handle<TemplateStyleImportInput, TemplateStyleImportResult>(
     ProjectIpc.TemplateImportStyle,
     (input) => templateEditor.importStyle(input)
+  )
+  handle<TemplateStyleForkInput, TemplateStyleForkResult>(ProjectIpc.TemplateForkStyle, (input) =>
+    templateEditor.forkStyle(input)
   )
   handle<TemplateSaveInput, TemplateSaveResult>(ProjectIpc.TemplateSave, (input) =>
     templateEditor.save(input)
