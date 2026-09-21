@@ -28,11 +28,13 @@
   background: var(--bg-panel);
 }
 
-.tpl-top-title {
-  margin: 0;
-  font-size: var(--text-lg);
-  font-weight: 650;
-  color: var(--text-1);
+/* 只给读屏看的文字：这一页不借 editor.css 的 .sr-only，自己留一份 */
+.tpl-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
 }
 
 .tpl-dir {
@@ -62,16 +64,24 @@
   min-width: 0;
 }
 
+/* 标题栏里的状态小字同样不许被挤成两行（中文会逐字折行，光看溢出看不出来） */
+.tpl-top .tpl-count {
+  flex: none;
+  white-space: nowrap;
+}
+
 .tpl-top-gap {
   flex: 1 1 0;
 }
 
-/* 标题栏里的标签与状态不许被旁边的长下拉挤扁：整词一行。
-   中文允许逐字断行，不写 nowrap 的话「模板目录」会被折成两行、盒子还比字窄。 */
-.tpl-top .tpl-count,
-.tpl-dir .tpl-count {
+/* 「模板目录」四个字顶上原来那个「模板编辑」标题的位置，所以用它那套标题样式：
+   16px / 650 字重 / 主文字色。下拉跟在后面，仍占标题栏的富余宽度。 */
+.tpl-dir-label {
   flex: none;
   white-space: nowrap;
+  font-size: var(--text-lg);
+  font-weight: 650;
+  color: var(--text-1);
 }
 
 .tpl-dirty {

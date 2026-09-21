@@ -162,9 +162,10 @@ export default function TemplateEditorPage(): JSX.Element {
   return (
     <div className="tpl-page">
       <header className="tpl-top">
-        <h1 className="tpl-top-title">模板编辑</h1>
+        {/* 顶部不再顶一个「模板编辑」标题：左上角就是模板目录，标题只留给读屏 */}
+        <h1 className="tpl-sr">模板编辑</h1>
         <label className="tpl-dir">
-          <span className="tpl-count">模板目录</span>
+          <span className="tpl-dir-label">模板目录</span>
           <select
             className="tpl-select tpl-dir-select"
             value={editor.dir ?? ''}
