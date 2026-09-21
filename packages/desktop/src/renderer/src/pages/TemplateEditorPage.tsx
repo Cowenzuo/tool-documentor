@@ -3,8 +3,8 @@
  * 三栏：左栏模板列表（目录与模板、问题徽标），中栏节点树，右栏选中节点的表单。
  * 改动只落在内存草稿里，写文件只发生在页脚那个「保存」按钮。
  * 最下面那条页脚就是这一页的状态栏：左边是最近一次操作的回执（保存/新建/删除/改名，
- * 失败时带上原文），中间是这份模板的校验结论，右边是保存按钮——状态只出现在这一条里，
- * 页首不再另挂提示条（只有"有未保存改动、要你点一下"的确认才顶在上面）。
+ * 失败时带上原文）或"要你先点一下"的确认，中间是这份模板的校验结论，右边是保存按钮——
+ * 这一页的消息只在这一条里出现，顶上不弹任何提示条。
  *
  * 三栏可拖：左与中记宽度（本机 localStorage，口径同主编辑器的结构栏），右栏吃掉剩下的。
  * 窗口变窄时按比例收左与中，先保右栏的最小可用宽度——要填的字都在右栏。
@@ -234,22 +234,6 @@ export default function TemplateEditorPage(): JSX.Element {
         </button>
       </header>
 
-      {editor.pending && (
-        <div className="tpl-strip tpl-strip-warn" role="alertdialog" aria-label="有未保存的改动">
-          <span>
-            {editor.pending.kind === 'reload'
-              ? '有未保存的改动，重新加载就会丢掉。'
-              : '有未保存的改动，换一份模板就会丢掉。'}
-          </span>
-          <button type="button" className="tpl-mini" onClick={editor.cancelPending}>
-            取消
-          </button>
-          <button type="button" className="tpl-mini tpl-danger" onClick={editor.confirmPending}>
-            {editor.pending.kind === 'reload' ? '丢掉改动并重新加载' : '丢掉改动并切换'}
-          </button>
-        </div>
-      )}
-
       <div
         className="tpl-body"
         ref={bodyRef}
@@ -327,37 +311,58 @@ export default function TemplateEditorPage(): JSX.Element {
       </div>
 
       <footer className="tpl-foot">
-        {/* 状态栏：左边是"刚刚发生了什么"（保存/新建/删除/改名的回执与失败原因），
-            中间是"文档现在有没有问题"，右边是保存按钮。 */}
-        {editor.notice && (
+        {/* 状态栏：这一页的消息只在这一条里出现，顶上不再弹任何东西。
+            左边是"刚刚发生了什么"或"要你先点一下"（保存/新建/删除/改名的回执与失败原因、
+            有未保存改动时的确认），中间是"文档现在有没有问题"，右边是保存按钮。 */}
+        {editor.pending ? (
           <div
-            className={`tpl-status tpl-status-${editor.notice.kind}`}
-            role={editor.notice.kind === 'error' ? 'alert' : 'status'}
+            className="tpl-status tpl-status-warn tpl-status-alert"
+            role="alertdialog"
+            aria-label="有未保存的改动"
           >
-            <span className="tpl-status-text">{editor.notice.text}</span>
-            {editor.notice.detail &&
-              (editor.notice.kind === 'error' ? (
-                <code className="tpl-raw" title={editor.notice.detail}>
-                  {editor.notice.detail}
-                </code>
-              ) : (
-                <details className="tpl-detail">
-                  <summary>备份位置</summary>
-                  <code className="tpl-path" title={editor.notice.detail}>
-                    {editor.notice.detail}
-                  </code>
-                </details>
-              ))}
-            <button
-              type="button"
-              className="tpl-icon-btn"
-              title="关掉这条提示"
-              aria-label="关闭提示"
-              onClick={editor.dismissNotice}
-            >
-              <CloseIcon size={13} />
+            <span className="tpl-status-text">
+              {editor.pending.kind === 'reload'
+                ? '有未保存的改动，重新加载就会丢掉。'
+                : '有未保存的改动，换一份模板就会丢掉。'}
+            </span>
+            <button type="button" className="tpl-mini" onClick={editor.cancelPending}>
+              取消
+            </button>
+            <button type="button" className="tpl-mini tpl-danger" onClick={editor.confirmPending}>
+              {editor.pending.kind === 'reload' ? '丢掉改动并重新加载' : '丢掉改动并切换'}
             </button>
           </div>
+        ) : (
+          editor.notice && (
+            <div
+              className={`tpl-status tpl-status-${editor.notice.kind}`}
+              role={editor.notice.kind === 'error' ? 'alert' : 'status'}
+            >
+              <span className="tpl-status-text">{editor.notice.text}</span>
+              {editor.notice.detail &&
+                (editor.notice.kind === 'error' ? (
+                  <code className="tpl-raw" title={editor.notice.detail}>
+                    {editor.notice.detail}
+                  </code>
+                ) : (
+                  <details className="tpl-detail">
+                    <summary>备份位置</summary>
+                    <code className="tpl-path" title={editor.notice.detail}>
+                      {editor.notice.detail}
+                    </code>
+                  </details>
+                ))}
+              <button
+                type="button"
+                className="tpl-icon-btn"
+                title="关掉这条提示"
+                aria-label="关闭提示"
+                onClick={editor.dismissNotice}
+              >
+                <CloseIcon size={13} />
+              </button>
+            </div>
+          )
         )}
         <div className="tpl-foot-issues">
           {editor.issues.length === 0 ? (
