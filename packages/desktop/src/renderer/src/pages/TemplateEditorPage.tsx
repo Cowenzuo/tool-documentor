@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'rea
 import { useApp } from '../state/AppContext'
 import NodeForm from '../components/template/NodeForm'
 import NodeTree from '../components/template/NodeTree'
+import StyleTable from '../components/template/StyleTable'
 import TemplateList from '../components/template/TemplateList'
 import { RefreshIcon } from '../components/template/icons'
 import { CloseIcon } from '../components/icons'
@@ -29,6 +30,7 @@ import {
   type IssueGroup,
   type NodePath
 } from '../components/template/templateDoc'
+import { groupStyleIssues } from '../components/template/templateStyleDoc'
 import { countIssues, issuesUnder } from '../components/template/templateValidate'
 import { useTemplateEditor } from '../components/template/useTemplateEditor'
 import '../components/template/template.css'
@@ -59,11 +61,18 @@ export default function TemplateEditorPage(): JSX.Element {
   const editor = useTemplateEditor()
   const counts = countIssues(editor.issues)
   const open = editor.doc !== null
+  const styleOpen = editor.openKind === 'style'
   /** 校验小结点开后那份"问题在哪"的索引：按位置归堆，逐条原话在节点详情里 */
-  const issueGroups: IssueGroup[] = useMemo(
-    () => groupIssuesByLocation(editor.doc, editor.issues),
-    [editor.doc, editor.issues]
+  const structureIssueGroups: IssueGroup[] = useMemo(
+    () => (styleOpen ? [] : groupIssuesByLocation(editor.doc, editor.issues)),
+    [editor.doc, editor.issues, styleOpen]
   )
+  /** 样式侧的同一份索引：位置是字段名（映射 heading.1 这类），没有可跳的节点 */
+  const styleIssueGroups: IssueGroup[] = useMemo(
+    () => (styleOpen ? groupStyleIssues(editor.issues) : []),
+    [editor.issues, styleOpen]
+  )
+  const issueGroups = styleOpen ? styleIssueGroups : structureIssueGroups
 
   // ---------- 三栏宽度 ----------
   const bodyRef = useRef<HTMLDivElement | null>(null)
@@ -159,35 +168,49 @@ export default function TemplateEditorPage(): JSX.Element {
    * 保存按钮为什么不能按：一句话说清，按钮与那盏灯的悬停提示都用它。
    * （顶栏只放最短的「N 个错误 / 未保存」，完整理由在提示里，状态栏里有索引可跳。）
    */
-  const saveWhy = !open
-    ? '没有打开模板'
-    : counts.errors > 0
-      ? `有 ${counts.errors} 个错误，先改好再保存`
-      : !editor.dirty
-        ? '没有未保存的改动'
-        : editor.busy
-          ? '正在处理…'
-          : ''
-  const canSave = open && editor.dirty && counts.errors === 0 && !editor.busy
+  const saveWhy = styleOpen
+    ? '样式对照表的写回还没接上（这一步先看清每一行配到了哪条样式）'
+    : !open
+      ? '没有打开模板'
+      : counts.errors > 0
+        ? `有 ${counts.errors} 个错误，先改好再保存`
+        : !editor.dirty
+          ? '没有未保存的改动'
+          : editor.busy
+            ? '正在处理…'
+            : ''
+  const canSave = !styleOpen && open && editor.dirty && counts.errors === 0 && !editor.busy
 
   /**
    * 右端那盏灯与它的短句：红=有错误（挡住保存）、琥珀=有未保存的改动、绿=与文件一致。
    * 文字只留最短的（「3 个错误」「未保存」），完整理由进悬停提示——
    * 顶栏不是写解释的地方，要看的细节在状态栏与问题索引里。
    */
-  const draftState = !open || counts.errors > 0
-    ? 'is-blocked'
-    : editor.dirty
-      ? 'is-dirty'
-      : 'is-clean'
-  const draftWhy = !open
-    ? '没有打开模板'
-    : counts.errors > 0
-      ? `有 ${counts.errors} 个错误，先改好再保存`
+  const draftState = styleOpen
+    ? 'is-clean'
+    : !open || counts.errors > 0
+      ? 'is-blocked'
       : editor.dirty
-        ? '有未保存的改动，点「保存」写回文件'
-        : '没有未保存的改动'
-  const draftLabel = !open ? '' : counts.errors > 0 ? `${counts.errors} 个错误` : editor.dirty ? '未保存' : ''
+        ? 'is-dirty'
+        : 'is-clean'
+  const draftWhy = styleOpen
+    ? '样式对照表这一步只看：每一行配到了哪条样式、缺了什么，都在中栏'
+    : !open
+      ? '没有打开模板'
+      : counts.errors > 0
+        ? `有 ${counts.errors} 个错误，先改好再保存`
+        : editor.dirty
+          ? '有未保存的改动，点「保存」写回文件'
+          : '没有未保存的改动'
+  const draftLabel = styleOpen
+    ? ''
+    : !open
+      ? ''
+      : counts.errors > 0
+        ? `${counts.errors} 个错误`
+        : editor.dirty
+          ? '未保存'
+          : ''
 
   const dirs = editor.snapshot?.dirs ?? []
 
@@ -228,7 +251,14 @@ export default function TemplateEditorPage(): JSX.Element {
         </button>
         <span className="tpl-top-counts">
           {/* 这里只说"这份模板有多大"；校验结算是状态栏那边的事（同一件事不说两遍） */}
-          {open ? (
+          {styleOpen ? (
+            <span className="tpl-count">
+              {editor.style?.rows.length ?? 0} 个逻辑键 ·{' '}
+              {editor.style?.skeletonExists
+                ? `骨架 ${editor.style.skeletonStyles.length} 条样式`
+                : '骨架没读到'}
+            </span>
+          ) : open ? (
             <span className="tpl-count">
               {countNodes(editor.doc)} 个节点 · {countBlocks(editor.doc)} 个内容块
             </span>
@@ -275,10 +305,12 @@ export default function TemplateEditorPage(): JSX.Element {
         <TemplateList
           status={editor.status}
           dirSnapshot={editor.dirSnapshot}
-          selectedId={editor.entry?.id ?? null}
+          openKind={editor.openKind}
+          openId={styleOpen ? (editor.styleEntry?.id ?? null) : (editor.entry?.id ?? null)}
           busy={editor.busy}
           dirty={editor.dirty}
           onOpen={editor.requestEntry}
+          onOpenStyle={editor.requestStyle}
           onCreate={editor.createTemplate}
           onRename={editor.renameTemplate}
           onRemove={editor.removeTemplate}
@@ -296,49 +328,56 @@ export default function TemplateEditorPage(): JSX.Element {
             nudge('list', event.key === 'ArrowLeft' ? -16 : 16)
           }}
         />
-        <NodeTree
-          doc={editor.doc}
-          status={editor.status}
-          selectedPath={editor.selectedPath}
-          expanded={editor.expanded}
-          issues={editor.issues}
-          onSelect={editor.selectNode}
-          onToggle={editor.toggleExpand}
-          onExpandAll={editor.expandAll}
-          onCollapseAll={editor.collapseAll}
-          onAddChild={editor.addChildAt}
-          onAddSibling={editor.addSiblingAt}
-          onDuplicate={editor.duplicateNodeAt}
-          onMove={editor.moveNodeAt}
-          onRemove={editor.removeNodeAt}
-          onToggleBranch={editor.toggleBranchAt}
-        />
-        <div
-          className="tpl-split"
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="调整节点树宽度"
-          tabIndex={0}
-          onMouseDown={(event) => startDrag('tree', event)}
-          onKeyDown={(event) => {
-            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
-            event.preventDefault()
-            nudge('tree', event.key === 'ArrowLeft' ? -16 : 16)
-          }}
-        />
-        <NodeForm
-          doc={editor.doc}
-          status={editor.status}
-          node={editor.selectedNode}
-          path={editor.selectedPath}
-          issues={nodeIssues}
-          onPatch={editor.patchSelectedNode}
-          onBlockPatch={editor.patchBlock}
-          onBlockMove={editor.moveBlock}
-          onBlockRemove={editor.removeBlock}
-          onBlockAdd={editor.addBlock}
-          onBlockDuplicate={editor.duplicateBlock}
-        />
+        {/* 样式视图占中栏与右栏两栏：一行五列，292px 的树栏里摆不下 */}
+        {styleOpen ? (
+          <StyleTable status={editor.status} result={editor.style} />
+        ) : (
+          <>
+            <NodeTree
+              doc={editor.doc}
+              status={editor.status}
+              selectedPath={editor.selectedPath}
+              expanded={editor.expanded}
+              issues={editor.issues}
+              onSelect={editor.selectNode}
+              onToggle={editor.toggleExpand}
+              onExpandAll={editor.expandAll}
+              onCollapseAll={editor.collapseAll}
+              onAddChild={editor.addChildAt}
+              onAddSibling={editor.addSiblingAt}
+              onDuplicate={editor.duplicateNodeAt}
+              onMove={editor.moveNodeAt}
+              onRemove={editor.removeNodeAt}
+              onToggleBranch={editor.toggleBranchAt}
+            />
+            <div
+              className="tpl-split"
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="调整节点树宽度"
+              tabIndex={0}
+              onMouseDown={(event) => startDrag('tree', event)}
+              onKeyDown={(event) => {
+                if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+                event.preventDefault()
+                nudge('tree', event.key === 'ArrowLeft' ? -16 : 16)
+              }}
+            />
+            <NodeForm
+              doc={editor.doc}
+              status={editor.status}
+              node={editor.selectedNode}
+              path={editor.selectedPath}
+              issues={nodeIssues}
+              onPatch={editor.patchSelectedNode}
+              onBlockPatch={editor.patchBlock}
+              onBlockMove={editor.moveBlock}
+              onBlockRemove={editor.removeBlock}
+              onBlockAdd={editor.addBlock}
+              onBlockDuplicate={editor.duplicateBlock}
+            />
+          </>
+        )}
       </div>
 
       <footer className="tpl-foot">
@@ -395,14 +434,14 @@ export default function TemplateEditorPage(): JSX.Element {
         )}
         <div className="tpl-foot-issues">
           {editor.issues.length === 0 ? (
-            <span className="tpl-count">{open ? '校验通过' : ''}</span>
+            <span className="tpl-count">{open || styleOpen ? '校验通过' : ''}</span>
           ) : (
             <IssueIndex
               groups={issueGroups}
               errors={counts.errors}
               warnings={counts.warnings}
-              fromServer={editor.issuesSource === 'server'}
-              onJump={editor.revealNode}
+              fromServer={styleOpen || editor.issuesSource === 'server'}
+              {...(styleOpen ? {} : { onJump: editor.revealNode })}
             />
           )}
         </div>
@@ -440,8 +479,12 @@ function Popover({ label, kind, text }: { label: string; kind: string; text: str
 
 /**
  * 校验小结与"问题在哪"的索引：小结常驻一行，索引点开是浮层。
- * 浮层里只写位置与条数（可点着跳到那个节点）——逐条原话在节点详情视图里说，
+ * 浮层里只写位置与条数（能跳的做成按钮）——逐条原话在节点详情视图里说，
  * 同一句话在状态栏再说一遍就是重复传达。
+ *
+ * 两处例外，都是"原话没有别的落点"：整份模板级的结论（位置说不清），
+ * 以及样式侧（对照表行说的是另一件事，校验原话只在这里出现，见 `groupStyleIssues`）。
+ * 样式侧的组没有可跳的节点，位置只是个人读的标签，所以 `path` 是 null、`onJump` 不传。
  */
 function IssueIndex({
   groups,
@@ -454,7 +497,7 @@ function IssueIndex({
   errors: number
   warnings: number
   fromServer: boolean
-  onJump: (path: NodePath) => void
+  onJump?: (path: NodePath) => void
 }): JSX.Element {
   const [open, setOpen] = useState(false)
   return (
@@ -475,7 +518,7 @@ function IssueIndex({
         <span className="tpl-pop tpl-pop-wide" role="region" aria-label="问题在哪">
           {groups.map((group) => (
             <span className="tpl-pop-row" key={group.where ?? '(doc)'}>
-              {group.path ? (
+              {group.path && onJump ? (
                 <button
                   type="button"
                   className="tpl-pop-where"
@@ -485,7 +528,7 @@ function IssueIndex({
                   {group.where}
                 </button>
               ) : (
-                <span className="tpl-pop-where is-plain">整份模板</span>
+                <span className="tpl-pop-where is-plain">{group.where ?? '整份模板'}</span>
               )}
               {group.errors > 0 && (
                 <span className="tpl-badge tpl-badge-error">{group.errors} 个错误</span>
@@ -493,7 +536,7 @@ function IssueIndex({
               {group.warnings > 0 && (
                 <span className="tpl-badge tpl-badge-warn">{group.warnings} 处提示</span>
               )}
-              {/* 位置说不清的（整份模板级的结论）只有这儿能说，带上原话 */}
+              {/* 位置说不清的（整份模板级的结论）与样式侧的结论只有这儿能说，带上原话 */}
               {group.messages.map((message) => (
                 <span className="tpl-pop-msg" key={message}>
                   {message}

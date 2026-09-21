@@ -170,6 +170,10 @@
   min-width: 0;
   display: grid;
   grid-template-columns: 244px 5px 292px 5px minmax(0, 1fr);
+  /* 单行也要夹住：auto 行按内容撑高的话，内容长的那一栏（对照表 22 行、长表单）
+     会把三栏连同整页一起顶高，页脚跟着跑出窗口。夹成 minmax(0, 1fr) 后，
+     高的只有栏内部那份自己的滚动条 */
+  grid-template-rows: minmax(0, 1fr);
 }
 
 /* 三栏之间的拖拽分隔条：宽度必须与页面里的 HANDLE 常量一致 */
@@ -333,14 +337,6 @@ body.is-splitting {
 
 .tpl-item.is-selected {
   background: var(--accent-soft);
-}
-
-.tpl-item.is-readonly {
-  cursor: default;
-}
-
-.tpl-item.is-readonly:hover {
-  background: transparent;
 }
 
 .tpl-item-name {
@@ -1315,6 +1311,210 @@ button.tpl-issue-where:hover {
 
 /* ===== 窄窗口：列宽由页面按容器宽度按比例收（见 TemplateEditorPage 的 layout），
    这里只管窄窗口下另一些该收的东西 ===== */
+/* ===== 样式对照表（打开样式模板时占中栏 + 右栏两栏的位置）=====
+   一行五列：逻辑键 / 用途 / 当前映射 / 必需 / 状态与回退。
+   行宽信息量大，所以自带一个小表头（sticky），滚动时列名不跟着跑。 */
+.tpl-col-map {
+  background: var(--bg-app);
+  /* 中栏与右栏两栏的位置都归它：树与节点表单在样式视图里不出现 */
+  grid-column: 3 / -1;
+}
+
+.tpl-col-hint {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+.tpl-map-body {
+  padding-top: var(--space-3);
+}
+
+.tpl-map-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: var(--space-3);
+}
+
+.tpl-map-meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.tpl-map-bad {
+  color: var(--warning);
+}
+
+.tpl-map {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.tpl-map th,
+.tpl-map td {
+  text-align: left;
+  vertical-align: top;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-xs);
+  line-height: 1.55;
+}
+
+.tpl-map thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-panel);
+  color: var(--text-3);
+  font-weight: 600;
+}
+
+/* 列宽：逻辑键与映射够写一个 styleId，用途与状态分掉剩下的 */
+.tpl-map thead th:nth-child(1) {
+  width: 152px;
+}
+
+.tpl-map thead th:nth-child(3) {
+  width: 196px;
+}
+
+.tpl-map thead th:nth-child(4) {
+  width: 64px;
+}
+
+.tpl-map thead th:nth-child(5) {
+  width: 34%;
+}
+
+.tpl-map-group th {
+  padding-top: var(--space-3);
+  background: var(--bg-active);
+  color: var(--text-2);
+  font-weight: 650;
+}
+
+.tpl-map-key .tpl-count,
+.tpl-map-target .tpl-count {
+  margin-left: 6px;
+}
+
+/* 有问题的行整行淡红/淡黄：扫一眼就知道该看哪几行 */
+.tpl-map-row.is-error {
+  background: color-mix(in srgb, var(--danger) 6%, transparent);
+}
+
+.tpl-map-row.is-warn {
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
+}
+
+.tpl-map-state {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--bg-active);
+  color: var(--text-2);
+  font-size: 10.5px;
+  font-weight: 650;
+}
+
+.tpl-map-state.is-error {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+}
+
+.tpl-map-state.is-warn {
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning);
+}
+
+.tpl-map-why {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-3);
+}
+
+.tpl-map-row.is-error .tpl-map-why {
+  color: var(--danger);
+}
+
+/* 骨架里有、没人用的样式：默认收着（它是"顺手看看"，不是每天要看的东西） */
+.tpl-map-unused {
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+.tpl-map-unused summary {
+  cursor: pointer;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+.tpl-map-unused-list {
+  list-style: none;
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+}
+
+.tpl-map-issues {
+  margin-top: var(--space-4);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+}
+
+.tpl-map-issues h3 {
+  margin: 0 0 var(--space-1);
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+
+.tpl-map-issue-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.tpl-map-issue {
+  display: flex;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--text-2);
+}
+
+.tpl-map-issue.is-error {
+  color: var(--danger);
+}
+
+.tpl-map-issue.is-warn {
+  color: var(--warning);
+}
+
+.tpl-map-issue-where {
+  flex: none;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3);
+}
+
 @media (max-width: 1180px) {
   .tpl-col-body {
     padding: var(--space-2) var(--space-2) var(--space-6);

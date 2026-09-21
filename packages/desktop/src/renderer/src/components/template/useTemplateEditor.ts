@@ -13,7 +13,8 @@ import type {
   TemplateEditorSnapshotDto,
   TemplateEntryDto,
   TemplateIssueDto,
-  TemplateReadResult
+  TemplateReadResult,
+  TemplateStyleReadResult
 } from '../../../../shared/project'
 import {
   ROOT_PATH,
@@ -58,11 +59,17 @@ export interface TemplateNotice {
   staleOnEdit?: boolean
 }
 
-/** 有未保存改动时切换对象（模板/目录）或重新加载，要先问一句，避免草稿被静默丢掉 */
+/**
+ * 有未保存改动时切换对象（模板/目录）或重新加载，要先问一句，避免草稿被静默丢掉。
+ * `entry` 两种模板都算：结构模板与样式模板（对照表）都可能开在眼前。
+ */
 export type TemplatePending =
   | { kind: 'entry'; entry: TemplateEntryDto }
   | { kind: 'dir'; dir: string }
   | { kind: 'reload' }
+
+/** 眼前开的是哪一类：结构模板（节点树 + 表单）还是样式模板（对照表） */
+export type TemplateOpenKind = 'structure' | 'style'
 
 type EditorApi = Window['documentor']['templateEditor']
 
@@ -107,6 +114,11 @@ export interface UseTemplateEditorResult {
   dir: string | null
   entry: TemplateEntryDto | null
   doc: TemplateDoc | null
+  /** 眼前开的是结构模板还是样式模板；都没开是 null */
+  openKind: TemplateOpenKind | null
+  /** 开着的样式模板（对照表）与其读回来的结果 */
+  styleEntry: TemplateEntryDto | null
+  style: TemplateStyleReadResult | null
   busy: boolean
   dirty: boolean
   issues: TemplateIssueDto[]
@@ -120,6 +132,7 @@ export interface UseTemplateEditorResult {
   requestReload: () => void
   requestDir: (dir: string) => void
   requestEntry: (entry: TemplateEntryDto) => void
+  requestStyle: (entry: TemplateEntryDto) => void
   confirmPending: () => void
   cancelPending: () => void
   save: () => Promise<void>
@@ -161,6 +174,13 @@ export function useTemplateEditor(): UseTemplateEditorResult {
   const [pending, setPending] = useState<TemplatePending | null>(null)
   const [selectedPath, setSelectedPath] = useState<NodePath>(ROOT_PATH)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  /**
+   * 样式侧：开着的样式模板 id 与读回来的对照表。
+   * 与结构侧的草稿并存——两份模板各留各的，在左栏来回点不用重读（结构草稿也不会被样式覆盖）。
+   * `styleIdRef.current !== null` 就表示"眼前是样式视图"。
+   */
+  const [styleId, setStyleId] = useState<string | null>(null)
+  const [style, setStyle] = useState<TemplateStyleReadResult | null>(null)
 
   const dirRef = useRef<string | null>(null)
   const entryIdRef = useRef<string | null>(null)
@@ -179,6 +199,11 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     () => dirSnapshot?.structures.find((item) => item.id === entryId) ?? null,
     [dirSnapshot, entryId]
   )
+  const styleEntry = useMemo(
+    () => dirSnapshot?.styles.find((item) => item.id === styleId) ?? null,
+    [dirSnapshot, styleId]
+  )
+  const openKind: TemplateOpenKind | null = styleId !== null ? 'style' : doc !== null ? 'structure' : null
   const selectedNode = useMemo(() => (doc ? nodeAt(doc, selectedPath) : null), [doc, selectedPath])
 
   /**
@@ -194,8 +219,10 @@ export function useTemplateEditor(): UseTemplateEditorResult {
   }, [doc, entryId, file])
 
   const issues = issuesSource === 'server' ? serverIssues : localIssues
+  /** 状态栏与页脚看的是"眼前这一份"的结论：样式视图就用样式侧的 */
+  const visibleIssues = openKind === 'style' ? (style?.issues ?? []) : issues
 
-  /** 打开一份读回来的结果：草稿、选中、展开、问题列表一起归位 */
+  /** 打开一份读回来的结构模板：草稿、选中、展开、问题列表一起归位 */
   const applyRead = useCallback((result: TemplateReadResult) => {
     setDoc(result.doc)
     setFile(result.file)
@@ -216,6 +243,8 @@ export function useTemplateEditor(): UseTemplateEditorResult {
       setBusy(true)
       try {
         applyRead(await api.read({ dir: targetDir, id: target.id }))
+        // 结构视图在前：样式那一段收起来（草稿留着，点回样式不用重读）
+        setStyleId(null)
       } catch (err) {
         setNotice({ kind: 'error', text: '读不到这份模板', detail: errorText(err) })
       } finally {
@@ -223,6 +252,28 @@ export function useTemplateEditor(): UseTemplateEditorResult {
       }
     },
     [applyRead]
+  )
+
+  /**
+   * 打开一份样式模板：读回对照表（stylemap 原文 + 骨架样式表 + 必需键与共用影响面）。
+   * 结构草稿不动也不清——两份模板各留各的，来回点不用重读、也不会把结构草稿弄丢。
+   */
+  const readStyleEntry = useCallback(
+    async (api: EditorApi, targetDir: string, target: TemplateEntryDto): Promise<void> => {
+      setBusy(true)
+      try {
+        setStyle(await api.readStyle({ dir: targetDir, id: target.id }))
+        setStyleId(target.id)
+        setDir(targetDir)
+        setNotice(null)
+        setPending(null)
+      } catch (err) {
+        setNotice({ kind: 'error', text: '读不到这份样式模板', detail: errorText(err) })
+      } finally {
+        setBusy(false)
+      }
+    },
+    []
   )
 
   /** 只刷新目录与徽标，不动当前草稿（保存后用） */
@@ -264,6 +315,9 @@ export function useTemplateEditor(): UseTemplateEditorResult {
         setServerIssues([])
         setDirty(false)
       }
+      // 重新加载是"按文件重来"：样式那一段也收起来（点回去会重新读）
+      setStyleId(null)
+      setStyle(null)
     } catch (err) {
       setStatus('failed')
       setNotice({ kind: 'error', text: '读不到模板目录', detail: errorText(err) })
@@ -280,6 +334,9 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     (nextDir: string): void => {
       const api = templateApi()
       setDir(nextDir)
+      // 换目录：样式那一段收起来（它属于上一个目录）
+      setStyleId(null)
+      setStyle(null)
       const target = snapshot?.dirs.find((item) => item.dir === nextDir) ?? null
       const nextEntry = pickEntry(target, null)
       if (!api || !nextEntry) {
@@ -309,19 +366,47 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     [dir, dirty, switchDir]
   )
 
+  /**
+   * 点一份结构模板。两种情况都算"换对象"：
+   *   - 眼前是样式视图 → 收起来，回到已经在内存里的结构草稿（同一份就不重读）；
+   *   - 眼前是另一份结构 → 读它。
+   * 有未保存改动时先问一句（草稿只有一份，换对象就会丢）。
+   */
   const requestEntry = useCallback(
     (target: TemplateEntryDto): void => {
-      if (target.id === entryId) return
+      const alreadyOpen = styleId === null && target.id === entryId && doc !== null
+      if (alreadyOpen) return
       if (dirty) {
         setPending({ kind: 'entry', entry: target })
         return
       }
       const api = templateApi()
       if (!api || !dir) return
+      if (styleId !== null && target.id === entryId && doc !== null) {
+        // 结构草稿还在内存里：只是把样式视图收起来，不重读
+        setStyleId(null)
+        setNotice(null)
+        return
+      }
       setEntryId(target.id)
       void readEntry(api, dir, target)
     },
-    [dir, dirty, entryId, readEntry]
+    [dir, dirty, doc, entryId, readEntry, styleId]
+  )
+
+  /** 点一份样式模板：读回对照表。有未保存的结构改动时同样先问一句。 */
+  const requestStyle = useCallback(
+    (target: TemplateEntryDto): void => {
+      if (styleId === target.id) return
+      if (dirty) {
+        setPending({ kind: 'entry', entry: target })
+        return
+      }
+      const api = templateApi()
+      if (!api || !dir) return
+      void readStyleEntry(api, dir, target)
+    },
+    [dir, dirty, readStyleEntry, styleId]
   )
 
   const confirmPending = useCallback((): void => {
@@ -338,9 +423,13 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     }
     const api = templateApi()
     if (!api || !dir) return
+    if (action.entry.kind === 'style') {
+      void readStyleEntry(api, dir, action.entry)
+      return
+    }
     setEntryId(action.entry.id)
     void readEntry(api, dir, action.entry)
-  }, [dir, pending, readEntry, reload, switchDir])
+  }, [dir, pending, readEntry, readStyleEntry, reload, switchDir])
 
   const cancelPending = useCallback((): void => setPending(null), [])
 
@@ -640,9 +729,12 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     dir,
     entry,
     doc,
+    openKind,
+    styleEntry,
+    style,
     busy,
     dirty,
-    issues,
+    issues: visibleIssues,
     issuesSource,
     notice,
     pending,
@@ -653,6 +745,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     requestReload,
     requestDir,
     requestEntry,
+    requestStyle,
     confirmPending,
     cancelPending,
     save,
