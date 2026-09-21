@@ -360,7 +360,6 @@ function GroupRows({
                   <option value={row.styleId}>{`${row.styleId}（样式文件里没有）`}</option>
                 )}
               </select>
-              {target && <span className="tpl-count">{target.name || '（没写样式名）'}</span>}
             </td>
             <td className="tpl-map-required">
               {row.required ? (
