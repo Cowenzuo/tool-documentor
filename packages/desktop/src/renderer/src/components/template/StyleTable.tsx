@@ -287,7 +287,7 @@ function GroupRows({
     <>
       <tr className="tpl-map-group">
         <th scope="colgroup" colSpan={COLUMNS.length}>
-          {group} · {rows.length} 个键
+          {group}
         </th>
       </tr>
       {rows.map((row) => {
