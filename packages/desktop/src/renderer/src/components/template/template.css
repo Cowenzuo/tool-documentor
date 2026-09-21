@@ -66,6 +66,14 @@
   flex: 1 1 0;
 }
 
+/* 标题栏里的标签与状态不许被旁边的长下拉挤扁：整词一行。
+   中文允许逐字断行，不写 nowrap 的话「模板目录」会被折成两行、盒子还比字窄。 */
+.tpl-top .tpl-count,
+.tpl-dir .tpl-count {
+  flex: none;
+  white-space: nowrap;
+}
+
 .tpl-dirty {
   font-size: var(--text-xs);
   color: var(--text-3);
