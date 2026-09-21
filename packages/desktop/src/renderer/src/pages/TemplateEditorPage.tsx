@@ -155,7 +155,10 @@ export default function TemplateEditorPage(): JSX.Element {
   const nodeIssues = editor.selectedNode
     ? issuesUnder(editor.issues, nodeJsonPath(editor.selectedPath))    : []
 
-  /** 保存按钮为什么不能按：一句话说清，按钮上也有同样的 title */
+  /**
+   * 保存按钮为什么不能按：一句话说清，按钮与那盏灯的悬停提示都用它。
+   * （顶栏只放最短的「N 个错误 / 未保存」，完整理由在提示里，状态栏里有索引可跳。）
+   */
   const saveWhy = !open
     ? '没有打开模板'
     : counts.errors > 0
@@ -166,6 +169,25 @@ export default function TemplateEditorPage(): JSX.Element {
           ? '正在处理…'
           : ''
   const canSave = open && editor.dirty && counts.errors === 0 && !editor.busy
+
+  /**
+   * 右端那盏灯与它的短句：红=有错误（挡住保存）、琥珀=有未保存的改动、绿=与文件一致。
+   * 文字只留最短的（「3 个错误」「未保存」），完整理由进悬停提示——
+   * 顶栏不是写解释的地方，要看的细节在状态栏与问题索引里。
+   */
+  const draftState = !open || counts.errors > 0
+    ? 'is-blocked'
+    : editor.dirty
+      ? 'is-dirty'
+      : 'is-clean'
+  const draftWhy = !open
+    ? '没有打开模板'
+    : counts.errors > 0
+      ? `有 ${counts.errors} 个错误，先改好再保存`
+      : editor.dirty
+        ? '有未保存的改动，点「保存」写回文件'
+        : '没有未保存的改动'
+  const draftLabel = !open ? '' : counts.errors > 0 ? `${counts.errors} 个错误` : editor.dirty ? '未保存' : ''
 
   const dirs = editor.snapshot?.dirs ?? []
 
@@ -217,15 +239,29 @@ export default function TemplateEditorPage(): JSX.Element {
           )}
         </span>
         <span className="tpl-top-gap" />
-        {editor.dirty && <span className="tpl-dirty">改动未保存</span>}
+        {/* 右端并排：草稿状态灯（提示在按钮左侧）+ 保存 + 退出。
+            灯三态——红=有错误（挡住保存）、琥珀=有未保存的改动、绿=与文件一致；
+            文字只留最短一句，理由都在悬停提示里。 */}
+        <span className={`tpl-draft ${draftState}`} title={draftWhy}>
+          <span className="tpl-draft-dot" aria-hidden="true" />
+          {draftLabel}
+        </span>
         <button
           type="button"
-          className="tpl-icon-btn"
-          title="关闭模板编辑"
-          aria-label="关闭"
+          className="tpl-mini tpl-primary"
+          disabled={!canSave}
+          title={saveWhy || '写入这份模板文件'}
+          onClick={() => void editor.save()}
+        >
+          保存
+        </button>
+        <button
+          type="button"
+          className="tpl-mini"
+          title="退出模板编辑"
           onClick={closeTemplateEditor}
         >
-          <CloseIcon />
+          退出
         </button>
       </header>
 
@@ -369,18 +405,6 @@ export default function TemplateEditorPage(): JSX.Element {
               onJump={editor.revealNode}
             />
           )}
-        </div>
-        <div className="tpl-foot-save">
-          <button
-            type="button"
-            className="tpl-mini tpl-primary"
-            disabled={!canSave}
-            title={saveWhy || '写入这份模板文件'}
-            onClick={() => void editor.save()}
-          >
-            保存
-          </button>
-          {saveWhy && <span className="tpl-count">{saveWhy}</span>}
         </div>
       </footer>
     </div>

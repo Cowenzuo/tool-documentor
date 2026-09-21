@@ -87,12 +87,39 @@
   color: var(--text-1);
 }
 
-.tpl-dirty {
+/* 草稿状态灯：红=有错误（挡住保存）、琥珀=有未保存的改动、绿=与文件一致。
+   文字只留最短一句，完整理由在悬停提示里；它排在「保存 / 退出」两个按钮的左侧。 */
+.tpl-draft {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: var(--text-xs);
   color: var(--text-3);
-  background: var(--bg-active);
-  border-radius: 999px;
-  padding: 1px 8px;
+  cursor: help;
+}
+
+.tpl-draft-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+.tpl-draft.is-dirty {
+  color: var(--text-2);
+}
+
+.tpl-draft.is-dirty .tpl-draft-dot {
+  background: var(--warning);
+}
+
+.tpl-draft.is-blocked {
+  color: var(--danger);
+}
+
+.tpl-draft.is-blocked .tpl-draft-dot {
+  background: var(--danger);
 }
 
 /* ===== 状态栏里的消息 ===== */
@@ -1171,19 +1198,14 @@ button.tpl-issue-where:hover {
   overflow: hidden;
 }
 
+/* 校验小结靠右：左边是"刚刚发生了什么"，右边是"现在有没有问题" */
 .tpl-foot-issues {
   position: relative;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
+  margin-left: auto;
   min-width: 0;
   font-size: var(--text-xs);
   color: var(--text-2);
-}
-
-.tpl-foot-save {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
 }
 
 /* 状态栏里的浮层：挂在触发它的那个小结/回执上方，不参与排版 */
