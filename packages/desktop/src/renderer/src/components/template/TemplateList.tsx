@@ -1,7 +1,7 @@
 /**
  * 左栏：模板目录里的模板列表。
- * 结构模板可选可改（新建/改名/删除都在这一段）；样式模板这一批只列出来，
- * 行上直接把 id 与文件名摆出来，不给任何编辑动作。
+ * 结构模板可选可改（新建/改名/删除都在这一段）；样式模板还是一段只读清单
+ * （对照表编辑在下一批），这一点在界面上写明「只读」并给悬停说明，不靠猜。
  * 目录级问题（清单缺失、目录不存在、目录没登记等）单独一行一条地提示。
  */
 import { useState, type JSX } from 'react'
@@ -34,10 +34,24 @@ function idProblem(id: string): string | null {
   return null
 }
 
-function badges(entry: TemplateEntryDto): JSX.Element | null {
+/**
+ * 校验结论徽标：红=错误、黄=提示，数字与顶部那两个同源。
+ * 光一个数字没人看得懂，所以徽标上挂一句话说清它是什么、以及"这里能不能改"。
+ */
+function badges(entry: TemplateEntryDto, what: 'structure' | 'style'): JSX.Element | null {
   if (entry.errors === 0 && entry.warnings === 0) return null
+  const counts = [
+    entry.errors > 0 ? `${entry.errors} 个错误` : '',
+    entry.warnings > 0 ? `${entry.warnings} 处提示` : ''
+  ]
+    .filter((part) => part !== '')
+    .join(' · ')
+  const hint =
+    what === 'structure'
+      ? `校验结论：${counts}。打开这份模板，右栏与页脚会逐条说清`
+      : `校验结论：${counts}。样式模板这一批只列出来（改对照表还没做），要改请直接改样式文件`
   return (
-    <span className="tpl-badges">
+    <span className="tpl-badges" title={hint}>
       {entry.errors > 0 && <span className="tpl-badge tpl-badge-error">{entry.errors}</span>}
       {entry.warnings > 0 && <span className="tpl-badge tpl-badge-warn">{entry.warnings}</span>}
     </span>
@@ -210,7 +224,7 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
                     >
                       <span className="tpl-item-name">{entry.name || entry.id}</span>
                       {/* 问题徽标紧跟名字（它是"这份模板有事"的提示），id 是给对照用的，挪到最后 */}
-                      {badges(entry)}
+                      {badges(entry, 'structure')}
                       <span className="tpl-item-id">{entry.id}</span>
                     </button>
                   </li>
@@ -301,8 +315,12 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
               </div>
             )}
 
-            <div className="tpl-section-head">
+            <div
+              className="tpl-section-head"
+              title="样式模板来自外部样式文件，这一批只列出来（结构与样式的对照表编辑还没做）；要改样式请直接改包里的 stylemap 与骨架"
+            >
               <h3>样式模板</h3>
+              <span className="tpl-count">只读</span>
             </div>
             {styles.length === 0 ? (
               <p className="tpl-empty">这个目录里还没有样式模板</p>
@@ -310,10 +328,13 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
               <ul className="tpl-items">
                 {styles.map((entry) => (
                   <li key={entry.id}>
-                    <div className="tpl-item is-readonly">
+                    <div
+                      className="tpl-item is-readonly"
+                      title={`${entry.file}（只读：改样式请直接改这个文件）`}
+                    >
                       <span className="tpl-item-name">{entry.name || entry.id}</span>
                       {/* 与结构模板同一顺序：问题徽标跟名字，id · fileKey 放最后 */}
-                      {badges(entry)}
+                      {badges(entry, 'style')}
                       <span className="tpl-item-id">
                         {entry.id} · {styleFileKey(entry)}
                       </span>
