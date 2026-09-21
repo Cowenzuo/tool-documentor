@@ -113,31 +113,27 @@ export function StyleTable({
       </header>
 
       <div className="tpl-col-body tpl-map-body">
+        {/* 一行字段说清这份对照表：文件键、样式目录、被谁引用、待修正行数、文件名。
+            引用方的名字不常驻，进悬停 */}
         <div className="tpl-map-meta">
-          <div className="tpl-map-meta-line">
-            <code className="tpl-mono">styles/{result.id}/{result.file}</code>
-            <span className="tpl-count">文件键 {result.fileKey}</span>
-          </div>
-          <div className="tpl-map-meta-line">
-            <span className="tpl-count">
-              样式目录 {docxFolder === '' ? '未写' : docxFolder}
-            </span>
-            {/* 共用影响面：同一份映射可能被多份结构模板引用，改它之前先看清有谁在用 */}
-            <span className="tpl-count">
-              {result.usedBy.length === 0
-                ? '无结构模板引用'
-                : `引用它的结构模板：${result.usedBy
-                    .map((u) => `${u.name}${u.isDefault ? '（默认）' : ''}`)
-                    .join('、')}`}
-            </span>
-          </div>
+          <span className="tpl-map-fact">
+            文件键 <code className="tpl-mono">{result.fileKey}</code>
+          </span>
+          <span className="tpl-map-fact">
+            样式目录 <code className="tpl-mono">{docxFolder === '' ? '未写' : docxFolder}</code>
+          </span>
+          <span
+            className="tpl-map-fact"
+            title={result.usedBy.map((u) => `${u.name}${u.isDefault ? '（默认）' : ''}`).join('、')}
+          >
+            引用 {result.usedBy.length === 0 ? '无' : `${result.usedBy.length} 份`}
+          </span>
           {problemRows.length > 0 && (
-            <div className="tpl-map-meta-line">
-              <span className="tpl-count tpl-map-bad">
-                {problemRows.length} 行待修正：{problemRows.map((row) => row.key).join('、')}
-              </span>
-            </div>
+            <span className="tpl-map-fact tpl-map-bad">待修正 {problemRows.length} 行</span>
           )}
+          <span className="tpl-map-fact tpl-map-path" title={`styles/${result.id}/${result.file}`}>
+            {result.file}
+          </span>
         </div>
 
         <table className="tpl-map">
