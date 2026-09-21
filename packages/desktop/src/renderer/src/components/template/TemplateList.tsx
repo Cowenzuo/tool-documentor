@@ -17,7 +17,7 @@ interface TemplateListProps {
   dirty: boolean
   onOpen: (entry: TemplateEntryDto) => void
   onCreate: (input: { id: string; name: string; styleTemplate?: string }) => Promise<boolean>
-  onRename: (name: string) => Promise<boolean>
+  onRename: (input: { newId: string; name: string }) => Promise<boolean>
   onRemove: () => Promise<boolean>
 }
 
@@ -155,10 +155,24 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
   const { status, dirSnapshot, selectedId, busy, dirty } = props
   const [mode, setMode] = useState<Mode>('none')
   const [renameValue, setRenameValue] = useState('')
+  const [renameId, setRenameId] = useState('')
 
   const structures = dirSnapshot?.structures ?? []
   const styles = dirSnapshot?.styles ?? []
   const selected = structures.find((entry) => entry.id === selectedId) ?? null
+
+  /** 改名表单：id 与原来不同（且合法、不撞已有 id）才动目录与文件名 */
+  const renameIdValue = renameId.trim()
+  const idChanged = selected !== null && renameIdValue !== selected.id
+  const renameIdProblem = ((): string | null => {
+    if (selected === null || !idChanged) return null
+    const basic = idProblem(renameIdValue)
+    if (basic !== null) return basic
+    if (structures.some((entry) => entry.id === renameIdValue)) {
+      return `这个目录里已经有 id 为「${renameIdValue}」的结构模板`
+    }
+    return null
+  })()
 
   return (
     <section className="tpl-col tpl-col-list" aria-label="模板">
@@ -241,6 +255,7 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
                   title={dirty ? '先保存改动' : '改这份模板的名字'}
                   onClick={() => {
                     setRenameValue(selected.name || selected.id)
+                    setRenameId(selected.id)
                     setMode('rename')
                   }}
                 >
@@ -261,17 +276,32 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
             {mode === 'rename' && selected && (
               <div className="tpl-form">
                 <label className="tpl-field">
-                  <span className="tpl-field-label" title={jsonTip('name')}>
+                  <span className="tpl-field-label" title={jsonTip('id', '目录名，也是文件名前缀；改它会连同目录与文件一起改名')}>
+                    模板 id<span className="tpl-field-hint">目录名</span>
+                  </span>
+                  <input
+                    className="tpl-input tpl-mono"
+                    value={renameId}
+                    autoFocus
+                    onChange={(event) => setRenameId(event.target.value)}
+                  />
+                </label>
+                {renameIdProblem && <p className="tpl-note tpl-note-bad">{renameIdProblem}</p>}
+                <label className="tpl-field">
+                  <span className="tpl-field-label" title={jsonTip('name', '工程锚点按它认模板；改了老工程会配不上')}>
                     模板名称
                   </span>
                   <input
                     className="tpl-input"
                     value={renameValue}
-                    autoFocus
                     onChange={(event) => setRenameValue(event.target.value)}
                   />
                 </label>
-                <p className="tpl-note">只改名字，目录名与文件名不动</p>
+                <p className="tpl-note">
+                  {idChanged
+                    ? `改 id 会把目录与文件名一起改成 ${renameId.trim()}（改前整份备份）`
+                    : '只改名字，目录名与文件名不动'}
+                </p>
                 <div className="tpl-form-foot">
                   <button type="button" className="tpl-mini" onClick={() => setMode('none')}>
                     取消
@@ -279,11 +309,13 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
                   <button
                     type="button"
                     className="tpl-mini tpl-primary"
-                    disabled={busy || renameValue.trim() === ''}
+                    disabled={busy || renameValue.trim() === '' || renameId.trim() === '' || renameIdProblem !== null}
                     onClick={() => {
-                      void props.onRename(renameValue.trim()).then((ok) => {
-                        if (ok) setMode('none')
-                      })
+                      void props
+                        .onRename({ newId: renameId.trim(), name: renameValue.trim() })
+                        .then((ok) => {
+                          if (ok) setMode('none')
+                        })
                     }}
                   >
                     确定

@@ -42,6 +42,7 @@ import type {
   TemplateReadInput,
   TemplateReadResult,
   TemplateRenameInput,
+  TemplateRenameResult,
   TemplateSaveInput,
   TemplateSaveResult
 } from '../../shared/project'
@@ -469,22 +470,127 @@ export class TemplateEditorService {
     return { backupPath }
   }
 
-  /** 改结构模板的名字：只改 JSON 里的 name，目录名、文件名与 manifest 都不动 */
-  rename(input: TemplateRenameInput): TemplateReadResult {
+  /**
+   * 改结构模板：`name` 是 JSON 里的显示名，`newId` 是 id（目录名）。
+   * - 只改 name：与以前一样，只动 JSON，目录名与文件名不动；
+   * - 带 newId：`structures/<id>/` → `structures/<newId>/`、`<id>-structure.json` →
+   *   `<newId>-structure.json`、manifest 里那条的 id/file 一起改，改动前整份目录先备份。
+   *   工程锚点按 **name** 认模板（`documentor.dproj` 的 template 字段），工程侧不存 id，
+   *   所以改 id 不影响已建工程；改 name 才会让老工程配不上模板。
+   */
+  rename(input: TemplateRenameInput): TemplateRenameResult {
     const name = typeof input.name === 'string' ? input.name.trim() : ''
     if (name === '') throw new TemplateEditorError('结构模板名不能为空')
     const located = this.locateStructure(input.dir, input.id)
-    const doc = this.readStructureDoc(located)
-    doc['name'] = name
-    const issues = this.validate(located, doc)
-    const firstError = issues.find((i) => i.level === 'error')
-    if (firstError) {
+    const newId = typeof input.newId === 'string' ? input.newId.trim() : ''
+
+    let target = located
+    let backupPath: string | null = null
+    if (newId !== '' && newId !== located.id) {
+      const moved = this.moveStructureId(located, newId)
+      target = moved.located
+      backupPath = moved.backupPath
+    }
+
+    const doc = this.readStructureDoc(target)
+    // 名称变了才写回；校验用的是**改完 name 之后**的文档（结论要反映改后的状态）
+    const renamed = doc['name'] !== name
+    if (renamed) doc['name'] = name
+    const issues = this.validate(target, doc)
+    if (renamed) {
+      const firstError = issues.find((i) => i.level === 'error')
+      if (firstError) {
+        throw new TemplateEditorError(
+          `结构模板校验未通过，未写入（${firstError.path}）：${firstError.message}`
+        )
+      }
+      // 注意：写文件这一步不能被上面的 ?? 短路掉——改 id 时 backupPath 已经有值，
+      // 但 JSON 该写还是要写
+      const fileBackupPath = this.writeStructure(target, doc)
+      backupPath = backupPath ?? fileBackupPath
+    }
+    return {
+      dir: target.dir,
+      id: target.id,
+      file: target.file,
+      doc,
+      issues: issues.map(toIssueDto),
+      backupPath
+    }
+  }
+
+  /**
+   * 换 id：目录改名 + 文件改名 + manifest 登记同步，改前整份备份。
+   * 清单没写成时尽量把目录挪回去，别留下"登记指向不存在目录"的模板。
+   */
+  private moveStructureId(
+    located: LocatedStructure,
+    newId: string
+  ): { located: LocatedStructure; backupPath: string } {
+    assertSafeId(newId, '新的结构模板 id')
+    if (located.manifest.status === 'broken') {
       throw new TemplateEditorError(
-        `结构模板校验未通过，未写入（${firstError.path}）：${firstError.message}`
+        `manifest.json 解析失败，未改 id（先修好清单）：${located.manifest.reason}`
       )
     }
-    this.writeStructure(located, doc)
-    return { dir: located.dir, id: located.id, file: located.file, doc, issues: issues.map(toIssueDto) }
+    if (!existsSync(located.dirPath)) {
+      throw new TemplateEditorError(`结构模板目录不存在：${STRUCTURES_DIR}/${located.id}`)
+    }
+    const newDirPath = join(located.dir, STRUCTURES_DIR, newId)
+    if (existsSync(newDirPath)) {
+      throw new TemplateEditorError(`目录已存在，未改 id：${STRUCTURES_DIR}/${newId}`)
+    }
+    if (this.declaredStructureEntries(located.manifest).some((e) => e.id === newId)) {
+      throw new TemplateEditorError(`manifest 里已经登记了 id 为「${newId}」的模板，未改 id`)
+    }
+
+    const backupPath = this.backupStructureDir(located, '未改名')
+    const newFile = structureFileName(newId)
+    try {
+      renameSync(located.dirPath, newDirPath)
+      if (located.file !== newFile) {
+        renameSync(join(newDirPath, located.file), join(newDirPath, newFile))
+      }
+      if (located.manifest.status === 'ok') {
+        const manifest = located.manifest
+        const rawEntries = Array.isArray(manifest.doc[STRUCTURES_DIR])
+          ? (manifest.doc[STRUCTURES_DIR] as unknown[])
+          : []
+        const hasEntry = rawEntries.some((raw) => isPlainObject(raw) && raw['id'] === located.id)
+        if (hasEntry) {
+          // 只换 id 与 file 两个值：其余字段与键顺序原样保留（展开对象的键序不变）
+          const next = rawEntries.map((raw) =>
+            isPlainObject(raw) && raw['id'] === located.id
+              ? { ...raw, id: newId, file: newFile }
+              : raw
+          )
+          writeManifest(located.dir, manifest, { ...manifest.doc, [STRUCTURES_DIR]: next })
+        }
+      }
+    } catch (err) {
+      try {
+        if (!existsSync(located.dirPath) && existsSync(newDirPath)) {
+          renameSync(newDirPath, located.dirPath)
+        }
+      } catch {
+        // 回滚失败也不能盖掉真正的错误
+      }
+      throw err instanceof TemplateEditorError
+        ? err
+        : new TemplateEditorError(`改 id 失败：${messageOf(err)}`)
+    }
+
+    return {
+      located: {
+        ...located,
+        id: newId,
+        file: newFile,
+        fileFromManifest: false,
+        dirPath: newDirPath,
+        filePath: join(newDirPath, newFile)
+      },
+      backupPath
+    }
   }
 
   // ---------- 内部 ----------
@@ -627,15 +733,15 @@ export class TemplateEditorService {
     return target
   }
 
-  /** 整目录备份（删除用）：`<备份根>/<目录名>-<路径哈希>/<id>-<yyyyMMdd-HHmmss>.bak/` */
-  private backupStructureDir(located: LocatedStructure): string {
+  /** 整目录备份（删除与改 id 用）：`<备份根>/<目录名>-<路径哈希>/<id>-<yyyyMMdd-HHmmss>.bak/` */
+  private backupStructureDir(located: LocatedStructure, what = '未删除'): string {
     const folder = join(this.backupRoot(), backupFolderName(located.dir))
     mkdirSync(folder, { recursive: true })
     const target = uniquePath(join(folder, `${located.id}-${backupStamp()}.bak`))
     try {
       cpSync(located.dirPath, target, { recursive: true })
     } catch (err) {
-      throw new TemplateEditorError(`备份失败，未删除：${target}：${messageOf(err)}`)
+      throw new TemplateEditorError(`备份失败，${what}：${target}：${messageOf(err)}`)
     }
     return target
   }

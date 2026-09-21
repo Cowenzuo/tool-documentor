@@ -121,7 +121,7 @@ export interface UseTemplateEditorResult {
   save: () => Promise<void>
   createTemplate: (input: { id: string; name: string; styleTemplate?: string }) => Promise<boolean>
   removeTemplate: () => Promise<boolean>
-  renameTemplate: (name: string) => Promise<boolean>
+  renameTemplate: (input: { newId: string; name: string }) => Promise<boolean>
   dismissNotice: () => void
   selectNode: (path: NodePath) => void
   toggleExpand: (key: string) => void
@@ -440,14 +440,24 @@ export function useTemplateEditor(): UseTemplateEditorResult {
   }, [dir, entryId, readEntry])
 
   const renameTemplate = useCallback(
-    async (name: string): Promise<boolean> => {
+    async (input: { newId: string; name: string }): Promise<boolean> => {
       const api = templateApi()
       if (!api || !dir || !entryId) return false
       setBusy(true)
       try {
-        const result = await api.rename({ dir, id: entryId, name })
+        const idChanged = input.newId !== '' && input.newId !== entryId
+        const result = await api.rename({
+          dir,
+          id: entryId,
+          name: input.name,
+          ...(idChanged ? { newId: input.newId } : {})
+        })
         applyRead(result)
-        setNotice({ kind: 'info', text: '已改名' })
+        setNotice({
+          kind: 'info',
+          text: idChanged ? `已改 id 与名称：${entryId} → ${result.id}` : '已改名',
+          detail: result.backupPath ?? undefined
+        })
         void refreshSnapshot()
         return true
       } catch (err) {

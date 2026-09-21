@@ -256,9 +256,21 @@ export interface TemplateDeleteResult {
 
 export interface TemplateRenameInput {
   dir: string
+  /** 改之前的 id（目录名） */
   id: string
-  /** 只改结构模板 JSON 里的 name，目录名与文件名不动 */
+  /**
+   * 新 id：目录名、`<id>-structure.json` 文件名与 manifest 里那条登记一起改。
+   * 不带或与原值相同就只改 name。工程侧不存 id，所以改 id 不影响已建工程；
+   * 但 name 是工程锚点认模板的依据，改 name 会让老工程配不上模板。
+   */
+  newId?: string
+  /** 结构模板 JSON 里的 name（显示名） */
   name: string
+}
+
+export interface TemplateRenameResult extends TemplateReadResult {
+  /** 改动前的备份：改 id 时是整份目录，只改 name 时是单个文件；都没有则为 null */
+  backupPath: string | null
 }
 
 export interface UiStateSave {
@@ -454,7 +466,7 @@ export interface DesktopTemplateEditorApi {
   save(input: TemplateSaveInput): Promise<TemplateSaveResult>
   create(input: TemplateCreateInput): Promise<TemplateReadResult>
   remove(input: TemplateDeleteInput): Promise<TemplateDeleteResult>
-  rename(input: TemplateRenameInput): Promise<TemplateReadResult>
+  rename(input: TemplateRenameInput): Promise<TemplateRenameResult>
 }
 
 export interface DesktopUiStateApi {
