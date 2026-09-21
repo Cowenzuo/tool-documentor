@@ -516,6 +516,34 @@ body.is-splitting {
   transition: background-color var(--duration-fast) var(--ease-out);
 }
 
+/* 小按钮一律走图标：无边框小方块，悬停才出底色，含义靠 title 与 aria-label。
+   尺寸与主编辑器的 .be-icon-btn 一致，两处手感相同。 */
+.tpl-icon-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-control);
+  color: var(--text-2);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.tpl-icon-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-1);
+}
+
+.tpl-icon-btn.tpl-danger:hover:not(:disabled) {
+  background: var(--danger);
+  color: #fff;
+}
+
+.tpl-icon-btn:disabled {
+  opacity: 0.3;
+}
+
 .tpl-mini:hover:not(:disabled) {
   background: var(--bg-hover);
 }

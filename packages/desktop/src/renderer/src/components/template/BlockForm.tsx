@@ -8,6 +8,7 @@ import type { JSX } from 'react'
 import { BLOCK_TYPE_NAMES } from '@documentor/core/blocks'
 import { BLOCK_TYPE_LABELS, CODE_LANGUAGES, CODE_LANGUAGE_LABELS } from '../editor/blockTypes'
 import { ChevronDownIcon } from '../icons'
+import { MoveDownIcon, MoveUpIcon, TrashIcon } from './icons'
 import type { TemplateIssueDto } from '../../../../shared/project'
 import {
   CheckField,
@@ -140,29 +141,32 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
         <div className="tpl-block-actions">
           <button
             type="button"
-            className="tpl-mini"
+            className="tpl-icon-btn"
+            title="上移"
+            aria-label="上移这一块"
             onClick={() => onMove(-1)}
             disabled={index === 0}
-            title="上移"
           >
-            上移
+            <MoveUpIcon />
           </button>
           <button
             type="button"
-            className="tpl-mini"
+            className="tpl-icon-btn"
+            title="下移"
+            aria-label="下移这一块"
             onClick={() => onMove(1)}
             disabled={index === count - 1}
-            title="下移"
           >
-            下移
+            <MoveDownIcon />
           </button>
           <button
             type="button"
-            className="tpl-mini tpl-danger"
-            onClick={onRemove}
+            className="tpl-icon-btn tpl-danger"
             title="删除这个内容块"
+            aria-label="删除这一块"
+            onClick={onRemove}
           >
-            删除
+            <TrashIcon />
           </button>
         </div>
       </header>

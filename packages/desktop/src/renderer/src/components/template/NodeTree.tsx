@@ -6,6 +6,7 @@
 import { useEffect, useRef, type JSX } from 'react'
 import type { TemplateIssueDto } from '../../../../shared/project'
 import { ChevronDownIcon } from '../icons'
+import { CollapseAllIcon, ExpandAllIcon } from './icons'
 import {
   asObject,
   hasChildren,
@@ -158,11 +159,25 @@ export function NodeTree(props: NodeTreeProps): JSX.Element {
       <header className="tpl-col-head">
         <h2>节点树</h2>
         <div className="tpl-col-tools">
-          <button type="button" className="tpl-mini" onClick={props.onExpandAll} disabled={!root}>
-            全展
+          <button
+            type="button"
+            className="tpl-icon-btn"
+            onClick={props.onExpandAll}
+            disabled={!root}
+            title="全部展开"
+            aria-label="全部展开"
+          >
+            <ExpandAllIcon />
           </button>
-          <button type="button" className="tpl-mini" onClick={props.onCollapseAll} disabled={!root}>
-            全折
+          <button
+            type="button"
+            className="tpl-icon-btn"
+            onClick={props.onCollapseAll}
+            disabled={!root}
+            title="全部折叠"
+            aria-label="全部折叠"
+          >
+            <CollapseAllIcon />
           </button>
         </div>
       </header>

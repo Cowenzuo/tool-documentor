@@ -9,6 +9,7 @@ import { BLOCK_TYPE_NAMES } from '@documentor/core/blocks'
 import type { TemplateIssueDto } from '../../../../shared/project'
 import { BLOCK_TYPE_LABELS } from '../editor/blockTypes'
 import BlockForm from './BlockForm'
+import { AddChildIcon, AddSiblingIcon, MoveDownIcon, MoveUpIcon, PlusIcon, TrashIcon } from './icons'
 import { CheckField, IssueLines, NumberField, SelectField, TextAreaField, TextField, jsonTip } from './fields'
 import {
   NODE_FIELDS,
@@ -216,36 +217,54 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
 
         {/* 节点操作放在属性之后：面板开头先是"内容是什么"，再是"拿这个节点怎么办" */}
         <div className="tpl-actions">
-          <button type="button" className="tpl-mini" onClick={props.onAddChild}>
-            添加子节点
-          </button>
-          <button type="button" className="tpl-mini" onClick={props.onAddSibling} disabled={isRoot}>
-            添加同级
-          </button>
           <button
             type="button"
-            className="tpl-mini"
-            onClick={() => props.onMove(-1)}
-            disabled={!canMove.up}
+            className="tpl-icon-btn"
+            title="在它下面加一个子节点"
+            aria-label="添加子节点"
+            onClick={props.onAddChild}
           >
-            上移
+            <AddChildIcon />
           </button>
           <button
             type="button"
-            className="tpl-mini"
-            onClick={() => props.onMove(1)}
-            disabled={!canMove.down}
-          >
-            下移
-          </button>
-          <button
-            type="button"
-            className="tpl-mini tpl-danger"
-            onClick={props.onRemove}
+            className="tpl-icon-btn"
+            title={isRoot ? '根节点没有同级' : '在它后面加一个同级节点'}
+            aria-label="添加同级"
             disabled={isRoot}
-            title={isRoot ? '根节点不能删除' : '删除该节点及其子节点'}
+            onClick={props.onAddSibling}
           >
-            删除
+            <AddSiblingIcon />
+          </button>
+          <button
+            type="button"
+            className="tpl-icon-btn"
+            title="上移"
+            aria-label="上移"
+            disabled={!canMove.up}
+            onClick={() => props.onMove(-1)}
+          >
+            <MoveUpIcon />
+          </button>
+          <button
+            type="button"
+            className="tpl-icon-btn"
+            title="下移"
+            aria-label="下移"
+            disabled={!canMove.down}
+            onClick={() => props.onMove(1)}
+          >
+            <MoveDownIcon />
+          </button>
+          <button
+            type="button"
+            className="tpl-icon-btn tpl-danger"
+            title={isRoot ? '根节点不能删除' : '删除该节点及其子节点'}
+            aria-label="删除节点"
+            disabled={isRoot}
+            onClick={props.onRemove}
+          >
+            <TrashIcon />
           </button>
         </div>
 
@@ -267,14 +286,16 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
               </select>
               <button
                 type="button"
-                className="tpl-mini"
+                className="tpl-icon-btn"
+                title="把选中的类型加到这一节点的末尾"
+                aria-label="添加内容块"
                 onClick={() => {
                   props.onBlockAdd(addType)
                   // 新块加在末尾，直接展开它，省得再点一次（已经开着的保持开着）
                   setOpenBlocks((current) => new Set([...current, blocks.length]))
                 }}
               >
-                添加
+                <PlusIcon />
               </button>
             </div>
           </header>

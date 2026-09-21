@@ -12,6 +12,8 @@ import NodeForm from '../components/template/NodeForm'
 import NodeTree from '../components/template/NodeTree'
 import TemplateList from '../components/template/TemplateList'
 import { IssueLines } from '../components/template/fields'
+import { RefreshIcon } from '../components/template/icons'
+import { CloseIcon } from '../components/icons'
 import { countBlocks, countNodes, nodeJsonPath } from '../components/template/templateDoc'
 import { countIssues, issuesUnder } from '../components/template/templateValidate'
 import { useTemplateEditor } from '../components/template/useTemplateEditor'
@@ -186,11 +188,13 @@ export default function TemplateEditorPage(): JSX.Element {
         </label>
         <button
           type="button"
-          className="tpl-mini"
+          className="tpl-icon-btn"
           disabled={editor.busy}
+          title="重新读取模板目录"
+          aria-label="重新加载"
           onClick={editor.requestReload}
         >
-          重新加载
+          <RefreshIcon />
         </button>
         <span className="tpl-top-counts">
           {open ? (
@@ -216,8 +220,14 @@ export default function TemplateEditorPage(): JSX.Element {
         </span>
         <span className="tpl-top-gap" />
         {editor.dirty && <span className="tpl-dirty">改动未保存</span>}
-        <button type="button" className="tpl-mini" onClick={closeTemplateEditor}>
-          关闭
+        <button
+          type="button"
+          className="tpl-icon-btn"
+          title="关闭模板编辑"
+          aria-label="关闭"
+          onClick={closeTemplateEditor}
+        >
+          <CloseIcon />
         </button>
       </header>
 
@@ -251,8 +261,14 @@ export default function TemplateEditorPage(): JSX.Element {
                 </code>
               </details>
             ))}
-          <button type="button" className="tpl-mini" aria-label="关闭提示" onClick={editor.dismissNotice}>
-            ✕
+          <button
+            type="button"
+            className="tpl-icon-btn"
+            title="关掉这条提示"
+            aria-label="关闭提示"
+            onClick={editor.dismissNotice}
+          >
+            <CloseIcon size={13} />
           </button>
         </div>
       )}

@@ -7,6 +7,7 @@
 import { useState, type JSX } from 'react'
 import type { TemplateDirSnapshotDto, TemplateEntryDto } from '../../../../shared/project'
 import { IssueLine, jsonTip } from './fields'
+import { PencilIcon, PlusIcon, TrashIcon } from './icons'
 import type { TemplateEditorStatus } from './useTemplateEditor'
 
 interface TemplateListProps {
@@ -203,11 +204,13 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
               <h3>结构模板</h3>
               <button
                 type="button"
-                className="tpl-mini"
+                className="tpl-icon-btn"
                 disabled={busy}
+                title="新建结构模板"
+                aria-label="新建结构模板"
                 onClick={() => setMode(mode === 'create' ? 'none' : 'create')}
               >
-                新建
+                <PlusIcon />
               </button>
             </div>
 
@@ -250,25 +253,27 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
               <div className="tpl-form-foot tpl-list-foot">
                 <button
                   type="button"
-                  className="tpl-mini"
+                  className="tpl-icon-btn"
                   disabled={busy || dirty}
-                  title={dirty ? '先保存改动' : '改这份模板的名字'}
+                  title={dirty ? '先保存改动' : '改这份模板的 id 与名称'}
+                  aria-label="改名"
                   onClick={() => {
                     setRenameValue(selected.name || selected.id)
                     setRenameId(selected.id)
                     setMode('rename')
                   }}
                 >
-                  改名
+                  <PencilIcon />
                 </button>
                 <button
                   type="button"
-                  className="tpl-mini tpl-danger"
+                  className="tpl-icon-btn tpl-danger"
                   disabled={busy || dirty}
                   title={dirty ? '先保存改动' : '删除这份模板'}
+                  aria-label="删除"
                   onClick={() => setMode('remove')}
                 >
-                  删除
+                  <TrashIcon />
                 </button>
               </div>
             )}
