@@ -9,6 +9,14 @@
     ".": {
       "import": "./src/index.ts",
       "require": "./dist/index.js"
+    },
+    "./style-keys": {
+      "import": "./src/style-keys.ts",
+      "require": "./dist/style-keys.js"
+    },
+    "./style-rules": {
+      "import": "./src/style-rules.ts",
+      "require": "./dist/style-rules.js"
     }
   },
   "dependencies": {

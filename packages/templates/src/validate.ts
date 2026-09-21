@@ -36,6 +36,8 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import type { BlockLockLevel } from '@documentor/core'
+import { validateStyleMap } from './style-rules'
+import type { SkeletonFacts } from './style-rules'
 
 // ================= 常量（与脚本同值；改动前先改脚本） =================
 
@@ -817,7 +819,11 @@ function checkCopyGroups(
 // ================= 样式模板校验 =================
 
 /**
- * 校验样式模板（对应脚本 checkStyle）。
+ * 校验样式模板（对应脚本 checkStyle）：**读盘这一层**。
+ *
+ * 规则本身在 `./style-rules` 的 `validateStyleMap`（不碰 fs，编辑模式在渲染层实时跑同一份）。
+ * 这里负责把骨架读成"事实"——目录在不在、缺哪些部件、styleId 有哪些、起始编号是多少——
+ * 然后交给那份实现去判。
  *
  * @param styleDef stylemap JSON 原文（`{ name, styleMap, docxFolder, captionNumbering }`）
  * @param structureDefs 结构模板 JSON 原文列表，用于"结构需要的逻辑键样式有没有覆盖"与题注口径比对；
@@ -830,248 +836,33 @@ export function validateStyleTemplate(
   structureDefs: readonly unknown[] = [],
   opts: StyleValidateOptions = {}
 ): ValidationIssue[] {
-  const out: ValidationIssue[] = []
   const doc = asObject(styleDef) ?? {}
-  const id = opts.id !== undefined && opts.id !== '' ? opts.id : text(doc['name'] ?? '') || '(未命名)'
-  const stylemapLabel = opts.stylemapFile
-    ? label('styles', id, opts.stylemapFile)
-    : label('styles', id)
-
-  if (!doc['name']) {
-    out.push({
-      level: 'error',
-      rule: 'style.name.missing',
-      path: 'name',
-      message: `${stylemapLabel} 缺顶层 name（缺了整份被丢弃）`
-    })
-  }
-  const styleMap = asObject(doc['styleMap'])
-  if (!styleMap) {
-    out.push({
-      level: 'error',
-      rule: 'style.styleMap.missing',
-      path: 'styleMap',
-      message: `${stylemapLabel} 缺顶层 styleMap（缺了整份被丢弃）`
-    })
-    return out
-  }
-  const docxFolder = doc['docxFolder']
-  if (!docxFolder) {
-    out.push({
-      level: 'error',
-      rule: 'style.docxFolder.missing',
-      path: 'docxFolder',
-      message: `styles/${id}：stylemap 缺 docxFolder，程序找不到骨架目录`
-    })
-    return out
-  }
-  if (opts.manifestStyleFolder && opts.manifestStyleFolder !== docxFolder) {
-    out.push({
-      level: 'warn',
-      rule: 'style.manifestStyleFolder.mismatch',
-      path: 'manifest.style_folder',
-      message:
-        `manifest 的 style_folder=「${opts.manifestStyleFolder}」与 stylemap 的 docxFolder=` +
-        `「${text(docxFolder)}」不一致；程序实际用 docxFolder`
-    })
-  }
-
-  // 骨架：没有 basePath 就没有骨架可查（编辑模式早期只改映射表时会走这条）
-  /** 骨架里的样式表：题注"号从哪来"要看它，所以在骨架块外也要留着 */
-  let skeletonStyles: SkeletonStyleInfo[] = []
-  if (opts.basePath) {
-    const skeletonPath = join(opts.basePath, text(docxFolder))
-    if (!existsSync(skeletonPath)) {
-      out.push({
-        level: 'error',
-        rule: 'style.skeleton.missing',
-        path: label('skeleton', text(docxFolder)),
-        message: `styles/${id}/${text(docxFolder)} 骨架目录不存在`
-      })
-      return out
-    }
-    for (const part of SKELETON_REQUIRED_PARTS) {
-      if (!existsSync(join(skeletonPath, part))) {
-        out.push({
-          level: 'error',
-          rule: 'style.skeleton.part',
-          path: label('skeleton', part),
-          message: `styles/${id}/${text(docxFolder)} 缺部件 ${part}`
-        })
-      }
-    }
-
-    const index = parseSkeletonIndex(skeletonPath)
-    skeletonStyles = index.styles
-    if (index.styleIds.length === 0) {
-      out.push({
-        level: 'error',
-        rule: 'style.skeleton.styleId.none',
-        path: 'skeleton/word/styles.xml',
-        message: `styles/${id}/${text(docxFolder)}/word/styles.xml 读不到任何 styleId`
-      })
-    } else {
-      const validIds = new Set(index.styleIds)
-      for (const [logical, styleId] of Object.entries(styleMap)) {
-        if (!validIds.has(String(styleId))) {
-          out.push({
-            level: 'error',
-            rule: 'style.styleMap.styleId.missing',
-            path: `styleMap['${logical}']`,
-            message:
-              `styles/${id}：styleMap 的 ${logical}=${text(JSON.stringify(styleId))} ` +
-              `在骨架 styles.xml 里不存在（该处会按默认样式输出）`
-          })
-        }
-      }
-    }
-
-    const starts = index.headingStarts
-    if (!starts) {
-      out.push({
-        level: 'warn',
-        rule: 'style.skeleton.headingStarts',
-        path: 'skeleton/word/numbering.xml',
-        message:
-          `styles/${id}：读不到骨架 numbering.xml 的 abstractNum 起始编号，` +
-          `题注章节号会从 1 起算`
-      })
-    }
-    // 起始编号不是 1 在脚本里是事实陈述（有意的模板设计），不产出结论
-  }
-
-  const cn = doc['captionNumbering']
-  const cnObj = asObject(cn)
-  if (cnObj) {
-    for (const kind of ['table', 'figure'] as const) {
-      const mode = cnObj[kind]
-      if (mode !== undefined && !(CAPTION_MODES as readonly string[]).includes(text(mode))) {
-        out.push({
-          level: 'error',
-          rule: 'style.captionNumbering.mode',
-          path: `captionNumbering.${kind}`,
-          message:
-            `styles/${id}：captionNumbering.${kind}=${text(JSON.stringify(mode))} ` +
-            `不是 auto/static/field`
-        })
-      }
-    }
-    if (cnObj['table'] === 'field' || cnObj['figure'] === 'field') {
-      const names = asObject(cnObj['chapterStyleNames'])
-      if (!names || Object.keys(names).length === 0) {
-        out.push({
-          level: 'warn',
-          rule: 'style.captionNumbering.chapterStyleNames',
-          path: 'captionNumbering.chapterStyleNames',
-          message:
-            `styles/${id}：题注用 field 模式但没配 chapterStyleNames，` +
-            `程序按中文惯例用「标题 N」，英文版 Word 打开会算不出章节号`
-        })
-      }
+  const folder = text(doc['docxFolder'] ?? '')
+  let skeleton: SkeletonFacts | undefined
+  if (opts.basePath && folder !== '') {
+    const skeletonPath = join(opts.basePath, folder)
+    const exists = existsSync(skeletonPath)
+    const missingParts = exists
+      ? SKELETON_REQUIRED_PARTS.filter((part) => !existsSync(join(skeletonPath, part)))
+      : []
+    const index = exists ? parseSkeletonIndex(skeletonPath) : null
+    skeleton = {
+      folder,
+      exists,
+      missingParts: [...missingParts],
+      styleIds: index?.styleIds ?? [],
+      styles: index?.styles ?? [],
+      ...(index?.headingStarts === undefined ? {} : { headingStarts: index.headingStarts })
     }
   }
-  /**
-   * 题注的号从哪来：auto 靠骨架题注样式的多级列表，field 靠题注域，static 靠题注文字自带。
-   * 前两种情况下题注文字里再写「表N」就会出两个号——**程序不剥离手写前缀**
-   * （PLAN-07：题注文字原样带出），所以这里只看"文字里到底有没有写号"，不再猜程序会不会剥。
-   */
-  const captionStyleId = (kind: 'table' | 'figure'): string =>
-    text(styleMap[kind === 'table' ? 'table.caption' : 'figure.caption'] ?? '')
-  const styleNumbered = (styleId: string): boolean =>
-    styleId !== '' && skeletonStyles.some((s) => s.styleId === styleId && s.numbered === true)
-  const captionMode = (kind: 'table' | 'figure'): string => text(cnObj?.[kind] ?? 'auto')
-  if (!cnObj && opts.basePath) {
-    // 缺 captionNumbering = 全都按 auto；auto 的号来自骨架样式，样式也没带编号才是真没号。
-    // （原来这条写的是"手写前缀会被剥掉"，剥离已经删掉，那句话不再成立。）
-    // 没配 caption.caption 键的不在这里报：那是"结构所需逻辑键没被覆盖"那条 error 的事。
-    const noSource = (['table', 'figure'] as const).filter((kind) => {
-      const styleId = captionStyleId(kind)
-      return styleId !== '' && !styleNumbered(styleId)
-    })
-    if (noSource.length > 0) {
-      out.push({
-        level: 'warn',
-        rule: 'style.captionNumbering.absent',
-        path: 'captionNumbering',
-        message:
-          `styles/${id}：没有 captionNumbering，` +
-          `${noSource.map((k) => (k === 'table' ? '表题' : '图题')).join(' / ')}按 auto 处理，` +
-          `但骨架样式 ${noSource.map((k) => text(JSON.stringify(captionStyleId(k)))).join(' / ')} ` +
-          `没带多级列表编号——这样导出的题注不会有自动号（靠题注文字手写号的话可忽略本条）`
-      })
-    }
-  }
-
-  // 与配对结构比对逻辑键覆盖
-  const fileKey =
-    opts.stylemapFile !== undefined ? opts.stylemapFile.replace(/\.json$/u, '') : undefined
-  for (const rawStructure of structureDefs) {
-    const st = asObject(rawStructure)
-    if (!st) continue
-    const root = asObject(st['root'])
-    if (!root) continue // 脚本里结构整份没加载时不参与比对
-    if (fileKey === undefined) continue
-    if (text(st['styleTemplate'] ?? '') !== fileKey) continue
-    const stName = text(st['name'] ?? '')
-    const keys = collectStyleKeys(root)
-    const missing = [...keys].filter((k) => !(k in styleMap))
-    if (missing.length > 0) {
-      out.push({
-        level: 'error',
-        rule: 'style.structure.keysMissing',
-        path: `structure[${stName}].styleMap`,
-        message:
-          `样式 ${id} 没有覆盖结构「${stName}」需要的逻辑键：${missing.join(' / ')}` +
-          `（这些位置会按默认样式输出）`
-      })
-    }
-    // 题注手写号：号已经由样式（auto 且样式带编号）或题注域（field）给出时，
-    // 题注文字里再写「表N」就会出两个号——程序不剥离手写前缀（PLAN-07 口径）。
-    // static 不在范围内：那种模式下号本来就写在文字里。
-    const captions = collectCaptions(root)
-    for (let i = 0; i < captions.length; i++) {
-      const cap = captions[i]!
-      const mode = captionMode(cap.kind)
-      if (mode === 'static') continue
-      if (mode === 'auto' && !styleNumbered(captionStyleId(cap.kind))) continue
-      // 「表」/「图」后面跟数字、空格、全角空格、【 或括号，才算自己写了号；
-      // 「表面处理要求」这种只是碰巧以此开头的不算。
-      if (/^(表|图)[\s\u3000\d【（(]/u.test(cap.text)) {
-        const from = mode === 'auto' ? '样式多级列表' : '题注域'
-        out.push({
-          level: 'warn',
-          rule: 'style.caption.handwritten',
-          path: `structure[${stName}].captions[${i}]`,
-          message:
-            `样式 ${id}：结构「${stName}」的题注「${cap.text.slice(0, 28)}…」自己写了号，` +
-            `而 ${mode} 模式下号由${from}给——程序不剥离手写前缀，导出会重复` +
-            `（题注只写名称，号交给样式或题注域）`
-        })
-      }
-    }
-    // figure 是可选键：结构里有图但样式没配 figure，只是提示
-    if (keys.has('figure.caption') && !('figure' in styleMap)) {
-      out.push({
-        level: 'warn',
-        rule: 'style.figure.absent',
-        path: 'styleMap.figure',
-        message: `样式 ${id} 没配可选的 figure 键，图片段落会回退成 body 样式`
-      })
-    }
-    // 用不到的高阶列表键
-    for (const k of UNREAD_LIST_KEYS) {
-      if (k in styleMap) {
-        out.push({
-          level: 'warn',
-          rule: 'style.listKey.unread',
-          path: `styleMap['${k}']`,
-          message: `样式 ${id}：${k} 程序不读，配了不生效`
-        })
-      }
-    }
-  }
-
-  return out
+  return validateStyleMap(styleDef, structureDefs, {
+    ...(opts.id === undefined ? {} : { id: opts.id }),
+    ...(opts.stylemapFile === undefined ? {} : { stylemapFile: opts.stylemapFile }),
+    ...(opts.manifestStyleFolder === undefined
+      ? {}
+      : { manifestStyleFolder: opts.manifestStyleFolder }),
+    ...(skeleton === undefined ? {} : { skeleton })
+  })
 }
 
 // ================= 目录级校验（批次 1） =================
