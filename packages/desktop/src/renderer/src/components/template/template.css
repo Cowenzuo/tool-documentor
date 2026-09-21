@@ -617,7 +617,7 @@ body.is-splitting {
   margin: 0 0 0 var(--space-2);
 }
 
-/* 一行放几个字段：标题 / 级别 / 类型；窄了自动换行 */
+/* 一行放几个字段：标题 / 类型（三个开关也排在这一行的标签线上）；窄了自动换行 */
 .tpl-row {
   display: flex;
   flex-wrap: wrap;
@@ -631,7 +631,7 @@ body.is-splitting {
   min-width: 0;
 }
 
-/* 第一行：标题占大份，级别与类型各自够用就行 */
+/* 第一行：标题占大份，类型够用就行 */
 .tpl-row > .tpl-field:first-child {
   flex: 1 1 220px;
 }
@@ -640,19 +640,20 @@ body.is-splitting {
   flex: 0 1 132px;
 }
 
-.tpl-row .tpl-number {
-  width: 88px;
-}
-
-/* 开关行：三个开关横着排，窄了自动换行 */
-.tpl-row-flat {
-  align-items: center;
-  gap: var(--space-2) var(--space-4);
-  margin-bottom: var(--space-2);
-}
-
-.tpl-row-flat .tpl-switch {
+/* 三个开关（复制/删除/加内容）排在字段标签那一行的右端：不单占一行，
+   与「标题 / 类型」两个标签同一行、同一个字号，贴着行的右端 */
+.tpl-switches {
   flex: none;
+  margin-left: auto;
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  /* 与字段标签的行盒等高：标签是 12px，上下各留一点，开关就落在这一行的中线上 */
+  height: 17px;
+}
+
+.tpl-switches .tpl-switch {
   font-size: var(--text-xs);
 }
 
