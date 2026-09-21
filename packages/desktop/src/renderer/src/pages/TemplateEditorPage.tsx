@@ -2,6 +2,9 @@
  * 模板编辑页（PLAN-11 批次 2）：整页独立，不打开工程、不进撤销栈、不挂编辑器的组件树。
  * 三栏：左栏模板列表（目录与模板、问题徽标），中栏节点树，右栏选中节点的表单。
  * 改动只落在内存草稿里，写文件只发生在页脚那个「保存」按钮。
+ * 最下面那条页脚就是这一页的状态栏：左边是最近一次操作的回执（保存/新建/删除/改名，
+ * 失败时带上原文），中间是这份模板的校验结论，右边是保存按钮——状态只出现在这一条里，
+ * 页首不再另挂提示条（只有"有未保存改动、要你点一下"的确认才顶在上面）。
  *
  * 三栏可拖：左与中记宽度（本机 localStorage，口径同主编辑器的结构栏），右栏吃掉剩下的。
  * 窗口变窄时按比例收左与中，先保右栏的最小可用宽度——要填的字都在右栏。
@@ -247,32 +250,6 @@ export default function TemplateEditorPage(): JSX.Element {
         </div>
       )}
 
-      {editor.notice && (
-        <div className={`tpl-strip tpl-strip-${editor.notice.kind}`}>
-          <span>{editor.notice.text}</span>
-          {editor.notice.detail &&
-            (editor.notice.kind === 'error' ? (
-              <code className="tpl-raw">{editor.notice.detail}</code>
-            ) : (
-              <details className="tpl-detail">
-                <summary>备份位置</summary>
-                <code className="tpl-path" title={editor.notice.detail}>
-                  {editor.notice.detail}
-                </code>
-              </details>
-            ))}
-          <button
-            type="button"
-            className="tpl-icon-btn"
-            title="关掉这条提示"
-            aria-label="关闭提示"
-            onClick={editor.dismissNotice}
-          >
-            <CloseIcon size={13} />
-          </button>
-        </div>
-      )}
-
       <div
         className="tpl-body"
         ref={bodyRef}
@@ -348,6 +325,38 @@ export default function TemplateEditorPage(): JSX.Element {
       </div>
 
       <footer className="tpl-foot">
+        {/* 状态栏：左边是"刚刚发生了什么"（保存/新建/删除/改名的回执与失败原因），
+            中间是"文档现在有没有问题"，右边是保存按钮。 */}
+        {editor.notice && (
+          <div
+            className={`tpl-status tpl-status-${editor.notice.kind}`}
+            role={editor.notice.kind === 'error' ? 'alert' : 'status'}
+          >
+            <span className="tpl-status-text">{editor.notice.text}</span>
+            {editor.notice.detail &&
+              (editor.notice.kind === 'error' ? (
+                <code className="tpl-raw" title={editor.notice.detail}>
+                  {editor.notice.detail}
+                </code>
+              ) : (
+                <details className="tpl-detail">
+                  <summary>备份位置</summary>
+                  <code className="tpl-path" title={editor.notice.detail}>
+                    {editor.notice.detail}
+                  </code>
+                </details>
+              ))}
+            <button
+              type="button"
+              className="tpl-icon-btn"
+              title="关掉这条提示"
+              aria-label="关闭提示"
+              onClick={editor.dismissNotice}
+            >
+              <CloseIcon size={13} />
+            </button>
+          </div>
+        )}
         <div className="tpl-foot-issues">
           {editor.issues.length === 0 ? (
             <span className="tpl-count">{open ? '校验通过' : ''}</span>
@@ -364,21 +373,6 @@ export default function TemplateEditorPage(): JSX.Element {
           )}
         </div>
         <div className="tpl-foot-save">
-          {editor.saveResult && (
-            <>
-              <span className="tpl-count">已保存 {editor.saveResult.savedAt.slice(11, 19)}</span>
-              {editor.saveResult.backupPath ? (
-                <details className="tpl-detail">
-                  <summary>备份位置</summary>
-                  <code className="tpl-path" title={editor.saveResult.backupPath}>
-                    {editor.saveResult.backupPath}
-                  </code>
-                </details>
-              ) : (
-                <span className="tpl-count">首次保存，没有可备份的原文件</span>
-              )}
-            </>
-          )}
           <button
             type="button"
             className="tpl-mini tpl-primary"

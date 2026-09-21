@@ -13,8 +13,7 @@ import type {
   TemplateEditorSnapshotDto,
   TemplateEntryDto,
   TemplateIssueDto,
-  TemplateReadResult,
-  TemplateSaveResult
+  TemplateReadResult
 } from '../../../../shared/project'
 import {
   ROOT_PATH,
@@ -50,6 +49,11 @@ export interface TemplateNotice {
   kind: 'info' | 'warn' | 'error'
   text: string
   detail?: string
+  /**
+   * 只在"草稿没再动过"时还成立的回执（例如「已保存 11:36:48」）：
+   * 一动笔就该从状态栏撤下来，不然它会替一份有改动的草稿说"已保存"。
+   */
+  staleOnEdit?: boolean
 }
 
 /** 有未保存改动时切换对象（模板/目录）或重新加载，要先问一句，避免草稿被静默丢掉 */
@@ -106,7 +110,6 @@ export interface UseTemplateEditorResult {
   issues: TemplateIssueDto[]
   issuesSource: TemplateIssuesSource
   notice: TemplateNotice | null
-  saveResult: TemplateSaveResult | null
   pending: TemplatePending | null
   selectedPath: NodePath
   selectedNode: TemplateObject | null
@@ -150,7 +153,6 @@ export function useTemplateEditor(): UseTemplateEditorResult {
   const [dirty, setDirty] = useState(false)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<TemplateNotice | null>(null)
-  const [saveResult, setSaveResult] = useState<TemplateSaveResult | null>(null)
   const [pending, setPending] = useState<TemplatePending | null>(null)
   const [selectedPath, setSelectedPath] = useState<NodePath>(ROOT_PATH)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -199,7 +201,8 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     setSelectedPath(ROOT_PATH)
     setExpanded(expandableKeys(result.doc))
     setDirty(false)
-    setSaveResult(null)
+    // 换了一份模板：上一条回执说的已经不是眼前这份了
+    setNotice(null)
     setPending(null)
   }, [])
 
@@ -359,7 +362,8 @@ export function useTemplateEditor(): UseTemplateEditorResult {
       setDoc(next)
       setDirty(true)
       setIssuesSource('local')
-      setSaveResult(null)
+      // 又动笔了：状态栏里那条「已保存」不再成立
+      setNotice((current) => (current?.staleOnEdit ? null : current))
     },
     [doc]
   )
@@ -370,11 +374,18 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     setBusy(true)
     try {
       const result = await api.save({ dir, id: entryId, doc })
-      setSaveResult(result)
       setServerIssues(result.issues)
       setIssuesSource('server')
       setDirty(false)
-      setNotice({ kind: 'info', text: `已保存 ${result.savedAt.slice(11, 19)}` })
+      const time = result.savedAt.slice(11, 19)
+      setNotice({
+        kind: 'info',
+        text: result.backupPath
+          ? `已保存 ${time}`
+          : `已保存 ${time}（首次保存，没有可备份的原文件）`,
+        detail: result.backupPath ?? undefined,
+        staleOnEdit: true
+      })
       // 徽标跟着新结论走；草稿不动
       void refreshSnapshot()
     } catch (err) {
@@ -585,7 +596,6 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     issues,
     issuesSource,
     notice,
-    saveResult,
     pending,
     selectedPath,
     selectedNode,

@@ -95,7 +95,7 @@
   padding: 1px 8px;
 }
 
-/* ===== 提示条（未保存确认 / 操作结果）===== */
+/* ===== 提示条（只在有未保存改动、要用户点一下确认时出现）===== */
 .tpl-strip {
   flex: none;
   display: flex;
@@ -113,15 +113,6 @@
   border-left: 3px solid var(--warning);
 }
 
-.tpl-strip-error {
-  border-left: 3px solid var(--danger);
-  color: var(--text-1);
-}
-
-.tpl-strip-info {
-  border-left: 3px solid var(--accent);
-}
-
 .tpl-raw {
   flex: 1 1 100%;
   min-width: 0;
@@ -130,6 +121,41 @@
   color: var(--danger);
   word-break: break-all;
   white-space: pre-wrap;
+}
+
+/* 报错原文可能很长：状态栏里给它自己一行，超过就内部滚，别把状态栏撑成半屏 */
+.tpl-foot .tpl-raw {
+  max-height: 84px;
+  overflow: auto;
+}
+
+/* 操作回执在状态栏里的一条：一句话 + 可选的详情（备份位置 / 报错原文）+ 关掉 */
+.tpl-status {
+  flex: 0 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: var(--tpl-ctl-h);
+  max-width: 100%;
+  font-size: var(--text-xs);
+  color: var(--text-1);
+}
+
+.tpl-status-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tpl-status-error {
+  color: var(--danger);
+}
+
+.tpl-status-warn {
+  color: var(--warning);
 }
 
 /* 提示条/页脚里的「备份位置」折叠块：里面那条路径很长，
@@ -924,13 +950,15 @@ body.is-splitting {
   word-break: break-all;
 }
 
-/* ===== 页脚：问题清单与保存 ===== */
+/* ===== 页脚（状态栏）：操作回执 + 校验结论 + 保存 =====
+   状态栏就一行高（--tpl-ctl-h）：三块都按这个高度对齐；
+   问题清单展开时往下长，另两块留在这一行的位置上不跟着往下漂。 */
 .tpl-foot {
   flex: none;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
-  gap: var(--space-3);
+  gap: var(--space-2) var(--space-3);
   padding: var(--space-2) var(--space-3);
   border-top: 1px solid var(--border);
   background: var(--bg-panel);
@@ -939,6 +967,10 @@ body.is-splitting {
 .tpl-foot-issues {
   flex: 1 1 320px;
   min-width: 0;
+  min-height: var(--tpl-ctl-h);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   font-size: var(--text-xs);
   color: var(--text-2);
 }
@@ -957,8 +989,8 @@ body.is-splitting {
 
 .tpl-foot-save {
   flex: none;
+  min-height: var(--tpl-ctl-h);
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
 }
