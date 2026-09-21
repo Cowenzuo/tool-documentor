@@ -677,7 +677,8 @@ body.is-splitting {
 /* 页内右键菜单（节点树 / 模板列表共用）：与主编辑器的章节菜单同一套语言——
    菜单头写清这单冲着谁，按不了的项目在悬停提示里说明原因 */
 .tpl-tree-menu,
-.tpl-list-menu {
+.tpl-list-menu,
+.tpl-block-menu {
   position: fixed;
   z-index: 120;
   min-width: 152px;
@@ -692,7 +693,8 @@ body.is-splitting {
 }
 
 .tpl-tree-menu-head,
-.tpl-list-menu-head {
+.tpl-list-menu-head,
+.tpl-block-menu-head {
   padding: 6px 12px;
   margin-bottom: var(--space-1);
   border-bottom: 1px solid var(--border);
@@ -704,7 +706,8 @@ body.is-splitting {
 }
 
 .tpl-tree-menu button,
-.tpl-list-menu button {
+.tpl-list-menu button,
+.tpl-block-menu button {
   width: 100%;
   text-align: left;
   padding: 7px 12px;
@@ -714,17 +717,20 @@ body.is-splitting {
 }
 
 .tpl-tree-menu button:hover:not(:disabled),
-.tpl-list-menu button:hover:not(:disabled) {
+.tpl-list-menu button:hover:not(:disabled),
+.tpl-block-menu button:hover:not(:disabled) {
   background: var(--bg-hover);
 }
 
 .tpl-tree-menu button.danger,
-.tpl-list-menu button.danger {
+.tpl-list-menu button.danger,
+.tpl-block-menu button.danger {
   color: var(--danger);
 }
 
 .tpl-tree-menu button:disabled,
-.tpl-list-menu button:disabled {
+.tpl-list-menu button:disabled,
+.tpl-block-menu button:disabled {
   color: var(--text-3);
   cursor: not-allowed;
 }
@@ -848,15 +854,120 @@ body.is-splitting {
   color: var(--text-1);
 }
 
-.tpl-blocks-add {
-  margin-left: auto;
+/* 块间的缝：悬停或开着菜单时才显形——平时不占视线，鼠标扫过去就知道这里能插 */
+.tpl-block-slot {
   display: flex;
-  gap: var(--space-1);
-  min-width: 0;
+  flex-direction: column;
 }
 
-.tpl-blocks-add .tpl-select {
-  max-width: 168px;
+.tpl-insert {
+  position: relative;
+  height: 10px;
+  margin-bottom: -5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.tpl-insert-btn {
+  opacity: 0;
+  height: 20px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-raised);
+  color: var(--text-2);
+  font-size: var(--text-xs);
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.tpl-insert:hover .tpl-insert-btn,
+.tpl-insert.is-open .tpl-insert-btn,
+.tpl-insert-btn:focus-visible {
+  opacity: 1;
+}
+
+.tpl-insert-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* 末尾追加：虚线框 */
+.tpl-add {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding: var(--space-2) 0;
+}
+
+.tpl-add-btn {
+  border: 1px dashed var(--border-strong);
+  color: var(--text-2);
+  border-radius: var(--radius-control);
+  padding: 7px 18px;
+  font-size: var(--text-sm);
+  transition: all var(--duration-fast) ease;
+}
+
+.tpl-add-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* 类型菜单：人话名字 + 一句说明；从缝里往下弹，从末尾那个框往上弹 */
+.tpl-add-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 300px;
+  max-height: 320px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-1);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-overlay);
+  box-shadow: var(--overlay-shadow);
+  z-index: 80;
+}
+
+.tpl-insert .tpl-add-menu {
+  top: 100%;
+  bottom: auto;
+}
+
+.tpl-add-menu button {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: var(--radius-control);
+  text-align: left;
+}
+
+.tpl-add-menu button:hover {
+  background: var(--bg-hover);
+}
+
+.tpl-add-label {
+  flex: none;
+  font-size: var(--text-sm);
+  color: var(--text-1);
+}
+
+.tpl-add-desc {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  color: var(--text-3);
 }
 
 .tpl-block {

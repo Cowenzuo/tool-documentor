@@ -84,10 +84,12 @@ export interface BlockFormProps {
   onPatch: (patch: TemplateObject) => void
   onMove: (delta: -1 | 1) => void
   onRemove: () => void
+  /** 右键卡片：上方插入 / 下方插入 / 复制这一块（挪与删是卡片上的按钮，菜单里不重复） */
+  onOpenMenu: (x: number, y: number) => void
 }
 
 export function BlockForm(props: BlockFormProps): JSX.Element {
-  const { block, index, count, open, onToggle, issues, prevLocked, nextLocked, onPatch, onMove, onRemove } =
+  const { block, index, count, open, onToggle, issues, prevLocked, nextLocked, onPatch, onMove, onRemove, onOpenMenu } =
     props
   const type = blockType(block)
   const lock = blockLock(block)
@@ -139,6 +141,10 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
   return (
     <article
       className={`tpl-block${open ? ' is-open' : ''}${hasError ? ' has-error' : ''}`}
+      onContextMenu={(event) => {
+        event.preventDefault()
+        onOpenMenu(event.clientX, event.clientY)
+      }}
     >
       <header className="tpl-block-head">
         <button

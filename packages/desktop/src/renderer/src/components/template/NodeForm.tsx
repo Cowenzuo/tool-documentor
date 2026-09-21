@@ -7,14 +7,15 @@
 import { useEffect, useState, type JSX } from 'react'
 import { BLOCK_TYPE_NAMES } from '@documentor/core/blocks'
 import type { TemplateIssueDto } from '../../../../shared/project'
-import { BLOCK_TYPE_LABELS } from '../editor/blockTypes'
+import { BLOCK_TYPE_LABELS, describeBlockType } from '../editor/blockTypes'
 import BlockForm from './BlockForm'
-import { PlusIcon } from './icons'
+import { ContextMenu, useContextMenu } from './ContextMenu'
 import { CheckField, IssueLines, SelectField, TextAreaField, TextField, jsonTip } from './fields'
 import {
   NODE_FIELDS,
   asObject,
   blockLock,
+  blockType,
   breadcrumbOf,
   headingLevel,
   isPinnedLock,
@@ -45,17 +46,39 @@ interface NodeFormProps {
   onBlockPatch: (index: number, patch: TemplateObject) => void
   onBlockMove: (index: number, delta: -1 | 1) => void
   onBlockRemove: (index: number) => void
-  onBlockAdd: (type: string) => void
+  onBlockAdd: (type: string, index?: number) => void
+  onBlockDuplicate: (index: number) => void
 }
 
-const BLOCK_TYPE_OPTIONS = BLOCK_TYPE_NAMES.map((name) => ({
-  value: name as string,
-  label: `${BLOCK_TYPE_LABELS[name]}（${name}）`
-}))
+/**
+ * 加内容块的类型菜单：与文档编辑那边同一份内容（人话名字 + 一句说明），
+ * 从块间的缝或末尾那个虚线框里弹出来。
+ */
+function AddBlockMenu({ onPick }: { onPick: (type: string) => void }): JSX.Element {
+  return (
+    <div className="tpl-add-menu" role="menu" aria-label="要加的内容块类型">
+      {BLOCK_TYPE_NAMES.map((name) => (
+        <button
+          key={name}
+          type="button"
+          role="menuitem"
+          title={describeBlockType(name)}
+          onClick={() => onPick(name as string)}
+        >
+          <span className="tpl-add-label">{BLOCK_TYPE_LABELS[name]}</span>
+          <span className="tpl-add-desc">{describeBlockType(name)}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
 
 export function NodeForm(props: NodeFormProps): JSX.Element {
   const { doc, status, node, path, issues } = props
-  const [addType, setAddType] = useState<string>(BLOCK_TYPE_NAMES[0])
+  /** 类型菜单开在哪一格：null 关着，数字 = 插到该下标之前（blocks.length 就是末尾） */
+  const [insertAt, setInsertAt] = useState<number | null>(null)
+  /** 内容块卡片的右键菜单（上方插入 / 下方插入 / 复制这一块） */
+  const blockMenu = useContextMenu<{ index: number }>()
   /**
    * 展开着哪几张内容块卡片：各自独立开合（同时开多张是常态——对照两张表的列或两段文本时要用）。
    * 默认开第一张；新增块自动展开它；移动/删除时下标跟着挪，别让"开着的"落到别的块上。
@@ -104,6 +127,29 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
     props.onBlockRemove(index)
   }
 
+  /** 插一块：开着的下标整体后移，新块直接摊开（省得再点一次） */
+  const insertBlock = (type: string, index: number): void => {
+    setOpenBlocks((current) => {
+      const next = new Set<number>()
+      for (const i of current) next.add(i >= index ? i + 1 : i)
+      next.add(index)
+      return next
+    })
+    setInsertAt(null)
+    props.onBlockAdd(type, index)
+  }
+
+  /** 复制一块：拷贝插在它下面，同样摊开新那一份 */
+  const duplicateBlock = (index: number): void => {
+    setOpenBlocks((current) => {
+      const next = new Set<number>()
+      for (const i of current) next.add(i > index ? i + 1 : i)
+      next.add(index + 1)
+      return next
+    })
+    props.onBlockDuplicate(index)
+  }
+
   if (!node) {
     return (
       <section className="tpl-col tpl-col-insp" aria-label="节点">
@@ -143,6 +189,13 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
   const nodeIssues = issues.filter(
     (issue) => !issue.path.startsWith(`${jsonPath}.contentBlocks`)
   )
+  /** 卡片菜单的标题：第几块 + 类型，让人一眼认出这单冲着谁 */
+  const menuBlock = blockMenu.payload ? asObject(blocks[blockMenu.payload.index]) : null
+  const blockMenuHead = menuBlock
+    ? `第 ${(blockMenu.payload?.index ?? 0) + 1} 块 · ${
+        (BLOCK_TYPE_LABELS as Record<string, string>)[blockType(menuBlock)] ?? blockType(menuBlock)
+      }`
+    : ''
 
   /** 类型只按"用途"选：chapter/section 这两个词程序不读，写哪个都不影响行为 */
   const kindOptions: Array<{ value: string; label: string }> = [
@@ -278,33 +331,7 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
         <section className="tpl-blocks">
           <header className="tpl-blocks-head">
             <h3>内容块</h3>
-            <span className="tpl-count">{blocks.length} 块</span>            <div className="tpl-blocks-add">
-              <select
-                className="tpl-select"
-                value={addType}
-                aria-label="要添加的内容块类型"
-                onChange={(event) => setAddType(event.target.value)}
-              >
-                {BLOCK_TYPE_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                className="tpl-icon-btn"
-                title="把选中的类型加到这一节点的末尾"
-                aria-label="添加内容块"
-                onClick={() => {
-                  props.onBlockAdd(addType)
-                  // 新块加在末尾，直接展开它，省得再点一次（已经开着的保持开着）
-                  setOpenBlocks((current) => new Set([...current, blocks.length]))
-                }}
-              >
-                <PlusIcon />
-              </button>
-            </div>
+            <span className="tpl-count">{blocks.length} 块</span>
           </header>
           {!nodeSwitch(node, 'allowContentBlocks') && (
             <p className="tpl-note">内容块开关关着：用户在新工程里不能往这个节点加内容块</p>
@@ -324,25 +351,84 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
                 )
               }
               return (
-                <BlockForm
-                  key={`${jsonPath}.contentBlocks[${index}]`}
-                  block={block}
-                  index={index}
-                  count={blocks.length}
-                  open={openBlocks.has(index)}
-                  onToggle={() => toggleBlock(index)}
-                  prevLocked={pinnedAt(index - 1)}
-                  nextLocked={pinnedAt(index + 1)}
-                  issues={issuesUnder(issues, `${jsonPath}.contentBlocks[${index}]`)}
-                  onPatch={(patch) => props.onBlockPatch(index, patch)}
-                  onMove={(delta) => moveBlock(index, delta)}
-                  onRemove={() => removeBlock(index)}
-                />
+                <div className="tpl-block-slot" key={`${jsonPath}.contentBlocks[${index}]`}>
+                  {/* 块间的缝：悬停才显形，鼠标扫过去就知道这里能插（与文档编辑那边同一个手势） */}
+                  <div className={`tpl-insert${insertAt === index ? ' is-open' : ''}`}>
+                    <button
+                      type="button"
+                      className="tpl-insert-btn"
+                      aria-expanded={insertAt === index}
+                      aria-label={`在第 ${index + 1} 块上方插入内容块`}
+                      title="在第这一块上方插入"
+                      onClick={() => setInsertAt(insertAt === index ? null : index)}
+                    >
+                      ＋ 在此插入
+                    </button>
+                    {insertAt === index && (
+                      <AddBlockMenu onPick={(type) => insertBlock(type, index)} />
+                    )}
+                  </div>
+                  <BlockForm
+                    block={block}
+                    index={index}
+                    count={blocks.length}
+                    open={openBlocks.has(index)}
+                    onToggle={() => toggleBlock(index)}
+                    prevLocked={pinnedAt(index - 1)}
+                    nextLocked={pinnedAt(index + 1)}
+                    issues={issuesUnder(issues, `${jsonPath}.contentBlocks[${index}]`)}
+                    onPatch={(patch) => props.onBlockPatch(index, patch)}
+                    onMove={(delta) => moveBlock(index, delta)}
+                    onRemove={() => removeBlock(index)}
+                    onOpenMenu={(x: number, y: number) => blockMenu.openIn({ index }, x, y)}
+                  />
+                </div>
               )
             })
           )}
+
+          {/* 末尾追加：虚线框，与文档编辑那边同一个语言 */}
+          <div className={`tpl-add${insertAt === blocks.length ? ' is-open' : ''}`}>
+            <button
+              type="button"
+              className="tpl-add-btn"
+              aria-expanded={insertAt === blocks.length}
+              title="在末尾添加内容块"
+              onClick={() => setInsertAt(insertAt === blocks.length ? null : blocks.length)}
+            >
+              ＋ 添加内容
+            </button>
+            {insertAt === blocks.length && (
+              <AddBlockMenu onPick={(type) => insertBlock(type, blocks.length)} />
+            )}
+          </div>
         </section>
       </div>
+      {/* 内容块卡片的右键菜单：插入与复制在这儿（挪/删是卡片上那两个按钮，菜单里不重复） */}
+      {blockMenu.payload && (
+        <ContextMenu
+          control={blockMenu}
+          className="tpl-block-menu"
+          label="内容块操作"
+          head={blockMenuHead}          items={[
+            {
+              label: '上方插入',
+              title: '在这一块上面插入一块',
+              run: () => setInsertAt(blockMenu.payload!.index)
+            },
+            {
+              label: '下方插入',
+              title: '在这一块下面插入一块',
+              run: () => setInsertAt(blockMenu.payload!.index + 1)
+            },
+            {
+              label: '复制这一块',
+              title: '把这一块连同内容与锁复制一份，插在它下面',
+              run: () => duplicateBlock(blockMenu.payload!.index)
+            }
+          ]}
+        />
+      )}
     </section>
   )
 }

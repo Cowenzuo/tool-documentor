@@ -301,6 +301,7 @@ export default function TemplateEditorPage(): JSX.Element {
           onBlockMove={editor.moveBlock}
           onBlockRemove={editor.removeBlock}
           onBlockAdd={editor.addBlock}
+          onBlockDuplicate={editor.duplicateBlock}
         />
       </div>
 

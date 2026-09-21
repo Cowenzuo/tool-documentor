@@ -21,6 +21,7 @@ import {
   branchKeys,
   createTemplateBlock,
   createTemplateNode,
+  duplicateBlockAt,
   duplicateNodeAt as duplicateNodeAtInDoc,
   expandableKeys,
   headingLevel,
@@ -139,7 +140,8 @@ export interface UseTemplateEditorResult {
   removeNodeAt: (path: NodePath) => void
   toggleBranchAt: (path: NodePath) => void
   patchBlock: (index: number, patch: TemplateObject) => void
-  addBlock: (type: string) => void
+  addBlock: (type: string, index?: number) => void
+  duplicateBlock: (index: number) => void
   moveBlock: (index: number, delta: -1 | 1) => void
   removeBlock: (index: number) => void
 }
@@ -605,9 +607,16 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     [mutate, selectedPath]
   )
 
+  /** 加一块：不带 index 就追加到末尾，带 index 就是"插到这一块之前" */
   const addBlock = useCallback(
-    (type: string): void =>
-      mutate((current) => addBlockAt(current, selectedPath, createTemplateBlock(type))),
+    (type: string, index?: number): void =>
+      mutate((current) => addBlockAt(current, selectedPath, createTemplateBlock(type), index)),
+    [mutate, selectedPath]
+  )
+
+  /** 复制一块（连同内容与锁）插在它下面 */
+  const duplicateBlock = useCallback(
+    (index: number): void => mutate((current) => duplicateBlockAt(current, selectedPath, index)),
     [mutate, selectedPath]
   )
 
@@ -665,6 +674,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     toggleBranchAt,
     patchBlock,
     addBlock,
+    duplicateBlock,
     moveBlock,
     removeBlock
   }

@@ -647,6 +647,19 @@ export function removeBlockAt(doc: TemplateDoc, nodePath: NodePath, index: numbe
   }))
 }
 
+/** 复制一块（连同内容与锁）插在它下面：模板作者常拿现成的一块当草稿 */
+export function duplicateBlockAt(doc: TemplateDoc, nodePath: NodePath, index: number): TemplateDoc {
+  const node = nodeAt(doc, nodePath)
+  const source = node ? asObject(rawBlocks(node)[index]) : null
+  // 下标不对就当没这回事：返回原来那份 doc，免得"什么都没改"却被标成有改动
+  if (!source) return doc
+  return patchWithin(doc, nodePath, (target) => {
+    const blocks = [...rawBlocks(target)]
+    blocks.splice(index + 1, 0, cloneJson(source) as TemplateObject)
+    return { ...target, contentBlocks: blocks }
+  })
+}
+
 export function moveBlockIn(
   doc: TemplateDoc,
   nodePath: NodePath,
