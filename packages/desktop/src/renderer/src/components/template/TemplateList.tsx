@@ -209,8 +209,9 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
                       onClick={() => props.onOpen(entry)}
                     >
                       <span className="tpl-item-name">{entry.name || entry.id}</span>
-                      <span className="tpl-item-id">{entry.id}</span>
+                      {/* 问题徽标紧跟名字（它是"这份模板有事"的提示），id 是给对照用的，挪到最后 */}
                       {badges(entry)}
+                      <span className="tpl-item-id">{entry.id}</span>
                     </button>
                   </li>
                 ))}
@@ -311,10 +312,11 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
                   <li key={entry.id}>
                     <div className="tpl-item is-readonly">
                       <span className="tpl-item-name">{entry.name || entry.id}</span>
+                      {/* 与结构模板同一顺序：问题徽标跟名字，id · fileKey 放最后 */}
+                      {badges(entry)}
                       <span className="tpl-item-id">
                         {entry.id} · {styleFileKey(entry)}
                       </span>
-                      {badges(entry)}
                     </div>
                   </li>
                 ))}

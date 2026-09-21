@@ -1,6 +1,6 @@
 /**
  * 中栏：结构模板的节点树（递归列表，可展开收起、可选中；不做拖拽）。
- * 视觉语言沿用编辑器的树：层级数字、类型角标、问题圆点；
+ * 视觉语言沿用编辑器的树：层级数字、需要时才有的一枚类型标记、问题圆点；
  * 状态由外面给（选中路径 + 展开集合），组件本身无状态。
  */
 import { useEffect, useRef, type JSX } from 'react'
@@ -12,7 +12,7 @@ import {
   headingLevel,
   nodeJsonPath,
   nodeTitle,
-  nodeType,
+  nodeTypeBadge,
   pathKey,
   rawBlocks,
   rawChildren,
@@ -70,6 +70,7 @@ function Row({
   const open = isRoot || expanded.has(key)
   const selected = pathKey(selectedPath) === key
   const blocks = rawBlocks(node).length
+  const typeBadge = nodeTypeBadge(node)
   const under = issuesUnder(issues, nodeJsonPath(path))
 
   return (
@@ -109,7 +110,8 @@ function Row({
         )}
         <span className="tpl-tree-level">{isRoot ? '根' : headingLevel(node)}</span>
         <span className="tpl-tree-title">{nodeTitle(node) || '（未命名）'}</span>
-        <span className="tpl-tree-type">{nodeType(node) || '—'}</span>
+        {/* 类型只在"和普通节点不一样"时占位置（可复制组 / 副标题 / 认不出的取值） */}
+        {typeBadge !== null && <span className="tpl-tree-type">{typeBadge}</span>}
         {blocks > 0 && <span className="tpl-tree-count">{blocks} 块</span>}
         <IssueDot issues={under} />
       </div>

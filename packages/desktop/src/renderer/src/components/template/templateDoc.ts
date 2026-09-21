@@ -90,6 +90,25 @@ export function nodeType(node: TemplateObject): string {
   return str(node['nodeType'])
 }
 
+/**
+ * 节点树行上该显示的"类型标记"（没有就返回 null）。
+ *
+ * 为什么不照原样显示 `nodeType`：真实模板里 100 个 section、41 个 chapter，
+ * 而 `chapter` / `section` / `root` 的层级已经由行首那颗级别数字说清了，再挂一个英文类型
+ * 就是同一件事说两遍（and 是给程序看的字段名，不是给人看的）。
+ * 只有下面这两类"和普通节点不一样、且影响用户怎么用"的才值得占用行上的位置：
+ *   - `repeatable`：可复制组，用户在新工程里能整组复制（导出侧也按组计数）；
+ *   - `subTitle`：副标题，不占标题编号链，导出侧另有 a/b/c 编号（见 subTitleStyle）。
+ * 认不出的取值照原样显示：那多半是拼错了，得让人看见（校验也会报）。
+ */
+export function nodeTypeBadge(node: TemplateObject): string | null {
+  const type = nodeType(node)
+  if (type === '' || type === 'root' || type === 'chapter' || type === 'section') return null
+  if (type === 'repeatable') return '可复制组'
+  if (type === 'subTitle') return '副标题'
+  return type
+}
+
 /** 标题级别的界面取值：模板里没写时按加载器的缺省（1）显示 */
 export function headingLevel(node: TemplateObject): number {
   return num(node['headingLevel'], 1)

@@ -5,7 +5,7 @@
  */
 import type { JSX } from 'react'
 import { BLOCK_TYPE_NAMES } from '@documentor/core/blocks'
-import { BLOCK_TYPE_BADGES, BLOCK_TYPE_LABELS, CODE_LANGUAGES, CODE_LANGUAGE_LABELS } from '../editor/blockTypes'
+import { BLOCK_TYPE_LABELS, CODE_LANGUAGES, CODE_LANGUAGE_LABELS } from '../editor/blockTypes'
 import type { TemplateIssueDto } from '../../../../shared/project'
 import {
   CheckField,
@@ -104,9 +104,7 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
   return (
     <article className={`tpl-block${issues.some((i) => i.level === 'error') ? ' has-error' : ''}`}>
       <header className="tpl-block-head">
-        <span className="tpl-block-badge">
-          {(BLOCK_TYPE_BADGES as Record<string, string>)[type] ?? '?'}
-        </span>
+        {/* 类型只写一遍：原来左边还有个单字角标（「表」）和「1. 表格」重复 */}
         <span className="tpl-block-title">
           {index + 1}. {typeLabel || '（未写类型）'}
         </span>
