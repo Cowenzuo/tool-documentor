@@ -1421,6 +1421,15 @@ button.tpl-issue-where:hover {
   color: var(--warning);
 }
 
+/* 栏头右端的提示：待修正行数、共用份数，正常时整块不渲染 */
+.tpl-col-facts {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-2);
+}
+
 .tpl-map-state {
   display: inline-block;
   padding: 0 6px;

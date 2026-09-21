@@ -105,24 +105,18 @@ export function StyleTable({
     <section className="tpl-col tpl-col-map" aria-label="样式对照表">
       <header className="tpl-col-head">
         <h2>样式对照表</h2>
-        {/* 栏头只说"这一栏是什么"：名字 + 骨架目录（悬停看全路径）。
-            这份表有多大在顶栏说，文件与文件键在下面那一行说，同一件事不说两遍 */}
+        {/* 栏头只说"这一栏是什么"：名字 + 骨架目录（悬停看全路径） */}
         <span className="tpl-col-hint" title={result.skeletonPath}>
           {name}
         </span>
-      </header>
-
-      <div className="tpl-col-body tpl-map-body">
-        {/* 常驻只留"看到它要做什么决定"的两条：有活干、会影响别人。
-            文件键与样式目录这类溯源信息不占版面：文件键在左栏条目里，样式目录出问题时由状态列说 */}
-        {problemRows.length > 0 || result.usedBy.length > 1 ? (
-          <div className="tpl-map-meta">
+        {/* 两条提示靠右：有活干、会影响别人。正常时这一头什么都不显示 */}
+        {(problemRows.length > 0 || result.usedBy.length > 1) && (
+          <span className="tpl-col-facts">
             {problemRows.length > 0 && (
-              <span className="tpl-map-fact tpl-map-bad">待修正 {problemRows.length} 行</span>
+              <span className="tpl-map-bad">待修正 {problemRows.length} 行</span>
             )}
             {result.usedBy.length > 1 && (
               <span
-                className="tpl-map-fact"
                 title={result.usedBy
                   .map((u) => `${u.name}${u.isDefault ? '（默认）' : ''}`)
                   .join('、')}
@@ -130,9 +124,11 @@ export function StyleTable({
                 共用 {result.usedBy.length} 份
               </span>
             )}
-          </div>
-        ) : null}
+          </span>
+        )}
+      </header>
 
+      <div className="tpl-col-body tpl-map-body">
         <table className="tpl-map">
           <thead>
             <tr>
