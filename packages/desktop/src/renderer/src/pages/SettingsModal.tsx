@@ -1,7 +1,8 @@
 /**
  * 设置对话框：主题、默认工程目录、模板目录列表（增删/浏览；保存后主进程即时重载模板）。
  * 每个模板目录就地显示加载结果——配错一层目录时，这里要说清为什么没加载到。
- * 「模板目录」一节末尾还有「模板编辑」入口：打开整页的模板编辑模式（PLAN-11 批次 2）。
+ * 「模板目录」一节只管配置：增删目录、看每个目录加载到什么。
+ * 模板编辑的入口不在这里——它在欢迎页（与新建/打开工程并排），那里不打开工程也能进。
  */
 import { useEffect, useState } from 'react'
 import type { AppConfigDto, TemplateLoadReport } from '../../../shared/project'
@@ -38,7 +39,7 @@ function ThemeSection(): React.JSX.Element {
 }
 
 export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.Element {
-  const { showToast, openTemplateEditor } = useApp()
+  const { showToast } = useApp()
   const [cfg, setCfg] = useState<AppConfigDto | null>(null)
   const [saving, setSaving] = useState(false)
   const [report, setReport] = useState<TemplateLoadReport | null>(null)
@@ -199,21 +200,6 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
                 >
                   ＋ 添加模板目录
                 </button>
-                <div className="w-row">
-                  <button
-                    type="button"
-                    className="be-btn"
-                    disabled={saving}
-                    title="打开模板编辑页；编辑的是已保存的模板目录"
-                    onClick={() => {
-                      // 模板编辑是整页，弹层压在上面会把页面挡住；这里一起关掉
-                      openTemplateEditor()
-                      onClose()
-                    }}
-                  >
-                    模板编辑
-                  </button>
-                </div>
               </div>
               {report && !report.loadedAny && cfg.template_dirs.some((d) => d.trim()) && (
                 <p className="settings-status bad">没有加载到任何模板，新建工程向导会是空的</p>
