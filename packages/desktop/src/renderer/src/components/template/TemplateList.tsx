@@ -150,9 +150,6 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
     <section className="tpl-col tpl-col-list" aria-label="模板">
       <header className="tpl-col-head">
         <h2>模板</h2>
-        <span className="tpl-count">
-          {dirSnapshot ? `${structures.length} 套结构 · ${styles.length} 套样式` : ''}
-        </span>
       </header>
       <div className="tpl-col-body">
         {!dirSnapshot ? (
