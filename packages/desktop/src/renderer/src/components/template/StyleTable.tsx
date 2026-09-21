@@ -120,7 +120,7 @@ export function StyleTable({
           </div>
           <div className="tpl-map-meta-line">
             <span className="tpl-count">
-              样式目录 {docxFolder === '' ? '（对照表未写）' : docxFolder}
+              样式目录 {docxFolder === '' ? '未写' : docxFolder}
             </span>
             {/* 共用影响面：同一份映射可能被多份结构模板引用，改它之前先看清有谁在用 */}
             <span className="tpl-count">

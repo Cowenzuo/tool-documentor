@@ -446,7 +446,7 @@ export function validateStructureTemplate(
       level: 'error',
       rule: 'structure.name.missing',
       path: 'name',
-      message: `${fileLabel} 缺顶层 name（缺了整份文件被丢弃）`
+      message: `顶层name缺失`
     })
   }
   const root = asObject(doc['root'])
@@ -455,7 +455,7 @@ export function validateStructureTemplate(
       level: 'error',
       rule: 'structure.root.missing',
       path: 'root',
-      message: `${fileLabel} 缺顶层 root（缺了整份文件被丢弃）`
+      message: `顶层root缺失`
     })
     return out
   }
@@ -474,7 +474,7 @@ export function validateStructureTemplate(
       level: 'warn',
       rule: 'structure.styleTemplate.absent',
       path: 'styleTemplate',
-      message: `structures/${id}：既没有 styleTemplate 也没有 styleTemplates，这套结构在导出时没有候选样式`
+      message: `对照表未声明`
     })
   }
 
@@ -502,7 +502,7 @@ function checkStructureNode(
       level: 'warn',
       rule: 'node.title.missing',
       path: `${path}.title`,
-      message: `节点 ${where} · 缺 title`
+      message: `title缺失`
     })
   }
   // lock 是块级字段：写在节点上不生效，节点级仍用 copyable / deletable / allowContentBlocks
@@ -511,7 +511,7 @@ function checkStructureNode(
       level: 'error',
       rule: 'node.lock.misplaced',
       path: `${path}.lock`,
-      message: `节点 ${where} · lock 不生效（块锁写在 contentBlocks[] 里）`
+      message: `lock位置错误`
     })
   }
   if (level !== undefined && (!Number.isInteger(level as number) || (level as number) < 0)) {
@@ -519,7 +519,7 @@ function checkStructureNode(
       level: 'error',
       rule: 'node.headingLevel.invalid',
       path: `${path}.headingLevel`,
-      message: `节点 ${where} · headingLevel 非法：${text(JSON.stringify(level))}`
+      message: `headingLevel非法`
     })
   }
   if ((level as number) > 9) {
@@ -527,7 +527,7 @@ function checkStructureNode(
       level: 'warn',
       rule: 'node.headingLevel.deep',
       path: `${path}.headingLevel`,
-      message: `节点 ${where} · headingLevel ${text(level)} 超出 9 级上限`
+      message: `headingLevel超深`
     })
   }
 
@@ -541,7 +541,7 @@ function checkStructureNode(
       level: 'warn',
       rule: 'node.switches.absent',
       path,
-      message: `节点 ${where} · 未写 copyable / deletable · 缺省 false`
+      message: `copyable / deletable未写`
     })
   }
   // 脚本在这里有一个空判断（deletable === true 且没有 children 属正常），不产生结论，故不搬
@@ -613,7 +613,7 @@ function checkStructureNode(
         level: 'error',
         rule: 'block.text.content',
         path: `${bp}.content`,
-        message: `${bw} · text 缺 content（字符串）`
+        message: `${bw} · content缺失`
       })
     }
     if (
@@ -624,7 +624,7 @@ function checkStructureNode(
         level: 'error',
         rule: 'block.list.items',
         path: `${bp}.items`,
-        message: `${bw} · ${text(b['type'])} 缺 items（字符串数组）`
+        message: `${bw} · items缺失`
       })
     }
     if (b['type'] === 'image') {
@@ -633,7 +633,7 @@ function checkStructureNode(
           level: 'error',
           rule: 'block.image.content',
           path: `${bp}.content`,
-          message: `${bw} · image 缺 content（工程内相对路径，可为空）`
+          message: `${bw} · content缺失`
         })
       }
       if (!b['caption']) {
@@ -651,7 +651,7 @@ function checkStructureNode(
           level: 'error',
           rule: 'block.mermaid.content',
           path: `${bp}.content`,
-          message: `${bw} · mermaid 缺 content（流程图源码）`
+          message: `${bw} · content缺失`
         })
       }
       if (!b['caption']) {
@@ -1011,7 +1011,7 @@ export function validateTemplateDir(dir: string): TemplateDirValidation {
       level: 'error',
       rule: 'dir.missing',
       path: dir,
-      message: `模板目录不存在：${dir}`
+      message: `模板目录不存在`
     })
     return out
   }
@@ -1023,7 +1023,7 @@ export function validateTemplateDir(dir: string): TemplateDirValidation {
       level: 'error',
       rule: 'dir.manifest.missing',
       path: 'manifest.json',
-      message: '目录下没有 manifest.json，程序会整个跳过这个模板目录'
+      message: '模板清单缺失'
     })
     return out
   }
@@ -1033,7 +1033,7 @@ export function validateTemplateDir(dir: string): TemplateDirValidation {
       level: 'error',
       rule: 'dir.manifest.parse',
       path: 'manifest.json',
-      message: `manifest.json 解析失败：${manifestRead.error}（整个目录失效）`
+      message: `模板清单解析失败`
     })
     return out
   }
@@ -1043,7 +1043,7 @@ export function validateTemplateDir(dir: string): TemplateDirValidation {
       level: 'error',
       rule: 'dir.manifest.parse',
       path: 'manifest.json',
-      message: 'manifest.json 解析失败：顶层不是对象（整个目录失效）'
+      message: '模板清单解析失败'
     })
     return out
   }
@@ -1055,7 +1055,7 @@ export function validateTemplateDir(dir: string): TemplateDirValidation {
       level: 'error',
       rule: 'dir.structuresDir.missing',
       path: 'structures',
-      message: '缺少 structures/ 目录（目录名是硬约定）'
+      message: 'structures目录缺失'
     })
   }
   if (!existsSync(styleRoot)) {
@@ -1063,7 +1063,7 @@ export function validateTemplateDir(dir: string): TemplateDirValidation {
       level: 'error',
       rule: 'dir.stylesDir.missing',
       path: 'styles',
-      message: '缺少 styles/ 目录（目录名是硬约定）'
+      message: 'styles目录缺失'
     })
   }
 
@@ -1085,7 +1085,7 @@ export function validateTemplateDir(dir: string): TemplateDirValidation {
         level: 'error',
         rule: 'dir.structureEntry.incomplete',
         path: `manifest.structures[${i}]`,
-        message: `manifest.structures 有一条缺 id 或 file：${text(
+        message: `id或file缺失：${text(
           JSON.stringify(raw)
         )}（程序会跳过该条）`
       })
@@ -1110,7 +1110,7 @@ export function validateTemplateDir(dir: string): TemplateDirValidation {
         level: 'error',
         rule: 'structure.dir.missing',
         path: label('structures', id),
-        message: `structures/${id} 目录不存在（程序找的是 structures/<id>/<file>）`
+        message: `模板目录不存在`
       })
       continue
     }
@@ -1120,7 +1120,7 @@ export function validateTemplateDir(dir: string): TemplateDirValidation {
         level: 'error',
         rule: 'structure.file.missing',
         path: label('structures', id, file),
-        message: `structures/${id}/${file} 不存在（目录名必须等于 manifest 的 id）`
+        message: `模板文件不存在`
       })
       continue
     }
@@ -1130,7 +1130,7 @@ export function validateTemplateDir(dir: string): TemplateDirValidation {
         level: 'error',
         rule: 'structure.file.parse',
         path: label('structures', id, file),
-        message: `structures/${id}/${file} JSON 解析失败：${read.error}`
+        message: `模板文件解析失败`
       })
       continue
     }
@@ -1165,7 +1165,7 @@ export function validateTemplateDir(dir: string): TemplateDirValidation {
         level: 'error',
         rule: 'dir.styleEntry.incomplete',
         path: `manifest.styles[${i}]`,
-        message: `manifest.styles 有一条缺 id 或 stylemap_file：${text(
+        message: `id或stylemap_file缺失：${text(
           JSON.stringify(raw)
         )}（程序会跳过该条）`
       })
@@ -1191,7 +1191,7 @@ export function validateTemplateDir(dir: string): TemplateDirValidation {
         level: 'error',
         rule: 'style.dir.missing',
         path: label('styles', id),
-        message: `styles/${id} 目录不存在（程序找的是 styles/<id>/<stylemap_file>）`
+        message: `模板目录不存在`
       })
       continue
     }
@@ -1201,7 +1201,7 @@ export function validateTemplateDir(dir: string): TemplateDirValidation {
         level: 'error',
         rule: 'style.file.missing',
         path: label('styles', id, stylemapFile),
-        message: `styles/${id}/${stylemapFile} 不存在（目录名必须等于 manifest 的 id）`
+        message: `模板文件不存在`
       })
       continue
     }
@@ -1211,7 +1211,7 @@ export function validateTemplateDir(dir: string): TemplateDirValidation {
         level: 'error',
         rule: 'style.file.parse',
         path: label('styles', id, stylemapFile),
-        message: `styles/${id}/${stylemapFile} JSON 解析失败：${read.error}`
+        message: `模板文件解析失败`
       })
       continue
     }
@@ -1234,7 +1234,7 @@ export function validateTemplateDir(dir: string): TemplateDirValidation {
         level: 'warn',
         rule: 'dir.structure.unregistered',
         path: label('structures', name),
-        message: `structures/${name} 目录存在但 manifest 里没有登记，程序不会加载它`
+        message: `目录未登记`
       })
     }
   }
@@ -1244,7 +1244,7 @@ export function validateTemplateDir(dir: string): TemplateDirValidation {
         level: 'warn',
         rule: 'dir.style.unregistered',
         path: label('styles', name),
-        message: `styles/${name} 目录存在但 manifest 里没有登记，程序不会加载它`
+        message: `目录未登记`
       })
     }
   }
@@ -1258,7 +1258,7 @@ export function validateTemplateDir(dir: string): TemplateDirValidation {
         level: 'error',
         rule: 'dir.structureName.duplicate',
         path: label('structures', s.id),
-        message: `结构模板名「${s.name}」重复（${first} 与 ${s.id}），程序只保留先加载的那个`
+        message: `模板名重复`
       })
     } else {
       structureNameSeen.set(s.name, s.id)
@@ -1272,7 +1272,7 @@ export function validateTemplateDir(dir: string): TemplateDirValidation {
         level: 'error',
         rule: 'dir.styleName.duplicate',
         path: label('styles', s.id),
-        message: `样式模板名「${s.name}」重复（${first} 与 ${s.id}），程序只保留先加载的那个`
+        message: `模板名重复`
       })
     } else {
       styleNameSeen.set(s.name, s.id)
@@ -1288,7 +1288,7 @@ export function validateTemplateDir(dir: string): TemplateDirValidation {
           level: 'error',
           rule: 'dir.styleTemplate.unregistered',
           path: label('structures', s.id, 'styleTemplate'),
-          message: `结构「${s.name}」声明的样式 key「${key}」在 manifest.styles 里没有对应条目`
+          message: `样式键未登记`
         })
       }
     }

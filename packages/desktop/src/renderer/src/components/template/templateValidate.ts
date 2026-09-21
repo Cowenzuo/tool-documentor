@@ -74,7 +74,7 @@ export function validateStructureDoc(
       level: 'error',
       rule: 'structure.name.missing',
       path: 'name',
-      message: `${fileLabel} 缺顶层 name（缺了整份文件被丢弃）`
+      message: `顶层name缺失`
     })
   }
   const root = asObject(doc['root'])
@@ -83,7 +83,7 @@ export function validateStructureDoc(
       level: 'error',
       rule: 'structure.root.missing',
       path: 'root',
-      message: `${fileLabel} 缺顶层 root（缺了整份文件被丢弃）`
+      message: `顶层root缺失`
     })
     return out
   }
@@ -92,7 +92,7 @@ export function validateStructureDoc(
       level: 'warn',
       rule: 'structure.styleTemplate.absent',
       path: 'styleTemplate',
-      message: `structures/${id}：既没有 styleTemplate 也没有 styleTemplates，这套结构在导出时没有候选样式`
+      message: `对照表未声明`
     })
   }
 
@@ -117,7 +117,7 @@ function checkStructureNode(
       level: 'warn',
       rule: 'node.title.missing',
       path: `${path}.title`,
-      message: `节点 ${where} · 缺 title`
+      message: `title缺失`
     })
   }
   // lock 是块级字段：写在节点上不生效，节点级仍用 copyable / deletable / allowContentBlocks
@@ -126,7 +126,7 @@ function checkStructureNode(
       level: 'error',
       rule: 'node.lock.misplaced',
       path: `${path}.lock`,
-      message: `节点 ${where} · lock 不生效（块锁写在 contentBlocks[] 里）`
+      message: `lock位置错误`
     })
   }
   if (level !== undefined && (!Number.isInteger(level) || (level as number) < 0)) {
@@ -134,7 +134,7 @@ function checkStructureNode(
       level: 'error',
       rule: 'node.headingLevel.invalid',
       path: `${path}.headingLevel`,
-      message: `节点 ${where} · headingLevel 非法：${text(JSON.stringify(level))}`
+      message: `headingLevel非法`
     })
   }
   if ((level as number) > 9) {
@@ -142,7 +142,7 @@ function checkStructureNode(
       level: 'warn',
       rule: 'node.headingLevel.deep',
       path: `${path}.headingLevel`,
-      message: `节点 ${where} · headingLevel ${text(level)} 超出 9 级上限`
+      message: `headingLevel超深`
     })
   }
 
@@ -156,7 +156,7 @@ function checkStructureNode(
       level: 'warn',
       rule: 'node.switches.absent',
       path,
-      message: `节点 ${where} · 未写 copyable / deletable · 缺省 false`
+      message: `copyable / deletable未写`
     })
   }
 
@@ -225,7 +225,7 @@ function checkStructureNode(
         level: 'error',
         rule: 'block.text.content',
         path: `${bp}.content`,
-        message: `${bw} · text 缺 content（字符串）`
+        message: `${bw} · content缺失`
       })
     }
     if (
@@ -236,7 +236,7 @@ function checkStructureNode(
         level: 'error',
         rule: 'block.list.items',
         path: `${bp}.items`,
-        message: `${bw} · ${text(b['type'])} 缺 items（字符串数组）`
+        message: `${bw} · items缺失`
       })
     }
     if (b['type'] === 'image') {
@@ -245,7 +245,7 @@ function checkStructureNode(
           level: 'error',
           rule: 'block.image.content',
           path: `${bp}.content`,
-          message: `${bw} · image 缺 content（工程内相对路径，可为空）`
+          message: `${bw} · content缺失`
         })
       }
       if (!b['caption']) {
@@ -263,7 +263,7 @@ function checkStructureNode(
           level: 'error',
           rule: 'block.mermaid.content',
           path: `${bp}.content`,
-          message: `${bw} · mermaid 缺 content（流程图源码）`
+          message: `${bw} · content缺失`
         })
       }
       if (!b['caption']) {
