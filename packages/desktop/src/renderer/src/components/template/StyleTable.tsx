@@ -113,28 +113,25 @@ export function StyleTable({
       </header>
 
       <div className="tpl-col-body tpl-map-body">
-        {/* 一行字段说清这份对照表：文件键、样式目录、被谁引用、待修正行数、文件名。
-            引用方的名字不常驻，进悬停 */}
-        <div className="tpl-map-meta">
-          <span className="tpl-map-fact">
-            文件键 <code className="tpl-mono">{result.fileKey}</code>
-          </span>
-          <span className="tpl-map-fact">
-            样式目录 <code className="tpl-mono">{docxFolder === '' ? '未写' : docxFolder}</code>
-          </span>
-          <span
-            className="tpl-map-fact"
-            title={result.usedBy.map((u) => `${u.name}${u.isDefault ? '（默认）' : ''}`).join('、')}
-          >
-            引用 {result.usedBy.length === 0 ? '无' : `${result.usedBy.length} 份`}
-          </span>
-          {problemRows.length > 0 && (
-            <span className="tpl-map-fact tpl-map-bad">待修正 {problemRows.length} 行</span>
-          )}
-          <span className="tpl-map-fact tpl-map-path" title={`styles/${result.id}/${result.file}`}>
-            {result.file}
-          </span>
-        </div>
+        {/* 常驻只留"看到它要做什么决定"的两条：有活干、会影响别人。
+            文件键与样式目录这类溯源信息不占版面：文件键在左栏条目里，样式目录出问题时由状态列说 */}
+        {problemRows.length > 0 || result.usedBy.length > 1 ? (
+          <div className="tpl-map-meta">
+            {problemRows.length > 0 && (
+              <span className="tpl-map-fact tpl-map-bad">待修正 {problemRows.length} 行</span>
+            )}
+            {result.usedBy.length > 1 && (
+              <span
+                className="tpl-map-fact"
+                title={result.usedBy
+                  .map((u) => `${u.name}${u.isDefault ? '（默认）' : ''}`)
+                  .join('、')}
+              >
+                共用 {result.usedBy.length} 份
+              </span>
+            )}
+          </div>
+        ) : null}
 
         <table className="tpl-map">
           <thead>
