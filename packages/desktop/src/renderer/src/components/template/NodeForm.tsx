@@ -19,6 +19,7 @@ import {
   breadcrumbOf,
   headingLevel,
   isPinnedLock,
+  groupFixFor,
   kindChangeProblem,
   nodeJsonPath,
   nodeKind,
@@ -45,6 +46,8 @@ interface NodeFormProps {
   /** 该节点下的全部结论（含内容块） */
   issues: TemplateIssueDto[]
   onPatch: (patch: TemplateObject) => void
+  /** 把这一组改齐（同级不许混的"直接修复"） */
+  onGroupFix: () => void
   onBlockPatch: (index: number, patch: TemplateObject) => void
   onBlockMove: (index: number, delta: -1 | 1) => void
   onBlockRemove: (index: number) => void
@@ -215,6 +218,11 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
     isRoot || kind === 'unknown' ? null : kindChangeProblem(doc, path, otherKind)
   const kindLocked = isRoot || kindProblem !== null
   const kindWhy = isRoot ? '根节点是整篇文档，没有可选的类型' : (kindProblem ?? '')
+  /**
+   * 已经混着的那一组：单改一个还是混着（程序会拦），所以给一个整组动作。
+   * 合规的结构没有这个动作——它只在真出问题时出现。
+   */
+  const groupFix = groupFixFor(doc, path)
 
   const applyKind = (value: string): void => {
     if (value === 'heading') {
@@ -295,6 +303,23 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
 
         {/* 类型改不动时说清是为什么：这一条不是"报错"，是这个结构改不了 */}
         {kindProblem !== null && <p className="tpl-note tpl-note-kind">{kindProblem}，所以类型改不了。</p>}
+
+        {/* 这一组已经不合规：不给"一个个改"（改一个还是混着），给一个整组动作 */}
+        {groupFix && groupFix.paths.length > 0 && (
+          <p className="tpl-note tpl-note-kind tpl-note-fix">
+            {groupFix.why}。
+            <button
+              type="button"
+              className="tpl-mini tpl-inline-action"
+              title={`把${groupFix.scope === 'siblings' ? '同级' : '子节点'}里那 ${
+                groupFix.paths.length
+              } 个改成${groupFix.target === 'heading' ? '层级标题' : '列表子标题'}`}
+              onClick={props.onGroupFix}
+            >
+              把这一组改齐（都改成{groupFix.target === 'heading' ? '层级标题' : '列表子标题'}）
+            </button>
+          </p>
+        )}
 
         {kind === 'listSubTitle' && (
           <p className="tpl-note">

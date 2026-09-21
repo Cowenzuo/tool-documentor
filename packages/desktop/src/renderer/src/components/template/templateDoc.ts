@@ -534,6 +534,97 @@ export function kindChangeProblem(
   return null
 }
 
+/**
+ * 一组已经不合规时该怎么改齐（"直接修复，不留着"）：
+ *   - `children`：列表子标题下面挂着层级标题（加载器会拒收），或子节点里两种混着；
+ *   - `siblings`：它和同级混着（同一父节点下不许混）。
+ * `target` 是改完之后的类别，`paths` 是要改的那几个节点（已经是目标类别的不用改）。
+ * 合规的结构返回 null——这时界面上不该有"改齐"这个动作。
+ */
+export interface GroupFix {
+  scope: 'children' | 'siblings'
+  target: 'heading' | 'listSubTitle'
+  paths: NodePath[]
+  /** 一句话说清这一组现在哪里不合规 */
+  why: string
+}
+
+/** 一组节点里各是哪一类（认不出的取值不参与：程序不改作者写歪了的原值） */
+function kindsOf(nodes: readonly unknown[]): Array<'heading' | 'listSubTitle'> {
+  return nodes
+    .map((child) => asObject(child))
+    .filter((child): child is TemplateObject => child !== null)
+    .map((child) => nodeKind(child))
+    .filter((kind): kind is 'heading' | 'listSubTitle' => kind !== 'unknown')
+}
+
+/** 少数派是哪一类（用于"子节点混着"时挑一个改齐的目标；平手按层级标题） */
+function majorityKind(kinds: ReadonlyArray<'heading' | 'listSubTitle'>): 'heading' | 'listSubTitle' {
+  const headings = kinds.filter((k) => k === 'heading').length
+  return headings * 2 >= kinds.length ? 'heading' : 'listSubTitle'
+}
+
+export function groupFixFor(doc: TemplateDoc | null, path: NodePath): GroupFix | null {
+  const node = nodeAt(doc, path)
+  if (!node) return null
+  const children = rawChildren(node)
+  const childKinds = kindsOf(children)
+  /** 子节点下标（原始顺序），按类别挑出来 */
+  const childPathsOf = (kind: 'heading' | 'listSubTitle'): NodePath[] =>
+    children
+      .map((child, index) => ({ child: asObject(child), index }))
+      .filter((item) => item.child !== null && nodeKind(item.child) === kind)
+      .map((item) => [...path, item.index])
+
+  // ① 子节点这一头：列表子标题下面挂层级标题是硬违规（加载器直接拒收）
+  if (nodeKind(node) === 'listSubTitle') {
+    const bad = childPathsOf('heading')
+    if (bad.length > 0) {
+      return {
+        scope: 'children',
+        target: 'listSubTitle',
+        paths: bad,
+        why: `列表子标题下面挂着 ${bad.length} 个层级标题（列表子标题下只能挂列表子标题）`
+      }
+    }
+  }
+  // ② 子节点混着：按多数那一类改齐
+  if (childKinds.includes('heading') && childKinds.includes('listSubTitle')) {
+    const target = majorityKind(childKinds)
+    return {
+      scope: 'children',
+      target,
+      paths: childPathsOf(target === 'heading' ? 'listSubTitle' : 'heading'),
+      why: '它的子节点里既有层级标题也有列表子标题（同一父节点下不许混）'
+    }
+  }
+  // ③ 兄弟这一头：跟同级混着，按自己这一类改齐（作者选谁就以谁为准）
+  if (path.length > 0 && siblingKindOf(doc, path) === 'mixed') {
+    const own = nodeKind(node)
+    const target: 'heading' | 'listSubTitle' = own === 'unknown' ? 'heading' : own
+    const index = path[path.length - 1] ?? 0
+    const parent = nodeAt(doc, path.slice(0, -1))
+    const paths = parent
+      ? rawChildren(parent)
+          .map((child, i) => ({ child, i }))
+          .filter(
+            (item) =>
+              item.i !== index &&
+              nodeKind(asObject(item.child) ?? {}) ===
+                (target === 'heading' ? 'listSubTitle' : 'heading')
+          )
+          .map((item) => [...path.slice(0, -1), item.i])
+      : []
+    return {
+      scope: 'siblings',
+      target,
+      paths,
+      why: '它和同级混着：这一层里既有层级标题也有列表子标题（同一父节点下不许混）'
+    }
+  }
+  return null
+}
+
 export function createTemplateNode(level: number, type = 'chapter'): TemplateObject {
   return {
     nodeType: type,

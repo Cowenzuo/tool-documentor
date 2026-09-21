@@ -26,6 +26,7 @@ import {
   duplicateBlockAt,
   duplicateNodeAt as duplicateNodeAtInDoc,
   expandableKeys,
+  groupFixFor,
   headingLevel,
   insertChildAt,
   insertSiblingAfter,
@@ -34,6 +35,7 @@ import {
   nodeAt,
   nodeKind,
   nodeType,
+  normalNodeTypeFor,
   pathKey,
   patchBlockAt,
   patchNodeAt,
@@ -154,6 +156,8 @@ export interface UseTemplateEditorResult {
   moveNodeAt: (path: NodePath, delta: -1 | 1) => void
   removeNodeAt: (path: NodePath) => void
   toggleBranchAt: (path: NodePath) => void
+  /** 把这一组改齐（同级不许混）：参数是当前选中节点的路径 */
+  fixGroupAt: (path: NodePath) => void
   patchBlock: (index: number, patch: TemplateObject) => void
   addBlock: (type: string, index?: number) => void
   duplicateBlock: (index: number) => void
@@ -683,6 +687,27 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     [mutate]
   )
 
+  /**
+   * 把选中节点所在的那一组改齐（同一父节点下不许混：严格限制）。
+   * 已经混着的结构不能靠"一个个改"收拾——单改一个还是混着，程序会拦；
+   * 所以给一个整组动作：按 `groupFixFor` 算出的目标类别，把该改的那几个节点一起改掉。
+   */
+  const fixGroupAt = useCallback(
+    (path: NodePath): void => {
+      if (!doc) return
+      const fix = groupFixFor(doc, path)
+      if (!fix || fix.paths.length === 0) return
+      mutate((current) =>
+        fix.paths.reduce((acc, target) => {
+          const depth = target.length
+          const type = fix.target === 'listSubTitle' ? 'subTitle' : normalNodeTypeFor(depth)
+          return patchNodeAt(acc, target, { nodeType: type })
+        }, current)
+      )
+    },
+    [doc, mutate]
+  )
+
   /** 一支的开合：收就整支收掉，开就整支展开（菜单里的「展开/折叠该分支」） */
   const toggleBranchAt = useCallback(
     (path: NodePath): void => {
@@ -776,6 +801,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     moveNodeAt,
     removeNodeAt,
     toggleBranchAt,
+    fixGroupAt,
     patchBlock,
     addBlock,
     duplicateBlock,
