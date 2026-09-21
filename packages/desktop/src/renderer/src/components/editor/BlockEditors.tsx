@@ -477,7 +477,7 @@ export function FormulaEditor(props: EditorBaseProps<FormulaBlock>): React.JSX.E
         )
         setError(null)
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err))
+        setError('读取失败')
         setHtml(null)
       }
     }, 500)
@@ -633,7 +633,7 @@ export function MermaidEditor(props: EditorBaseProps<MermaidBlock>): React.JSX.E
         void writeMermaidPngCache(svg, block.code)
       } catch (err) {
         setPreview(null)
-        setError(err instanceof Error ? err.message : String(err))
+        setError('读取失败')
       }
     }, 700)
     return () => window.clearTimeout(timerRef.current)

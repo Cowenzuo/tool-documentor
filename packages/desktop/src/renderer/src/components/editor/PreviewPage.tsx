@@ -357,7 +357,7 @@ function MermaidPreview({
         if (!disposed) setSvg(s)
       })
       .catch((err: unknown) => {
-        if (!disposed) setError(err instanceof Error ? err.message : String(err))
+        if (!disposed) setError('读取失败')
       })
     return () => {
       disposed = true
