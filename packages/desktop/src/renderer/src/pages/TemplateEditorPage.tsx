@@ -301,7 +301,6 @@ export default function TemplateEditorPage(): JSX.Element {
           node={editor.selectedNode}
           path={editor.selectedPath}
           issues={nodeIssues}
-          nodeTypes={editor.nodeTypes}
           onPatch={editor.patchSelectedNode}
           onBlockPatch={editor.patchBlock}
           onBlockMove={editor.moveBlock}

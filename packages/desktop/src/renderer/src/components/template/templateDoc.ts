@@ -140,20 +140,41 @@ export function nodeType(node: TemplateObject): string {
 /**
  * 节点树行上该显示的"类型标记"（没有就返回 null）。
  *
- * 为什么不照原样显示 `nodeType`：真实模板里 100 个 section、41 个 chapter，
- * 而 `chapter` / `section` / `root` 的层级已经由行首那颗级别数字说清了，再挂一个英文类型
- * 就是同一件事说两遍（and 是给程序看的字段名，不是给人看的）。
+ * 为什么不照原样显示 `nodeType`：模板里 100 个 section、41 个 chapter，而这两个词
+ * 程序一个都不读（见 nodeKind 的说明），级别也早由行首那颗数字说清了；
  * 只有下面这两类"和普通节点不一样、且影响用户怎么用"的才值得占用行上的位置：
- *   - `repeatable`：可复制组，用户在新工程里能整组复制（导出侧也按组计数）；
+ *   - `repeatable`：复制组的标记（与 copyGroupId 配对，用户按组复制）；
  *   - `subTitle`：副标题，不占标题编号链，导出侧另有 a/b/c 编号（见 subTitleStyle）。
- * 认不出的取值照原样显示：那多半是拼错了，得让人看见（校验也会报）。
+ * 认不出的取值照原样显示：那多半是拼错了，得让人看见。
  */
 export function nodeTypeBadge(node: TemplateObject): string | null {
+  const kind = nodeKind(node)
+  if (kind === 'subTitle') return '副标题'
+  if (kind === 'repeatable') return '复制组'
+  if (kind === 'unknown') return nodeType(node)
+  return null
+}
+
+/**
+ * 节点在界面上的"用途"。文件里那串英文类型名对作者没有意义：
+ * 程序只对 `subTitle`（副标题：不写标题段落、另有样式与编号）与 `repeatable`
+ *（复制组标记）分支，`root` 只被几条检查用到；
+ * `chapter` / `section` 全库没有一处读它们（真实模板里 chapter 出现在 1~3 层、
+ * section 出现在 2~5 层，连"第几层叫什么"都不是固定约定），所以界面按用途来选。
+ */
+export type NodeKind = 'normal' | 'subTitle' | 'repeatable' | 'unknown'
+
+export function nodeKind(node: TemplateObject): NodeKind {
   const type = nodeType(node)
-  if (type === '' || type === 'root' || type === 'chapter' || type === 'section') return null
-  if (type === 'repeatable') return '可复制组'
-  if (type === 'subTitle') return '副标题'
-  return type
+  if (type === 'subTitle' || type === 'subtitle') return 'subTitle'
+  if (type === 'repeatable') return 'repeatable'
+  if (type === '' || type === 'root' || type === 'chapter' || type === 'section') return 'normal'
+  return 'unknown'
+}
+
+/** 常规标题在文件里的写法：一级 chapter、更深 section（与现有模板一致，这两个词本身无语义） */
+export function normalNodeTypeFor(level: number): string {
+  return level <= 1 ? 'chapter' : 'section'
 }
 
 /** 标题级别的界面取值：模板里没写时按加载器的缺省（1）显示 */
@@ -245,33 +266,7 @@ export function rawBlockLock(block: TemplateObject): string | null {
   return (BLOCK_LOCK_LEVELS as readonly string[]).includes(value) ? null : value
 }
 
-/** 这份模板里出现过的节点类型（下拉先给这些） */
-export function collectNodeTypes(doc: TemplateDoc | null): string[] {
-  const out: string[] = []
-  const walk = (node: TemplateObject): void => {
-    const type = nodeType(node)
-    if (type && !out.includes(type)) out.push(type)
-    for (const child of rawChildren(node)) {
-      const next = asObject(child)
-      if (next) walk(next)
-    }
-  }
-  const root = rootNode(doc)
-  if (root) walk(root)
-  return out
-}
-
-/** 常见节点类型：模板里一个都没出现时（例如刚新建的空模板）也能往下选 */
-const BASE_NODE_TYPES = ['root', 'chapter', 'section', 'subTitle', 'repeatable']
-
-export function nodeTypeOptions(doc: TemplateDoc | null, current: string): string[] {
-  const out = collectNodeTypes(doc)
-  for (const type of BASE_NODE_TYPES) if (!out.includes(type)) out.push(type)
-  if (current && !out.includes(current)) out.push(current)
-  return out
-}
-
-/** 界面替作者维护的字段名：其余字段原样保留，界面上列出来让人看得见 */
+/** 界面替作者维护的字段名：其余字段原样保留 */
 export const NODE_FIELDS = [
   'nodeType',
   'title',

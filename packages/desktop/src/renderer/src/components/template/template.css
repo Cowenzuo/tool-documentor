@@ -611,6 +611,11 @@ body.is-splitting {
   margin-bottom: var(--space-2);
 }
 
+/* 夹在一句说明中间的按钮（例如「改成 2 级」）：跟着句子走，别另起一行 */
+.tpl-note .tpl-inline-action {
+  margin: 0 0 0 var(--space-2);
+}
+
 /* 一行放几个字段：标题 / 级别 / 类型；窄了自动换行 */
 .tpl-row {
   display: flex;
@@ -991,6 +996,22 @@ button.tpl-issue-where:hover {
   font-size: var(--text-xs);
   color: var(--text-3);
   cursor: help;
+}
+
+/* 级别：树里的层级给的，不是可填字段；文件里写的与树里不一致时变色提醒 */
+.tpl-level {
+  flex: none;
+  font-size: var(--text-xs);
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--bg-active);
+  color: var(--text-2);
+  cursor: help;
+}
+
+.tpl-level.is-off {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
 }
 
 .tpl-issue-error {

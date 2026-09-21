@@ -30,7 +30,6 @@ import {
   moveNodeIn,
   nodeAt,
   nodeType,
-  nodeTypeOptions,
   pathKey,
   patchBlockAt,
   patchNodeAt,
@@ -116,7 +115,6 @@ export interface UseTemplateEditorResult {
   selectedPath: NodePath
   selectedNode: TemplateObject | null
   expanded: Set<string>
-  nodeTypes: string[]
   reload: () => Promise<void>
   requestReload: () => void
   requestDir: (dir: string) => void
@@ -626,11 +624,6 @@ export function useTemplateEditor(): UseTemplateEditorResult {
 
   const dismissNotice = useCallback((): void => setNotice(null), [])
 
-  const nodeTypes = useMemo(
-    () => nodeTypeOptions(doc, selectedNode ? nodeType(selectedNode) : ''),
-    [doc, selectedNode]
-  )
-
   return {
     status,
     snapshot,
@@ -647,7 +640,6 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     selectedPath,
     selectedNode,
     expanded,
-    nodeTypes,
     reload,
     requestReload,
     requestDir,

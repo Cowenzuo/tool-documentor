@@ -137,6 +137,8 @@ export function SelectField({
   options,
   hint,
   tip,
+  disabled,
+  disabledWhy,
   onChange
 }: {
   label: string
@@ -144,13 +146,17 @@ export function SelectField({
   options: Array<{ value: string; label: string }>
   hint?: string
   tip?: string
+  disabled?: boolean
+  /** 不能选的原因（只在 disabled 时用） */
+  disabledWhy?: string
   onChange: (value: string) => void
 }): JSX.Element {
   return (
-    <Field label={label} hint={hint} tip={tip}>
+    <Field label={label} hint={hint} tip={disabled ? (disabledWhy ?? tip) : tip}>
       <select
         className="tpl-select"
         value={value}
+        disabled={disabled === true}
         onChange={(event) => onChange(event.target.value)}
       >
         {options.map((option) => (

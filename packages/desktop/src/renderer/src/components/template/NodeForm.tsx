@@ -10,16 +10,18 @@ import type { TemplateIssueDto } from '../../../../shared/project'
 import { BLOCK_TYPE_LABELS } from '../editor/blockTypes'
 import BlockForm from './BlockForm'
 import { PlusIcon } from './icons'
-import { CheckField, IssueLines, NumberField, SelectField, TextAreaField, TextField, jsonTip } from './fields'
+import { CheckField, IssueLines, SelectField, TextAreaField, TextField, jsonTip } from './fields'
 import {
   NODE_FIELDS,
   asObject,
   breadcrumbOf,
   headingLevel,
   nodeJsonPath,
+  nodeKind,
   nodeSwitch,
   nodeType,
   nodeTitle,
+  normalNodeTypeFor,
   rawBlocks,
   str,
   typoField,
@@ -37,7 +39,6 @@ interface NodeFormProps {
   path: NodePath
   /** 该节点下的全部结论（含内容块） */
   issues: TemplateIssueDto[]
-  nodeTypes: string[]
   onPatch: (patch: TemplateObject) => void
   onBlockPatch: (index: number, patch: TemplateObject) => void
   onBlockMove: (index: number, delta: -1 | 1) => void
@@ -51,7 +52,7 @@ const BLOCK_TYPE_OPTIONS = BLOCK_TYPE_NAMES.map((name) => ({
 }))
 
 export function NodeForm(props: NodeFormProps): JSX.Element {
-  const { doc, status, node, path, issues, nodeTypes } = props
+  const { doc, status, node, path, issues } = props
   const [addType, setAddType] = useState<string>(BLOCK_TYPE_NAMES[0])
   /**
    * 展开着哪几张内容块卡片：各自独立开合（同时开多张是常态——对照两张表的列或两段文本时要用）。
@@ -120,6 +121,15 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
   const jsonPath = nodeJsonPath(path)
   const where = breadcrumbOf(doc, path)
   const blocks = rawBlocks(node)
+  const kind = nodeKind(node)
+  /**
+   * 级别跟着树里的层级走（第几层就是几级标题），不给人手改：
+   * 它决定导出时用哪套标题样式（heading.N）与主编辑器里"谁能挂在谁下面"，
+   * 而"文件里写的"和"树里在第几层"不一致时，界面得说出来——这才是作者要判断的东西。
+   */
+  const depth = path.length
+  const stored = headingLevel(node)
+  const levelOff = !isRoot && stored !== depth
   /** 字段名只差大小写（headingLevel 写成 headinglevel 这种）：程序会当没写，必须让人看见 */
   const typo = typoField(node, NODE_FIELDS)
   /** 节点自己字段上的结论：内容块下面的单独挂在块卡片上，不在这里重复 */
@@ -127,17 +137,49 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
     (issue) => !issue.path.startsWith(`${jsonPath}.contentBlocks`)
   )
 
+  /** 类型只按"用途"选：chapter/section 这两个词程序不读，写哪个都不影响行为 */
+  const kindOptions: Array<{ value: string; label: string }> = [
+    { value: 'normal', label: '常规标题' },
+    { value: 'subTitle', label: '副标题' },
+    { value: 'repeatable', label: '可复制组' }
+  ]
+  if (kind === 'unknown') kindOptions.push({ value: 'unknown', label: `（原值：${nodeType(node)}）` })
+
+  const applyKind = (value: string): void => {
+    if (value === 'normal') {
+      // 常规标题保持文件里原来的写法（chapter/section 没有语义差别，不顺手改写）
+      if (kind === 'normal') return
+      props.onPatch({ nodeType: normalNodeTypeFor(depth) })
+      return
+    }
+    if (value === 'subTitle') props.onPatch({ nodeType: 'subTitle' })
+    else if (value === 'repeatable') props.onPatch({ nodeType: 'repeatable' })
+  }
+
   return (
     <section className="tpl-col tpl-col-insp" aria-label="节点">
       <header className="tpl-col-head">
         <h2>节点</h2>
+        {/* 级别是树里的位置给的，在这儿当信息看：它决定导出用哪套标题样式 */}
+        <span
+          className={`tpl-level${levelOff ? ' is-off' : ''}`}
+          title={
+            isRoot
+              ? '根节点：整篇文档'
+              : levelOff
+                ? `文件里写的是 ${stored} 级标题，树里在第 ${depth} 层`
+                : `第 ${depth} 级标题（跟着树里的层级，导出用这套标题样式）`
+          }
+        >
+          {isRoot ? '根' : `${depth} 级`}
+        </span>
         {/* 位置写人话（示例文档 › 需求）：JSON 路径留给悬停，版面不印下标 */}
         <span className="tpl-where" title={jsonPath}>
           {where}
         </span>
       </header>
       <div className="tpl-col-body">
-        {/* 第一行：标题 / 级别 / 类型 —— 进面板第一眼就落在要改的地方 */}
+        {/* 第一行：标题 / 类型 —— 进面板第一眼就落在要改的地方 */}
         <div className="tpl-row">
           <TextField
             label="标题"
@@ -146,24 +188,43 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
             placeholder="章节标题"
             onChange={(value) => props.onPatch({ title: value })}
           />
-          <NumberField
-            label="级别"
-            tip={jsonTip('headingLevel', '0 是根节点，1 起是章、节、条')}
-            value={headingLevel(node)}
-            min={0}
-            onChange={(value) => props.onPatch({ headingLevel: value })}
-          />
           <SelectField
             label="类型"
-            tip={jsonTip('nodeType')}
-            value={nodeType(node)}
-            options={[
-              ...(nodeType(node) === '' ? [{ value: '', label: '（未写类型）' }] : []),
-              ...nodeTypes.map((type) => ({ value: type, label: type }))
-            ]}
-            onChange={(value) => props.onPatch({ nodeType: value })}
+            tip={jsonTip(
+              'nodeType',
+              '只按用途分：常规标题 / 副标题（不占编号链，导出按 a/b/c） / 可复制组'
+            )}
+            value={isRoot ? 'normal' : kind}
+            options={kindOptions}
+            disabled={isRoot}
+            disabledWhy="根节点是整篇文档，没有可选的类型"
+            onChange={applyKind}
           />
         </div>
+
+        {levelOff && (
+          <p className="tpl-note tpl-note-bad">
+            文件里写的是 {stored} 级标题，树里在第 {depth} 层：导出按 {stored} 级标题的样式排版。
+            <button
+              type="button"
+              className="tpl-mini tpl-inline-action"
+              onClick={() => props.onPatch({ headingLevel: depth })}
+            >
+              改成 {depth} 级
+            </button>
+          </p>
+        )}
+
+        {kind === 'subTitle' && (
+          <p className="tpl-note">
+            副标题：不占章节编号链，导出时按同级里的 a/b/c 编号（样式 subtitle.{depth}）
+          </p>
+        )}
+        {kind === 'repeatable' && (
+          <p className="tpl-note">
+            可复制组：这一组的节点同属一个复制组（copyGroupId），用户在新工程里按组复制
+          </p>
+        )}
 
         {/* 第二行：说明常驻（写给作者与用户的填写提示），排在三个开关前面 */}
         <TextAreaField
@@ -178,20 +239,23 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
         {/* 第三行：三个开关 —— 决定用户在新工程里能对这个节点做什么 */}
         <div className="tpl-row tpl-row-flat">
           <CheckField
-            label="可复制"
+            label="复制"
             tip={jsonTip('copyable', '用户在新工程里可以复制这个节点')}
             checked={nodeSwitch(node, 'copyable')}
             onChange={(checked) => props.onPatch({ copyable: checked })}
           />
           <CheckField
-            label="可删除"
+            label="删除"
             tip={jsonTip('deletable', '用户在新工程里可以删除这个节点')}
             checked={nodeSwitch(node, 'deletable')}
             onChange={(checked) => props.onPatch({ deletable: checked })}
           />
           <CheckField
-            label="可加内容块"
-            tip={jsonTip('allowContentBlocks', '用户在新工程里可以往这个节点加内容块')}
+            label="加内容"
+            tip={jsonTip(
+              'allowContentBlocks',
+              '用户在新工程里可以往这个节点加内容块（已有的内容能不能改，看每一块自己的锁）'
+            )}
             checked={nodeSwitch(node, 'allowContentBlocks')}
             onChange={(checked) => props.onPatch({ allowContentBlocks: checked })}
           />
