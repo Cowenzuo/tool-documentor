@@ -37,8 +37,8 @@ interface StyleTableProps {
   onChapterStyleName: (level: string, name: string | null) => void
 }
 
-/** 表头五列：逻辑键、用途、映射、必需、状态（宽度写在 CSS 里） */
-const COLUMNS = ['逻辑键', '用途', '当前映射', '必需', '状态与回退'] as const
+/** 表头三列：逻辑键、映射、状态。用途与必需不占列：用途进键的悬停，必需只在缺的时候由状态列说 */
+const COLUMNS = ['逻辑键', '当前映射', '状态与说明'] as const
 
 /** 一行分到哪个分区（rows 已按显示顺序排好，这里只做分段） */
 function groupRows(rows: readonly StyleMapRowDto[]): Array<{ group: string; rows: StyleMapRowDto[] }> {
@@ -296,7 +296,9 @@ function GroupRows({
         return (
           <tr key={row.key} className={`tpl-map-row is-${styleStatusTone(row.status)}`}>
             <th scope="row" className="tpl-map-key">
-              <code className="tpl-mono">{row.key}</code>
+              <code className="tpl-mono" title={row.usage}>
+                {row.key}
+              </code>
               {/* 「不读」是键自己的属性（不是这一行配得对不对），所以挂在键这一格 */}
               {!row.read && (
                 <span className="tpl-count" title="程序不读 · 列表各层只取第 1 档">
@@ -304,7 +306,6 @@ function GroupRows({
                 </span>
               )}
             </th>
-            <td className="tpl-map-usage">{row.usage}</td>
             <td className="tpl-map-target">
               {/* 映射就是这一列的活：选骨架里的一条样式；「（不配）」= 把这一项从 styleMap 里删掉。
                   选中项的说明只说下拉里看不到的（类型、字号、编号）——
@@ -327,28 +328,14 @@ function GroupRows({
                 )}
               </select>
             </td>
-            <td className="tpl-map-required">
-              {row.required ? (
-                <span
-                  className={`tpl-badge ${row.status === 'missing' ? 'tpl-badge-error' : ''}`}
-                  title={`必需 · ${row.requiredBy.join('、')}`}
-                >
-                  必需
-                </span>
-              ) : (
-                <span className="tpl-count">—</span>
-              )}
-            </td>
             <td className="tpl-map-status">
               <span className={`tpl-map-state is-${styleStatusTone(row.status)}`}>
                 {styleStatusLabel(row.status)}
               </span>
-              {/* 正常那一行不说第二遍"指向谁"（左边两列写着）；没配 / 配错 / 没核对才要说为什么 */}
+              {/* 说明只在"要动手"时写：正常与配了不生效都不说第二遍 */}
               {row.status === 'unset' ? (
                 <span className="tpl-map-why">
-                  {row.fallback === null
-                    ? '没人需要它，用到时按 Word 默认样式输出'
-                    : `程序回退用 ${row.fallback}${fallbackId === '' ? '（那个键也没配）' : ''}`}
+                  {row.fallback === null ? '按 Word 默认样式' : `回退 ${row.fallback}`}
                 </span>
               ) : row.status === 'inert' ? null : row.status === 'ok' ? null : (
                 <span className="tpl-map-why">{row.message}</span>
