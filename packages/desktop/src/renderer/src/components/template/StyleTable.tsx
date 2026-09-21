@@ -259,34 +259,7 @@ export function StyleTable({
         </details>
 
         {/* 校验结论的原话：样式这一侧没有"节点详情"那样的落点，原话就摆在这里 */}
-        <div className="tpl-map-issues">
-          <h3>
-            校验结论
-            <span className="tpl-count">
-              {errors} 个错误 · {warnings} 处提示
-              {issuesFromServer ? '（主进程给的）' : '（按当前草稿算的）'}
-            </span>
-          </h3>
-          {issues.length === 0 ? (
-            <p className="tpl-note">未发现问题 · 与引用它的结构模板一致</p>
-          ) : (
-            <ul className="tpl-map-issue-list">
-              {issues.map((issue, index) => (
-                <li
-                  key={`${issue.rule}-${index}`}
-                  className={`tpl-map-issue is-${issue.level}`}
-                  title={issue.rule}
-                >
-                  {/* 位置给人读的话（映射 heading.1 / 结构「甲结构」的覆盖），原始 path 在标题里 */}
-                  <span className="tpl-map-issue-where" title={issue.path}>
-                    {issueWhereForStyle(issue.path)}
-                  </span>
-                  <span className="tpl-map-issue-text">{issue.message}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        {/* 校验结论不在这里印第二遍：页脚状态栏常驻同一份结论，点开就是按位置归堆的原话 */}
       </div>
     </section>
   )
