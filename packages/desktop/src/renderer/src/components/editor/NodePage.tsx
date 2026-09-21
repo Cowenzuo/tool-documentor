@@ -382,7 +382,7 @@ export default function NodePage(): React.JSX.Element {
               {node.headingLevel === 0 ? (
                 <span className="np-badge">文档根</span>
               ) : node.isSubTitle ? (
-                <span className="np-badge np-badge-sub">子标题</span>
+                <span className="np-badge np-badge-sub">列表子标题</span>
               ) : (
                 <span className="np-badge">标题级别 {node.headingLevel}</span>
               )}

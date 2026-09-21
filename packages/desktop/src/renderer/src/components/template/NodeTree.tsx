@@ -64,7 +64,7 @@ function circled(value: number): string {
   return n <= 20 ? String.fromCodePoint(0x2460 + n - 1) : `(${n})`
 }
 
-/** 副标题的取色只用五档，超过第五级沿用第五档（与结构栏一致） */
+/** 列表子标题的取色只用五档，超过第五级沿用第五档（与结构栏一致） */
 function levelClass(level: number): number {
   return Math.min(5, Math.max(1, level))
 }
@@ -84,7 +84,7 @@ function Row({
   node: TemplateObject
   path: NodePath
   depth: number
-  /** 副标题在同一个父节点下排第几项（1 起）：圆圈数字用它，与结构栏一个口径 */
+  /** 列表子标题在同一个父节点下排第几项（1 起）：圆圈数字用它，与结构栏一个口径 */
   listIndex: number
   selectedPath: NodePath
   expanded: Set<string>
@@ -156,13 +156,13 @@ function Row({
           <span className="tpl-tree-caret" aria-hidden="true" />
         )}
         {/* 层级标记与常规文档编辑的结构栏同一套：
-            根=品牌色块、常规标题=素色数字、副标题=带色圆圈数字（同级里第几项） */}
+            根=品牌色块、层级标题=素色数字、列表子标题=带色圆圈数字（同级里第几项） */}
         {isRoot ? (
           <span className="tpl-tree-badge tpl-tree-badge-root" title="根节点：整篇文档">
             根
           </span>
-        ) : kind === 'subTitle' ? (
-          <span className={`tpl-tree-badge tpl-tree-badge-list lv${levelClass(level)}`} title={`副标题，第 ${level} 级`}>
+        ) : kind === 'listSubTitle' ? (
+          <span className={`tpl-tree-badge tpl-tree-badge-list lv${levelClass(level)}`} title={`列表子标题，第 ${level} 级`}>
             {circled(listIndex)}
           </span>
         ) : (
@@ -171,7 +171,7 @@ function Row({
           </span>
         )}
         <span className="tpl-tree-title">{nodeTitle(node) || '（未命名）'}</span>
-        {/* 类型只在"结构栏那一套标记说不清"时占位置（可复制组 / 认不出的取值） */}
+        {/* 类型只在"结构栏那一套标记说不清"时占位置（认不出的取值） */}
         {typeBadge !== null && <span className="tpl-tree-type">{typeBadge}</span>}
         {blocks > 0 && <span className="tpl-tree-count">{blocks} 块</span>}
         <IssueDot issues={under} />
@@ -180,13 +180,13 @@ function Row({
     </div>
   )
 
-  /** 子行：副标题在同级里的序号与结构栏一样，按每个父节点各自数（1 起） */
+  /** 子行：列表子标题在同级里的序号与结构栏一样，按每个父节点各自数（1 起） */
   function childRows(): Array<JSX.Element | null> {
     let subTitleIndex = 0
     return rawChildren(node).map((raw, childIndex) => {
       const child = asObject(raw)
       if (!child) return null
-      const isSubTitle = nodeKind(child) === 'subTitle'
+      const isSubTitle = nodeKind(child) === 'listSubTitle'
       if (isSubTitle) subTitleIndex += 1
       return (
         <Row

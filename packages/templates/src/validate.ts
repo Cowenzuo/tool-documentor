@@ -311,8 +311,8 @@ export function parseSkeletonIndex(skeletonPath: string): SkeletonIndex {
  * 结构节点定义 → 所需逻辑样式键（脚本 `requiredStyleKeys` 的照抄版，保留插入顺序）。
  *
  * 判定条件（与脚本逐条对齐，勿改）：
- * - 子标题节点（nodeType `subTitle` / `subtitle`）：`subtitle.1 .. subtitle.<嵌套深度>`；
- * - 非子标题且 `headingLevel > 0`：`heading.<headingLevel>`；
+ * - 列表子标题节点（nodeType `subTitle` / `subtitle`）：`subtitle.1 .. subtitle.<嵌套深度>`；
+ * - 非列表子标题且 `headingLevel > 0`：`heading.<headingLevel>`；
  * - text / formula / code → `body`；image / mermaid → `body` + `figure.caption`；
  *   table → `table.caption` + `table.header` + `table.body`；
  *   orderedList → `list.ordered.1`；unorderedList → `list.unordered.1`；

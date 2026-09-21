@@ -197,23 +197,21 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
       }`
     : ''
 
-  /** 类型只按"用途"选：chapter/section 这两个词程序不读，写哪个都不影响行为 */
+  /** 类型只按用途选，两种：层级标题 / 列表子标题（chapter、section 这些词程序不读） */
   const kindOptions: Array<{ value: string; label: string }> = [
-    { value: 'normal', label: '常规标题' },
-    { value: 'subTitle', label: '副标题' },
-    { value: 'repeatable', label: '可复制组' }
+    { value: 'heading', label: '层级标题' },
+    { value: 'listSubTitle', label: '列表子标题' }
   ]
   if (kind === 'unknown') kindOptions.push({ value: 'unknown', label: `（原值：${nodeType(node)}）` })
 
   const applyKind = (value: string): void => {
-    if (value === 'normal') {
-      // 常规标题保持文件里原来的写法（chapter/section 没有语义差别，不顺手改写）
-      if (kind === 'normal') return
+    if (value === 'heading') {
+      // 层级标题保持文件里原来的写法（chapter/section/repeatable 没有语义差别，不顺手改写）
+      if (kind === 'heading') return
       props.onPatch({ nodeType: normalNodeTypeFor(depth) })
       return
     }
-    if (value === 'subTitle') props.onPatch({ nodeType: 'subTitle' })
-    else if (value === 'repeatable') props.onPatch({ nodeType: 'repeatable' })
+    if (value === 'listSubTitle') props.onPatch({ nodeType: 'subTitle' })
   }
 
   return (
@@ -252,9 +250,9 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
             label="类型"
             tip={jsonTip(
               'nodeType',
-              '只按用途分：常规标题 / 副标题（不占编号链，导出按 a/b/c） / 可复制组'
+              '只按用途分两种：层级标题（进章节编号链） / 列表子标题（不占编号链，导出按 a/b/c 编号）'
             )}
-            value={isRoot ? 'normal' : kind}
+            value={isRoot ? 'heading' : kind}
             options={kindOptions}
             disabled={isRoot}
             disabledWhy="根节点是整篇文档，没有可选的类型"
@@ -269,13 +267,13 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
               onChange={(checked) => props.onPatch({ copyable: checked })}
             />
             <CheckField
-              label="删除"
-              tip={jsonTip('deletable', '用户在新工程里可以删除这个节点')}
+              label="裁剪"
+              tip={jsonTip('deletable', '用户在新工程里可以删除（裁剪掉）这个节点')}
               checked={nodeSwitch(node, 'deletable')}
               onChange={(checked) => props.onPatch({ deletable: checked })}
             />
             <CheckField
-              label="加内容"
+              label="编辑"
               tip={jsonTip(
                 'allowContentBlocks',
                 '用户在新工程里可以往这个节点加内容块（已有的内容能不能改，看每一块自己的锁）'
@@ -299,14 +297,9 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
           </p>
         )}
 
-        {kind === 'subTitle' && (
+        {kind === 'listSubTitle' && (
           <p className="tpl-note">
-            副标题：不占章节编号链，导出时按同级里的 a/b/c 编号（样式 subtitle.{depth}）
-          </p>
-        )}
-        {kind === 'repeatable' && (
-          <p className="tpl-note">
-            可复制组：这一组的节点同属一个复制组（copyGroupId），用户在新工程里按组复制
+            列表子标题：不占章节编号链，导出时按同级里的 a/b/c 编号（样式 subtitle.{depth}）
           </p>
         )}
 

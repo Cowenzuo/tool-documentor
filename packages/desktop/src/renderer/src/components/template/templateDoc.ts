@@ -181,39 +181,45 @@ export function nodeType(node: TemplateObject): string {
 /**
  * 节点树行上该显示的"类型标记"（没有就返回 null）。
  *
- * 为什么不照原样显示 `nodeType`：模板里 100 个 section、41 个 chapter，而这两个词
- * 程序一个都不读（见 nodeKind 的说明），级别也早由行首那颗数字说清了；
- * 只有下面这两类"和普通节点不一样、且影响用户怎么用"的才值得占用行上的位置：
- *   - `repeatable`：复制组的标记（与 copyGroupId 配对，用户按组复制）；
- *   - `subTitle`：副标题，不占标题编号链，导出侧另有 a/b/c 编号（见 subTitleStyle）。
+ * 为什么不照原样显示 `nodeType`：模板里 100 个 section、41 个 chapter，而这两个词程序一个都不读，
+ * 级别也早由行首那颗数字说清了；界面只认两种用途（见 nodeKind）：
+ *   - 层级标题：素色数字标记，没什么可额外标的；
+ *   - 列表子标题：带色圆圈数字标记（含"同级里第几项"），也不需要再挂一个词。
  * 认不出的取值照原样显示：那多半是拼错了，得让人看见。
  */
 export function nodeTypeBadge(node: TemplateObject): string | null {
   const kind = nodeKind(node)
-  if (kind === 'subTitle') return '副标题'
-  if (kind === 'repeatable') return '复制组'
-  if (kind === 'unknown') return nodeType(node)
-  return null
+  return kind === 'unknown' ? nodeType(node) : null
 }
 
 /**
- * 节点在界面上的"用途"。文件里那串英文类型名对作者没有意义：
- * 程序只对 `subTitle`（副标题：不写标题段落、另有样式与编号）与 `repeatable`
- *（复制组标记）分支，`root` 只被几条检查用到；
- * `chapter` / `section` 全库没有一处读它们（真实模板里 chapter 出现在 1~3 层、
- * section 出现在 2~5 层，连"第几层叫什么"都不是固定约定），所以界面按用途来选。
+ * 节点在界面上的"用途"，只有两种（没有第三种）：
+ *   - `heading`      层级标题：进章节编号链，导出用 `heading.<级别>`；
+ *   - `listSubTitle` 列表子标题：不占编号链，导出按同级里的 a/b/c 编号（`subtitle.<深度>`）。
+ *
+ * 文件里那串英文类型名对作者没有意义，程序也只对 `subTitle`（列表子标题）分支：
+ * `root` 只被几条检查用到，`chapter` / `section`（真实模板里 chapter 出现在 1~3 层、
+ * section 在 2~5 层，连"第几层叫什么"都不是固定约定）与 `repeatable` 全库没有一处读它们——
+ * 复制组那件事由 `copyGroupId` 决定，与这个字段无关，所以按层级标题对待、值原样留着。
  */
-export type NodeKind = 'normal' | 'subTitle' | 'repeatable' | 'unknown'
+export type NodeKind = 'heading' | 'listSubTitle' | 'unknown'
 
 export function nodeKind(node: TemplateObject): NodeKind {
   const type = nodeType(node)
-  if (type === 'subTitle' || type === 'subtitle') return 'subTitle'
-  if (type === 'repeatable') return 'repeatable'
-  if (type === '' || type === 'root' || type === 'chapter' || type === 'section') return 'normal'
+  if (type === 'subTitle' || type === 'subtitle') return 'listSubTitle'
+  if (
+    type === '' ||
+    type === 'root' ||
+    type === 'chapter' ||
+    type === 'section' ||
+    type === 'repeatable'
+  ) {
+    return 'heading'
+  }
   return 'unknown'
 }
 
-/** 常规标题在文件里的写法：一级 chapter、更深 section（与现有模板一致，这两个词本身无语义） */
+/** 层级标题在文件里的写法：一级 chapter、更深 section（与现有模板一致，这两个词本身无语义） */
 export function normalNodeTypeFor(level: number): string {
   return level <= 1 ? 'chapter' : 'section'
 }

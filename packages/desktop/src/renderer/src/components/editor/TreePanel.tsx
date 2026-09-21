@@ -125,7 +125,7 @@ export default function TreePanel(): React.JSX.Element {
     el.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()
   }, [menu])
 
-  /** 子标题在各自父节点下的次序：标签上的圆圈数字取这一段（与导出侧编号链同源） */
+  /** 列表子标题在各自父节点下的次序：标签上的圆圈数字取这一段（与导出侧编号链同源） */
   const listIndex = useMemo(() => {
     const map = new Map<string, number>()
     if (session) assignListIndex(session.root, map)
@@ -558,7 +558,7 @@ function TreeNodeRow(props: {
         {node.isSubTitle ? (
           <span
             className={`tree-badge tree-badge-list lv${levelClass(node.headingLevel)}`}
-            title={`子标题，第 ${node.headingLevel} 级`}
+            title={`列表子标题，第 ${node.headingLevel} 级`}
           >
             {circled(listIndex.get(node.id) ?? 1)}
           </span>
@@ -639,7 +639,7 @@ function flattenVisible(
   return { rows, parentOf }
 }
 
-/** 给每个子标题标记它在父节点下的第几项（1 起） */
+/** 给每个列表子标题标记它在父节点下的第几项（1 起） */
 function assignListIndex(node: NodeDto, out: Map<string, number>): void {
   let index = 0
   for (const child of node.children) {

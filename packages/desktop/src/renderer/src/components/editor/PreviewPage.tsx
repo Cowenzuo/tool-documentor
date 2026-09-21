@@ -164,7 +164,7 @@ export function PreviewPage(): React.JSX.Element {
             >
               {item.title && (
                 <div className={headingClassOf(item)}>
-                  {item.isSubTitle && <span className="pv-subtitle-mark">子标题 · </span>}
+                  {item.isSubTitle && <span className="pv-subtitle-mark">列表子标题 · </span>}
                   {item.title}
                 </div>
               )}
