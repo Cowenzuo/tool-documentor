@@ -1182,7 +1182,10 @@ button.tpl-issue-where:hover {
 /* ===== 页脚（状态栏）：固定一行高 =====
    一条操作回执 / 一次确认 + 校验小结 + 保存按钮。
    再长也不许把这一条撑起来：备份位置、报错原文、问题索引都走浮层（见 .tpl-pop），
-   撑起来就会把三栏挤矮一截，看着像页面在抖。 */
+   撑起来就会把三栏挤矮一截，看着像页面在抖。
+   **这里不能写 overflow: hidden**：浮层是从这一条往上弹的（bottom: 100% + 6px），
+   被裁掉就等于弹窗看不见——长内容各自收（.tpl-status-text 省略号、浮层自己滚动），
+   不靠父元素裁。 */
 .tpl-foot {
   position: relative;
   flex: none;
@@ -1194,7 +1197,6 @@ button.tpl-issue-where:hover {
   padding: var(--space-2) var(--space-3);
   border-top: 1px solid var(--border);
   background: var(--bg-panel);
-  overflow: hidden;
 }
 
 /* 校验小结靠右：左边是"刚刚发生了什么"，右边是"现在有没有问题" */
