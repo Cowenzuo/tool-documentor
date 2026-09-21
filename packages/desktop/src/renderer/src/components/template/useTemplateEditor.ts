@@ -158,6 +158,8 @@ export interface UseTemplateEditorResult {
   cancelPending: () => void
   save: () => Promise<void>
   createTemplate: (input: { id: string; name: string; styleTemplate?: string }) => Promise<boolean>
+  /** 导入自备样式（.docx 或已解包的骨架目录） */
+  importStyle: (input: { id: string; name: string; source: string }) => Promise<boolean>
   removeTemplate: () => Promise<boolean>
   renameTemplate: (input: { newId: string; name: string }) => Promise<boolean>
   dismissNotice: () => void
@@ -631,8 +633,52 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     [applyRead, dir, refreshSnapshot]
   )
 
-  const removeTemplate = useCallback(async (): Promise<boolean> => {
-    const api = templateApi()
+  /**
+   * 导入自备样式：铺骨架 + 部件检查 + 按样式名生成映射草稿（都在主进程），
+   * 回来之后直接把这份新样式打开——作者接着补没认出来的键就行。
+   */
+  const importStyle = useCallback(
+    async (input: { id: string; name: string; source: string }): Promise<boolean> => {
+      const api = templateApi()
+      if (!api || !dir) return false
+      // 导入会把眼前这份样式的草稿换掉：有未保存的改动就先说清，不许静默丢掉
+      if (styleDirty) {
+        setNotice({
+          kind: 'warn',
+          text: '有未保存的改动：先保存（或切走丢掉）再导入，导入会把这份草稿换掉'
+        })
+        return false
+      }
+      setBusy(true)
+      try {
+        const imported = await api.importStyle({ dir, id: input.id, name: input.name, source: input.source })
+        setStyle(imported.style)
+        setStyleDoc(imported.style.doc)
+        setStyleServerIssues(imported.style.issues)
+        setStyleIssuesSource('server')
+        setStyleDirty(false)
+        setStyleId(imported.style.id)
+        setNotice({
+          kind: imported.draft.empty.length > 0 ? 'warn' : 'info',
+          text:
+            `已导入「${input.name}」：按样式名认出 ${imported.draft.filled.length} 个键` +
+            (imported.draft.empty.length > 0
+              ? `，还有 ${imported.draft.empty.length} 个要自己填（${imported.draft.empty.join('、')}）`
+              : '，没有要补的')
+        })
+        void refreshSnapshot()
+        return true
+      } catch (err) {
+        setNotice({ kind: 'error', text: '导入样式失败', detail: errorText(err) })
+        return false
+      } finally {
+        setBusy(false)
+      }
+    },
+    [dir, refreshSnapshot, styleDirty]
+  )
+
+  const removeTemplate = useCallback(async (): Promise<boolean> => {    const api = templateApi()
     if (!api || !dir || !entryId) return false
     setBusy(true)
     try {
@@ -903,6 +949,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     cancelPending,
     save,
     createTemplate,
+    importStyle,
     removeTemplate,
     renameTemplate,
     dismissNotice,

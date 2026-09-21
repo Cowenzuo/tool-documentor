@@ -305,6 +305,9 @@ export default function TemplateEditorPage(): JSX.Element {
           onOpen={editor.requestEntry}
           onOpenStyle={editor.requestStyle}
           onCreate={editor.createTemplate}
+          onImport={editor.importStyle}
+          onPickDocx={() => window.documentor.dialog.selectDocx()}
+          onPickDirectory={() => window.documentor.dialog.selectDirectory()}
           onRename={editor.renameTemplate}
           onRemove={editor.removeTemplate}
         />

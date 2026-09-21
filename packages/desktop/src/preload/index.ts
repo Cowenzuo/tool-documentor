@@ -27,6 +27,7 @@ import type {
   TemplateReadInput,
   TemplateRenameInput,
   TemplateSaveInput,
+  TemplateStyleImportInput,
   TemplateStyleReadInput,
   TemplateStyleSaveInput,
   UiStateKeyInput
@@ -115,6 +116,8 @@ const api: DesktopApi = {
       >,
     selectImage: () =>
       invoke(ProjectIpc.DialogSelectImage) as ReturnType<DesktopApi['dialog']['selectImage']>,
+    selectDocx: () =>
+      invoke(ProjectIpc.DialogSelectDocx) as ReturnType<DesktopApi['dialog']['selectDocx']>,
     savePath: (options: SavePathDialogOptions) =>
       invoke(ProjectIpc.DialogSavePath, options) as ReturnType<DesktopApi['dialog']['savePath']>
   },
@@ -160,6 +163,10 @@ const api: DesktopApi = {
     saveStyle: (input: TemplateStyleSaveInput) =>
       invoke(ProjectIpc.TemplateSaveStyle, input) as ReturnType<
         DesktopApi['templateEditor']['saveStyle']
+      >,
+    importStyle: (input: TemplateStyleImportInput) =>
+      invoke(ProjectIpc.TemplateImportStyle, input) as ReturnType<
+        DesktopApi['templateEditor']['importStyle']
       >,
     save: (input: TemplateSaveInput) =>
       invoke(ProjectIpc.TemplateSave, input) as ReturnType<DesktopApi['templateEditor']['save']>,

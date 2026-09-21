@@ -1442,6 +1442,28 @@ button.tpl-issue-where:hover {
   color: var(--danger);
 }
 
+/* 导入自备样式：两个"选源"的按钮并排，下面一行显示选了哪个 */
+.tpl-import-pick {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: 2px;
+}
+
+.tpl-import-pick .tpl-mini {
+  flex: 1 1 auto;
+}
+
+.tpl-import-source {
+  /* 路径可能很长：一行显示，放不下在悬停里看全 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tpl-import-path {
+  margin-top: 2px;
+}
+
 /* 题注编号那一段（对照表底下）：三种方式按题注分别选；field 模式再给章节样式名 */
 .tpl-caption {
   margin-top: var(--space-4);

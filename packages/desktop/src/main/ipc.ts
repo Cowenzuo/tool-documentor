@@ -35,6 +35,8 @@ import type {
   TemplateRenameInput,
   TemplateSaveInput,
   TemplateSaveResult,
+  TemplateStyleImportInput,
+  TemplateStyleImportResult,
   TemplateStyleReadInput,
   TemplateStyleReadResult,
   TemplateStyleSaveInput,
@@ -219,6 +221,17 @@ export function registerProjectIpc(service: ProjectService): void {
     return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]!
   })
 
+  handle<void, string | null>(ProjectIpc.DialogSelectDocx, async () => {
+    const win = windowOf()
+    if (!win) return null
+    const result = await dialog.showOpenDialog(win, {
+      title: '选择样式文件（.docx）',
+      filters: [{ name: 'Word 文档', extensions: ['docx'] }],
+      properties: ['openFile']
+    })
+    return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]!
+  })
+
   handle<{ defaultPath: string }, string | null>(ProjectIpc.DialogSavePath, async (input) => {
     const win = windowOf()
     if (!win) return null
@@ -312,6 +325,10 @@ export function registerProjectIpc(service: ProjectService): void {
   )
   handle<TemplateStyleSaveInput, TemplateStyleSaveResult>(ProjectIpc.TemplateSaveStyle, (input) =>
     templateEditor.saveStyle(input)
+  )
+  handle<TemplateStyleImportInput, TemplateStyleImportResult>(
+    ProjectIpc.TemplateImportStyle,
+    (input) => templateEditor.importStyle(input)
   )
   handle<TemplateSaveInput, TemplateSaveResult>(ProjectIpc.TemplateSave, (input) =>
     templateEditor.save(input)

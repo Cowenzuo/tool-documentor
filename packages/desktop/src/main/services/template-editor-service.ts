@@ -25,14 +25,17 @@ import {
   readFileSync,
   renameSync,
   rmSync,
+  statSync,
   unlinkSync,
   writeFileSync
 } from 'node:fs'
 import { basename, dirname, join, resolve, sep } from 'node:path'
+import JSZip from 'jszip'
 import { localIsoNow } from '@documentor/core/time'
 import {
   SKELETON_REQUIRED_PARTS,
   buildStyleMapRows,
+  draftStyleMap,
   parseSkeletonIndex,
   styleFactsOfStructure,
   styleFactsOfStructures,
@@ -41,7 +44,12 @@ import {
   validateStyleTemplate,
   validateTemplateDir
 } from '@documentor/templates'
-import type { SkeletonStyleInfo, TemplateDirEntry, ValidationIssue } from '@documentor/templates'
+import type {
+  SkeletonStyleInfo,
+  StyleMapDraft,
+  TemplateDirEntry,
+  ValidationIssue
+} from '@documentor/templates'
 import type {
   SkeletonStyleDto,
   StyleMapRowDto,
@@ -58,6 +66,8 @@ import type {
   TemplateRenameResult,
   TemplateSaveInput,
   TemplateSaveResult,
+  TemplateStyleImportInput,
+  TemplateStyleImportResult,
   TemplateStyleReadInput,
   TemplateStyleReadResult,
   TemplateStyleSaveInput,
@@ -491,6 +501,132 @@ export class TemplateEditorService {
     }
   }
 
+  /**
+   * 导入一份自备样式（PLAN-11 批次 3 步骤 4）：源可以是 `.docx` 文件，也可以是**已经解包**的
+   * 骨架目录；两条路走同一套检查——必需部件齐不齐（缺一个就报错并把这半份目录清掉）。
+   *
+   * 落点：`styles/<id>/<styleFolder>/`（骨架）+ `styles/<id>/<id>-stylemap.json`（对照表草稿），
+   * 并在 manifest.styles 里登记一条（只在新建时同步清单，与结构模板那一侧同口径）。
+   * 草稿是**按样式名模糊匹配**出来的：认出来的先填上，认不出的留空待作者填（绝不编 styleId）。
+   */
+  async importStyle(
+    input: TemplateStyleImportInput
+  ): Promise<TemplateStyleImportResult> {
+    const dir = this.requireTemplateDir(input.dir)
+    assertSafeId(input.id, '样式模板 id')
+    const id = input.id
+    const name = typeof input.name === 'string' ? input.name.trim() : ''
+    if (name === '') throw new TemplateEditorError('样式模板名不能为空')
+    const source = typeof input.source === 'string' ? input.source.trim() : ''
+    if (source === '') throw new TemplateEditorError('没有选样式文件（.docx 或已解包的骨架目录）')
+    const sourcePath = resolve(source)
+    if (!existsSync(sourcePath)) {
+      throw new TemplateEditorError(`选中的样式文件不存在：${sourcePath}`)
+    }
+    const styleFolder =
+      typeof input.styleFolder === 'string' && input.styleFolder.trim() !== ''
+        ? input.styleFolder.trim()
+        : `${id}-style`
+    assertSafeId(styleFolder, '骨架文件夹名')
+
+    const manifest = readManifest(dir)
+    if (manifest.status === 'broken') {
+      throw new TemplateEditorError(`manifest.json 解析失败，未导入样式：${manifest.reason}`)
+    }
+    const declared = this.declaredStyleEntries(manifest)
+    if (declared.some((e) => e.id === id) || existsSync(join(dir, STYLES_DIR, id))) {
+      throw new TemplateEditorError(`样式模板 id「${id}」已存在（目录里或 manifest 里已有）`)
+    }
+
+    const idDir = join(dir, STYLES_DIR, id)
+    const skeletonDir = join(idDir, styleFolder)
+    const stylemapFile = `${id}-stylemap.json`
+    mkdirSync(idDir, { recursive: true })
+    try {
+      const stat = statSync(sourcePath)
+      if (stat.isDirectory()) {
+        cpSync(sourcePath, skeletonDir, { recursive: true })
+      } else {
+        await this.unpackDocx(sourcePath, skeletonDir)
+      }
+
+      // 必需部件：缺一个就报错，并把刚铺开的这半份收回去（不留半成品）
+      const missing = SKELETON_REQUIRED_PARTS.filter(
+        (part) => !existsSync(join(skeletonDir, part))
+      )
+      if (missing.length > 0) {
+        throw new TemplateEditorError(
+          `这份样式缺必需部件：${missing.join(' / ')}（.docx 至少要带 word/styles.xml、` +
+            `word/numbering.xml、word/document.xml 与关系表）`
+        )
+      }
+      const index = parseSkeletonIndex(skeletonDir)
+      if (index.styleIds.length === 0) {
+        throw new TemplateEditorError(
+          `骨架 ${styleFolder}/word/styles.xml 里读不到任何 styleId，这份样式没法用`
+        )
+      }
+
+      // 对照表草稿：按样式名认；认不出的留空
+      const draft = draftStyleMap({ styles: index.styles })
+      const doc: Record<string, unknown> = {
+        name,
+        version: '1.0',
+        description: '',
+        docxFolder: styleFolder,
+        styleMap: draft.styleMap
+      }
+      writeFileAtomic(join(idDir, stylemapFile), serializeJson(doc, STRUCTURE_INDENT, '\n', true))
+
+      const nextManifest: Record<string, unknown> =
+        manifest.status === 'ok'
+          ? { ...manifest.doc }
+          : { [STRUCTURES_DIR]: [], [STYLES_DIR]: [] }
+      const entries = Array.isArray(nextManifest[STYLES_DIR]) ? nextManifest[STYLES_DIR] : []
+      // 写进清单的是**文件里的字段名**（snake_case），与真实仓库同形
+      const entry = {
+        id,
+        name,
+        description: '',
+        stylemap_file: stylemapFile,
+        style_folder: styleFolder
+      }
+      nextManifest[STYLES_DIR] = [...entries, entry]
+      if (!Array.isArray(nextManifest[STRUCTURES_DIR])) nextManifest[STRUCTURES_DIR] = []
+      writeManifest(dir, manifest, nextManifest)
+
+      return { style: this.readStyle({ dir, id }), draft }
+    } catch (err) {
+      // 任何一步没成就别把半份样式留在模板目录里（清单要么没写、要么已经写失败）
+      try {
+        rmSync(idDir, { recursive: true, force: true })
+      } catch {
+        // 回滚失败也不能盖掉真正的错误
+      }
+      throw err instanceof TemplateEditorError
+        ? err
+        : new TemplateEditorError(`导入样式失败：${messageOf(err)}`)
+    }
+  }
+
+  /**
+   * 把 `.docx`（就是个 zip）解包到目标目录。**只解包，一个字节的 XML 都不改**——
+   * 样式是作者提供的资产，程序只读不写（PLAN-11 第 4 节第 1 条）。
+   */
+  private async unpackDocx(sourcePath: string, targetDir: string): Promise<void> {
+    const zip = await JSZip.loadAsync(readFileSync(sourcePath))
+    const base = resolve(targetDir)
+    for (const [entryName, entry] of Object.entries(zip.files)) {
+      if (entry.dir) continue
+      const target = resolve(join(base, entryName))
+      // zip 里的条目名可以写 `..`：解包不许跑到目标目录外面去
+      if (target !== base && !target.startsWith(base + sep)) {
+        throw new TemplateEditorError(`docx 里的条目名越出目标目录：${entryName}`)
+      }
+      mkdirSync(dirname(target), { recursive: true })
+      writeFileSync(target, await entry.async('nodebuffer'))
+    }
+  }
   /**
    * 写回样式模板的对照表：与结构模板同一套（先校验，有 error 就抛不落盘；
    * 再备份原文件，最后原子写）。写回只动 styleMap 与 captionNumbering 这些字段，

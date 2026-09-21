@@ -389,6 +389,33 @@ export interface TemplateStyleSaveResult {
   issues: TemplateIssueDto[]
 }
 
+/**
+ * 导入一份自备样式（PLAN-11 批次 3 步骤 4）：
+ * 源是 `.docx` 文件或**已经解包**的骨架目录，两条路走同一套部件检查。
+ */
+export interface TemplateStyleImportInput {
+  dir: string
+  /** 新样式模板 id（目录名），不能与已有的重复 */
+  id: string
+  /** stylemap 里的 name（给人看的） */
+  name: string
+  /** `.docx` 文件绝对路径，或骨架目录绝对路径 */
+  source: string
+  /** 骨架文件夹名（相对 `styles/<id>`），缺省 `<id>-style` */
+  styleFolder?: string
+}
+
+/** 导入结果：读回来的那份 + 草稿填了哪些、还差哪些 */
+export interface TemplateStyleImportResult {
+  style: TemplateStyleReadResult
+  draft: {
+    /** 按样式名认出来、已经填上的键 */
+    filled: string[]
+    /** 没认出来、留空待填的键 */
+    empty: string[]
+  }
+}
+
 export interface UiStateSave {
   key: string
   value: string
@@ -438,6 +465,8 @@ export const ProjectIpc = {
   DialogSelectDproj: 'dialog:select-dproj',
   DialogSelectDirectory: 'dialog:select-directory',
   DialogSelectImage: 'dialog:select-image',
+  /** 选一个 .docx（导入自备样式用） */
+  DialogSelectDocx: 'dialog:select-docx',
 
   SettingsGet: 'settings:get',
   SettingsSet: 'settings:set',
@@ -455,6 +484,8 @@ export const ProjectIpc = {
   TemplateReadStyle: 'template:read-style',
   /** 模板编辑：写回样式模板的对照表（原子写 + .bak），写入前必须零 error */
   TemplateSaveStyle: 'template:save-style',
+  /** 模板编辑：导入自备样式（.docx 解包或骨架目录 + 部件检查 + 映射草稿） */
+  TemplateImportStyle: 'template:import-style',
   /** 模板编辑：写回结构模板（原子写 + .bak），写入前必须零 error */
   TemplateSave: 'template:save',
   /** 模板编辑：新建结构模板并同步 manifest */
@@ -585,6 +616,7 @@ export interface DesktopTemplateEditorApi {
   read(input: TemplateReadInput): Promise<TemplateReadResult>
   readStyle(input: TemplateStyleReadInput): Promise<TemplateStyleReadResult>
   saveStyle(input: TemplateStyleSaveInput): Promise<TemplateStyleSaveResult>
+  importStyle(input: TemplateStyleImportInput): Promise<TemplateStyleImportResult>
   save(input: TemplateSaveInput): Promise<TemplateSaveResult>
   create(input: TemplateCreateInput): Promise<TemplateReadResult>
   remove(input: TemplateDeleteInput): Promise<TemplateDeleteResult>
@@ -600,6 +632,8 @@ export interface DesktopDialogApi {
   selectDproj(): Promise<string | null>
   selectDirectory(): Promise<string | null>
   selectImage(): Promise<string | null>
+  /** 选一个 .docx（导入自备样式用） */
+  selectDocx(): Promise<string | null>
   savePath(options: SavePathDialogOptions): Promise<string | null>
 }
 

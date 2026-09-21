@@ -8,7 +8,7 @@ import { useState, type JSX } from 'react'
 import type { TemplateDirSnapshotDto, TemplateEntryDto } from '../../../../shared/project'
 import { ContextMenu, useContextMenu } from './ContextMenu'
 import { IssueLine, jsonTip } from './fields'
-import { PlusIcon } from './icons'
+import { ImportIcon, PlusIcon } from './icons'
 import type { TemplateEditorStatus, TemplateOpenKind } from './useTemplateEditor'
 
 interface TemplateListProps {
@@ -22,11 +22,16 @@ interface TemplateListProps {
   onOpen: (entry: TemplateEntryDto) => void
   onOpenStyle: (entry: TemplateEntryDto) => void
   onCreate: (input: { id: string; name: string; styleTemplate?: string }) => Promise<boolean>
+  /** 导入自备样式：源是 .docx 或已解包的骨架目录 */
+  onImport: (input: { id: string; name: string; source: string }) => Promise<boolean>
+  /** 选一个 .docx / 一个目录（对话框在主进程） */
+  onPickDocx: () => Promise<string | null>
+  onPickDirectory: () => Promise<string | null>
   onRename: (input: { newId: string; name: string }) => Promise<boolean>
   onRemove: () => Promise<boolean>
 }
 
-type Mode = 'none' | 'create' | 'rename' | 'remove'
+type Mode = 'none' | 'create' | 'rename' | 'remove' | 'import'
 
 /** id 同时是目录名，规则与主进程一致（单段目录名，不含路径分隔符与控制字符） */
 const INVALID_ID = /[\\/:*?"<>|\u0000-\u001f]/u
@@ -156,8 +161,121 @@ function CreateForm({
   )
 }
 
-export function TemplateList(props: TemplateListProps): JSX.Element {
-  const { status, dirSnapshot, openKind, openId, busy, dirty } = props
+/**
+ * 导入自备样式（PLAN-11 批次 3 步骤 4）：源可以是 `.docx`，也可以是**已经解包**的骨架目录。
+ * 两条路走同一套检查（主进程那边），这里只负责选源、起 id 与名字。
+ */
+function ImportForm({
+  busy,
+  onPickDocx,
+  onPickDirectory,
+  onCancel,
+  onSubmit
+}: {
+  busy: boolean
+  onPickDocx: () => Promise<string | null>
+  onPickDirectory: () => Promise<string | null>
+  onCancel: () => void
+  onSubmit: (input: { id: string; name: string; source: string }) => void
+}): JSX.Element {
+  const [id, setId] = useState('')
+  const [name, setName] = useState('')
+  const [source, setSource] = useState('')
+  const problem = idProblem(id)
+  const idOk = id.trim() !== '' && problem === null
+  /** 源是文件还是目录：只影响显示（是不是 .docx 由主进程按实际类型判） */
+  const sourceIsDocx = /\.docx$/iu.test(source)
+  return (
+    <div className="tpl-form">
+      <label className="tpl-field">
+        <span className="tpl-field-label" title={jsonTip('id', '同时是目录名与 manifest 里的 id')}>
+          模板 id<span className="tpl-field-hint">目录名</span>
+        </span>
+        <input
+          className="tpl-input tpl-mono"
+          value={id}
+          placeholder="my-style"
+          autoFocus
+          onChange={(event) => setId(event.target.value)}
+        />
+      </label>
+      {problem && <p className="tpl-note tpl-note-bad">{problem}</p>}
+      <label className="tpl-field">
+        <span className="tpl-field-label" title={jsonTip('name')}>
+          模板名称
+        </span>
+        <input
+          className="tpl-input"
+          value={name}
+          placeholder="给作者看的名字"
+          onChange={(event) => setName(event.target.value)}
+        />
+      </label>
+      <div className="tpl-field">
+        <span
+          className="tpl-field-label"
+          title="程序只解包与检查，一个字节的 XML 都不改；导入后按样式名生成映射草稿"
+        >
+          样式文件<span className="tpl-field-hint">.docx 或已解包的骨架目录</span>
+        </span>
+        <div className="tpl-import-pick">
+          <button
+            type="button"
+            className="tpl-mini"
+            disabled={busy}
+            onClick={() => {
+              void onPickDocx().then((picked) => {
+                if (picked) setSource(picked)
+              })
+            }}
+          >
+            选 .docx…
+          </button>
+          <button
+            type="button"
+            className="tpl-mini"
+            disabled={busy}
+            onClick={() => {
+              void onPickDirectory().then((picked) => {
+                if (picked) setSource(picked)
+              })
+            }}
+          >
+            选骨架目录…
+          </button>
+        </div>
+        <p className="tpl-note tpl-import-source" title={source}>
+          {source === ''
+            ? '还没选：两种都行，缺 word/styles.xml 这类必需部件会被拒'
+            : `${sourceIsDocx ? '.docx' : '骨架目录'}：${source}`}
+        </p>
+        {/* 选完之后路径落在这里，也可以直接粘一个进来（改起来不用重新走对话框） */}
+        <input
+          className="tpl-input tpl-mono tpl-import-path"
+          value={source}
+          placeholder="样式文件路径（也可以直接粘贴）"
+          aria-label="样式文件路径"
+          onChange={(event) => setSource(event.target.value)}
+        />
+      </div>
+      <div className="tpl-form-foot">
+        <button type="button" className="tpl-mini" onClick={onCancel} disabled={busy}>
+          取消
+        </button>
+        <button
+          type="button"
+          className="tpl-mini tpl-primary"
+          disabled={busy || !idOk || name.trim() === '' || source === ''}
+          onClick={() => onSubmit({ id: id.trim(), name: name.trim(), source })}
+        >
+          导入
+        </button>
+      </div>
+    </div>
+  )
+}
+
+export function TemplateList(props: TemplateListProps): JSX.Element {  const { status, dirSnapshot, openKind, openId, busy, dirty } = props
   const [mode, setMode] = useState<Mode>('none')
   const [renameValue, setRenameValue] = useState('')
   const [renameId, setRenameId] = useState('')
@@ -365,7 +483,32 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
             >
               <h3>样式模板</h3>
               <span className="tpl-count">点开看对照表</span>
+              {/* 导入：把自备的样式文件铺进模板目录，并按样式名生成映射草稿 */}
+              <button
+                type="button"
+                className="tpl-icon-btn"
+                disabled={busy}
+                title="导入自备样式（.docx 或已解包的骨架目录）"
+                aria-label="导入自备样式"
+                onClick={() => setMode(mode === 'import' ? 'none' : 'import')}
+              >
+                <ImportIcon />
+              </button>
             </div>
+
+            {mode === 'import' && (
+              <ImportForm
+                busy={busy}
+                onPickDocx={props.onPickDocx}
+                onPickDirectory={props.onPickDirectory}
+                onCancel={() => setMode('none')}
+                onSubmit={(input) => {
+                  void props.onImport(input).then((ok) => {
+                    if (ok) setMode('none')
+                  })
+                }}
+              />
+            )}
             {styles.length === 0 ? (
               <p className="tpl-empty">这个目录里还没有样式模板</p>
             ) : (

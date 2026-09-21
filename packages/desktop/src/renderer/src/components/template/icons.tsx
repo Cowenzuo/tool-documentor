@@ -104,6 +104,29 @@ export function AddSiblingIcon({ size = 13, className }: IconProps): JSX.Element
   )
 }
 
+/** 导入样式文件：一个"进来"的箭头落进托盘 */
+export function ImportIcon({ size = 13, className }: IconProps): JSX.Element {
+  return (
+    <svg viewBox="0 0 16 16" width={size} height={size} className={className} aria-hidden="true">
+      <path
+        d="M8 2v6.2M5.4 5.9 8 8.5l2.6-2.6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M2.6 10.2v2.4a.8.8 0 0 0 .8.8h9.2a.8.8 0 0 0 .8-.8v-2.4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
 export function ExpandAllIcon({ size = 13, className }: IconProps): JSX.Element {
   return (
     <svg viewBox="0 0 16 16" width={size} height={size} className={className} aria-hidden="true">

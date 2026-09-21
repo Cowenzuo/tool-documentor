@@ -50,6 +50,8 @@ export type {
   StyleMapRow,
   StyleMapRowStatus
 } from './style-keys'
+export { draftStyleMap } from './style-match'
+export type { StyleMapDraft } from './style-match'
 /**
  * 样式规则（不碰 fs 的那一半）：编辑模式从 `@documentor/templates/style-rules`
  * 直接拿，渲染层实时跑与主进程**同一份**判定。
