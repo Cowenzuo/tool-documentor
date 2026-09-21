@@ -439,6 +439,101 @@ export function expandableKeys(doc: TemplateDoc | null): Set<string> {
 
 // ================= 新建节点与内容块 =================
 
+/**
+ * 同一父节点下**不许混**：要么全是层级标题，要么全是列表子标题——严格限制
+ * （真实模板 5 套 + 样例 1 套全都守着它，0 处混着；混了会出问题）。
+ * 已知会撞的一条：列表子标题下面只能挂列表子标题（加载器 `DocumentNode.canAccept`
+ * 直接拒收），而列表子标题的样式按算出来的 `subtitle.N` 取、不占章节编号链。
+ * 所以新建节点与改类型都得先问这一组是什么，见下面三个函数。
+ */
+
+/** 一组节点的类别：都是层级标题 / 都是列表子标题 / 混着（已经违规了） */
+export type SiblingKind = 'heading' | 'listSubTitle' | 'mixed'
+
+/** 一组节点是什么类别；空组是 null */
+function groupKind(nodes: readonly unknown[]): SiblingKind | null {
+  const kinds = nodes
+    .map((child) => asObject(child))
+    .filter((child): child is TemplateObject => child !== null)
+    .map((child) => nodeKind(child))
+    .filter((kind): kind is 'heading' | 'listSubTitle' => kind !== 'unknown')
+  if (kinds.length === 0) return null
+  const hasHeading = kinds.includes('heading')
+  const hasSub = kinds.includes('listSubTitle')
+  if (hasHeading && hasSub) return 'mixed'
+  return hasSub ? 'listSubTitle' : 'heading'
+}
+
+/** 兄弟组的类别（含自己）：一组兄弟要么都是层级标题、要么都是列表子标题；没有兄弟时是 null */
+export function siblingKindOf(doc: TemplateDoc | null, path: NodePath): SiblingKind | null {
+  if (path.length === 0) return null
+  const parent = nodeAt(doc, path.slice(0, -1))
+  if (!parent) return null
+  return groupKind(rawChildren(parent))
+}
+
+/**
+ * 这个节点**别的**兄弟是什么类别（不含自己）：改类型时只看别人，
+ * 因为"自己是同类"不算混——一个独生子想改成哪种都行。
+ */
+function otherSiblingsKind(doc: TemplateDoc | null, path: NodePath): SiblingKind | null {
+  if (path.length === 0) return null
+  const index = path[path.length - 1] ?? 0
+  const parent = nodeAt(doc, path.slice(0, -1))
+  if (!parent) return null
+  return groupKind(rawChildren(parent).filter((_, i) => i !== index))
+}
+
+/**
+ * 在这个节点下加子节点时，新节点该是什么类别：
+ *   - 父节点自己是列表子标题 → 只能是列表子标题（加载器的硬规则）；
+ *   - 父节点下已经有列表子标题 → 也是列表子标题（不能混）；
+ *   - 其余（含空组）→ 层级标题。
+ * 组已经混着时按列表子标题加：那种组本来就得作者自己收拾，程序只能挑一边，
+ * 挑"更严格"的那边（列表子标题下面只能挂列表子标题）。
+ */
+export function childKindFor(doc: TemplateDoc | null, path: NodePath): 'heading' | 'listSubTitle' {
+  const parent = nodeAt(doc, path)
+  if (!parent) return 'heading'
+  if (nodeKind(parent) === 'listSubTitle') return 'listSubTitle'
+  const group = groupKind(rawChildren(parent))
+  return group === 'heading' || group === null ? 'heading' : 'listSubTitle'
+}
+
+/**
+ * 把选中节点改成 `kind` 行不行：行就返回 null，不行返回一句为什么（界面照它说明并禁用）。
+ * 两头都要看：
+ *   - 兄弟那一头：**别的**兄弟是另一种（或那一组已经混着）时不能改，改了就是混着的一层；
+ *   - 子节点那一头：它已经有层级标题的子节点时，不能把它改成列表子标题
+ *     （列表子标题下挂层级标题，加载器会拒收）。
+ */
+export function kindChangeProblem(
+  doc: TemplateDoc | null,
+  path: NodePath,
+  kind: 'heading' | 'listSubTitle'
+): string | null {
+  const node = nodeAt(doc, path)
+  if (!node) return '这个节点已经不在树里了'
+  if (path.length === 0) return '根节点是整篇文档，没有可选的类型'
+  if (nodeKind(node) === kind) return null
+  const others = otherSiblingsKind(doc, path)
+  if (others !== null && others !== kind) {
+    if (others === 'mixed') return '同一父节点下不能混：它的同级里既有层级标题也有列表子标题'
+    return others === 'listSubTitle'
+      ? '同一父节点下不能混：它的同级都是列表子标题'
+      : '同一父节点下不能混：它的同级都是层级标题'
+  }
+  if (kind === 'listSubTitle') {
+    const headingChildren = rawChildren(node).filter(
+      (child) => nodeKind(asObject(child) ?? {}) === 'heading'
+    ).length
+    if (headingChildren > 0) {
+      return `它下面有 ${headingChildren} 个层级标题的子节点：列表子标题下只能挂列表子标题`
+    }
+  }
+  return null
+}
+
 export function createTemplateNode(level: number, type = 'chapter'): TemplateObject {
   return {
     nodeType: type,

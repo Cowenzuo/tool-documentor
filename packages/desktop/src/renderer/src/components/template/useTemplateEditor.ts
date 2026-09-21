@@ -20,6 +20,7 @@ import {
   ROOT_PATH,
   addBlockAt,
   branchKeys,
+  childKindFor,
   createTemplateBlock,
   createTemplateNode,
   duplicateBlockAt,
@@ -31,6 +32,7 @@ import {
   moveBlockIn,
   moveNodeIn,
   nodeAt,
+  nodeKind,
   nodeType,
   pathKey,
   patchBlockAt,
@@ -618,8 +620,13 @@ export function useTemplateEditor(): UseTemplateEditorResult {
       if (!parent) return
       const index = rawChildren(parent).length
       const level = headingLevel(parent) + 1
-      // 一级给 chapter、更深给 section：与现有模板的写法一致（nodeType 只在 subTitle 上有语义）
-      const child = createTemplateNode(level, level <= 1 ? 'chapter' : 'section')
+      // 新节点跟这一组走：父节点下是列表子标题就加列表子标题，否则加层级标题
+      // （同一父节点下不许混，见 templateDoc 的 childKindFor）；
+      // 层级标题一级给 chapter、更深给 section，与现有模板的写法一致
+      const child =
+        childKindFor(doc, path) === 'listSubTitle'
+          ? createTemplateNode(level, 'subTitle')
+          : createTemplateNode(level, level <= 1 ? 'chapter' : 'section')
       mutate((current) => insertChildAt(current, path, child))
       setExpanded((current) => new Set(current).add(pathKey(path)))
       setSelectedPath([...path, index])
@@ -627,12 +634,16 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     [doc, mutate]
   )
 
+  /** 加同级：类别跟着点的那一行走（同一父节点下不许混） */
   const addSiblingAt = useCallback(
     (path: NodePath): void => {
       if (!doc || path.length === 0) return
       const node = nodeAt(doc, path)
       if (!node) return
-      const sibling = createTemplateNode(headingLevel(node), nodeType(node) || 'section')
+      const sibling =
+        nodeKind(node) === 'listSubTitle'
+          ? createTemplateNode(headingLevel(node), 'subTitle')
+          : createTemplateNode(headingLevel(node), nodeType(node) || 'section')
       mutate((current) => insertSiblingAfter(current, path, sibling))
       const index = path[path.length - 1] ?? 0
       setSelectedPath([...path.slice(0, -1), index + 1])

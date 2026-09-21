@@ -19,6 +19,7 @@ import {
   breadcrumbOf,
   headingLevel,
   isPinnedLock,
+  kindChangeProblem,
   nodeJsonPath,
   nodeKind,
   nodeSwitch,
@@ -205,6 +206,16 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
   ]
   if (kind === 'unknown') kindOptions.push({ value: 'unknown', label: `（原值：${nodeType(node)}）` })
 
+  /**
+   * 类型也不是随便改的：同一父节点下不许混（见 templateDoc 的 `kindChangeProblem`），
+   * 列表子标题下面也不许挂层级标题。这一头或那一头不允许时，下拉就灰着并说明为什么。
+   */
+  const otherKind = kind === 'listSubTitle' ? 'heading' : 'listSubTitle'
+  const kindProblem =
+    isRoot || kind === 'unknown' ? null : kindChangeProblem(doc, path, otherKind)
+  const kindLocked = isRoot || kindProblem !== null
+  const kindWhy = isRoot ? '根节点是整篇文档，没有可选的类型' : (kindProblem ?? '')
+
   const applyKind = (value: string): void => {
     if (value === 'heading') {
       // 层级标题保持文件里原来的写法（chapter/section/repeatable 没有语义差别，不顺手改写）
@@ -276,11 +287,14 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
             )}
             value={isRoot ? 'heading' : kind}
             options={kindOptions}
-            disabled={isRoot}
-            disabledWhy="根节点是整篇文档，没有可选的类型"
+            disabled={kindLocked}
+            disabledWhy={kindWhy === '' ? undefined : kindWhy}
             onChange={applyKind}
           />
         </div>
+
+        {/* 类型改不动时说清是为什么：这一条不是"报错"，是这个结构改不了 */}
+        {kindProblem !== null && <p className="tpl-note tpl-note-kind">{kindProblem}，所以类型改不了。</p>}
 
         {kind === 'listSubTitle' && (
           <p className="tpl-note">
