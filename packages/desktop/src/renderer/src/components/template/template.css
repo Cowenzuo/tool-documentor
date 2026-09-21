@@ -1153,7 +1153,7 @@ button.tpl-issue-where:hover {
   cursor: help;
 }
 
-/* 级别：树里的层级给的，不是可填字段；文件里写的与树里不一致时变色提醒 */
+/* 级别：程序算的（新建节点时按父节点 +1），只显示不可填，也没必要标"不一致" */
 .tpl-level {
   flex: none;
   font-size: var(--text-xs);
@@ -1162,11 +1162,6 @@ button.tpl-issue-where:hover {
   background: var(--bg-active);
   color: var(--text-2);
   cursor: help;
-}
-
-.tpl-level.is-off {
-  background: color-mix(in srgb, var(--danger) 16%, transparent);
-  color: var(--danger);
 }
 
 .tpl-issue-error {

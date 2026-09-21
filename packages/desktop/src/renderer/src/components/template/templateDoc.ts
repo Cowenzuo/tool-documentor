@@ -229,6 +229,20 @@ export function headingLevel(node: TemplateObject): number {
   return num(node['headingLevel'], 1)
 }
 
+/**
+ * 列表子标题的层级：这一支上（含自己）有几个列表子标题，与 core 的 `subTitleDepth()`
+ * 同一套算法——导出取的就是它（`subtitle.<这个数>`），**不是**节点在树里的第几层。
+ * 层级标题的层级则取文件里的 `headingLevel`（见 `headingLevel`）。
+ */
+export function subTitleDepthOf(doc: TemplateDoc | null, path: NodePath): number {
+  let depth = 0
+  for (let i = 0; i <= path.length; i += 1) {
+    const node = nodeAt(doc, path.slice(0, i))
+    if (node && nodeKind(node) === 'listSubTitle') depth += 1
+  }
+  return depth
+}
+
 export function blockType(block: TemplateObject): string {
   return str(block['type'])
 }

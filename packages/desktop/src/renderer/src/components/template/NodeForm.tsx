@@ -1,7 +1,7 @@
 /**
  * 右栏：选中节点的表单。
- * 节点部分：标题、标题级别、节点类型、说明、三个开关（节点自己的增删移在节点树的行右键菜单里）；
- * 内容块部分：一块一张卡片（见 BlockForm），可增删移。
+ * 节点部分：标题、级别（只显示，程序算的）、节点类型、说明、三个开关
+ * （节点自己的增删移在节点树的行右键菜单里）；内容块部分：一块一张卡片（见 BlockForm），可增删移。
  * 这一栏只写内存草稿，写文件是页脚那个「保存」按钮的事。
  */
 import { useEffect, useState, type JSX } from 'react'
@@ -27,6 +27,7 @@ import {
   normalNodeTypeFor,
   rawBlocks,
   str,
+  subTitleDepthOf,
   typoField,
   type NodePath,
   type TemplateDoc,
@@ -171,13 +172,13 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
   const blocks = rawBlocks(node)
   const kind = nodeKind(node)
   /**
-   * 级别跟着树里的层级走（第几层就是几级标题），不给人手改：
-   * 它决定导出时用哪套标题样式（heading.N）与主编辑器里"谁能挂在谁下面"，
-   * 而"文件里写的"和"树里在第几层"不一致时，界面得说出来——这才是作者要判断的东西。
+   * 级别是程序算的、不是作者填的：新建节点时按父节点的层级 + 1 写进文件，已有的值原样保留
+   * （模板里偶尔故意写得比树浅，比如重复单元沿用上一级的样式），界面照它显示——
+   * 这个数字就是导出取哪套标题样式（heading.N）的那个 N。
+   * 正因为是算出来的，界面**不报"层级不一致"**：没有"作者填错"这回事。
    */
   const depth = path.length
-  const stored = headingLevel(node)
-  const levelOff = !isRoot && stored !== depth
+  const level = headingLevel(node)
   /** 字段名只差大小写（headingLevel 写成 headinglevel 这种）：程序会当没写，必须让人看见 */
   const typo = typoField(node, NODE_FIELDS)
   /** 相邻块是不是锁着的（keep/readonly）：换位会把它挪走，所以邻居那一侧也不给挪 */
@@ -218,18 +219,12 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
     <section className="tpl-col tpl-col-insp" aria-label="节点">
       <header className="tpl-col-head">
         <h2>节点</h2>
-        {/* 级别是树里的位置给的，在这儿当信息看：它决定导出用哪套标题样式 */}
+        {/* 级别当信息看（跟树上那枚徽标同一个数）：它决定导出用哪套标题样式 */}
         <span
-          className={`tpl-level${levelOff ? ' is-off' : ''}`}
-          title={
-            isRoot
-              ? '根节点：整篇文档'
-              : levelOff
-                ? `文件里写的是 ${stored} 级标题，树里在第 ${depth} 层`
-                : `第 ${depth} 级标题（跟着树里的层级，导出用这套标题样式）`
-          }
+          className="tpl-level"
+          title={isRoot ? '根节点：整篇文档' : `第 ${level} 级标题：导出用这套标题样式`}
         >
-          {isRoot ? '根' : `${depth} 级`}
+          {isRoot ? '根' : `${level} 级`}
         </span>
         {/* 位置写人话（示例文档 › 需求）：JSON 路径留给悬停，版面不印下标 */}
         <span className="tpl-where" title={jsonPath}>
@@ -287,22 +282,10 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
           />
         </div>
 
-        {levelOff && (
-          <p className="tpl-note tpl-note-bad">
-            文件里写的是 {stored} 级标题，树里在第 {depth} 层：导出按 {stored} 级标题的样式排版。
-            <button
-              type="button"
-              className="tpl-mini tpl-inline-action"
-              onClick={() => props.onPatch({ headingLevel: depth })}
-            >
-              改成 {depth} 级
-            </button>
-          </p>
-        )}
-
         {kind === 'listSubTitle' && (
           <p className="tpl-note">
-            列表子标题：不占章节编号链，导出时按同级里的 a/b/c 编号（样式 subtitle.{depth}）
+            列表子标题：不占章节编号链，导出时按同级里的 a/b/c 编号（样式 subtitle.
+            {subTitleDepthOf(doc, path)}）
           </p>
         )}
 
