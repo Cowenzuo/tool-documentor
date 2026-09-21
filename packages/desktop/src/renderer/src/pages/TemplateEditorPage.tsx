@@ -293,8 +293,10 @@ export default function TemplateEditorPage(): JSX.Element {
           onCollapseAll={editor.collapseAll}
           onAddChild={editor.addChildAt}
           onAddSibling={editor.addSiblingAt}
+          onDuplicate={editor.duplicateNodeAt}
           onMove={editor.moveNodeAt}
           onRemove={editor.removeNodeAt}
+          onToggleBranch={editor.toggleBranchAt}
         />
         <div
           className="tpl-split"

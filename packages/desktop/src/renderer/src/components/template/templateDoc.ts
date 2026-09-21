@@ -428,6 +428,54 @@ export function removeNodeAt(doc: TemplateDoc, path: NodePath): TemplateDoc {
   }))
 }
 
+/** 节点/内容块的深拷贝：模板 JSON 是纯数据，逐层复制，别让两份共用同一个数组 */
+function cloneJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(cloneJson)
+  const object = asObject(value)
+  if (!object) return value
+  const out: TemplateObject = {}
+  for (const [key, item] of Object.entries(object)) out[key] = cloneJson(item)
+  return out
+}
+
+/**
+ * 复制一份子树，插在原节点后面：模板作者拿现成的一章当草稿最快
+ *（子节点与内容块一起带走，标题、开关、锁都照抄，改哪算哪）。
+ */
+export function duplicateNodeAt(doc: TemplateDoc, path: NodePath): TemplateDoc {
+  const index = path[path.length - 1]
+  if (index === undefined) return doc
+  const parentPath = path.slice(0, -1)
+  const parent = nodeAt(doc, parentPath)
+  const source = parent ? asObject(rawChildren(parent)[index]) : null
+  // 路径不对就当没这回事：返回原来那份 doc，免得"什么都没改"却被标成有改动
+  if (!source) return doc
+  return patchWithin(doc, parentPath, (target) => {
+    const children = [...rawChildren(target)]
+    children.splice(index + 1, 0, cloneJson(source) as TemplateObject)
+    return { ...target, children }
+  })
+}
+
+/** 某一支里"能开合"的路径键（含它自己）：菜单里的展开/折叠该分支按这份名单办事 */
+export function branchKeys(doc: TemplateDoc | null, path: NodePath): string[] {
+  const node = nodeAt(doc, path)
+  if (!node) return []
+  const out: string[] = []
+  const walk = (current: TemplateObject, currentPath: NodePath): void => {
+    rawChildren(current).forEach((raw, index) => {
+      const child = asObject(raw)
+      if (!child) return
+      const childPath = [...currentPath, index]
+      if (hasChildren(child)) out.push(pathKey(childPath))
+      walk(child, childPath)
+    })
+  }
+  if (hasChildren(node)) out.push(pathKey(path))
+  walk(node, path)
+  return out
+}
+
 /** 同级上移/下移：相邻换位，越界不动 */
 export function moveNodeIn(doc: TemplateDoc, path: NodePath, delta: -1 | 1): TemplateDoc {
   const index = path[path.length - 1]

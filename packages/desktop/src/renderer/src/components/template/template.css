@@ -274,17 +274,6 @@ body.is-splitting {
   flex: none;
 }
 
-/* 节点树栏头上的结构操作（增删移）：紧跟在「节点树」后面。
-   窄到放不下时整组换行，组内按钮自己再折——不挤掉标题，也不横向溢出。 */
-.tpl-tree-ops {
-  flex: 0 1 auto;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1px;
-  min-width: 0;
-  max-width: 100%;
-}
-
 .tpl-col-body {
   flex: 1;
   min-height: 0;
@@ -724,6 +713,55 @@ body.is-splitting {
 
 .tpl-tree-caret svg:not(.open) {
   transform: rotate(-90deg);
+}
+
+/* 节点右键菜单：与主编辑器的章节菜单同一套语言——
+   菜单头写清这单冲着哪个节点，按不了的项目在悬停提示里说明原因 */
+.tpl-tree-menu {
+  position: fixed;
+  z-index: 120;
+  min-width: 152px;
+  max-width: 260px;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-1);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-overlay);
+  box-shadow: var(--overlay-shadow);
+}
+
+.tpl-tree-menu-head {
+  padding: 6px 12px;
+  margin-bottom: var(--space-1);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tpl-tree-menu button {
+  width: 100%;
+  text-align: left;
+  padding: 7px 12px;
+  border-radius: var(--radius-control);
+  font-size: var(--text-sm);
+  color: var(--text-1);
+}
+
+.tpl-tree-menu button:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.tpl-tree-menu button.danger {
+  color: var(--danger);
+}
+
+.tpl-tree-menu button:disabled {
+  color: var(--text-3);
+  cursor: not-allowed;
 }
 
 .tpl-tree-level {

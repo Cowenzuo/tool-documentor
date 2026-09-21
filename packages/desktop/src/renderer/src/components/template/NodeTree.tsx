@@ -3,16 +3,17 @@
  * 视觉语言沿用编辑器的树：层级数字、需要时才有的一枚类型标记、问题圆点；
  * 状态由外面给（选中路径 + 展开集合），组件本身无状态。
  *
- * 增删移这一排放在栏头（「节点树」与展开/折叠旁边），做的是"选中的那一个"：
- * 行上不挂按钮——一行本来就只有二十来个字，挤上五个按钮标题就得让位；
- * 按钮的悬停提示里带上选中节点的名字，按的是谁一眼能对上。
+ * 节点的结构操作（加子节点/加同级/复制/上移/下移/删除/开合这一支）都在**右键菜单**里，
+ * 与主编辑器的章节树同一套语言：右键同时把该行选上，按不了的项目写明原因。
+ * 行上不挂按钮——一行本来就只有二十来个字，挤上五个按钮标题就得让位。
  */
-import { useEffect, useRef, type JSX } from 'react'
+import { useEffect, useRef, useState, type JSX } from 'react'
 import type { TemplateIssueDto } from '../../../../shared/project'
 import { ChevronDownIcon } from '../icons'
-import { AddChildIcon, AddSiblingIcon, CollapseAllIcon, ExpandAllIcon, MoveDownIcon, MoveUpIcon, TrashIcon } from './icons'
+import { CollapseAllIcon, ExpandAllIcon } from './icons'
 import {
   asObject,
+  branchKeys,
   hasChildren,
   headingLevel,
   nodeAt,
@@ -42,8 +43,17 @@ interface NodeTreeProps {
   onCollapseAll: () => void
   onAddChild: (path: NodePath) => void
   onAddSibling: (path: NodePath) => void
+  onDuplicate: (path: NodePath) => void
   onMove: (path: NodePath, delta: -1 | 1) => void
   onRemove: (path: NodePath) => void
+  onToggleBranch: (path: NodePath) => void
+}
+
+/** 菜单开在哪一行、开在什么位置（窗口坐标） */
+interface MenuState {
+  path: NodePath
+  x: number
+  y: number
 }
 
 function IssueDot({ issues }: { issues: TemplateIssueDto[] }): JSX.Element | null {
@@ -61,7 +71,8 @@ function Row({
   expanded,
   issues,
   onSelect,
-  onToggle
+  onToggle,
+  onOpenMenu
 }: {
   node: TemplateObject
   path: NodePath
@@ -71,6 +82,7 @@ function Row({
   issues: TemplateIssueDto[]
   onSelect: (path: NodePath) => void
   onToggle: (key: string) => void
+  onOpenMenu: (path: NodePath, x: number, y: number) => void
 }): JSX.Element {
   const key = pathKey(path)
   const isRoot = path.length === 0
@@ -96,10 +108,24 @@ function Row({
         // 中栏是窄栏，长标题会被省略号截掉，鼠标停在行上能看到全名
         title={nodeTitle(node) || '（未命名）'}
         onClick={() => onSelect(path)}
+        onContextMenu={(event) => {
+          event.preventDefault()
+          // 右键同时把该行选上：菜单里的操作对象与右栏看到的保持一致
+          onSelect(path)
+          onOpenMenu(path, event.clientX, event.clientY)
+        }}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault()
             onSelect(path)
+            return
+          }
+          // 键盘也要能开这单（Windows 的习惯键：Shift+F10 或菜单键）
+          if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+            event.preventDefault()
+            const rect = event.currentTarget.getBoundingClientRect()
+            onSelect(path)
+            onOpenMenu(path, Math.round(rect.left + 24), Math.round(rect.bottom))
           }
         }}
       >
@@ -141,6 +167,7 @@ function Row({
               issues={issues}
               onSelect={onSelect}
               onToggle={onToggle}
+              onOpenMenu={onOpenMenu}
             />
           )
         })}
@@ -148,27 +175,22 @@ function Row({
   )
 }
 
+/** 菜单里的一项：按不了就写明为什么（title），不另占版面 */
+interface MenuItem {
+  label: string
+  title: string
+  disabled: boolean
+  danger?: boolean
+  run: () => void
+}
+
 export function NodeTree(props: NodeTreeProps): JSX.Element {
   const { doc, status, selectedPath, expanded, issues, onSelect, onToggle } = props
   const root = rootNode(doc)
   const selectedKey = pathKey(selectedPath)
   const scrollRef = useRef<HTMLDivElement | null>(null)
-
-  const selected = nodeAt(doc, selectedPath)
-  const isRootSelected = selectedPath.length === 0
-  const index = selectedPath[selectedPath.length - 1] ?? 0
-  const parent = nodeAt(doc, selectedPath.slice(0, -1))
-  const siblingCount = parent ? rawChildren(parent).length : 0
-  const name = selected ? nodeTitle(selected) || '（未命名）' : ''
-  const canMoveUp = selected !== null && !isRootSelected && index > 0
-  const canMoveDown = selected !== null && !isRootSelected && index < siblingCount - 1
-  const noNode = '先在中栏选一个节点'
-  /** 按钮的悬停提示：按不了的说原因，按得了的说清按的是谁（根节点那几条原因相同） */
-  const opTitle = (ready: string, blocked: string): string => {
-    if (selected === null) return noNode
-    if (isRootSelected) return '选中的是根节点：没有同级，也不能移动、不能删除'
-    return blocked === '' ? ready : blocked
-  }
+  const menuRef = useRef<HTMLDivElement | null>(null)
+  const [menu, setMenu] = useState<MenuState | null>(null)
 
   /**
    * 选中项滚入可视区：新加的节点、树上点选都得看得见。
@@ -179,63 +201,137 @@ export function NodeTree(props: NodeTreeProps): JSX.Element {
     row?.scrollIntoView({ block: 'nearest' })
   }, [selectedKey, expanded])
 
+  /** 菜单：点别处、按 Esc 都收起来 */
+  useEffect(() => {
+    const close = (event: MouseEvent): void => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenu(null)
+    }
+    const key = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setMenu(null)
+    }
+    window.addEventListener('mousedown', close)
+    window.addEventListener('keydown', key)
+    return () => {
+      window.removeEventListener('mousedown', close)
+      window.removeEventListener('keydown', key)
+    }
+  }, [])
+
+  /** 开出来先把越界的部分收回来，再把焦点放到第一个能用的项目上（键盘能接着走） */
+  useEffect(() => {
+    const el = menuRef.current
+    if (!menu || !el) return
+    const rect = el.getBoundingClientRect()
+    const overflowX = rect.right - window.innerWidth + 8
+    const overflowY = rect.bottom - window.innerHeight + 8
+    if (overflowX > 0 || overflowY > 0) {
+      setMenu((prev) =>
+        prev
+          ? { ...prev, x: prev.x - Math.max(0, overflowX), y: prev.y - Math.max(0, overflowY) }
+          : prev
+      )
+      return
+    }
+    el.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()
+  }, [menu])
+
+  const onMenuKeyDown = (event: React.KeyboardEvent): void => {
+    const items = [
+      ...(menuRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])
+    ]
+    if (items.length === 0) return
+    const index = items.findIndex((el) => el === document.activeElement)
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      items[(index + 1 + items.length) % items.length]?.focus()
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      items[(index - 1 + items.length) % items.length]?.focus()
+    }
+  }
+
+  const menuNode = menu ? nodeAt(doc, menu.path) : null
+  const menuIsRoot = menu !== null && menu.path.length === 0
+  const menuIndex = menu ? (menu.path[menu.path.length - 1] ?? 0) : 0
+  const menuParent = menu ? nodeAt(doc, menu.path.slice(0, -1)) : null
+  const menuSiblingCount = menuParent ? rawChildren(menuParent).length : 0
+  const menuName = menuNode ? nodeTitle(menuNode) || '（未命名）' : ''
+  const menuBranch = menu ? branchKeys(doc, menu.path) : []
+  /**
+   * 这一支现在是开的还是收的：根节点永远画成展开的，所以它按"下面各层开没开"算，
+   * 其余节点就是它自己开没开（点一下连下面几层一起收/一起开）。
+   */
+  const menuBranchOpen = menuIsRoot
+    ? menuBranch.filter((key) => key !== '').every((key) => expanded.has(key))
+    : expanded.has(pathKey(menu?.path ?? []))
+
+  const items: MenuItem[] = menu === null || menuNode === null
+    ? []
+    : [
+        {
+          label: '添加子节点',
+          title: `在「${menuName}」下面加一个子节点`,
+          disabled: false,
+          run: () => props.onAddChild(menu.path)
+        },
+        {
+          label: '添加同级',
+          title: menuIsRoot ? '根节点没有同级' : `在「${menuName}」后面加一个同级节点`,
+          disabled: menuIsRoot,
+          run: () => props.onAddSibling(menu.path)
+        },
+        {
+          label: '复制节点',
+          title: menuIsRoot
+            ? '根节点不能复制'
+            : `复制「${menuName}」及其子节点与内容块，插在它后面`,
+          disabled: menuIsRoot,
+          run: () => props.onDuplicate(menu.path)
+        },
+        {
+          label: '上移',
+          title: menuIsRoot
+            ? '根节点不能移动'
+            : menuIndex > 0
+              ? `「${menuName}」上移`
+              : '已经是第一个子节点',
+          disabled: menuIsRoot || menuIndex === 0,
+          run: () => props.onMove(menu.path, -1)
+        },
+        {
+          label: '下移',
+          title: menuIsRoot
+            ? '根节点不能移动'
+            : menuIndex < menuSiblingCount - 1
+              ? `「${menuName}」下移`
+              : '已经是最后一个子节点',
+          disabled: menuIsRoot || menuIndex >= menuSiblingCount - 1,
+          run: () => props.onMove(menu.path, 1)
+        },
+        {
+          label: '删除节点',
+          title: menuIsRoot ? '根节点不能删除' : `删除「${menuName}」及其子节点`,
+          disabled: menuIsRoot,
+          danger: true,
+          run: () => props.onRemove(menu.path)
+        },
+        {
+          label: menuBranchOpen ? '折叠该分支' : '展开该分支',
+          title: menuBranch.length === 0
+            ? '该节点没有子节点'
+            : menuBranchOpen
+              ? '收起这一支下的所有层级'
+              : '展开这一支下的所有层级',
+          disabled: menuBranch.length === 0,
+          run: () => props.onToggleBranch(menu.path)
+        }
+      ]
+
   return (
     <section className="tpl-col tpl-col-tree" aria-label="节点树">
       <header className="tpl-col-head">
         <h2>节点树</h2>
-        {/* 结构操作：对选中的那一个节点办事，所以贴在这一栏的头上 */}
-        <div className="tpl-tree-ops">
-          <button
-            type="button"
-            className="tpl-icon-btn"
-            title={selected === null ? noNode : `在「${name}」下面加一个子节点`}
-            aria-label="添加子节点"
-            disabled={selected === null}
-            onClick={() => props.onAddChild(selectedPath)}
-          >
-            <AddChildIcon />
-          </button>
-          <button
-            type="button"
-            className="tpl-icon-btn"
-            title={opTitle(`在「${name}」后面加一个同级节点`, '')}
-            aria-label="添加同级"
-            disabled={selected === null || isRootSelected}
-            onClick={() => props.onAddSibling(selectedPath)}
-          >
-            <AddSiblingIcon />
-          </button>
-          <button
-            type="button"
-            className="tpl-icon-btn"
-            title={opTitle(`「${name}」上移`, canMoveUp ? '' : '已经是第一个子节点')}
-            aria-label="上移"
-            disabled={!canMoveUp}
-            onClick={() => props.onMove(selectedPath, -1)}
-          >
-            <MoveUpIcon />
-          </button>
-          <button
-            type="button"
-            className="tpl-icon-btn"
-            title={opTitle(`「${name}」下移`, canMoveDown ? '' : '已经是最后一个子节点')}
-            aria-label="下移"
-            disabled={!canMoveDown}
-            onClick={() => props.onMove(selectedPath, 1)}
-          >
-            <MoveDownIcon />
-          </button>
-          <button
-            type="button"
-            className="tpl-icon-btn tpl-danger"
-            title={opTitle(`删除「${name}」及其子节点`, '')}
-            aria-label="删除节点"
-            disabled={selected === null || isRootSelected}
-            onClick={() => props.onRemove(selectedPath)}
-          >
-            <TrashIcon />
-          </button>
-        </div>
+        {/* 节点的增删移都在行的右键菜单里；栏头只留"整棵树"的开合 */}
         <div className="tpl-col-tools">
           <button
             type="button"
@@ -274,9 +370,40 @@ export function NodeTree(props: NodeTreeProps): JSX.Element {
             issues={issues}
             onSelect={onSelect}
             onToggle={onToggle}
+            onOpenMenu={(path, x, y) => setMenu({ path, x, y })}
           />
         )}
       </div>
+      {menu && menuNode && (
+        <div
+          ref={menuRef}
+          className="tpl-tree-menu"
+          style={{ left: menu.x, top: menu.y }}
+          role="menu"
+          aria-label="节点操作"
+          onKeyDown={onMenuKeyDown}
+        >
+          <div className="tpl-tree-menu-head" title={nodeJsonPath(menu.path)}>
+            {menuName}
+          </div>
+          {items.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              role="menuitem"
+              className={item.danger ? 'danger' : undefined}
+              disabled={item.disabled}
+              title={item.title}
+              onClick={() => {
+                item.run()
+                setMenu(null)
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
     </section>
   )
 }

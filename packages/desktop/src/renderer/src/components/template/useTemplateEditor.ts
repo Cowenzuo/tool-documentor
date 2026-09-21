@@ -18,8 +18,10 @@ import type {
 import {
   ROOT_PATH,
   addBlockAt,
+  branchKeys,
   createTemplateBlock,
   createTemplateNode,
+  duplicateNodeAt as duplicateNodeAtInDoc,
   expandableKeys,
   headingLevel,
   insertChildAt,
@@ -133,8 +135,10 @@ export interface UseTemplateEditorResult {
   patchSelectedNode: (patch: TemplateObject) => void
   addChildAt: (path: NodePath) => void
   addSiblingAt: (path: NodePath) => void
+  duplicateNodeAt: (path: NodePath) => void
   moveNodeAt: (path: NodePath, delta: -1 | 1) => void
   removeNodeAt: (path: NodePath) => void
+  toggleBranchAt: (path: NodePath) => void
   patchBlock: (index: number, patch: TemplateObject) => void
   addBlock: (type: string) => void
   moveBlock: (index: number, delta: -1 | 1) => void
@@ -502,8 +506,8 @@ export function useTemplateEditor(): UseTemplateEditorResult {
   )
 
   /**
-   * 树上的四个结构操作：都按**传进来的那个路径**办事，不看当前选中谁是——
-   * 栏头上那排按钮做的是"选中的那一个"，但接口留成路径，将来要在行上再挂入口也不用改。
+   * 树上的结构操作：都按**传进来的那个路径**办事，不看当前选中谁是——
+   * 右键菜单点的必须是那一行。菜单里按不了的项目自己会写明原因。
    */
   const addChildAt = useCallback(
     (path: NodePath): void => {
@@ -545,6 +549,18 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     [mutate]
   )
 
+  /** 复制整棵子树：插在原节点后面，选中新那一份（作者接着改名字就行） */
+  const duplicateNodeAt = useCallback(
+    (path: NodePath): void => {
+      if (!doc || path.length === 0) return
+      if (!nodeAt(doc, path)) return
+      mutate((current) => duplicateNodeAtInDoc(current, path))
+      const index = path[path.length - 1] ?? 0
+      setSelectedPath([...path.slice(0, -1), index + 1])
+    },
+    [doc, mutate]
+  )
+
   const removeNodeAt = useCallback(
     (path: NodePath): void => {
       if (path.length === 0) return
@@ -552,6 +568,24 @@ export function useTemplateEditor(): UseTemplateEditorResult {
       setSelectedPath(path.slice(0, -1))
     },
     [mutate]
+  )
+
+  /** 一支的开合：收就整支收掉，开就整支展开（菜单里的「展开/折叠该分支」） */
+  const toggleBranchAt = useCallback(
+    (path: NodePath): void => {
+      const keys = branchKeys(doc, path)
+      if (keys.length === 0) return
+      setExpanded((current) => {
+        const next = new Set(current)
+        const open = next.has(pathKey(path))
+        for (const key of keys) {
+          if (open) next.delete(key)
+          else next.add(key)
+        }
+        return next
+      })
+    },
+    [doc]
   )
 
   const patchBlock = useCallback(
@@ -619,8 +653,10 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     patchSelectedNode,
     addChildAt,
     addSiblingAt,
+    duplicateNodeAt,
     moveNodeAt,
     removeNodeAt,
+    toggleBranchAt,
     patchBlock,
     addBlock,
     moveBlock,
