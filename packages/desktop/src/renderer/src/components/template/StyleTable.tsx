@@ -294,17 +294,15 @@ function GroupRows({
         const target = byId.get(row.styleId)
         const fallbackId = row.fallback === null ? '' : (fallbackIds.get(row.fallback) ?? '')
         return (
-          <tr key={row.key} className={`tpl-map-row is-${styleStatusTone(row.status)}`}>
+          <tr
+            key={row.key}
+            className={`tpl-map-row is-${styleStatusTone(row.status)}${row.read ? '' : ' is-inert'}`}
+            title={row.read ? undefined : '程序不读 · 列表各层只取第 1 档'}
+          >
             <th scope="row" className="tpl-map-key">
               <code className="tpl-mono" title={row.usage}>
                 {row.key}
               </code>
-              {/* 「不读」是键自己的属性（不是这一行配得对不对），所以挂在键这一格 */}
-              {!row.read && (
-                <span className="tpl-count" title="程序不读 · 列表各层只取第 1 档">
-                  不读
-                </span>
-              )}
             </th>
             <td className="tpl-map-target">
               {/* 映射就是这一列的活：选骨架里的一条样式；「（不配）」= 把这一项从 styleMap 里删掉。

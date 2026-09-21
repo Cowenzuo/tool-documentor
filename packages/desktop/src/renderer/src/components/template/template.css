@@ -1412,6 +1412,15 @@ button.tpl-issue-where:hover {
   background: color-mix(in srgb, var(--warning) 8%, transparent);
 }
 
+/* 程序不读的键：不写字，整行左边一道琥珀边，说明进悬停 */
+.tpl-map-row.is-inert .tpl-map-key {
+  box-shadow: inset 3px 0 0 var(--warning);
+}
+
+.tpl-map-row.is-inert .tpl-map-state {
+  color: var(--warning);
+}
+
 .tpl-map-state {
   display: inline-block;
   padding: 0 6px;
