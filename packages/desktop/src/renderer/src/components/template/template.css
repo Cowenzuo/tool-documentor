@@ -96,31 +96,14 @@
 }
 
 /* ===== 状态栏里的消息 ===== */
-.tpl-raw {
-  flex: 1 1 100%;
-  min-width: 0;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--danger);
-  word-break: break-all;
-  white-space: pre-wrap;
-}
-
-/* 报错原文可能很长：状态栏里给它自己一行，超过就内部滚，别把状态栏撑成半屏 */
-.tpl-foot .tpl-raw {
-  max-height: 84px;
-  overflow: auto;
-}
-
-/* 操作回执在状态栏里的一条：一句话 + 可选的详情（备份位置 / 报错原文）+ 关掉 */
+/* 操作回执在状态栏里的一条：一句话 + 可选的详情按钮 + 关掉。
+   一行放不下就省略号收尾（长内容走浮层，见 .tpl-pop）——状态栏高度是固定的。 */
 .tpl-status {
   flex: 0 1 auto;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
-  min-height: var(--tpl-ctl-h);
   max-width: 100%;
   font-size: var(--text-xs);
   color: var(--text-1);
@@ -147,28 +130,6 @@
   padding: 0 var(--space-2);
   border-radius: var(--radius-control);
   background: color-mix(in srgb, var(--warning) 14%, transparent);
-}
-
-/* 提示条/页脚里的「备份位置」折叠块：里面那条路径很长，
-   得让这块能缩到行宽以内，路径自己在小框里横向滚，别把整条提示撑出屏幕 */
-.tpl-detail {
-  min-width: 0;
-  max-width: 100%;
-}
-
-.tpl-detail summary {
-  cursor: pointer;
-  font-size: var(--text-xs);
-  color: var(--text-3);
-}
-
-.tpl-detail .tpl-path {
-  display: block;
-  margin-top: 2px;
-  /* 备份/模板路径又长又不好折行：一行显示，放不下就横向滚，别折成楼梯 */
-  white-space: pre;
-  overflow-x: auto;
-  max-width: 100%;
 }
 
 /* ===== 三栏 =====
@@ -1081,49 +1042,134 @@ button.tpl-issue-where:hover {
   word-break: break-all;
 }
 
-/* ===== 页脚（状态栏）：操作回执 + 校验结论 + 保存 =====
-   状态栏就一行高（--tpl-ctl-h）：三块都按这个高度对齐；
-   问题清单展开时往下长，另两块留在这一行的位置上不跟着往下漂。 */
+/* ===== 页脚（状态栏）：固定一行高 =====
+   一条操作回执 / 一次确认 + 校验小结 + 保存按钮。
+   再长也不许把这一条撑起来：备份位置、报错原文、问题索引都走浮层（见 .tpl-pop），
+   撑起来就会把三栏挤矮一截，看着像页面在抖。 */
 .tpl-foot {
+  position: relative;
   flex: none;
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: var(--space-2) var(--space-3);
+  height: calc(var(--tpl-ctl-h) + var(--space-4) + 1px);
   padding: var(--space-2) var(--space-3);
   border-top: 1px solid var(--border);
   background: var(--bg-panel);
+  overflow: hidden;
 }
 
 .tpl-foot-issues {
-  flex: 1 1 320px;
+  position: relative;
+  flex: 1 1 auto;
   min-width: 0;
-  min-height: var(--tpl-ctl-h);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
   font-size: var(--text-xs);
   color: var(--text-2);
 }
 
-.tpl-foot-issues summary {
-  cursor: pointer;
-  color: var(--text-2);
-}
-
-.tpl-foot-issue-list {
-  max-height: 132px;
-  overflow: auto;
-  margin-top: var(--space-1);
-  padding-right: var(--space-2);
-}
-
 .tpl-foot-save {
   flex: none;
-  min-height: var(--tpl-ctl-h);
   display: flex;
   align-items: center;
   gap: var(--space-2);
+}
+
+/* 状态栏里的浮层：挂在触发它的那个小结/回执上方，不参与排版 */
+.tpl-pop-host {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.tpl-pop-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+  color: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+
+.tpl-pop-trigger:hover {
+  color: var(--text-1);
+}
+
+.tpl-pop-caret {
+  color: var(--text-3);
+}
+
+.tpl-pop {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  max-width: min(560px, 70vw);
+  max-height: 40vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-overlay);
+  box-shadow: var(--overlay-shadow);
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}
+
+.tpl-pop-wide {
+  right: 0;
+  left: auto;
+}
+
+.tpl-pop-text {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+  white-space: pre;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.tpl-pop.is-error .tpl-pop-text {
+  color: var(--danger);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.tpl-pop-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+
+.tpl-pop-where {
+  color: var(--text-1);
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.tpl-pop-where.is-plain {
+  color: var(--text-3);
+  text-decoration: none;
+}
+
+.tpl-pop-msg {
+  flex: 1 1 100%;
+  color: var(--text-3);
+  line-height: 1.6;
 }
 
 /* ===== 窄窗口：列宽由页面按容器宽度按比例收（见 TemplateEditorPage 的 layout），

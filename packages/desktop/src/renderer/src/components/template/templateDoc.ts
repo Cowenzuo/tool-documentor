@@ -81,6 +81,47 @@ export function issueLocation(doc: TemplateDoc | null, issuePath: string): strin
   return block ? `${where} · 第 ${Number(block[1]) + 1} 块` : where
 }
 
+/** 结论按"在哪儿"归的一堆：状态栏那份索引按它排（逐条原话在节点详情里说） */
+export interface IssueGroup {
+  /** 人话位置；整份文档级的结论没有位置，是 null */
+  where: string | null
+  /** 位置对应的节点路径（可以点着跳过去）；没有位置的是 null */
+  path: NodePath | null
+  errors: number
+  warnings: number
+  /** 只有"没有位置"的那一组带原话：别处的原话都由节点面板逐条说，这里不重复 */
+  messages: string[]
+}
+
+/**
+ * 把结论按位置归堆：同一处（同一个节点/同一块）的结论合成一行，
+ * 只数错误与提示的条数——状态栏那份索引是"问题在哪"，不是把面板里的话再说一遍。
+ */
+export function groupIssuesByLocation(
+  doc: TemplateDoc | null,
+  issues: readonly { level: string; path: string; message: string }[]
+): IssueGroup[] {
+  const out: IssueGroup[] = []
+  const byKey = new Map<string, IssueGroup>()
+  for (const issue of issues) {
+    const path = nodePathFromJsonPath(issue.path)
+    const where = issueLocation(doc, issue.path)
+    const key = where ?? '(doc)'
+    let group = byKey.get(key)
+    if (!group) {
+      group = { where, path: where ? path : null, errors: 0, warnings: 0, messages: [] }
+      byKey.set(key, group)
+      out.push(group)
+    }
+    if (issue.level === 'error') group.errors += 1
+    else group.warnings += 1
+    // 位置说不清的（整份模板级的结论）只能在这儿把原话说出来
+    if (where === null) group.messages.push(issue.message)
+  }
+  // 没有位置的排最后：它说的是整份模板，不是某一处
+  return out.sort((a, b) => (a.where === null ? 1 : 0) - (b.where === null ? 1 : 0))
+}
+
 export function asObject(value: unknown): TemplateObject | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? (value as TemplateObject)

@@ -2,9 +2,14 @@
  * 模板编辑页（PLAN-11 批次 2）：整页独立，不打开工程、不进撤销栈、不挂编辑器的组件树。
  * 三栏：左栏模板列表（目录与模板、问题徽标），中栏节点树，右栏选中节点的表单。
  * 改动只落在内存草稿里，写文件只发生在页脚那个「保存」按钮。
- * 最下面那条页脚就是这一页的状态栏：左边是最近一次操作的回执（保存/新建/删除/改名，
- * 失败时带上原文）或"要你先点一下"的确认，中间是这份模板的校验结论，右边是保存按钮——
- * 这一页的消息只在这一条里出现，顶上不弹任何提示条。
+ *
+ * 最下面那条页脚是这一页唯一的状态栏，**固定一行高**：里面的东西再长也不许把它撑起来，
+ * 否则三栏跟着缩一截，看着像页面在抖。这条上的消息分三类：
+ *   ① 要你先点一下的确认（未保存改动）——文字与两个按钮都摆在这一行上；
+ *   ② 一次操作的回执（保存/新建/删除/改名，失败带原因）——一行摘要，
+ *      备份位置、报错原文这类长内容点「详情」弹浮层；
+ *   ③ 校验小结（几个错误、几处提示）——点开是"问题在哪"的索引（浮层里按位置归堆、
+ *      可点着跳过去）；逐条原话只在节点详情视图里说，状态栏不重复一遍。
  *
  * 三栏可拖：左与中记宽度（本机 localStorage，口径同主编辑器的结构栏），右栏吃掉剩下的。
  * 窗口变窄时按比例收左与中，先保右栏的最小可用宽度——要填的字都在右栏。
@@ -14,10 +19,16 @@ import { useApp } from '../state/AppContext'
 import NodeForm from '../components/template/NodeForm'
 import NodeTree from '../components/template/NodeTree'
 import TemplateList from '../components/template/TemplateList'
-import { IssueLines } from '../components/template/fields'
 import { RefreshIcon } from '../components/template/icons'
 import { CloseIcon } from '../components/icons'
-import { countBlocks, countNodes, issueLocation, nodeJsonPath, nodePathFromJsonPath } from '../components/template/templateDoc'
+import {
+  countBlocks,
+  countNodes,
+  groupIssuesByLocation,
+  nodeJsonPath,
+  type IssueGroup,
+  type NodePath
+} from '../components/template/templateDoc'
 import { countIssues, issuesUnder } from '../components/template/templateValidate'
 import { useTemplateEditor } from '../components/template/useTemplateEditor'
 import '../components/template/template.css'
@@ -47,8 +58,12 @@ export default function TemplateEditorPage(): JSX.Element {
   const { closeTemplateEditor } = useApp()
   const editor = useTemplateEditor()
   const counts = countIssues(editor.issues)
-  const hasErrors = counts.errors > 0
   const open = editor.doc !== null
+  /** 校验小结点开后那份"问题在哪"的索引：按位置归堆，逐条原话在节点详情里 */
+  const issueGroups: IssueGroup[] = useMemo(
+    () => groupIssuesByLocation(editor.doc, editor.issues),
+    [editor.doc, editor.issues]
+  )
 
   // ---------- 三栏宽度 ----------
   const bodyRef = useRef<HTMLDivElement | null>(null)
@@ -137,18 +152,8 @@ export default function TemplateEditorPage(): JSX.Element {
     [commitWidth]
   )
 
-  /**
-   * 问题清单的展开状态：出现 error 时自动摊开，之后由用户自己开关。
-   * 不直接把 open 绑到 counts.errors 上——那样每敲一个字都会被重新渲染按回去。
-   */
-  const [issuesOpen, setIssuesOpen] = useState(false)
-  useEffect(() => {
-    if (hasErrors) setIssuesOpen(true)
-  }, [hasErrors])
-
   const nodeIssues = editor.selectedNode
-    ? issuesUnder(editor.issues, nodeJsonPath(editor.selectedPath))
-    : []
+    ? issuesUnder(editor.issues, nodeJsonPath(editor.selectedPath))    : []
 
   /** 保存按钮为什么不能按：一句话说清，按钮上也有同样的 title */
   const saveWhy = !open
@@ -200,21 +205,11 @@ export default function TemplateEditorPage(): JSX.Element {
           <RefreshIcon />
         </button>
         <span className="tpl-top-counts">
+          {/* 这里只说"这份模板有多大"；校验结算是状态栏那边的事（同一件事不说两遍） */}
           {open ? (
-            <>
-              <span className="tpl-count">
-                {countNodes(editor.doc)} 个节点 · {countBlocks(editor.doc)} 个内容块
-              </span>
-              {counts.errors > 0 && (
-                <span className="tpl-badge tpl-badge-error">{counts.errors} 个错误</span>
-              )}
-              {counts.warnings > 0 && (
-                <span className="tpl-badge tpl-badge-warn">{counts.warnings} 处提示</span>
-              )}
-              {counts.errors === 0 && counts.warnings === 0 && (
-                <span className="tpl-count">没有发现问题</span>
-              )}
-            </>
+            <span className="tpl-count">
+              {countNodes(editor.doc)} 个节点 · {countBlocks(editor.doc)} 个内容块
+            </span>
           ) : (
             <span className="tpl-count">
               {editor.status === 'ready' ? '没有打开模板' : '正在读取模板目录…'}
@@ -310,9 +305,13 @@ export default function TemplateEditorPage(): JSX.Element {
       </div>
 
       <footer className="tpl-foot">
-        {/* 状态栏：这一页的消息只在这一条里出现，顶上不再弹任何东西。
-            左边是"刚刚发生了什么"或"要你先点一下"（保存/新建/删除/改名的回执与失败原因、
-            有未保存改动时的确认），中间是"文档现在有没有问题"，右边是保存按钮。 */}
+        {/* 状态栏固定一行高，里面的东西再长也不许把它撑起来（撑起来就会挤三栏，很难看）。
+            这一条上的消息分三类：
+              ① 要你先点一下的确认（未保存改动）——文字与两个按钮都摆在这一行上；
+              ② 一次操作的回执（已保存/已新建/已删除/已改名，失败时带原因）——一行摘要，
+                 备份位置与报错原文这类长内容点「详情」弹浮层；
+              ③ 校验小结（几个错误、几处提示）——点开是"问题在哪"的索引，浮层里按位置归堆，
+                 逐条原话在节点详情里说（那里才是动手改的地方），这里不重复。 */}
         {editor.pending ? (
           <div
             className="tpl-status tpl-status-warn tpl-status-alert"
@@ -338,19 +337,13 @@ export default function TemplateEditorPage(): JSX.Element {
               role={editor.notice.kind === 'error' ? 'alert' : 'status'}
             >
               <span className="tpl-status-text">{editor.notice.text}</span>
-              {editor.notice.detail &&
-                (editor.notice.kind === 'error' ? (
-                  <code className="tpl-raw" title={editor.notice.detail}>
-                    {editor.notice.detail}
-                  </code>
-                ) : (
-                  <details className="tpl-detail">
-                    <summary>备份位置</summary>
-                    <code className="tpl-path" title={editor.notice.detail}>
-                      {editor.notice.detail}
-                    </code>
-                  </details>
-                ))}
+              {editor.notice.detail && (
+                <Popover
+                  label={editor.notice.kind === 'error' ? '报错原文' : '备份位置'}
+                  kind={editor.notice.kind}
+                  text={editor.notice.detail}
+                />
+              )}
               <button
                 type="button"
                 className="tpl-icon-btn"
@@ -367,26 +360,13 @@ export default function TemplateEditorPage(): JSX.Element {
           {editor.issues.length === 0 ? (
             <span className="tpl-count">{open ? '校验通过' : ''}</span>
           ) : (
-            <details open={issuesOpen} onToggle={(event) => setIssuesOpen(event.currentTarget.open)}>
-              <summary>
-                {counts.errors} 个错误 · {counts.warnings} 处提示
-                {editor.issuesSource === 'server' ? '（主进程的结论）' : ''}
-              </summary>
-              <div className="tpl-foot-issue-list">
-                {/* 位置写人话（示例文档 › 需求 · 第 2 块）并且能点着跳过去——
-                    这份总清单是全页唯一需要指路的地方，面板与卡片上位置是多余的 */}
-                <IssueLines
-                  issues={editor.issues}
-                  locate={(issue) => {
-                    const path = nodePathFromJsonPath(issue.path)
-                    return {
-                      where: issueLocation(editor.doc, issue.path),
-                      onJump: path ? () => editor.revealNode(path) : undefined
-                    }
-                  }}
-                />
-              </div>
-            </details>
+            <IssueIndex
+              groups={issueGroups}
+              errors={counts.errors}
+              warnings={counts.warnings}
+              fromServer={editor.issuesSource === 'server'}
+              onJump={editor.revealNode}
+            />
           )}
         </div>
         <div className="tpl-foot-save">
@@ -403,5 +383,101 @@ export default function TemplateEditorPage(): JSX.Element {
         </div>
       </footer>
     </div>
+  )
+}
+
+/**
+ * 一条状态上的长内容（备份路径 / 报错原文）：默认收着，点开是**浮层**——
+ * 铺在状态栏里会把这一条撑高，三栏跟着缩一截，看着像页面在抖。
+ */
+function Popover({ label, kind, text }: { label: string; kind: string; text: string }): JSX.Element {
+  const [open, setOpen] = useState(false)
+  return (
+    <span className="tpl-pop-host">
+      <button
+        type="button"
+        className="tpl-pop-trigger"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        {label}
+      </button>
+      {open && (
+        <span className={`tpl-pop${kind === 'error' ? ' is-error' : ''}`} role="region" aria-label={label}>
+          <code className="tpl-pop-text" title={text}>
+            {text}
+          </code>
+        </span>
+      )}
+    </span>
+  )
+}
+
+/**
+ * 校验小结与"问题在哪"的索引：小结常驻一行，索引点开是浮层。
+ * 浮层里只写位置与条数（可点着跳到那个节点）——逐条原话在节点详情视图里说，
+ * 同一句话在状态栏再说一遍就是重复传达。
+ */
+function IssueIndex({
+  groups,
+  errors,
+  warnings,
+  fromServer,
+  onJump
+}: {
+  groups: IssueGroup[]
+  errors: number
+  warnings: number
+  fromServer: boolean
+  onJump: (path: NodePath) => void
+}): JSX.Element {
+  const [open, setOpen] = useState(false)
+  return (
+    <span className="tpl-pop-host">
+      <button
+        type="button"
+        className="tpl-pop-trigger tpl-foot-summary"
+        aria-expanded={open}
+        title={fromServer ? '这些是主进程给出的结论；点开看问题在哪' : '点开看问题在哪'}
+        onClick={() => setOpen((value) => !value)}
+      >
+        {errors} 个错误 · {warnings} 处提示
+        <span className="tpl-pop-caret" aria-hidden="true">
+          {open ? '▾' : '▸'}
+        </span>
+      </button>
+      {open && (
+        <span className="tpl-pop tpl-pop-wide" role="region" aria-label="问题在哪">
+          {groups.map((group) => (
+            <span className="tpl-pop-row" key={group.where ?? '(doc)'}>
+              {group.path ? (
+                <button
+                  type="button"
+                  className="tpl-pop-where"
+                  title="跳到这个节点"
+                  onClick={() => onJump(group.path as NodePath)}
+                >
+                  {group.where}
+                </button>
+              ) : (
+                <span className="tpl-pop-where is-plain">整份模板</span>
+              )}
+              {group.errors > 0 && (
+                <span className="tpl-badge tpl-badge-error">{group.errors} 个错误</span>
+              )}
+              {group.warnings > 0 && (
+                <span className="tpl-badge tpl-badge-warn">{group.warnings} 处提示</span>
+              )}
+              {/* 位置说不清的（整份模板级的结论）只有这儿能说，带上原话 */}
+              {group.messages.map((message) => (
+                <span className="tpl-pop-msg" key={message}>
+                  {message}
+                </span>
+              ))}
+            </span>
+          ))}
+        </span>
+      )}
+    </span>
   )
 }
