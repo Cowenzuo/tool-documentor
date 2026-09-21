@@ -321,16 +321,14 @@ function GroupRows({
             </td>
             <td className="tpl-map-status">
               <span className={`tpl-map-state is-${styleStatusTone(row.status)}`}>
-                {styleStatusLabel(row.status)}
+                {row.status === 'unset'
+                  ? `未配 · ${row.fallback === null ? '按默认样式' : `回退${row.fallback}`}`
+                  : styleStatusLabel(row.status)}
               </span>
-              {/* 说明只在"要动手"时写：正常与配了不生效都不说第二遍 */}
-              {row.status === 'unset' ? (
-                <span className="tpl-map-why">
-                  {row.fallback === null ? '按 Word 默认样式' : `回退 ${row.fallback}`}
-                </span>
-              ) : row.status === 'inert' ? null : row.status === 'ok' ? null : (
+              {/* 说明只在说得出额外信息时写：未配已并进状态标签，配了不生效由整行标记说 */}
+              {row.status === 'dangling' ? (
                 <span className="tpl-map-why">{row.message}</span>
-              )}
+              ) : null}
             </td>
           </tr>
         )
