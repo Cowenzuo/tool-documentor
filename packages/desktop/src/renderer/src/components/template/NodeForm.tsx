@@ -14,8 +14,10 @@ import { CheckField, IssueLines, SelectField, TextAreaField, TextField, jsonTip 
 import {
   NODE_FIELDS,
   asObject,
+  blockLock,
   breadcrumbOf,
   headingLevel,
+  isPinnedLock,
   nodeJsonPath,
   nodeKind,
   nodeSwitch,
@@ -132,6 +134,11 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
   const levelOff = !isRoot && stored !== depth
   /** 字段名只差大小写（headingLevel 写成 headinglevel 这种）：程序会当没写，必须让人看见 */
   const typo = typoField(node, NODE_FIELDS)
+  /** 相邻块是不是锁着的（keep/readonly）：换位会把它挪走，所以邻居那一侧也不给挪 */
+  const pinnedAt = (index: number): boolean => {
+    const block = asObject(blocks[index])
+    return block ? isPinnedLock(blockLock(block)) : false
+  }
   /** 节点自己字段上的结论：内容块下面的单独挂在块卡片上，不在这里重复 */
   const nodeIssues = issues.filter(
     (issue) => !issue.path.startsWith(`${jsonPath}.contentBlocks`)
@@ -325,6 +332,8 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
                   count={blocks.length}
                   open={openBlocks.has(index)}
                   onToggle={() => toggleBlock(index)}
+                  prevLocked={pinnedAt(index - 1)}
+                  nextLocked={pinnedAt(index + 1)}
                   issues={issuesUnder(issues, `${jsonPath}.contentBlocks[${index}]`)}
                   onPatch={(patch) => props.onBlockPatch(index, patch)}
                   onMove={(delta) => moveBlock(index, delta)}

@@ -312,6 +312,17 @@ export class ProjectService {
   addBlock(input: BlockAddInput): number {
     const node = this.requireNode(input.nodeId)
     this.assertBlocksAllowed(node)
+    // 插在锁定块前面等于把它往后挤：keep/readonly 是"必须存在 + 位置也不能变"
+    if (typeof input.index === 'number') {
+      const pushed = node.contentBlocks.findIndex(
+        (block, i) => i >= input.index! && isBlockPinned(block.lock)
+      )
+      if (pushed >= 0) {
+        throw new ProjectServiceError(
+          `模板规定第 ${pushed + 1} 块必须存在、位置也不能变：不能往它前面插内容`
+        )
+      }
+    }
     const block = createBlock(input.type)
     return this.withSnapshot('添加内容', node, null, () => {
       // 带 index 就是"插到这一项之前"，不带就追加到末尾

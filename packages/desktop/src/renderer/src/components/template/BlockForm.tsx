@@ -28,7 +28,9 @@ import {
   blockSummary,
   blockType,
   headersToText,
+  isPinnedLock,
   linesToArray,
+  lockLevelName,
   num,
   rawBlockLock,
   rowsToText,
@@ -76,13 +78,17 @@ export interface BlockFormProps {
   onToggle: () => void
   /** 已经过滤到这个块下面的校验结论 */
   issues: TemplateIssueDto[]
+  /** 相邻块是 keep/readonly：换位会把锁住的那一块挪走，所以这一块也不能往那边挪 */
+  prevLocked: boolean
+  nextLocked: boolean
   onPatch: (patch: TemplateObject) => void
   onMove: (delta: -1 | 1) => void
   onRemove: () => void
 }
 
 export function BlockForm(props: BlockFormProps): JSX.Element {
-  const { block, index, count, open, onToggle, issues, onPatch, onMove, onRemove } = props
+  const { block, index, count, open, onToggle, issues, prevLocked, nextLocked, onPatch, onMove, onRemove } =
+    props
   const type = blockType(block)
   const lock = blockLock(block)
   const unknownLock = rawBlockLock(block)
@@ -91,6 +97,24 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
   const tag = lockTag(lock)
   const hasError = issues.some((i) => i.level === 'error')
   const hasWarn = !hasError && issues.some((i) => i.level === 'warn')
+  /**
+   * keep / readonly 的块锁住的是"必须存在 + 位置也不能变"：作者要挪要删，
+   * 得先把这一块的锁改成不锁——同一条规矩在生成出来的工程里也一样守（写入侧 + 界面）。
+   */
+  const locked = isPinnedLock(lock)
+  const lockName = lockLevelName(lock)
+  const unlockHint = `这一块是「${lockName}」：顺序不能改；要挪先把它改成「不锁」`
+  const deleteLockedWhy = `这一块是「${lockName}」：不能删；要删先把它改成「不锁」`
+  const moveUpTitle = locked
+    ? unlockHint
+    : prevLocked
+      ? '上一块锁着，换位会把它挪走'
+      : undefined
+  const moveDownTitle = locked
+    ? unlockHint
+    : nextLocked
+      ? '下一块锁着，换位会把它挪走'
+      : undefined
 
   const typeOptions = BLOCK_TYPE_NAMES.map((name) => ({
     value: name as string,
@@ -144,29 +168,30 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
           <button
             type="button"
             className="tpl-icon-btn"
-            title="上移"
+            title={moveUpTitle ?? '上移'}
             aria-label="上移这一块"
             onClick={() => onMove(-1)}
-            disabled={index === 0}
+            disabled={index === 0 || locked || prevLocked}
           >
             <MoveUpIcon />
           </button>
           <button
             type="button"
             className="tpl-icon-btn"
-            title="下移"
+            title={moveDownTitle ?? '下移'}
             aria-label="下移这一块"
             onClick={() => onMove(1)}
-            disabled={index === count - 1}
+            disabled={index === count - 1 || locked || nextLocked}
           >
             <MoveDownIcon />
           </button>
           <button
             type="button"
             className="tpl-icon-btn tpl-danger"
-            title="删除这个内容块"
+            title={locked ? deleteLockedWhy : '删除这个内容块'}
             aria-label="删除这一块"
             onClick={onRemove}
+            disabled={locked}
           >
             <TrashIcon />
           </button>

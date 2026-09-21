@@ -703,6 +703,19 @@
   background: var(--accent-soft);
 }
 
+/* 锁定的内容在上面：这里不给插，按不了就得看得出来 */
+.np-insert-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.np-insert:hover .np-insert-btn:disabled {
+  opacity: 0.45;
+  border-color: var(--border-strong);
+  color: var(--text-3);
+  background: var(--bg-raised);
+}
+
 /* 插入菜单从按钮下方展开（末尾那个仍向上弹，见 .np-add-menu） */
 .np-insert .np-add-menu {
   top: 100%;

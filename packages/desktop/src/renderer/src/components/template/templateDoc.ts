@@ -266,6 +266,23 @@ export function rawBlockLock(block: TemplateObject): string | null {
   return (BLOCK_LOCK_LEVELS as readonly string[]).includes(value) ? null : value
 }
 
+/**
+ * keep / readonly 两档是"必须存在 + 位置也不能变"：不能删、顺序也不能改。
+ * 模板作者在模板编辑页里同样受这条约束（要挪/要删就先把锁改成不锁）——
+ * 生成出来的工程里，写入侧与界面也按同一条守。
+ */
+export function isPinnedLock(lock: string): boolean {
+  return lock === 'keep' || lock === 'readonly'
+}
+
+/** 锁档位的人话名字（提示语里用） */
+export function lockLevelName(lock: string): string {
+  if (lock === 'keep') return '锁删除与移动'
+  if (lock === 'readonly') return '只读'
+  if (lock === 'type') return '只锁类型'
+  return '不锁'
+}
+
 /** 界面替作者维护的字段名：其余字段原样保留 */
 export const NODE_FIELDS = [
   'nodeType',
