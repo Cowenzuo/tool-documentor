@@ -294,7 +294,7 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
         {/* 级别当信息看（跟树上那枚徽标同一个数）：它决定导出用哪套标题样式 */}
         <span
           className="tpl-level"
-          title={isRoot ? '根节点' : `第 ${level} 级标题（导出按它取样式）`}
+          title={isRoot ? '整篇文档' : `导出取 heading.${level}`}
         >
           {isRoot ? '根' : `${level} 级`}
         </span>
@@ -317,19 +317,19 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
               <span className="tpl-switches" role="group" aria-label="用户在新工程里能做什么">
                 <CheckField
                   label="复制"
-                  tip={jsonTip('copyable')}
+                  tip={jsonTip('copyable', '缺省 false')}
                   checked={nodeSwitch(node, 'copyable')}
                   onChange={(checked) => props.onPatch({ copyable: checked })}
                 />
                 <CheckField
                   label="裁剪"
-                  tip={jsonTip('deletable')}
+                  tip={jsonTip('deletable', '缺省 false')}
                   checked={nodeSwitch(node, 'deletable')}
                   onChange={(checked) => props.onPatch({ deletable: checked })}
                 />
                 <CheckField
                   label="编辑"
-                  tip={jsonTip('allowContentBlocks')}
+                  tip={jsonTip('allowContentBlocks', '缺省 true')}
                   checked={nodeSwitch(node, 'allowContentBlocks')}
                   onChange={(checked) => props.onPatch({ allowContentBlocks: checked })}
                 />
@@ -339,7 +339,7 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
           />
           <SelectField
             label="类型"
-            tip={jsonTip('nodeType')}
+            tip={jsonTip('nodeType', '取值 heading / listSubTitle')}
             value={isRoot ? 'heading' : kind}
             options={kindOptions}
             disabled={kindLocked}
@@ -348,19 +348,19 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
           />
         </div>
 
-        {/* 类型改不动时说清是为什么：这一条不是"报错"，是这个结构改不了 */}
-        {kindProblem !== null && <p className="tpl-note tpl-note-kind">{kindProblem}，所以类型改不了。</p>}
+        {/* 类型改不动时给一句原因：这一条不是"报错"，是这个结构改不了 */}
+        {kindProblem !== null && <p className="tpl-note tpl-note-kind">{kindProblem} · 类型不可改</p>}
 
         {/* 这一组已经不合规：不给"一个个改"（改一个还是混着），给一个整组动作 */}
         {groupFix && groupFix.paths.length > 0 && (
           <p className="tpl-note tpl-note-kind tpl-note-fix">
-            {groupFix.why}。
+            {groupFix.why}
             <button
               type="button"
               className="tpl-mini tpl-inline-action"
-              title={`把${groupFix.scope === 'siblings' ? '同级' : '子节点'}里那 ${
-                groupFix.paths.length
-              } 个改成${groupFix.target === 'heading' ? '层级标题' : '列表子标题'}`}
+              title={`改 ${groupFix.paths.length} 个 · 目标 ${
+                groupFix.target === 'heading' ? '层级标题' : '列表子标题'
+              }`}
               onClick={props.onGroupFix}
             >
               把这一组改齐（都改成{groupFix.target === 'heading' ? '层级标题' : '列表子标题'}）
@@ -370,7 +370,7 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
 
         {kind === 'listSubTitle' && (
           <p className="tpl-note">
-            不占章节编号链，导出按 a/b/c 编号（样式 subtitle.{subTitleDepthOf(doc, path)}）
+            不占章节编号链 · 导出取 subtitle.{subTitleDepthOf(doc, path)}
           </p>
         )}
 
@@ -386,7 +386,7 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
 
         {typo !== null && (
           <p className="tpl-note tpl-note-bad">
-            这份节点里的「{typo.key}」与「{typo.known}」只差大小写，程序按没写处理（改过来才会生效）
+            「{typo.key}」与「{typo.known}」只差大小写 · 程序按未写处理
           </p>
         )}
 
@@ -400,7 +400,7 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
               </span>
             </header>
             {refs.length === 0 ? (
-              <p className="tpl-empty">先在左栏「样式模板」那一段导入一份，或直接放一份进模板目录</p>
+              <p className="tpl-empty">左栏「样式模板」导入一份，或直接放进模板目录</p>
             ) : (
               <>
                 <ul className="tpl-ref-list">
@@ -410,12 +410,12 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
                       <CheckField
                         label={ref.label}
                         tip={`${ref.fileKey}${
-                          ref.usedBy.length > 0 ? ` · 已被 ${ref.usedBy.join('、')} 引用` : ''
+                          ref.usedBy.length > 0 ? ` · 共用 ${ref.usedBy.join('、')}` : ''
                         }`}
                         checked={ref.available}
                         onChange={(checked) => toggleRef(ref.fileKey, checked)}
                       />
-                      <label className="tpl-ref-default" title="导出时默认用这份">
+                      <label className="tpl-ref-default" title="默认 · 导出取这份">
                         <input
                           type="radio"
                           name="tpl-default-style"
@@ -429,9 +429,9 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
                         <button
                           type="button"
                           className="tpl-mini tpl-inline-action"
-                          title={`还被 ${ref.usedBy
+                          title={`共用 ${ref.usedBy
                             .filter((name) => name !== docName)
-                            .join('、')} 共用：另存一份，改它不影响那边`}
+                            .join('、')} · 另存为专用`}
                           onClick={() => props.onForkStyle(ref.id)}
                         >
                           另存为专用
@@ -441,14 +441,10 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
                   ))}
                 </ul>
                 {sharedNames.length > 0 && (
-                  <p className="tpl-note">
-                    共用的对照表：{sharedNames.join('、')} 还被别的结构模板用着，改它会影响那边。
-                  </p>
+                  <p className="tpl-note">共用：{sharedNames.join('、')}</p>
                 )}
                 {noDefault && (
-                  <p className="tpl-note tpl-note-bad">
-                    还没选默认样式：导出时不知道用哪份，挑一个「默认」。
-                  </p>
+                  <p className="tpl-note tpl-note-bad">未指定默认样式 · 导出取不到对照表</p>
                 )}
               </>
             )}

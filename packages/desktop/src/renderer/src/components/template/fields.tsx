@@ -64,11 +64,11 @@ export function Field({
 }
 
 /**
- * 字段名的悬停提示：**常驻标签只留人话**（标题、列数、锁），
- * JSON 里的键名与补充说明放这里——写模板的人需要它，但不是每分钟都要看。
+ * 字段名的悬停提示：形式是「字段 <键> · <事实>」——只点键名与取值，
+ * 不写成句子，也不解释"为什么"。要解释的落点在常驻说明与校验原话里。
  */
 export function jsonTip(key: string, extra?: string): string {
-  return extra ? `JSON 字段：${key}。${extra}` : `JSON 字段：${key}`
+  return extra ? `字段 ${key} · ${extra}` : `字段 ${key}`
 }
 
 export function TextField({
@@ -306,7 +306,7 @@ export function IssueLine({
       <span className="tpl-issue-text">{issue.message}</span>
       {where &&
         (onJump ? (
-          <button type="button" className="tpl-issue-where" title="跳到这个节点" onClick={onJump}>
+          <button type="button" className="tpl-issue-where" title="跳到该节点" onClick={onJump}>
             {where}
           </button>
         ) : (

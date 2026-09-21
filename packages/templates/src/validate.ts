@@ -502,7 +502,7 @@ function checkStructureNode(
       level: 'warn',
       rule: 'node.title.missing',
       path: `${path}.title`,
-      message: `${id}｜节点「${where}」没有 title`
+      message: `节点 ${where} · 缺 title`
     })
   }
   // lock 是块级字段：写在节点上不生效，节点级仍用 copyable / deletable / allowContentBlocks
@@ -511,9 +511,7 @@ function checkStructureNode(
       level: 'error',
       rule: 'node.lock.misplaced',
       path: `${path}.lock`,
-      message:
-        `${id}｜节点「${where}」把 lock 写在了节点上（不生效）——` +
-        `块锁写进该节点的 contentBlocks[] 里，节点级用 copyable / deletable / allowContentBlocks`
+      message: `节点 ${where} · lock 不生效（块锁写在 contentBlocks[] 里）`
     })
   }
   if (level !== undefined && (!Number.isInteger(level as number) || (level as number) < 0)) {
@@ -521,7 +519,7 @@ function checkStructureNode(
       level: 'error',
       rule: 'node.headingLevel.invalid',
       path: `${path}.headingLevel`,
-      message: `${id}｜节点「${where}」的 headingLevel 非法：${text(JSON.stringify(level))}`
+      message: `节点 ${where} · headingLevel 非法：${text(JSON.stringify(level))}`
     })
   }
   if ((level as number) > 9) {
@@ -529,7 +527,7 @@ function checkStructureNode(
       level: 'warn',
       rule: 'node.headingLevel.deep',
       path: `${path}.headingLevel`,
-      message: `${id}｜节点「${where}」的 headingLevel=${text(level)} 超深，Word 多级列表一般到 9 级`
+      message: `节点 ${where} · headingLevel ${text(level)} 超出 9 级上限`
     })
   }
 
@@ -543,8 +541,7 @@ function checkStructureNode(
       level: 'warn',
       rule: 'node.switches.absent',
       path,
-      message:
-        `${id}｜节点「${where}」未写 copyable/deletable，缺省都是 false（既不能复制也不能删除），确认是否有意为之`
+      message: `节点 ${where} · 未写 copyable / deletable · 缺省 false`
     })
   }
   // 脚本在这里有一个空判断（deletable === true 且没有 children 属正常），不产生结论，故不搬
@@ -553,7 +550,7 @@ function checkStructureNode(
   const blocks = asArray(node['contentBlocks'])
   for (let i = 0; i < blocks.length; i++) {
     const b = asObject(blocks[i])
-    const bw = `${id}｜节点「${where}」第 ${i + 1} 个内容块`
+    const bw = `${where} › 第 ${i + 1} 块`
     const bp = `${path}.contentBlocks[${i}]`
     if (!b) {
       // 脚本在这里会因为读不到 b.type 而崩；坏模板按"未知类型"报一条，不再往下判
@@ -561,7 +558,7 @@ function checkStructureNode(
         level: 'error',
         rule: 'block.type.unknown',
         path: `${bp}.type`,
-        message: `${bw}：未知 type=${text(JSON.stringify(undefined))}（程序会丢弃这一块）`
+        message: `${bw} · type 未知：${text(JSON.stringify(undefined))} · 该块会被丢弃`
       })
       continue
     }
@@ -570,7 +567,7 @@ function checkStructureNode(
         level: 'error',
         rule: 'block.type.unknown',
         path: `${bp}.type`,
-        message: `${bw}：未知 type=${text(JSON.stringify(b['type']))}（程序会丢弃这一块）`
+        message: `${bw} · type 未知：${text(JSON.stringify(b['type']))} · 该块会被丢弃`
       })
       continue
     }
@@ -579,7 +576,7 @@ function checkStructureNode(
         level: 'warn',
         rule: 'block.description.unread',
         path: `${bp}.description`,
-        message: `${bw}：内容块上的 description 程序不读，提示到不了用户眼前；请把提示上提到节点的 description`
+        message: `${bw} · description 写在块上不读取 · 说明应写在节点上`
       })
     }
     // 块锁（PLAN-09）：只认 type / keep / readonly 三档，其它值程序按不锁处理并记警告
@@ -589,9 +586,8 @@ function checkStructureNode(
         rule: 'block.lock.invalid',
         path: `${bp}.lock`,
         message:
-          `${bw}：lock 取值 ${text(JSON.stringify(b['lock']))} 不在 ${LOCK_TIERS.map(
-            (x) => `"${x}"`
-          ).join(' / ')} 之内` + `（程序按不锁处理：这一块会被当成普通块，锁白加了）`
+          `${bw} · lock 取值 ${text(JSON.stringify(b['lock']))} 不属于 ` +
+          `${LOCK_TIERS.map((x) => `"${x}"`).join(' / ')} · 按不锁处理`
       })
     }
     // 反向也别混：节点级字段写到块上程序不读
@@ -608,7 +604,7 @@ function checkStructureNode(
           level: 'error',
           rule: 'block.nodeField.misplaced',
           path: `${bp}.${k}`,
-          message: `${bw}：块上写了节点级字段 ${k}（程序不读；节点级字段写在该节点上，块锁用 lock）`
+          message: `${bw} · ${k} 是节点级字段 · 块上不读取`
         })
       }
     }
@@ -617,7 +613,7 @@ function checkStructureNode(
         level: 'error',
         rule: 'block.text.content',
         path: `${bp}.content`,
-        message: `${bw}：text 必须给 content 字符串`
+        message: `${bw} · text 缺 content（字符串）`
       })
     }
     if (
@@ -628,7 +624,7 @@ function checkStructureNode(
         level: 'error',
         rule: 'block.list.items',
         path: `${bp}.items`,
-        message: `${bw}：${text(b['type'])} 必须给 items 字符串数组`
+        message: `${bw} · ${text(b['type'])} 缺 items（字符串数组）`
       })
     }
     if (b['type'] === 'image') {
@@ -637,7 +633,7 @@ function checkStructureNode(
           level: 'error',
           rule: 'block.image.content',
           path: `${bp}.content`,
-          message: `${bw}：image 必须给 content（工程内相对路径，可为空串）`
+          message: `${bw} · image 缺 content（工程内相对路径，可为空）`
         })
       }
       if (!b['caption']) {
@@ -645,7 +641,7 @@ function checkStructureNode(
           level: 'warn',
           rule: 'block.image.caption',
           path: `${bp}.caption`,
-          message: `${bw}：image 没有 caption，导出后不会有图题`
+          message: `${bw} · 无 caption · 导出无图题`
         })
       }
     }
@@ -655,7 +651,7 @@ function checkStructureNode(
           level: 'error',
           rule: 'block.mermaid.content',
           path: `${bp}.content`,
-          message: `${bw}：mermaid 必须给 content（Mermaid 源码）`
+          message: `${bw} · mermaid 缺 content（流程图源码）`
         })
       }
       if (!b['caption']) {
@@ -663,7 +659,7 @@ function checkStructureNode(
           level: 'warn',
           rule: 'block.mermaid.caption',
           path: `${bp}.caption`,
-          message: `${bw}：mermaid 没有 caption，导出后不会有图题`
+          message: `${bw} · 无 caption · 导出无图题`
         })
       }
     }
@@ -672,7 +668,7 @@ function checkStructureNode(
         level: 'error',
         rule: 'block.code.content',
         path: `${bp}.content`,
-        message: `${bw}：code 必须给 content`
+        message: `${bw} · code 缺 content`
       })
     }
 
@@ -701,7 +697,7 @@ function checkTableBlock(
       level: 'error',
       rule: 'block.table.cols',
       path: `${bp}.cols`,
-      message: `${bw}：cols 非法：${text(JSON.stringify(b['cols']))}`
+      message: `${bw} · cols 非法：${text(JSON.stringify(b['cols']))}`
     })
   }
   if (!Array.isArray(b['headers'])) {
@@ -709,14 +705,14 @@ function checkTableBlock(
       level: 'error',
       rule: 'block.table.headers',
       path: `${bp}.headers`,
-      message: `${bw}：headers 必须是字符串数组`
+      message: `${bw} · headers 需为字符串数组`
     })
   } else if (b['headers'].length !== cols) {
     out.push({
       level: 'error',
       rule: 'block.table.headers.length',
       path: `${bp}.headers`,
-      message: `${bw}：headers 长度 ${b['headers'].length} ≠ cols ${cols}`
+      message: `${bw} · headers ${b['headers'].length} 列 ≠ cols ${cols}`
     })
   }
   if (!Array.isArray(b['data'])) {
@@ -724,7 +720,7 @@ function checkTableBlock(
       level: 'error',
       rule: 'block.table.data',
       path: `${bp}.data`,
-      message: `${bw}：data 必须是二维字符串数组`
+      message: `${bw} · data 需为二维字符串数组`
     })
   } else {
     const data = b['data']
@@ -735,7 +731,7 @@ function checkTableBlock(
         rule: 'block.table.data.rowNotArray',
         path: `${bp}.data`,
         message:
-          `${bw}：data 有 ${badRows.length}/${data.length} 行不是数组，例：` +
+          `${bw} · data 有 ${badRows.length}/${data.length} 行不是数组 · 例 ` +
           `${text(JSON.stringify(badRows[0]))}`
       })
     } else {
@@ -746,7 +742,7 @@ function checkTableBlock(
           rule: 'block.table.data.rowLength',
           path: `${bp}.data`,
           message:
-            `${bw}：data 有 ${wrong.length} 行的列数 ≠ cols ${cols}，例：` +
+            `${bw} · data 有 ${wrong.length} 行列数 ≠ cols ${cols} · 例 ` +
             `${text(JSON.stringify(wrong[0])).slice(0, 60)}`
         })
       }
@@ -759,8 +755,8 @@ function checkTableBlock(
           rule: 'block.table.rows',
           path: `${bp}.rows`,
           message:
-            `${bw}：rows=${text(b['rows'])} 既不是正文行数 ${data.length}，也不是"含表头"的 ` +
-            `${data.length + 1}；渲染取 min(rows, data.length)，多出的行不会显示`
+            `${bw} · rows=${text(b['rows'])} ≠ 正文行数 ${data.length}，也不是含表头的 ` +
+            `${data.length + 1} · 渲染取 min(rows, data.length)`
         })
       }
     }
@@ -778,9 +774,7 @@ function checkTableBlock(
         level: 'warn',
         rule: 'block.table.mergeVertical.empty',
         path: `${bp}.data`,
-        message:
-          `${bw}：data 全是空串——即使合并开关生效也不会合并；想在模板里演示，` +
-          `需在相邻行的同一列填相同的非空值`
+        message: `${bw} · data 全为空 · 合并不生效`
       })
     }
   }

@@ -580,7 +580,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
           kind: 'info',
           text: result.backupPath
             ? `已保存 ${time}`
-            : `已保存 ${time}（首次保存，没有可备份的原文件）`,
+            : `已保存 ${time} · 首次保存，无可备份原文件`,
           detail: result.backupPath ?? undefined,
           staleOnEdit: true
         })
@@ -606,7 +606,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
         kind: 'info',
         text: result.backupPath
           ? `已保存 ${time}`
-          : `已保存 ${time}（首次保存，没有可备份的原文件）`,
+          : `已保存 ${time} · 首次保存，无可备份原文件`,
         detail: result.backupPath ?? undefined,
         staleOnEdit: true
       })
@@ -655,7 +655,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
       if (styleDirty) {
         setNotice({
           kind: 'warn',
-          text: '有未保存的改动：先保存（或切走丢掉）再导入，导入会把这份草稿换掉'
+          text: '未保存的改动 · 先保存或丢弃再导入'
         })
         return false
       }
@@ -671,10 +671,10 @@ export function useTemplateEditor(): UseTemplateEditorResult {
         setNotice({
           kind: imported.draft.empty.length > 0 ? 'warn' : 'info',
           text:
-            `已导入「${input.name}」：按样式名认出 ${imported.draft.filled.length} 个键` +
+            `已导入「${input.name}」 · 匹配 ${imported.draft.filled.length} 个键` +
             (imported.draft.empty.length > 0
-              ? `，还有 ${imported.draft.empty.length} 个要自己填（${imported.draft.empty.join('、')}）`
-              : '，没有要补的')
+              ? ` · 待补 ${imported.draft.empty.length} 个：${imported.draft.empty.join('、')}`
+              : ' · 无需补键')
         })
         void refreshSnapshot()
         return true
@@ -716,7 +716,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
         // 回执放在重新读之后：读那一趟会把状态栏清干净（applyRead 里 setNotice(null)）
         setNotice({
           kind: 'info',
-          text: `已另存为专用：「${forked.style.id}」，这份结构的默认样式已经指过去`
+          text: `已另存为专用「${forked.style.id}」 · 默认样式已切换`
         })
         return true
       } catch (err) {
@@ -743,8 +743,8 @@ export function useTemplateEditor(): UseTemplateEditorResult {
       setNotice({
         kind: passed ? 'info' : 'error',
         text: passed
-          ? `试跑通过：样式告警 0 条（${result.nodes} 个节点，产物已导出）`
-          : `试跑没过：样式告警 ${result.styleWarnings.length} 条（结构里用到的样式没在骨架里找到）`,
+          ? `试跑通过 · 样式告警 0 · ${result.nodes} 个节点`
+          : `试跑未通过 · 样式告警 ${result.styleWarnings.length} 条`,
         detail: [`产物：${result.outputPath}`, ...result.warnings].join('\n'),
         ...(passed ? {} : { staleOnEdit: true })
       })

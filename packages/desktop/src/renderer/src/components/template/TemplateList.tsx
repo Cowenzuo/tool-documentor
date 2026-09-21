@@ -94,7 +94,7 @@ function CreateForm({
   return (
     <div className="tpl-form">
       <label className="tpl-field">
-        <span className="tpl-field-label" title={jsonTip('id', '同时是目录名与 manifest 里的 id')}>
+        <span className="tpl-field-label" title={jsonTip('id', '目录名与模板清单 id')}>
           模板 id<span className="tpl-field-hint">目录名</span>
         </span>
         <input
@@ -120,7 +120,7 @@ function CreateForm({
       <label className="tpl-field">
         <span
           className="tpl-field-label"
-          title={jsonTip('styleTemplate', '写对照表的文件键：文件名去掉 .json')}
+          title={jsonTip('styleTemplate', '对照表文件键（不带 .json）')}
         >
           配对的样式模板<span className="tpl-field-hint">可留空</span>
         </span>
@@ -187,7 +187,7 @@ function ImportForm({
   return (
     <div className="tpl-form">
       <label className="tpl-field">
-        <span className="tpl-field-label" title={jsonTip('id', '同时是目录名与 manifest 里的 id')}>
+        <span className="tpl-field-label" title={jsonTip('id', '目录名与模板清单 id')}>
           模板 id<span className="tpl-field-hint">目录名</span>
         </span>
         <input
@@ -213,9 +213,9 @@ function ImportForm({
       <div className="tpl-field">
         <span
           className="tpl-field-label"
-          title="不改样式文件；导入后按样式名生成映射草稿"
+          title="不改样式文件 · 导入后生成映射草稿"
         >
-          样式文件<span className="tpl-field-hint">.docx 或已解包的骨架目录</span>
+          样式文件<span className="tpl-field-hint">Word 文档或已解包目录</span>
         </span>
         <div className="tpl-import-pick">
           <button
@@ -228,7 +228,7 @@ function ImportForm({
               })
             }}
           >
-            选 .docx…
+            选 Word 文档…
           </button>
           <button
             type="button"
@@ -240,19 +240,19 @@ function ImportForm({
               })
             }}
           >
-            选骨架目录…
+            选已解包目录…
           </button>
         </div>
         <p className="tpl-note tpl-import-source" title={source}>
           {source === ''
-            ? '还没选：两种都行，缺 word/styles.xml 这类必需部件会被拒'
-            : `${sourceIsDocx ? '.docx' : '骨架目录'}：${source}`}
+            ? '未选 · 两种都支持，缺必需部件会被拒'
+            : `${sourceIsDocx ? 'Word 文档' : '已解包目录'}：${source}`}
         </p>
         {/* 选完之后路径落在这里，也可以直接粘一个进来（改起来不用重新走对话框） */}
         <input
           className="tpl-input tpl-mono tpl-import-path"
           value={source}
-          placeholder="样式文件路径（也可以直接粘贴）"
+          placeholder="样式文件路径 · 可直接粘贴"
           aria-label="样式文件路径"
           onChange={(event) => setSource(event.target.value)}
         />
@@ -403,7 +403,7 @@ export function TemplateList(props: TemplateListProps): JSX.Element {  const { s
             {mode === 'rename' && openKind === 'structure' && selected && (
               <div className="tpl-form">
                 <label className="tpl-field">
-                  <span className="tpl-field-label" title={jsonTip('id', '目录名，也是文件名前缀')}>
+                  <span className="tpl-field-label" title={jsonTip('id', '目录名与文件名前缀')}>
                     模板 id<span className="tpl-field-hint">目录名</span>
                   </span>
                   <input
@@ -415,7 +415,7 @@ export function TemplateList(props: TemplateListProps): JSX.Element {  const { s
                 </label>
                 {renameIdProblem && <p className="tpl-note tpl-note-bad">{renameIdProblem}</p>}
                 <label className="tpl-field">
-                  <span className="tpl-field-label" title={jsonTip('name', '工程锚点按它认模板；改了老工程会配不上')}>
+                  <span className="tpl-field-label" title={jsonTip('name', '工程锚点按它匹配模板')}>
                     模板名称
                   </span>
                   <input
@@ -426,8 +426,8 @@ export function TemplateList(props: TemplateListProps): JSX.Element {  const { s
                 </label>
                 <p className="tpl-note">
                   {idChanged
-                    ? `改 id 会把目录与文件名一起改成 ${renameId.trim()}（改前整份备份）`
-                    : '只改名字，目录名与文件名不动'}
+                    ? `改 id · 目录与文件名一并改为 ${renameId.trim()}（改前备份）`
+                    : '只改名称 · 目录与文件名不变'}
                 </p>
                 <div className="tpl-form-foot">
                   <button type="button" className="tpl-mini" onClick={() => setMode('none')}>
@@ -453,7 +453,7 @@ export function TemplateList(props: TemplateListProps): JSX.Element {  const { s
 
             {mode === 'remove' && openKind === 'structure' && selected && (
               <div className="tpl-form">
-                <p className="tpl-note">删除「{selected.name || selected.id}」？删除前会先备份这份模板。</p>
+                <p className="tpl-note">删除「{selected.name || selected.id}」？删除前先备份</p>
                 <div className="tpl-form-foot">
                   <button type="button" className="tpl-mini" onClick={() => setMode('none')}>
                     取消
@@ -478,7 +478,7 @@ export function TemplateList(props: TemplateListProps): JSX.Element {  const { s
                 样式文件（stylemap 的骨架）程序一个字节都不改，所以这里没有新建/改名/删除。 */}
             <div
               className="tpl-section-head"
-              title="样式文件由作者提供（只解包不修改）；这里改的是对照表"
+              title="样式文件由作者提供 · 此处只改对照表"
             >
               <h3>样式模板</h3>
               <span className="tpl-count">点开看对照表</span>
@@ -487,7 +487,7 @@ export function TemplateList(props: TemplateListProps): JSX.Element {  const { s
                 type="button"
                 className="tpl-icon-btn"
                 disabled={busy}
-                title="导入样式文件（.docx 或已解包的骨架目录）"
+                title="导入样式文件 · Word 文档或已解包目录"
                 aria-label="导入样式文件"
                 onClick={() => setMode(mode === 'import' ? 'none' : 'import')}
               >

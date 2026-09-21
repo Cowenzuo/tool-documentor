@@ -19,15 +19,15 @@ export function styleStatusLabel(status: StyleRowStatus): string {
     case 'ok':
       return '正常'
     case 'missing':
-      return '必需但没配'
+      return '必需项未配'
     case 'dangling':
-      return '骨架里没有这条样式'
+      return '样式文件无此样式'
     case 'inert':
-      return '配了不生效'
+      return '配置不生效'
     case 'unchecked':
-      return '没能核对'
+      return '未核对'
     default:
-      return '没配'
+      return '未配'
   }
 }
 

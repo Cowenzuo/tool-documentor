@@ -116,19 +116,17 @@ export function StyleTable({
         <div className="tpl-map-meta">
           <div className="tpl-map-meta-line">
             <code className="tpl-mono">styles/{result.id}/{result.file}</code>
-            <span className="tpl-count">
-              结构模板引用它时写的是文件键「{result.fileKey}」
-            </span>
+            <span className="tpl-count">文件键 {result.fileKey}</span>
           </div>
           <div className="tpl-map-meta-line">
             <span className="tpl-count">
-              骨架 {docxFolder === '' ? '（stylemap 里没写 docxFolder）' : docxFolder}
+              样式目录 {docxFolder === '' ? '（对照表未写）' : docxFolder}
             </span>
             {/* 共用影响面：同一份映射可能被多份结构模板引用，改它之前先看清有谁在用 */}
             <span className="tpl-count">
               {result.usedBy.length === 0
-                ? '还没有结构模板引用这份对照表'
-                : `共 ${result.usedBy.length} 份结构模板在用：${result.usedBy
+                ? '无结构模板引用'
+                : `引用它的结构模板：${result.usedBy
                     .map((u) => `${u.name}${u.isDefault ? '（默认）' : ''}`)
                     .join('、')}`}
             </span>
@@ -136,7 +134,7 @@ export function StyleTable({
           {problemRows.length > 0 && (
             <div className="tpl-map-meta-line">
               <span className="tpl-count tpl-map-bad">
-                有 {problemRows.length} 行要处理：{problemRows.map((row) => row.key).join('、')}
+                {problemRows.length} 行待修正：{problemRows.map((row) => row.key).join('、')}
               </span>
             </div>
           )}
@@ -171,7 +169,7 @@ export function StyleTable({
         <div className="tpl-caption">
           <h3>
             题注编号
-            {!cn && <span className="tpl-count">文件里没写这一项，现在按「按样式自动编号」处理</span>}
+            {!cn && <span className="tpl-count">未写此项 · 按「按样式自动编号」</span>}
           </h3>
           <div className="tpl-caption-row">
             {(['table', 'figure'] as const).map((kind) => (
@@ -196,13 +194,11 @@ export function StyleTable({
             <div className="tpl-caption-names">
               <div className="tpl-caption-names-head">
                 <span className="tpl-field-label">章节样式名</span>
-                <span className="tpl-count">
-                  field 模式下 STYLEREF 引用的标题样式名（中文 Word 是「标题 N」）
-                </span>
+                <span className="tpl-count">STYLEREF 引用的样式名 · 中文 Word 为「标题 N」</span>
                 <button
                   type="button"
                   className="tpl-mini"
-                  title="加一层：默认写「标题 N」，也可以改成 Word 里那个样式名"
+                  title="新增一级 · 默认「标题 N」"
                   onClick={() => {
                     const used = new Set(chapterLevels.map((level) => Number(level)))
                     let level = 2
@@ -215,7 +211,7 @@ export function StyleTable({
               </div>
               {chapterLevels.length === 0 ? (
                 <p className="tpl-note">
-                  没配章节样式名：程序按中文惯例用「标题 N」，英文版 Word 打开会算不出章节号。
+                  未配章节样式名 · 回退「标题 N」，英文版 Word 算不出章节号
                 </p>
               ) : (
                 <ul className="tpl-caption-name-list">
@@ -231,7 +227,7 @@ export function StyleTable({
                       <button
                         type="button"
                         className="tpl-icon-btn"
-                        title={`删掉后这一级按「标题 N」兜底`}
+                        title="删除后按「标题 N」"
                         aria-label={`删掉 ${level} 级标题的章节样式名`}
                         onClick={() => onChapterStyleName(level, null)}
                       >
@@ -249,8 +245,8 @@ export function StyleTable({
         <details className="tpl-map-unused">
           <summary>
             {unusedStyleIds.length === 0
-              ? '骨架里的样式都用上了'
-              : `骨架里有 ${unusedStyleIds.length} 条样式这份对照表没人用`}
+              ? '样式已全部使用'
+              : `未使用 ${unusedStyleIds.length} 条`}
           </summary>
           {unusedStyleIds.length > 0 && (
             <ul className="tpl-map-unused-list">
@@ -279,7 +275,7 @@ export function StyleTable({
             </span>
           </h3>
           {issues.length === 0 ? (
-            <p className="tpl-note">没有结论：这份对照表与引用它的结构模板对得上。</p>
+            <p className="tpl-note">未发现问题 · 与引用它的结构模板一致</p>
           ) : (
             <ul className="tpl-map-issue-list">
               {issues.map((issue, index) => (
@@ -337,7 +333,7 @@ function GroupRows({
               <code className="tpl-mono">{row.key}</code>
               {/* 「不读」是键自己的属性（不是这一行配得对不对），所以挂在键这一格 */}
               {!row.read && (
-                <span className="tpl-count" title="程序不读：列表各层都用第 1 档">
+                <span className="tpl-count" title="程序不读 · 列表各层只取第 1 档">
                   不读
                 </span>
               )}
@@ -361,7 +357,7 @@ function GroupRows({
                 ))}
                 {/* 文件里配了一条骨架里没有的：留着它，别让下拉悄悄把值改掉 */}
                 {row.styleId !== '' && !byId.has(row.styleId) && (
-                  <option value={row.styleId}>{`${row.styleId}（骨架里没有）`}</option>
+                  <option value={row.styleId}>{`${row.styleId}（样式文件里没有）`}</option>
                 )}
               </select>
               {target && <span className="tpl-count">{target.name || '（没写样式名）'}</span>}
@@ -370,7 +366,7 @@ function GroupRows({
               {row.required ? (
                 <span
                   className={`tpl-badge ${row.status === 'missing' ? 'tpl-badge-error' : ''}`}
-                  title={`${row.requiredBy.join('、')} 用到了它`}
+                  title={`必需 · ${row.requiredBy.join('、')}`}
                 >
                   必需
                 </span>

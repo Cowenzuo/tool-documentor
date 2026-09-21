@@ -513,22 +513,20 @@ export function kindChangeProblem(
   kind: 'heading' | 'listSubTitle'
 ): string | null {
   const node = nodeAt(doc, path)
-  if (!node) return '这个节点已经不在树里了'
-  if (path.length === 0) return '根节点是整篇文档，没有可选的类型'
+  if (!node) return '节点已不在树里'
+  if (path.length === 0) return '根节点无类型'
   if (nodeKind(node) === kind) return null
   const others = otherSiblingsKind(doc, path)
   if (others !== null && others !== kind) {
-    if (others === 'mixed') return '同一父节点下不能混：它的同级里既有层级标题也有列表子标题'
-    return others === 'listSubTitle'
-      ? '同一父节点下不能混：它的同级都是列表子标题'
-      : '同一父节点下不能混：它的同级都是层级标题'
+    if (others === 'mixed') return '同级类型混用'
+    return others === 'listSubTitle' ? '同级均为列表子标题' : '同级均为层级标题'
   }
   if (kind === 'listSubTitle') {
     const headingChildren = rawChildren(node).filter(
       (child) => nodeKind(asObject(child) ?? {}) === 'heading'
     ).length
     if (headingChildren > 0) {
-      return `它下面有 ${headingChildren} 个层级标题的子节点：列表子标题下只能挂列表子标题`
+      return `下挂 ${headingChildren} 个层级标题 · 此处只允许列表子标题`
     }
   }
   return null
@@ -584,7 +582,7 @@ export function groupFixFor(doc: TemplateDoc | null, path: NodePath): GroupFix |
         scope: 'children',
         target: 'listSubTitle',
         paths: bad,
-        why: `列表子标题下面挂着 ${bad.length} 个层级标题（列表子标题下只能挂列表子标题）`
+        why: `下挂 ${bad.length} 个层级标题 · 此处只允许列表子标题`
       }
     }
   }
@@ -595,7 +593,7 @@ export function groupFixFor(doc: TemplateDoc | null, path: NodePath): GroupFix |
       scope: 'children',
       target,
       paths: childPathsOf(target === 'heading' ? 'listSubTitle' : 'heading'),
-      why: '它的子节点里既有层级标题也有列表子标题（同一父节点下不许混）'
+      why: '子节点类型混用'
     }
   }
   // ③ 兄弟这一头：跟同级混着，按自己这一类改齐（作者选谁就以谁为准）
@@ -619,7 +617,7 @@ export function groupFixFor(doc: TemplateDoc | null, path: NodePath): GroupFix |
       scope: 'siblings',
       target,
       paths,
-      why: '它和同级混着：这一层里既有层级标题也有列表子标题（同一父节点下不许混）'
+      why: '同级类型混用'
     }
   }
   return null

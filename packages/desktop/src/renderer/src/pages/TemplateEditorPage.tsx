@@ -169,11 +169,11 @@ export default function TemplateEditorPage(): JSX.Element {
    * （顶栏只放最短的「N 个错误 / 未保存」，完整理由在提示里，状态栏里有索引可跳。）
    */
   const saveWhy = !styleOpen && !open
-    ? '没有打开模板'
+    ? '未打开模板'
     : counts.errors > 0
-      ? `有 ${counts.errors} 个错误，先改好再保存`
+      ? `${counts.errors} 个错误 · 先修复`
       : !editor.dirty
-        ? '没有未保存的改动'
+        ? '与文件一致'
         : editor.busy
           ? '正在处理…'
           : ''
@@ -190,12 +190,12 @@ export default function TemplateEditorPage(): JSX.Element {
       ? 'is-dirty'
       : 'is-clean'
   const draftWhy = !open && !styleOpen
-    ? '没有打开模板'
+    ? '未打开模板'
     : counts.errors > 0
-      ? `有 ${counts.errors} 个错误，先改好再保存`
+      ? `${counts.errors} 个错误 · 先修复`
       : editor.dirty
-        ? '有未保存的改动，点「保存」写回文件'
-        : '没有未保存的改动'
+        ? '未保存 · 保存后写回文件'
+        : '与文件一致'
   const draftLabel =
     !open && !styleOpen
       ? ''
@@ -275,10 +275,10 @@ export default function TemplateEditorPage(): JSX.Element {
           disabled={!open || editor.busy || counts.errors > 0}
           title={
             !open
-              ? '没有打开结构模板'
+              ? '未打开结构模板'
               : counts.errors > 0
-                ? `有 ${counts.errors} 个错误，先改好再试跑`
-                : '用这份模板真导出一份 .docx：样式告警必须是 0 条'
+                ? `${counts.errors} 个错误 · 先修复`
+                : '按这份模板导出 · 样式告警须为 0'
           }
           onClick={() => void editor.trialRun()}
         >
@@ -420,8 +420,8 @@ export default function TemplateEditorPage(): JSX.Element {
           >
             <span className="tpl-status-text">
               {editor.pending.kind === 'reload'
-                ? '有未保存的改动，重新加载就会丢掉。'
-                : '有未保存的改动，换一份模板就会丢掉。'}
+                ? '未保存的改动 · 重新加载将丢弃'
+                : '未保存的改动 · 换模板将丢弃'}
             </span>
             <button type="button" className="tpl-mini" onClick={editor.cancelPending}>
               取消
@@ -447,7 +447,7 @@ export default function TemplateEditorPage(): JSX.Element {
               <button
                 type="button"
                 className="tpl-icon-btn"
-                title="关掉这条提示"
+                title="关闭"
                 aria-label="关闭提示"
                 onClick={editor.dismissNotice}
               >
@@ -547,7 +547,7 @@ function IssueIndex({
                 <button
                   type="button"
                   className="tpl-pop-where"
-                  title="跳到这个节点"
+                  title="跳到该节点"
                   onClick={() => onJump(group.path as NodePath)}
                 >
                   {group.where}

@@ -246,58 +246,48 @@ export function NodeTree(props: NodeTreeProps): JSX.Element {
     : [
         {
           label: '添加子节点',
-          title: `在「${menuName}」下面加一个子节点`,
           disabled: false,
           run: () => props.onAddChild(menuPath)
         },
         {
           label: '添加同级',
-          title: menuIsRoot ? '根节点没有同级' : `在「${menuName}」后面加一个同级节点`,
+          title: menuIsRoot ? '根节点无同级' : undefined,
           disabled: menuIsRoot,
           run: () => props.onAddSibling(menuPath)
         },
         {
           label: '复制节点',
-          title: menuIsRoot
-            ? '根节点不能复制'
-            : `复制「${menuName}」及其子节点与内容块，插在它后面`,
+          title: menuIsRoot ? '根节点不可复制' : undefined,
           disabled: menuIsRoot,
           run: () => props.onDuplicate(menuPath)
         },
         {
           label: '上移',
-          title: menuIsRoot
-            ? '根节点不能移动'
-            : menuIndex > 0
-              ? `「${menuName}」上移`
-              : '已经是第一个子节点',
+          title: menuIsRoot ? '根节点不可移动' : menuIndex > 0 ? undefined : '已是第一个',
           disabled: menuIsRoot || menuIndex === 0,
           run: () => props.onMove(menuPath, -1)
         },
         {
           label: '下移',
-          title: menuIsRoot
-            ? '根节点不能移动'
-            : menuIndex < menuSiblingCount - 1
-              ? `「${menuName}」下移`
-              : '已经是最后一个子节点',
+          title:
+            menuIsRoot
+              ? '根节点不可移动'
+              : menuIndex < menuSiblingCount - 1
+                ? undefined
+                : '已是最后一个',
           disabled: menuIsRoot || menuIndex >= menuSiblingCount - 1,
           run: () => props.onMove(menuPath, 1)
         },
         {
           label: '删除节点',
-          title: menuIsRoot ? '根节点不能删除' : `删除「${menuName}」及其子节点`,
+          title: menuIsRoot ? '根节点不可删除' : undefined,
           disabled: menuIsRoot,
           danger: true,
           run: () => props.onRemove(menuPath)
         },
         {
           label: menuBranchOpen ? '折叠该分支' : '展开该分支',
-          title: menuBranch.length === 0
-            ? '该节点没有子节点'
-            : menuBranchOpen
-              ? '收起这一支下的所有层级'
-              : '展开这一支下的所有层级',
+          title: menuBranch.length === 0 ? '无子节点' : undefined,
           disabled: menuBranch.length === 0,
           run: () => props.onToggleBranch(menuPath)
         }

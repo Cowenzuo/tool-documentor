@@ -20,9 +20,9 @@ import { asObject, type TemplateObject } from './templateDoc'
 export type CaptionKind = 'table' | 'figure'
 /** 三种编号方式（缺省 auto） */
 export const CAPTION_MODES: ReadonlyArray<{ value: string; label: string; why: string }> = [
-  { value: 'auto', label: '按样式自动编号', why: '号来自骨架题注样式的多级列表（样式得自带编号）' },
-  { value: 'static', label: '题注文字自带', why: '号写在题注文字里，程序原样带出' },
-  { value: 'field', label: '题注域', why: '导出成 STYLEREF + SEQ 域，章节号随标题走' }
+  { value: 'auto', label: '按样式自动编号', why: '号取自题注样式的多级列表 · 样式须自带编号' },
+  { value: 'static', label: '题注文字自带', why: '号写在题注文字里 · 原样导出' },
+  { value: 'field', label: '题注域', why: 'STYLEREF + SEQ 域 · 章节号随标题' }
 ]
 
 /** 读回来的事实 → 骨架事实（规则要的形状） */

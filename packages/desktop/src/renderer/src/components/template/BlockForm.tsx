@@ -30,7 +30,6 @@ import {
   headersToText,
   isPinnedLock,
   linesToArray,
-  lockLevelName,
   num,
   rawBlockLock,
   rowsToText,
@@ -104,13 +103,12 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
    * 得先把这一块的锁改成不锁——同一条规矩在生成出来的工程里也一样守（写入侧 + 界面）。
    */
   const locked = isPinnedLock(lock)
-  const lockName = lockLevelName(lock)
-  const unlockHint = `这一块是「${lockName}」：顺序不能改；要挪先把它改成「不锁」`
-  const deleteLockedWhy = `这一块是「${lockName}」：不能删；要删先把它改成「不锁」`
+  const unlockHint = `锁 ${lock} · 顺序固定，不可移动`
+  const deleteLockedWhy = `锁 ${lock} · 不可删除`
   const moveUpTitle = locked
     ? unlockHint
     : prevLocked
-      ? '上一块锁着，换位会把它挪走'
+      ? '上一块已锁 · 不可换位'
       : undefined
   const moveDownTitle = locked
     ? unlockHint
@@ -167,7 +165,7 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
         {!open && (hasError || hasWarn) && (
           <span
             className={`tpl-dot ${hasError ? 'tpl-dot-error' : 'tpl-dot-warn'}`}
-            title={hasError ? '这一块有错误' : '这一块有提示'}
+            title={hasError ? '有错误' : '有提示'}
           />
         )}
         <div className="tpl-block-actions">
@@ -321,10 +319,7 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
             />
             <CheckField
               label="纵向合并"
-              tip={jsonTip(
-                'mergeVertical',
-                '同一列里连续且内容相同的单元格合并成一个；表头不参与，空串不合并'
-              )}
+              tip={jsonTip('mergeVertical', '同列相邻同值合并 · 表头与空串除外')}
               checked={block['mergeVertical'] === true}
               onChange={(checked) =>
                 onPatch({ mergeVertical: checked ? true : undefined })
@@ -339,7 +334,7 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
               label="语言"
               tip={jsonTip(
                 'language',
-                `常用：${CODE_LANGUAGES.map((code) => CODE_LANGUAGE_LABELS[code] ?? code).join('、')}`
+                `常用 ${CODE_LANGUAGES.map((code) => CODE_LANGUAGE_LABELS[code] ?? code).join('、')}`
               )}
               mono
               value={str(block['language'])}
@@ -380,7 +375,7 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
           <>
             <TextField
               label="图片路径"
-              tip={jsonTip('content', '工程目录内的相对路径')}
+              tip={jsonTip('content', '工程内相对路径')}
               mono
               hint="可留空"
               value={str(block['content'])}
