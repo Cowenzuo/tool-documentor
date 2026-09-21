@@ -2,7 +2,9 @@
  * 右栏的一张内容块卡片：收起时一行摘要（第几块、类型、锁、内容概览），展开才给字段。
  * 一张张摊开所有块的字段是"看着杂乱"的主要来源，所以按手风琴来（同时只开一张）。
  * 常驻文字只留必要的：字段标签用人话，JSON 字段名与解释走悬停提示（jsonTip）；
- * 「不锁」不写一行说明——绝大多数块都是不锁，那一行纯粹是噪音。
+ * 「不锁」不写一行说明——绝大多数块都是不锁，那一行纯粹是噪音；
+ * 「界面不管的字段」也不逐块声明（未知键保存时原样写回是全局约定），
+ * 只有"字段名只差大小写"这种程序读不到、界面上又没位置的坑才提醒一句。
  */
 import type { JSX } from 'react'
 import { BLOCK_TYPE_NAMES } from '@documentor/core/blocks'
@@ -33,7 +35,7 @@ import {
   str,
   textToHeaders,
   textToRows,
-  unknownKeys,
+  typoField,
   BLOCK_FIELDS,
   type TemplateObject
 } from './templateDoc'
@@ -85,7 +87,7 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
   const lock = blockLock(block)
   const unknownLock = rawBlockLock(block)
   const typeLabel = (BLOCK_TYPE_LABELS as Record<string, string>)[type] ?? type
-  const extra = unknownKeys(block, BLOCK_FIELDS)
+  const typo = typoField(block, BLOCK_FIELDS)
   const tag = lockTag(lock)
   const hasError = issues.some((i) => i.level === 'error')
   const hasWarn = !hasError && issues.some((i) => i.level === 'warn')
@@ -373,9 +375,9 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
           />
         )}
 
-        {extra.length > 0 && (
-          <p className="tpl-note">
-            这份块里还有界面不管的字段：{extra.join('、')}（原样保留）
+        {typo !== null && (
+          <p className="tpl-note tpl-note-bad">
+            这份块里的「{typo.key}」与「{typo.known}」只差大小写，程序按没写处理（改过来才会生效）
           </p>
         )}
 

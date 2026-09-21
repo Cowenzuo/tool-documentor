@@ -964,6 +964,35 @@ body.is-splitting {
   margin-right: 6px;
 }
 
+/* 结论的位置：人话的标题串（示例文档 › 需求 · 第 2 块）。
+   页脚那份总清单里点一下就跳到那个节点，所以做成按钮的样子（虚线下划线，悬停变色） */
+.tpl-issue-where {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+button.tpl-issue-where {
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+button.tpl-issue-where:hover {
+  color: var(--text-1);
+}
+
+/* 右栏栏头里的位置：占住剩余宽度，一行显示；JSON 路径挂在悬停提示里 */
+.tpl-where {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  cursor: help;
+}
+
 .tpl-issue-error {
   color: var(--danger);
 }

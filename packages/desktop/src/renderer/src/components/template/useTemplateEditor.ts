@@ -129,6 +129,7 @@ export interface UseTemplateEditorResult {
   renameTemplate: (input: { newId: string; name: string }) => Promise<boolean>
   dismissNotice: () => void
   selectNode: (path: NodePath) => void
+  revealNode: (path: NodePath) => void
   toggleExpand: (key: string) => void
   expandAll: () => void
   collapseAll: () => void
@@ -488,6 +489,18 @@ export function useTemplateEditor(): UseTemplateEditorResult {
 
   const selectNode = useCallback((path: NodePath): void => setSelectedPath(path), [])
 
+  /** 从校验结论跳到那个节点：选中它，并把它的祖先一起展开（不然它在树上看不见） */
+  const revealNode = useCallback((path: NodePath): void => {
+    setSelectedPath(path)
+    setExpanded((current) => {
+      const next = new Set(current)
+      for (let depth = 1; depth <= path.length; depth += 1) {
+        next.add(pathKey(path.slice(0, depth)))
+      }
+      return next
+    })
+  }, [])
+
   const toggleExpand = useCallback((key: string): void => {
     setExpanded((current) => {
       const next = new Set(current)
@@ -647,6 +660,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     renameTemplate,
     dismissNotice,
     selectNode,
+    revealNode,
     toggleExpand,
     expandAll,
     collapseAll,

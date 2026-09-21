@@ -34,6 +34,53 @@ export function nodeJsonPath(path: NodePath): string {
   return out
 }
 
+/**
+ * 反过来：从校验结论的 JSON 路径里取回"从根往下走的下标"。
+ * 认不出来（`name`、`styleTemplate` 这种整份文档级的结论）返回 null。
+ */
+export function nodePathFromJsonPath(jsonPath: string): NodePath | null {
+  if (jsonPath === 'root') return []
+  if (!jsonPath.startsWith('root.children[')) return null
+  const out: number[] = []
+  let rest = jsonPath.slice('root'.length)
+  while (rest.startsWith('.children[')) {
+    const close = rest.indexOf(']')
+    if (close < 0) return null
+    const index = Number.parseInt(rest.slice('.children['.length, close), 10)
+    if (!Number.isFinite(index)) return null
+    out.push(index)
+    rest = rest.slice(close + 1)
+  }
+  return out
+}
+
+/**
+ * 节点"在哪"：祖先标题串起来（示例文档 › 需求 › 标识），取不到就返回空串。
+ * 写给人看的定位——结构本来就能从中栏的树一眼看到，JSON 下标只有改文件的人才需要。
+ */
+export function breadcrumbOf(doc: TemplateDoc | null, path: NodePath): string {
+  const parts: string[] = []
+  for (let depth = 0; depth <= path.length; depth += 1) {
+    const node = nodeAt(doc, path.slice(0, depth))
+    if (!node) return ''
+    parts.push(nodeTitle(node) || '（未命名）')
+  }
+  return parts.join(' › ')
+}
+
+/**
+ * 校验结论的位置：标题串 + 第几块（示例文档 › 需求 · 第 2 块）。
+ * 整份文档级的结论没有"在哪个节点"可言，返回 null——面板与卡片上干脆不显示位置。
+ */
+export function issueLocation(doc: TemplateDoc | null, issuePath: string): string | null {
+  const path = nodePathFromJsonPath(issuePath)
+  if (!path) return null
+  const where = breadcrumbOf(doc, path)
+  if (where === '') return null
+  const block = /\.contentBlocks\[(\d+)\]/.exec(issuePath)
+  return block ? `${where} · 第 ${Number(block[1]) + 1} 块` : where
+}
+
 export function asObject(value: unknown): TemplateObject | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? (value as TemplateObject)
@@ -251,8 +298,24 @@ export const BLOCK_FIELDS = [
   'mergeVertical'
 ] as const
 
-export function unknownKeys(obj: TemplateObject, known: readonly string[]): string[] {
-  return Object.keys(obj).filter((key) => !known.includes(key))
+/**
+ * 字段名与某个已知字段只差大小写（headingLevel 写成 headinglevel 这类）：
+ * 程序读不到那个键、会当没写，界面上也没有它的位置——不说的话就是个看不见的坑。
+ * 只认"大小写不同"，不做模糊匹配：那种误报比漏报更烦人。
+ * （其余不认识的键不再逐个提示：保存时整份原样写回是全局约定，逐节点声明只是噪音。）
+ */
+export function typoField(
+  obj: TemplateObject,
+  known: readonly string[]
+): { key: string; known: string } | null {
+  for (const key of Object.keys(obj)) {
+    if (known.includes(key)) continue
+    const match = known.find(
+      (candidate) => candidate !== key && candidate.toLowerCase() === key.toLowerCase()
+    )
+    if (match) return { key, known: match }
+  }
+  return null
 }
 
 /** 递归累加节点；visit 的返回值不用，只借这一次遍历 */

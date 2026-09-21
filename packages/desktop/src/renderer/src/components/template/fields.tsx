@@ -243,25 +243,59 @@ export function LinesAreaField({
   )
 }
 
-/** 一条校验结论：先说人话（message），再给出位置（path；位置可能很长，悬停看全） */
-export function IssueLine({ issue }: { issue: TemplateIssueDto }): JSX.Element {
+/**
+ * 一条校验结论：先说人话（message），再给出"在哪个节点"（where，人话的标题串）。
+ *
+ * 不显示 JSON 路径（`root.children[2].contentBlocks[0]`）：结构在中栏的树上一眼就能看到，
+ * 那串下标只对直接改文件的人有意义。位置默认不显示——节点面板与内容块卡片上，
+ * 上下文已经说明这条结论说的是哪个节点了，只有页脚那份总清单需要指路。
+ */
+export function IssueLine({
+  issue,
+  where,
+  onJump
+}: {
+  issue: TemplateIssueDto
+  where?: string | null
+  onJump?: () => void
+}): JSX.Element {
   return (
     <p className={`tpl-issue tpl-issue-${issue.level}`}>
       <span className="tpl-issue-text">{issue.message}</span>
-      <code className="tpl-path" title={issue.path}>
-        {issue.path}
-      </code>
+      {where &&
+        (onJump ? (
+          <button type="button" className="tpl-issue-where" title="跳到这个节点" onClick={onJump}>
+            {where}
+          </button>
+        ) : (
+          <span className="tpl-issue-where">{where}</span>
+        ))}
     </p>
   )
 }
 
-export function IssueLines({ issues }: { issues: TemplateIssueDto[] }): JSX.Element | null {
+export function IssueLines({
+  issues,
+  locate
+}: {
+  issues: TemplateIssueDto[]
+  /** 每条结论"在哪个节点"：给了就在后面显示（可点着跳过去），不给就不显示位置 */
+  locate?: (issue: TemplateIssueDto) => { where: string | null; onJump?: () => void }
+}): JSX.Element | null {
   if (issues.length === 0) return null
   return (
     <div className="tpl-issue-lines">
-      {issues.map((issue, index) => (
-        <IssueLine key={`${issue.rule}-${issue.path}-${index}`} issue={issue} />
-      ))}
+      {issues.map((issue, index) => {
+        const spot = locate ? locate(issue) : null
+        return (
+          <IssueLine
+            key={`${issue.rule}-${issue.path}-${index}`}
+            issue={issue}
+            where={spot?.where ?? null}
+            onJump={spot?.onJump}
+          />
+        )
+      })}
     </div>
   )
 }

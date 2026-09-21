@@ -17,7 +17,7 @@ import TemplateList from '../components/template/TemplateList'
 import { IssueLines } from '../components/template/fields'
 import { RefreshIcon } from '../components/template/icons'
 import { CloseIcon } from '../components/icons'
-import { countBlocks, countNodes, nodeJsonPath } from '../components/template/templateDoc'
+import { countBlocks, countNodes, issueLocation, nodeJsonPath, nodePathFromJsonPath } from '../components/template/templateDoc'
 import { countIssues, issuesUnder } from '../components/template/templateValidate'
 import { useTemplateEditor } from '../components/template/useTemplateEditor'
 import '../components/template/template.css'
@@ -374,7 +374,18 @@ export default function TemplateEditorPage(): JSX.Element {
                 {editor.issuesSource === 'server' ? '（主进程的结论）' : ''}
               </summary>
               <div className="tpl-foot-issue-list">
-                <IssueLines issues={editor.issues} />
+                {/* 位置写人话（示例文档 › 需求 · 第 2 块）并且能点着跳过去——
+                    这份总清单是全页唯一需要指路的地方，面板与卡片上位置是多余的 */}
+                <IssueLines
+                  issues={editor.issues}
+                  locate={(issue) => {
+                    const path = nodePathFromJsonPath(issue.path)
+                    return {
+                      where: issueLocation(editor.doc, issue.path),
+                      onJump: path ? () => editor.revealNode(path) : undefined
+                    }
+                  }}
+                />
               </div>
             </details>
           )}

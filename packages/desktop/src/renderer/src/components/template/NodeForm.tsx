@@ -1,6 +1,6 @@
 /**
  * 右栏：选中节点的表单。
- * 节点部分：标题、标题级别、节点类型、说明、三个开关（节点自己的增删移在节点树栏头上）；
+ * 节点部分：标题、标题级别、节点类型、说明、三个开关（节点自己的增删移在节点树的行右键菜单里）；
  * 内容块部分：一块一张卡片（见 BlockForm），可增删移。
  * 这一栏只写内存草稿，写文件是页脚那个「保存」按钮的事。
  */
@@ -14,6 +14,7 @@ import { CheckField, IssueLines, NumberField, SelectField, TextAreaField, TextFi
 import {
   NODE_FIELDS,
   asObject,
+  breadcrumbOf,
   headingLevel,
   nodeJsonPath,
   nodeSwitch,
@@ -21,7 +22,7 @@ import {
   nodeTitle,
   rawBlocks,
   str,
-  unknownKeys,
+  typoField,
   type NodePath,
   type TemplateDoc,
   type TemplateObject
@@ -117,8 +118,10 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
 
   const isRoot = path.length === 0
   const jsonPath = nodeJsonPath(path)
+  const where = breadcrumbOf(doc, path)
   const blocks = rawBlocks(node)
-  const extra = unknownKeys(node, NODE_FIELDS)
+  /** 字段名只差大小写（headingLevel 写成 headinglevel 这种）：程序会当没写，必须让人看见 */
+  const typo = typoField(node, NODE_FIELDS)
   /** 节点自己字段上的结论：内容块下面的单独挂在块卡片上，不在这里重复 */
   const nodeIssues = issues.filter(
     (issue) => !issue.path.startsWith(`${jsonPath}.contentBlocks`)
@@ -128,9 +131,10 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
     <section className="tpl-col tpl-col-insp" aria-label="节点">
       <header className="tpl-col-head">
         <h2>节点</h2>
-        <code className="tpl-path" title={jsonPath}>
-          {jsonPath}
-        </code>
+        {/* 位置写人话（示例文档 › 需求）：JSON 路径留给悬停，版面不印下标 */}
+        <span className="tpl-where" title={jsonPath}>
+          {where}
+        </span>
       </header>
       <div className="tpl-col-body">
         {/* 第一行：标题 / 级别 / 类型 —— 进面板第一眼就落在要改的地方 */}
@@ -193,9 +197,9 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
           />
         </div>
 
-        {extra.length > 0 && (
-          <p className="tpl-note">
-            这份节点里还有界面不管的字段：{extra.join('、')}（原样保留）
+        {typo !== null && (
+          <p className="tpl-note tpl-note-bad">
+            这份节点里的「{typo.key}」与「{typo.known}」只差大小写，程序按没写处理（改过来才会生效）
           </p>
         )}
 
@@ -246,9 +250,6 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
                     <span className="tpl-issue-text">
                       第 {index + 1} 个内容块不是对象，程序会丢弃这一块
                     </span>
-                    <code className="tpl-path" title={`${jsonPath}.contentBlocks[${index}]`}>
-                      {jsonPath}.contentBlocks[{index}]
-                    </code>
                   </p>
                 )
               }
