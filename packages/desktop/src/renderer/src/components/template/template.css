@@ -628,21 +628,29 @@ body.is-splitting {
   flex: 0 1 132px;
 }
 
-/* 三个开关（复制/删除/加内容）排在字段标签那一行的右端：不单占一行，
-   与「标题 / 类型」两个标签同一行、同一个字号，贴着行的右端 */
-.tpl-switches {
-  flex: none;
-  margin-left: auto;
-  align-self: flex-start;
+/* 标签那一行：标签字样 + 搭在它右边的零碎（节点那三个开关）。
+   零碎只吃标签行里的空处，不参与字段宽度分配——输入框与下拉都不会被挤窄。 */
+.tpl-field-label-row {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  /* 与字段标签的行盒等高：标签是 12px，上下各留一点，开关就落在这一行的中线上 */
-  height: 17px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+/* 三个开关（复制/裁剪/编辑）：紧跟在「标题」字样右侧，与标签同一行、同一个字号 */
+.tpl-switches {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  min-width: 0;
+  font-size: var(--text-xs);
 }
 
 .tpl-switches .tpl-switch {
   font-size: var(--text-xs);
+  white-space: nowrap;
 }
 
 /* ===== 中栏：节点树 ===== */

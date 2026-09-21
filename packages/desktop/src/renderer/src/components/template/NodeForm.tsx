@@ -237,13 +237,40 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
         </span>
       </header>
       <div className="tpl-col-body">
-        {/* 第一行：标题 / 类型，三个开关排在标签那一行的右端（不再单占一行） */}
+        {/* 第一行：标题 / 类型。三个开关搭在「标题」标签那一行的空处——
+            它们不占这一行的宽度份额，所以标题输入框与类型下拉都不会被挤窄 */}
         <div className="tpl-row">
           <TextField
             label="标题"
+            htmlFor="tpl-node-title"
             tip={jsonTip('title', '这个节点在文档里的标题文字')}
             value={nodeTitle(node)}
             placeholder="章节标题"
+            extra={
+              <span className="tpl-switches" role="group" aria-label="用户在新工程里能做什么">
+                <CheckField
+                  label="复制"
+                  tip={jsonTip('copyable', '用户在新工程里可以复制这个节点')}
+                  checked={nodeSwitch(node, 'copyable')}
+                  onChange={(checked) => props.onPatch({ copyable: checked })}
+                />
+                <CheckField
+                  label="裁剪"
+                  tip={jsonTip('deletable', '用户在新工程里可以删除（裁剪掉）这个节点')}
+                  checked={nodeSwitch(node, 'deletable')}
+                  onChange={(checked) => props.onPatch({ deletable: checked })}
+                />
+                <CheckField
+                  label="编辑"
+                  tip={jsonTip(
+                    'allowContentBlocks',
+                    '用户在新工程里可以往这个节点加内容块（已有的内容能不能改，看每一块自己的锁）'
+                  )}
+                  checked={nodeSwitch(node, 'allowContentBlocks')}
+                  onChange={(checked) => props.onPatch({ allowContentBlocks: checked })}
+                />
+              </span>
+            }
             onChange={(value) => props.onPatch({ title: value })}
           />
           <SelectField
@@ -258,30 +285,6 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
             disabledWhy="根节点是整篇文档，没有可选的类型"
             onChange={applyKind}
           />
-          {/* 决定用户在新工程里能对这个节点做什么：跟在「标题 / 类型」这两个标签后面，同一行 */}
-          <div className="tpl-switches" role="group" aria-label="用户在新工程里能做什么">
-            <CheckField
-              label="复制"
-              tip={jsonTip('copyable', '用户在新工程里可以复制这个节点')}
-              checked={nodeSwitch(node, 'copyable')}
-              onChange={(checked) => props.onPatch({ copyable: checked })}
-            />
-            <CheckField
-              label="裁剪"
-              tip={jsonTip('deletable', '用户在新工程里可以删除（裁剪掉）这个节点')}
-              checked={nodeSwitch(node, 'deletable')}
-              onChange={(checked) => props.onPatch({ deletable: checked })}
-            />
-            <CheckField
-              label="编辑"
-              tip={jsonTip(
-                'allowContentBlocks',
-                '用户在新工程里可以往这个节点加内容块（已有的内容能不能改，看每一块自己的锁）'
-              )}
-              checked={nodeSwitch(node, 'allowContentBlocks')}
-              onChange={(checked) => props.onPatch({ allowContentBlocks: checked })}
-            />
-          </div>
         </div>
 
         {levelOff && (

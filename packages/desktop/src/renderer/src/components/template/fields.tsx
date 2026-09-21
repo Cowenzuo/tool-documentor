@@ -10,6 +10,8 @@ export function Field({
   label,
   hint,
   tip,
+  extra,
+  htmlFor,
   children
 }: {
   label: string
@@ -17,17 +19,45 @@ export function Field({
   hint?: string
   /** 悬停说明（一般放 JSON 字段名与它的含义），不占版面 */
   tip?: string
+  /**
+   * 跟在标签字样右边的零碎（例如节点那三个开关）：它们**搭在标签那一行的空处**，
+   * 不占这一行的宽度份额——所以标控件不会被挤窄。
+   * 给了 extra 就把外层从 `<label>` 换成 `<div>`（label 里套 label 是非法结构），
+   * 同时用 htmlFor 把可访问名与控件连上。
+   */
+  extra?: ReactNode
+  htmlFor?: string
   children: ReactNode
 }): JSX.Element {
+  const labelLine =
+    label === '' ? null : (
+      <span className="tpl-field-label" title={tip ?? ''}>
+        {label}
+        {hint && <span className="tpl-field-hint">{hint}</span>}
+      </span>
+    )
+  if (extra !== undefined) {
+    return (
+      <div className="tpl-field">
+        <div className="tpl-field-label-row">
+          {htmlFor ? (
+            <label className="tpl-field-label" htmlFor={htmlFor} title={tip ?? ''}>
+              {label}
+              {hint && <span className="tpl-field-hint">{hint}</span>}
+            </label>
+          ) : (
+            labelLine
+          )}
+          {extra}
+        </div>
+        {children}
+      </div>
+    )
+  }
   return (
     <label className="tpl-field">
       {/* 标签为空就不渲染标签行：折叠区里的字段靠 summary 说明自己是什么 */}
-      {label !== '' && (
-        <span className="tpl-field-label" title={tip ?? ''}>
-          {label}
-          {hint && <span className="tpl-field-hint">{hint}</span>}
-        </span>
-      )}
+      {labelLine}
       {children}
     </label>
   )
@@ -48,6 +78,8 @@ export function TextField({
   hint,
   tip,
   mono,
+  extra,
+  htmlFor,
   onChange
 }: {
   label: string
@@ -56,11 +88,15 @@ export function TextField({
   hint?: string
   tip?: string
   mono?: boolean
+  /** 搭在标签那一行右边的零碎（见 Field 的 extra） */
+  extra?: ReactNode
+  htmlFor?: string
   onChange: (value: string) => void
 }): JSX.Element {
   return (
-    <Field label={label} hint={hint} tip={tip}>
+    <Field label={label} hint={hint} tip={tip} extra={extra} htmlFor={htmlFor}>
       <input
+        id={htmlFor}
         className={`tpl-input${mono ? ' tpl-mono' : ''}`}
         value={value}
         placeholder={placeholder ?? ''}
