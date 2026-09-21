@@ -6,8 +6,9 @@
  */
 import { useState, type JSX } from 'react'
 import type { TemplateDirSnapshotDto, TemplateEntryDto } from '../../../../shared/project'
+import { ContextMenu, useContextMenu } from './ContextMenu'
 import { IssueLine, jsonTip } from './fields'
-import { PencilIcon, PlusIcon, TrashIcon } from './icons'
+import { PlusIcon } from './icons'
 import type { TemplateEditorStatus } from './useTemplateEditor'
 
 interface TemplateListProps {
@@ -157,10 +158,14 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
   const [mode, setMode] = useState<Mode>('none')
   const [renameValue, setRenameValue] = useState('')
   const [renameId, setRenameId] = useState('')
+  /** 结构模板那一行的右键菜单（改名 / 删除）：菜单开在右键的那一份上 */
+  const menu = useContextMenu<{ entry: TemplateEntryDto }>()
 
   const structures = dirSnapshot?.structures ?? []
   const styles = dirSnapshot?.styles ?? []
   const selected = structures.find((entry) => entry.id === selectedId) ?? null
+  /** 改名与删除都落在"当前打开的那一份"上（服务端就是按它读写的） */
+  const isOpenEntry = menu.payload !== null && menu.payload.entry.id === selectedId
 
   /** 改名表单：id 与原来不同（且合法、不撞已有 id）才动目录与文件名 */
   const renameIdValue = renameId.trim()
@@ -202,6 +207,7 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
 
             <div className="tpl-section-head">
               <h3>结构模板</h3>
+              {/* 新建放在这一行的右端（与"选中哪一份"无关，是整段列表的动作） */}
               <button
                 type="button"
                 className="tpl-icon-btn"
@@ -236,8 +242,27 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
                     <button
                       type="button"
                       className={`tpl-item${entry.id === selectedId ? ' is-selected' : ''}`}
+                      data-entry={entry.id}
                       title={entry.file}
                       onClick={() => props.onOpen(entry)}
+                      onContextMenu={(event) => {
+                        event.preventDefault()
+                        // 右键不开这份模板（那会牵动未保存确认）：菜单就作用在右键的那一份上
+                        menu.openIn({ entry }, event.clientX, event.clientY)
+                      }}
+                      onKeyDown={(event) => {
+                        // 键盘也要能开这单（Windows 的习惯键：Shift+F10 或菜单键）
+                        if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) {
+                          return
+                        }
+                        event.preventDefault()
+                        const rect = event.currentTarget.getBoundingClientRect()
+                        menu.openIn(
+                          { entry },
+                          Math.round(rect.right - 8),
+                          Math.round(rect.bottom - 4)
+                        )
+                      }}
                     >
                       <span className="tpl-item-name">{entry.name || entry.id}</span>
                       {/* 问题徽标紧跟名字（它是"这份模板有事"的提示），id 是给对照用的，挪到最后 */}
@@ -247,35 +272,6 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
                   </li>
                 ))}
               </ul>
-            )}
-
-            {selected && (
-              <div className="tpl-form-foot tpl-list-foot">
-                <button
-                  type="button"
-                  className="tpl-icon-btn"
-                  disabled={busy || dirty}
-                  title={dirty ? '先保存改动' : '改这份模板的 id 与名称'}
-                  aria-label="改名"
-                  onClick={() => {
-                    setRenameValue(selected.name || selected.id)
-                    setRenameId(selected.id)
-                    setMode('rename')
-                  }}
-                >
-                  <PencilIcon />
-                </button>
-                <button
-                  type="button"
-                  className="tpl-icon-btn tpl-danger"
-                  disabled={busy || dirty}
-                  title={dirty ? '先保存改动' : '删除这份模板'}
-                  aria-label="删除"
-                  onClick={() => setMode('remove')}
-                >
-                  <TrashIcon />
-                </button>
-              </div>
             )}
 
             {mode === 'rename' && selected && (
@@ -353,8 +349,7 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
             )}
 
             <div
-              className="tpl-section-head"
-              title="样式模板来自外部样式文件，这一批只列出来（结构与样式的对照表编辑还没做）；要改样式请直接改包里的 stylemap 与骨架"
+              className="tpl-section-head"              title="样式模板来自外部样式文件，这一批只列出来（结构与样式的对照表编辑还没做）；要改样式请直接改包里的 stylemap 与骨架"
             >
               <h3>样式模板</h3>
               <span className="tpl-count">只读</span>
@@ -383,6 +378,45 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
           </>
         )}
       </div>
+      {/* 改名与删除收敛到结构模板那一行的右键菜单里：列表上不再常驻一排按钮。
+          两项都作用在**这份模板自己**身上，而服务端是按"当前打开的那一份"改的，
+          所以右键别的模板时它们灰着，提示里说清要先点开它。 */}
+      {menu.payload && (
+        <ContextMenu
+          control={menu}
+          className="tpl-list-menu"
+          label="模板操作"
+          head={menu.payload.entry.name || menu.payload.entry.id}
+          headTitle={menu.payload.entry.file}
+          items={[
+            {
+              label: '改名',
+              title: !isOpenEntry
+                ? '改名作用在当前打开的那一份：先点开这份模板'
+                : dirty
+                  ? '先保存改动'
+                  : '改这份模板的 id 与名称',
+              disabled: busy || dirty || !isOpenEntry,
+              run: () => {
+                setRenameValue(selected?.name || selected?.id || '')
+                setRenameId(selected?.id || '')
+                setMode('rename')
+              }
+            },
+            {
+              label: '删除',
+              title: !isOpenEntry
+                ? '删除作用在当前打开的那一份：先点开这份模板'
+                : dirty
+                  ? '先保存改动'
+                  : '删除这份模板（删除前会先备份）',
+              disabled: busy || dirty || !isOpenEntry,
+              danger: true,
+              run: () => setMode('remove')
+            }
+          ]}
+        />
+      )}
     </section>
   )
 }

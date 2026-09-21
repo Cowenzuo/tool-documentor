@@ -313,6 +313,11 @@ body.is-splitting {
   margin-left: auto;
 }
 
+/* 这一段的动作（新建）靠到行的右端：左边是标题，右边是"对整段做什么" */
+.tpl-section-head .tpl-icon-btn {
+  margin-left: auto;
+}
+
 .tpl-items {
   list-style: none;
   margin: 0;
@@ -419,11 +424,6 @@ body.is-splitting {
   border-radius: var(--radius-control);
   background: var(--bg-raised);
   border: 1px solid var(--border);
-}
-
-.tpl-list-foot {
-  justify-content: flex-start;
-  margin-top: var(--space-2);
 }
 
 /* ===== 表单与控件 ===== */
@@ -712,9 +712,10 @@ body.is-splitting {
   transform: rotate(-90deg);
 }
 
-/* 节点右键菜单：与主编辑器的章节菜单同一套语言——
-   菜单头写清这单冲着哪个节点，按不了的项目在悬停提示里说明原因 */
-.tpl-tree-menu {
+/* 页内右键菜单（节点树 / 模板列表共用）：与主编辑器的章节菜单同一套语言——
+   菜单头写清这单冲着谁，按不了的项目在悬停提示里说明原因 */
+.tpl-tree-menu,
+.tpl-list-menu {
   position: fixed;
   z-index: 120;
   min-width: 152px;
@@ -728,7 +729,8 @@ body.is-splitting {
   box-shadow: var(--overlay-shadow);
 }
 
-.tpl-tree-menu-head {
+.tpl-tree-menu-head,
+.tpl-list-menu-head {
   padding: 6px 12px;
   margin-bottom: var(--space-1);
   border-bottom: 1px solid var(--border);
@@ -739,7 +741,8 @@ body.is-splitting {
   white-space: nowrap;
 }
 
-.tpl-tree-menu button {
+.tpl-tree-menu button,
+.tpl-list-menu button {
   width: 100%;
   text-align: left;
   padding: 7px 12px;
@@ -748,15 +751,18 @@ body.is-splitting {
   color: var(--text-1);
 }
 
-.tpl-tree-menu button:hover:not(:disabled) {
+.tpl-tree-menu button:hover:not(:disabled),
+.tpl-list-menu button:hover:not(:disabled) {
   background: var(--bg-hover);
 }
 
-.tpl-tree-menu button.danger {
+.tpl-tree-menu button.danger,
+.tpl-list-menu button.danger {
   color: var(--danger);
 }
 
-.tpl-tree-menu button:disabled {
+.tpl-tree-menu button:disabled,
+.tpl-list-menu button:disabled {
   color: var(--text-3);
   cursor: not-allowed;
 }

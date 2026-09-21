@@ -7,9 +7,10 @@
  * 与主编辑器的章节树同一套语言：右键同时把该行选上，按不了的项目写明原因。
  * 行上不挂按钮——一行本来就只有二十来个字，挤上五个按钮标题就得让位。
  */
-import { useEffect, useRef, useState, type JSX } from 'react'
+import { useEffect, useRef, type JSX } from 'react'
 import type { TemplateIssueDto } from '../../../../shared/project'
 import { ChevronDownIcon } from '../icons'
+import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu'
 import { CollapseAllIcon, ExpandAllIcon } from './icons'
 import {
   asObject,
@@ -48,13 +49,6 @@ interface NodeTreeProps {
   onMove: (path: NodePath, delta: -1 | 1) => void
   onRemove: (path: NodePath) => void
   onToggleBranch: (path: NodePath) => void
-}
-
-/** 菜单开在哪一行、开在什么位置（窗口坐标） */
-interface MenuState {
-  path: NodePath
-  x: number
-  y: number
 }
 
 function IssueDot({ issues }: { issues: TemplateIssueDto[] }): JSX.Element | null {
@@ -213,22 +207,12 @@ function Row({
   }
 }
 
-/** 菜单里的一项：按不了就写明为什么（title），不另占版面 */
-interface MenuItem {
-  label: string
-  title: string
-  disabled: boolean
-  danger?: boolean
-  run: () => void
-}
-
 export function NodeTree(props: NodeTreeProps): JSX.Element {
   const { doc, status, selectedPath, expanded, issues, onSelect, onToggle } = props
   const root = rootNode(doc)
   const selectedKey = pathKey(selectedPath)
   const scrollRef = useRef<HTMLDivElement | null>(null)
-  const menuRef = useRef<HTMLDivElement | null>(null)
-  const [menu, setMenu] = useState<MenuState | null>(null)
+  const menu = useContextMenu<{ path: NodePath }>()
 
   /**
    * 选中项滚入可视区：新加的节点、树上点选都得看得见。
@@ -239,84 +223,38 @@ export function NodeTree(props: NodeTreeProps): JSX.Element {
     row?.scrollIntoView({ block: 'nearest' })
   }, [selectedKey, expanded])
 
-  /** 菜单：点别处、按 Esc 都收起来 */
-  useEffect(() => {
-    const close = (event: MouseEvent): void => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenu(null)
-    }
-    const key = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setMenu(null)
-    }
-    window.addEventListener('mousedown', close)
-    window.addEventListener('keydown', key)
-    return () => {
-      window.removeEventListener('mousedown', close)
-      window.removeEventListener('keydown', key)
-    }
-  }, [])
+  /** 菜单的行为（贴边收回、点别处/Esc 收起、方向键走项）与共用外观见 ContextMenu */
 
-  /** 开出来先把越界的部分收回来，再把焦点放到第一个能用的项目上（键盘能接着走） */
-  useEffect(() => {
-    const el = menuRef.current
-    if (!menu || !el) return
-    const rect = el.getBoundingClientRect()
-    const overflowX = rect.right - window.innerWidth + 8
-    const overflowY = rect.bottom - window.innerHeight + 8
-    if (overflowX > 0 || overflowY > 0) {
-      setMenu((prev) =>
-        prev
-          ? { ...prev, x: prev.x - Math.max(0, overflowX), y: prev.y - Math.max(0, overflowY) }
-          : prev
-      )
-      return
-    }
-    el.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()
-  }, [menu])
-
-  const onMenuKeyDown = (event: React.KeyboardEvent): void => {
-    const items = [
-      ...(menuRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])
-    ]
-    if (items.length === 0) return
-    const index = items.findIndex((el) => el === document.activeElement)
-    if (event.key === 'ArrowDown') {
-      event.preventDefault()
-      items[(index + 1 + items.length) % items.length]?.focus()
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault()
-      items[(index - 1 + items.length) % items.length]?.focus()
-    }
-  }
-
-  const menuNode = menu ? nodeAt(doc, menu.path) : null
-  const menuIsRoot = menu !== null && menu.path.length === 0
-  const menuIndex = menu ? (menu.path[menu.path.length - 1] ?? 0) : 0
-  const menuParent = menu ? nodeAt(doc, menu.path.slice(0, -1)) : null
+  const menuPath = menu.payload ? menu.payload.path : null
+  const menuNode = menuPath ? nodeAt(doc, menuPath) : null
+  const menuIsRoot = menuPath !== null && menuPath.length === 0
+  const menuIndex = menuPath ? (menuPath[menuPath.length - 1] ?? 0) : 0
+  const menuParent = menuPath ? nodeAt(doc, menuPath.slice(0, -1)) : null
   const menuSiblingCount = menuParent ? rawChildren(menuParent).length : 0
   const menuName = menuNode ? nodeTitle(menuNode) || '（未命名）' : ''
-  const menuBranch = menu ? branchKeys(doc, menu.path) : []
+  const menuBranch = menuPath ? branchKeys(doc, menuPath) : []
   /**
    * 这一支现在是开的还是收的：根节点永远画成展开的，所以它按"下面各层开没开"算，
    * 其余节点就是它自己开没开（点一下连下面几层一起收/一起开）。
    */
   const menuBranchOpen = menuIsRoot
     ? menuBranch.filter((key) => key !== '').every((key) => expanded.has(key))
-    : expanded.has(pathKey(menu?.path ?? []))
+    : expanded.has(pathKey(menuPath ?? []))
 
-  const items: MenuItem[] = menu === null || menuNode === null
+  const items: MenuItem[] = menuPath === null || menuNode === null
     ? []
     : [
         {
           label: '添加子节点',
           title: `在「${menuName}」下面加一个子节点`,
           disabled: false,
-          run: () => props.onAddChild(menu.path)
+          run: () => props.onAddChild(menuPath)
         },
         {
           label: '添加同级',
           title: menuIsRoot ? '根节点没有同级' : `在「${menuName}」后面加一个同级节点`,
           disabled: menuIsRoot,
-          run: () => props.onAddSibling(menu.path)
+          run: () => props.onAddSibling(menuPath)
         },
         {
           label: '复制节点',
@@ -324,7 +262,7 @@ export function NodeTree(props: NodeTreeProps): JSX.Element {
             ? '根节点不能复制'
             : `复制「${menuName}」及其子节点与内容块，插在它后面`,
           disabled: menuIsRoot,
-          run: () => props.onDuplicate(menu.path)
+          run: () => props.onDuplicate(menuPath)
         },
         {
           label: '上移',
@@ -334,7 +272,7 @@ export function NodeTree(props: NodeTreeProps): JSX.Element {
               ? `「${menuName}」上移`
               : '已经是第一个子节点',
           disabled: menuIsRoot || menuIndex === 0,
-          run: () => props.onMove(menu.path, -1)
+          run: () => props.onMove(menuPath, -1)
         },
         {
           label: '下移',
@@ -344,14 +282,14 @@ export function NodeTree(props: NodeTreeProps): JSX.Element {
               ? `「${menuName}」下移`
               : '已经是最后一个子节点',
           disabled: menuIsRoot || menuIndex >= menuSiblingCount - 1,
-          run: () => props.onMove(menu.path, 1)
+          run: () => props.onMove(menuPath, 1)
         },
         {
           label: '删除节点',
           title: menuIsRoot ? '根节点不能删除' : `删除「${menuName}」及其子节点`,
           disabled: menuIsRoot,
           danger: true,
-          run: () => props.onRemove(menu.path)
+          run: () => props.onRemove(menuPath)
         },
         {
           label: menuBranchOpen ? '折叠该分支' : '展开该分支',
@@ -361,7 +299,7 @@ export function NodeTree(props: NodeTreeProps): JSX.Element {
               ? '收起这一支下的所有层级'
               : '展开这一支下的所有层级',
           disabled: menuBranch.length === 0,
-          run: () => props.onToggleBranch(menu.path)
+          run: () => props.onToggleBranch(menuPath)
         }
       ]
 
@@ -409,39 +347,19 @@ export function NodeTree(props: NodeTreeProps): JSX.Element {
             issues={issues}
             onSelect={onSelect}
             onToggle={onToggle}
-            onOpenMenu={(path, x, y) => setMenu({ path, x, y })}
+            onOpenMenu={(path, x, y) => menu.openIn({ path }, x, y)}
           />
         )}
       </div>
-      {menu && menuNode && (
-        <div
-          ref={menuRef}
+      {menuNode && (
+        <ContextMenu
+          control={menu}
           className="tpl-tree-menu"
-          style={{ left: menu.x, top: menu.y }}
-          role="menu"
-          aria-label="节点操作"
-          onKeyDown={onMenuKeyDown}
-        >
-          <div className="tpl-tree-menu-head" title={nodeJsonPath(menu.path)}>
-            {menuName}
-          </div>
-          {items.map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              role="menuitem"
-              className={item.danger ? 'danger' : undefined}
-              disabled={item.disabled}
-              title={item.title}
-              onClick={() => {
-                item.run()
-                setMenu(null)
-              }}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+          label="节点操作"
+          head={menuName}
+          headTitle={menuPath ? nodeJsonPath(menuPath) : undefined}
+          items={items}
+        />
       )}
     </section>
   )
