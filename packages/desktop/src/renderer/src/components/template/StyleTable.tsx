@@ -156,10 +156,7 @@ export function StyleTable({
 
         {/* 题注编号：三种方式按题注分别选；field 模式还要章节样式名（Word 只认界面上的本地化名） */}
         <div className="tpl-caption">
-          <h3>
-            题注编号
-            {!cn && <span className="tpl-count">未写此项 · 按「按样式自动编号」</span>}
-          </h3>
+          <h3>题注编号</h3>
           <div className="tpl-caption-row">
             {(['table', 'figure'] as const).map((kind) => (
               <label className="tpl-field tpl-caption-field" key={kind}>
