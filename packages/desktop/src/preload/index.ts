@@ -31,6 +31,7 @@ import type {
   TemplateStyleImportInput,
   TemplateStyleReadInput,
   TemplateStyleSaveInput,
+  TemplateTrialInput,
   UiStateKeyInput
 } from '../shared/project'
 
@@ -186,6 +187,10 @@ const api: DesktopApi = {
     rename: (input: TemplateRenameInput) =>
       invoke(ProjectIpc.TemplateRename, input) as ReturnType<
         DesktopApi['templateEditor']['rename']
+      >,
+    trialRun: (input: TemplateTrialInput) =>
+      invoke(ProjectIpc.TemplateTrialRun, input) as ReturnType<
+        DesktopApi['templateEditor']['trialRun']
       >
   }
 }

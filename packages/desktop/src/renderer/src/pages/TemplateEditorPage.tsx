@@ -271,6 +271,21 @@ export default function TemplateEditorPage(): JSX.Element {
         </span>
         <button
           type="button"
+          className="tpl-mini"
+          disabled={!open || editor.busy || counts.errors > 0}
+          title={
+            !open
+              ? '没有打开结构模板'
+              : counts.errors > 0
+                ? `有 ${counts.errors} 个错误，先改好再试跑`
+                : '用这份模板真导出一份 .docx：样式告警必须是 0 条'
+          }
+          onClick={() => void editor.trialRun()}
+        >
+          试跑
+        </button>
+        <button
+          type="button"
           className="tpl-mini tpl-primary"
           disabled={!canSave}
           title={saveWhy || '写入这份模板文件'}

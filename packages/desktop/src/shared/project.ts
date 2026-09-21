@@ -278,6 +278,30 @@ export interface TemplateRenameResult extends TemplateReadResult {
   backupPath: string | null
 }
 
+// ---------- 试跑（PLAN-11 批次 4）----------
+
+export interface TemplateTrialInput {
+  dir: string
+  id: string
+}
+
+/**
+ * 试跑结果：拿这份结构模板 + 它默认的样式对照表，真的导出一份 .docx 出来。
+ * **样式告警必须为零**才算通过（结构里用到的每个样式键都在骨架里找到了对应样式）。
+ */
+export interface TemplateTrialResult {
+  /** 产物落哪了（应用数据目录下的 template-trials/，可以直接用 Word 打开） */
+  outputPath: string
+  /** 实例化出来多少节点 */
+  nodes: number
+  /** 用的哪份样式对照表（文件键），没配就是空串 */
+  styleFileKey: string
+  /** 导出链路的全部告警 */
+  warnings: string[]
+  /** 其中"样式未生效"那一类（判据看它） */
+  styleWarnings: string[]
+}
+
 // ---------- 样式对照表（PLAN-11 批次 3）----------
 
 /** 骨架里的一条样式：对照表下拉的选项（来源 `word/styles.xml`） */
@@ -516,6 +540,8 @@ export const ProjectIpc = {
   TemplateImportStyle: 'template:import-style',
   /** 模板编辑：把共用的对照表另存为某份结构模板专用（复制骨架与映射，并改引用） */
   TemplateForkStyle: 'template:fork-style',
+  /** 模板编辑：试跑——用这份模板真导出一份 .docx，看样式告警是不是零 */
+  TemplateTrialRun: 'template:trial-run',
   /** 模板编辑：写回结构模板（原子写 + .bak），写入前必须零 error */
   TemplateSave: 'template:save',
   /** 模板编辑：新建结构模板并同步 manifest */
@@ -650,6 +676,8 @@ export interface DesktopTemplateEditorApi {
   forkStyle(input: TemplateStyleForkInput): Promise<TemplateStyleForkResult>
   save(input: TemplateSaveInput): Promise<TemplateSaveResult>
   create(input: TemplateCreateInput): Promise<TemplateReadResult>
+  /** 试跑：用这份模板导出一份 .docx，返回导出告警（样式告警必须为零） */
+  trialRun(input: TemplateTrialInput): Promise<TemplateTrialResult>
   remove(input: TemplateDeleteInput): Promise<TemplateDeleteResult>
   rename(input: TemplateRenameInput): Promise<TemplateRenameResult>
 }

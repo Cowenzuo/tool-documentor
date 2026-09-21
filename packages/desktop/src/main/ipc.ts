@@ -43,6 +43,8 @@ import type {
   TemplateStyleReadResult,
   TemplateStyleSaveInput,
   TemplateStyleSaveResult,
+  TemplateTrialInput,
+  TemplateTrialResult,
   UiStateKeyInput
 } from '../shared/project'
 import { ProjectIpc } from '../shared/project'
@@ -334,6 +336,9 @@ export function registerProjectIpc(service: ProjectService): void {
   )
   handle<TemplateStyleForkInput, TemplateStyleForkResult>(ProjectIpc.TemplateForkStyle, (input) =>
     templateEditor.forkStyle(input)
+  )
+  handle<TemplateTrialInput, TemplateTrialResult>(ProjectIpc.TemplateTrialRun, (input) =>
+    templateEditor.trialRun(input)
   )
   handle<TemplateSaveInput, TemplateSaveResult>(ProjectIpc.TemplateSave, (input) =>
     templateEditor.save(input)

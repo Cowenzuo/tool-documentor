@@ -163,6 +163,8 @@ export interface UseTemplateEditorResult {
   confirmPending: () => void
   cancelPending: () => void
   save: () => Promise<void>
+  /** 试跑：用这份模板导出一份 .docx，看样式告警是不是零 */
+  trialRun: () => Promise<void>
   createTemplate: (input: { id: string; name: string; styleTemplate?: string }) => Promise<boolean>
   /** 导入自备样式（.docx 或已解包的骨架目录） */
   importStyle: (input: { id: string; name: string; source: string }) => Promise<boolean>
@@ -727,6 +729,32 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     [dir, dirSnapshot, doc, entryId, readEntry]
   )
 
+  /**
+   * 试跑：拿这份结构模板真导出一份 .docx，判据是**样式告警为零**。
+   * 结果落到状态栏一条回执里（一行摘要 + 详情里给产物路径与全部告警）。
+   */
+  const trialRun = useCallback(async (): Promise<void> => {
+    const api = templateApi()
+    if (!api || !dir || !entryId) return
+    setBusy(true)
+    try {
+      const result = await api.trialRun({ dir, id: entryId })
+      const passed = result.styleWarnings.length === 0
+      setNotice({
+        kind: passed ? 'info' : 'error',
+        text: passed
+          ? `试跑通过：样式告警 0 条（${result.nodes} 个节点，产物已导出）`
+          : `试跑没过：样式告警 ${result.styleWarnings.length} 条（结构里用到的样式没在骨架里找到）`,
+        detail: [`产物：${result.outputPath}`, ...result.warnings].join('\n'),
+        ...(passed ? {} : { staleOnEdit: true })
+      })
+    } catch (err) {
+      setNotice({ kind: 'error', text: '试跑失败', detail: errorText(err) })
+    } finally {
+      setBusy(false)
+    }
+  }, [dir, entryId])
+
   const removeTemplate = useCallback(async (): Promise<boolean> => {    const api = templateApi()
     if (!api || !dir || !entryId) return false
     setBusy(true)
@@ -997,6 +1025,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     confirmPending,
     cancelPending,
     save,
+    trialRun,
     createTemplate,
     importStyle,
     forkStyleFor,

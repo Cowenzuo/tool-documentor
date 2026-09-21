@@ -31,9 +31,11 @@ import {
 } from 'node:fs'
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import JSZip from 'jszip'
+import { exportTreeToDocx } from '@documentor/docx'
 import { localIsoNow } from '@documentor/core/time'
 import {
   SKELETON_REQUIRED_PARTS,
+  TemplateManager,
   buildStyleMapRows,
   draftStyleMap,
   parseSkeletonIndex,
@@ -75,7 +77,9 @@ import type {
   TemplateStyleSaveInput,
   TemplateStyleSaveResult,
   TemplateStyleSkeletonDto,
-  TemplateStyleUserDto
+  TemplateStyleUserDto,
+  TemplateTrialInput,
+  TemplateTrialResult
 } from '../../shared/project'
 
 /** 服务层错误：ipc 的 handle() 会把 message 原样交给渲染层 */
@@ -95,6 +99,8 @@ const MANIFEST_FILE = 'manifest.json'
 const STRUCTURES_DIR = 'structures'
 const STYLES_DIR = 'styles'
 const BACKUP_DIR = 'template-backups'
+/** 试跑产物目录（应用数据目录下） */
+const TRIAL_DIR = 'template-trials'
 /** 结构模板 JSON 的缩进：现行模板全是 2 空格 */
 const STRUCTURE_INDENT = 2
 /** 新建 manifest 时的缩进：现行模板仓库的 manifest 是 4 空格 */
@@ -169,13 +175,29 @@ function eolOf(filePath: string): string {
   }
 }
 
-/** 本地时间戳 `yyyyMMdd-HHmmss`（备份文件名用，本地时区，便于和用户的钟对上） */
+/** 本地时间戳 `yyyyMMdd-HHmmss`（备份文件名与试跑产物名用，本地时区，便于和用户的钟对上） */
 function backupStamp(date = new Date()): string {
   const p = (n: number): string => String(n).padStart(2, '0')
   return (
     `${date.getFullYear()}${p(date.getMonth() + 1)}${p(date.getDate())}` +
     `-${p(date.getHours())}${p(date.getMinutes())}${p(date.getSeconds())}`
   )
+}
+
+/** 试跑产物名里那一段时间戳（同一秒连跑两次也不覆盖：uniquePath 兜底） */
+function trialStamp(): string {
+  return backupStamp()
+}
+
+/** 文档树的节点数（含根），试跑结果里报一句"这份模板实例化出多少节点" */
+function countTreeNodes(tree: { root?: unknown }): number {
+  const walk = (node: unknown): number => {
+    if (typeof node !== 'object' || node === null) return 0
+    const children = (node as { children?: unknown }).children
+    const list = Array.isArray(children) ? children : []
+    return 1 + list.reduce((sum: number, child) => sum + walk(child), 0)
+  }
+  return walk(tree.root)
 }
 
 /**
@@ -510,6 +532,72 @@ export class TemplateEditorService {
         manifestStyleFolder: located.manifestStyleFolder || undefined
       }).map(toIssueDto)
     }
+  }
+
+  /**
+   * 试跑（PLAN-11 批次 4）：拿这份结构模板 + 它默认的样式对照表，**真的导出一份 .docx**。
+   *
+   * 判据是导出链路的告警：结构里用到的每个样式键都得在骨架里找到对应样式，
+   * 否则那一段会按默认样式输出（`…的样式未生效`）——这类告警必须为零。
+   * 走的是与正式导出同一条链路（`TemplateManager` 实例化 + `exportTreeToDocx`），
+   * 产物落在应用数据目录的 `template-trials/`，可以直接用 Word 打开回读。
+   */
+  async trialRun(input: TemplateTrialInput): Promise<TemplateTrialResult> {
+    const located = this.locateStructure(input.dir, input.id)
+    const doc = this.readStructureDoc(located)
+    const issues = this.validate(located, doc)
+    const firstError = issues.find((i) => i.level === 'error')
+    if (firstError) {
+      // 有 error 的模板实例化出来也是坏的：先让作者改好，别拿一份坏模板去试
+      throw new TemplateEditorError(
+        `这份模板校验没过，先改好再试跑（${firstError.path}）：${firstError.message}`
+      )
+    }
+
+    const manager = new TemplateManager()
+    manager.loadTemplateDir(located.dir)
+    const structureName = text(doc['name'] ?? '')
+    const def =
+      manager.listStructures().find((item) => item.name === structureName) ??
+      manager.listStructures().find((item) => item.name === located.manifestName)
+    if (!def) {
+      throw new TemplateEditorError(
+        `加载器没认出这份模板（name=${structureName || located.id}），试跑不了`
+      )
+    }
+    const styleFileKey = text(doc['styleTemplate'] ?? '') || def.styleTemplate
+    const styleDef = manager.listStyles().find((item) => item.fileKey === styleFileKey)
+    if (!styleDef) {
+      throw new TemplateEditorError(
+        styleFileKey === ''
+          ? '这份结构没配默认样式对照表，试跑不知道用哪份（先在根节点那一节挑一个「默认」）'
+          : `找不到样式对照表「${styleFileKey}」：manifest 里可能没有它，或者它没被加载进来`
+      )
+    }
+    const tree = manager.instantiate(def)
+    if (!tree) throw new TemplateEditorError('实例化失败：这份结构模板没生成出文档树')
+
+    const outputDir = join(this.trialRoot(), located.id)
+    mkdirSync(outputDir, { recursive: true })
+    const outputPath = join(outputDir, `${located.id}-${trialStamp()}.docx`)
+    const exported = await exportTreeToDocx(tree, styleDef, outputPath)
+    const styleWarnings = exported.warnings.filter((w) => w.includes('样式未生效'))
+    return {
+      outputPath: exported.outputPath,
+      nodes: countTreeNodes(tree),
+      styleFileKey,
+      warnings: exported.warnings,
+      styleWarnings
+    }
+  }
+
+  /** 试跑产物目录：应用数据目录下的 `template-trials` */
+  private trialRoot(): string {
+    const base = this.deps.appDataDir()
+    if (typeof base !== 'string' || base.trim() === '') {
+      throw new TemplateEditorError('取不到应用数据目录，试跑产物没地方放')
+    }
+    return join(resolve(base), TRIAL_DIR)
   }
 
   /**
