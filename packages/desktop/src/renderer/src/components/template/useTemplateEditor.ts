@@ -491,8 +491,8 @@ export function useTemplateEditor(): UseTemplateEditorResult {
   )
 
   /**
-   * 树上的四个结构操作：都按**传进来的那个节点**办事，不看当前选中谁是——
-   * 节点树每一行悬停就能出这排按钮，点的必须是那一行，而不是"碰巧选中的那个"。
+   * 树上的四个结构操作：都按**传进来的那个路径**办事，不看当前选中谁是——
+   * 栏头上那排按钮做的是"选中的那一个"，但接口留成路径，将来要在行上再挂入口也不用改。
    */
   const addChildAt = useCallback(
     (path: NodePath): void => {

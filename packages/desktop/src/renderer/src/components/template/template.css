@@ -15,6 +15,9 @@
   flex-direction: column;
   overflow: hidden;
   background: var(--bg-app);
+  /* 控件高度只认这一个值：图标按钮、输入框、下拉、小文字按钮都跟它一样高，
+     一行里就不会出现"按钮比旁边的框矮一截"。文字行也按这个高度对齐。 */
+  --tpl-ctl-h: 28px;
 }
 
 .tpl-top {
@@ -208,8 +211,11 @@ body.is-splitting {
 .tpl-col-head {
   flex: none;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  /* 栏头里可能挤着标题 + 一排图标按钮（节点树那一栏）：间距小一点，
+     默认列宽下能排成一行；真放不下时整组换行，不横向溢出 */
+  gap: var(--space-1);
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--border);
   min-width: 0;
@@ -217,6 +223,8 @@ body.is-splitting {
 
 .tpl-col-head h2 {
   margin: 0;
+  /* 行盒与按钮同高：栏头里的字和图标按钮在同一条基线上 */
+  line-height: var(--tpl-ctl-h);
   font-size: var(--text-md);
   font-weight: 600;
   color: var(--text-1);
@@ -238,6 +246,17 @@ body.is-splitting {
   display: flex;
   gap: var(--space-1);
   flex: none;
+}
+
+/* 节点树栏头上的结构操作（增删移）：紧跟在「节点树」后面。
+   窄到放不下时整组换行，组内按钮自己再折——不挤掉标题，也不横向溢出。 */
+.tpl-tree-ops {
+  flex: 0 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .tpl-col-body {
@@ -452,11 +471,18 @@ body.is-splitting {
   background: var(--bg-input);
   color: var(--text-1);
   font-size: var(--text-sm);
-  padding: 5px 10px;
   font-family: inherit;
 }
 
+/* 单行控件与图标按钮同高（见 .tpl-page 的 --tpl-ctl-h），多行文本域自己按行数长 */
+.tpl-input,
+.tpl-select {
+  height: var(--tpl-ctl-h);
+  padding: 0 10px;
+}
+
 .tpl-textarea {
+  padding: 5px 10px;
   line-height: 1.6;
   resize: vertical;
 }
@@ -507,9 +533,12 @@ body.is-splitting {
 
 .tpl-mini {
   flex: none;
+  display: inline-flex;
+  align-items: center;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-control);
-  padding: 3px 10px;
+  height: var(--tpl-ctl-h);
+  padding: 0 12px;
   font-size: var(--text-xs);
   color: var(--text-1);
   background: transparent;
@@ -517,14 +546,14 @@ body.is-splitting {
 }
 
 /* 小按钮一律走图标：无边框小方块，悬停才出底色，含义靠 title 与 aria-label。
-   尺寸与主编辑器的 .be-icon-btn 一致，两处手感相同。 */
+   高度与同一行的输入框、下拉、小文字按钮一致（--tpl-ctl-h），宽度也就跟高度走。 */
 .tpl-icon-btn {
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: var(--tpl-ctl-h);
+  height: var(--tpl-ctl-h);
   border-radius: var(--radius-control);
   color: var(--text-2);
   transition: background-color var(--duration-fast) var(--ease-out);
@@ -576,15 +605,6 @@ body.is-splitting {
   margin-bottom: var(--space-2);
 }
 
-/* 节点操作：放在属性之后，安静一点；真正的分界在下面「内容块」那一条 */
-/* 节点操作已挪到节点树的每一行上（见 .tpl-tree-actions），这里只留内容块那一段的间距 */
-.tpl-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-  margin: var(--space-3) 0 var(--space-1);
-}
-
 /* 一行放几个字段：标题 / 级别 / 类型；窄了自动换行 */
 .tpl-row {
   display: flex;
@@ -612,7 +632,7 @@ body.is-splitting {
   width: 88px;
 }
 
-/* 第二行是开关行：开关与「说明」的标题都排在这一行，纵向居中对齐 */
+/* 开关行：三个开关横着排，窄了自动换行 */
 .tpl-row-flat {
   align-items: center;
   gap: var(--space-2) var(--space-4);
@@ -624,75 +644,8 @@ body.is-splitting {
   font-size: var(--text-xs);
 }
 
-/* 说明：标题排在上面那一行，展开后才占一整行 */
-.tpl-fold-inline {
-  flex: 0 1 auto;
-  min-width: 0;
-  margin: 0 0 0 auto;
-  border-top: none;
-  padding-top: 0;
-}
-
-.tpl-fold-inline > summary {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  padding: 0 4px;
-  border-radius: var(--radius-control);
-  color: var(--text-3);
-}
-
-.tpl-fold-inline > summary:hover {
-  background: var(--bg-hover);
-  color: var(--text-2);
-}
-
-.tpl-fold-inline[open] {
-  flex: 1 1 100%;
-  margin-left: 0;
-  border-top: 1px solid var(--border);
-  padding-top: var(--space-2);
-}
-
-.tpl-fold-body {
-  min-width: 0;
-}
-
-/* 折叠的一行（说明）：默认收着，写了才在标题后面露一行预览 */
-.tpl-fold {
-  margin: var(--space-1) 0 var(--space-2);
-  border-top: 1px solid var(--border);
-  padding-top: var(--space-2);
-}
-
-.tpl-fold > summary {
-  cursor: pointer;
-  font-size: var(--text-xs);
-  color: var(--text-2);
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.tpl-fold-preview {
-  color: var(--text-3);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.tpl-fold[open] > summary {
-  margin-bottom: var(--space-1);
-}
-
-.tpl-fold .tpl-field {
-  margin-bottom: 0;
-}
-
 /* ===== 中栏：节点树 ===== */
 .tpl-tree-row {
-  position: relative;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -700,46 +653,6 @@ body.is-splitting {
   border-radius: var(--radius-control);
   min-width: 0;
   cursor: default;
-}
-
-/* 结构操作浮在行的右端：悬停、选中或键盘走进来时出现。
-   用浮层而不是挤进流里——不然每行的标题都会被这排按钮压短。 */
-.tpl-tree-actions {
-  display: none;
-  position: absolute;
-  right: 4px;
-  top: 1px;
-  bottom: 1px;
-  align-items: center;
-  gap: 1px;
-  padding-left: 10px;
-  border-radius: var(--radius-control);
-  background: linear-gradient(
-    to right,
-    transparent,
-    var(--bg-hover) 10px,
-    var(--bg-hover)
-  );
-}
-
-.tpl-tree-row.is-selected .tpl-tree-actions {
-  background: linear-gradient(
-    to right,
-    transparent,
-    var(--accent-soft) 10px,
-    var(--accent-soft)
-  );
-}
-
-.tpl-tree-row:hover .tpl-tree-actions,
-.tpl-tree-row:focus-within .tpl-tree-actions,
-.tpl-tree-row.is-selected .tpl-tree-actions {
-  display: flex;
-}
-
-.tpl-tree-actions .tpl-icon-btn {
-  width: 22px;
-  height: 22px;
 }
 
 .tpl-tree-row:hover {
@@ -856,6 +769,7 @@ body.is-splitting {
 
 .tpl-blocks-head h3 {
   margin: 0;
+  line-height: var(--tpl-ctl-h);
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text-1);

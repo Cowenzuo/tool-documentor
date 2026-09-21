@@ -2,6 +2,10 @@
  * 中栏：结构模板的节点树（递归列表，可展开收起、可选中；不做拖拽）。
  * 视觉语言沿用编辑器的树：层级数字、需要时才有的一枚类型标记、问题圆点；
  * 状态由外面给（选中路径 + 展开集合），组件本身无状态。
+ *
+ * 增删移这一排放在栏头（「节点树」与展开/折叠旁边），做的是"选中的那一个"：
+ * 行上不挂按钮——一行本来就只有二十来个字，挤上五个按钮标题就得让位；
+ * 按钮的悬停提示里带上选中节点的名字，按的是谁一眼能对上。
  */
 import { useEffect, useRef, type JSX } from 'react'
 import type { TemplateIssueDto } from '../../../../shared/project'
@@ -11,6 +15,7 @@ import {
   asObject,
   hasChildren,
   headingLevel,
+  nodeAt,
   nodeJsonPath,
   nodeTitle,
   nodeTypeBadge,
@@ -35,7 +40,6 @@ interface NodeTreeProps {
   onToggle: (key: string) => void
   onExpandAll: () => void
   onCollapseAll: () => void
-  /** 结构操作按"点的是哪一行"办事，所以都带 path */
   onAddChild: (path: NodePath) => void
   onAddSibling: (path: NodePath) => void
   onMove: (path: NodePath, delta: -1 | 1) => void
@@ -53,33 +57,20 @@ function Row({
   node,
   path,
   depth,
-  index,
-  siblingCount,
   selectedPath,
   expanded,
   issues,
   onSelect,
-  onToggle,
-  onAddChild,
-  onAddSibling,
-  onMove,
-  onRemove
+  onToggle
 }: {
   node: TemplateObject
   path: NodePath
   depth: number
-  /** 在父节点里的次序与同层节点数：决定上移/下移/加同级能不能用 */
-  index: number
-  siblingCount: number
   selectedPath: NodePath
   expanded: Set<string>
   issues: TemplateIssueDto[]
   onSelect: (path: NodePath) => void
   onToggle: (key: string) => void
-  onAddChild: (path: NodePath) => void
-  onAddSibling: (path: NodePath) => void
-  onMove: (path: NodePath, delta: -1 | 1) => void
-  onRemove: (path: NodePath) => void
 }): JSX.Element {
   const key = pathKey(path)
   const isRoot = path.length === 0
@@ -91,8 +82,6 @@ function Row({
   const blocks = rawBlocks(node).length
   const typeBadge = nodeTypeBadge(node)
   const under = issuesUnder(issues, nodeJsonPath(path))
-  const canMoveUp = !isRoot && index > 0
-  const canMoveDown = !isRoot && index < siblingCount - 1
 
   return (
     <div>
@@ -135,97 +124,23 @@ function Row({
         {typeBadge !== null && <span className="tpl-tree-type">{typeBadge}</span>}
         {blocks > 0 && <span className="tpl-tree-count">{blocks} 块</span>}
         <IssueDot issues={under} />
-        {/* 结构操作在这一行上：悬停或选中时右侧浮出，点的是这一行的节点 */}
-        <span className="tpl-tree-actions">
-          <button
-            type="button"
-            className="tpl-icon-btn"
-            title="在它下面加一个子节点"
-            aria-label="添加子节点"
-            onClick={(event) => {
-              event.stopPropagation()
-              onAddChild(path)
-            }}
-          >
-            <AddChildIcon size={12} />
-          </button>
-          <button
-            type="button"
-            className="tpl-icon-btn"
-            title={isRoot ? '根节点没有同级' : '在它后面加一个同级节点'}
-            aria-label="添加同级"
-            disabled={isRoot}
-            onClick={(event) => {
-              event.stopPropagation()
-              onAddSibling(path)
-            }}
-          >
-            <AddSiblingIcon size={12} />
-          </button>
-          <button
-            type="button"
-            className="tpl-icon-btn"
-            title={isRoot ? '根节点不能移动' : canMoveUp ? '上移' : '已经是第一个'}
-            aria-label="上移"
-            disabled={!canMoveUp}
-            onClick={(event) => {
-              event.stopPropagation()
-              onMove(path, -1)
-            }}
-          >
-            <MoveUpIcon size={12} />
-          </button>
-          <button
-            type="button"
-            className="tpl-icon-btn"
-            title={isRoot ? '根节点不能移动' : canMoveDown ? '下移' : '已经是最后一个'}
-            aria-label="下移"
-            disabled={!canMoveDown}
-            onClick={(event) => {
-              event.stopPropagation()
-              onMove(path, 1)
-            }}
-          >
-            <MoveDownIcon size={12} />
-          </button>
-          <button
-            type="button"
-            className="tpl-icon-btn tpl-danger"
-            title={isRoot ? '根节点不能删除' : '删除该节点及其子节点'}
-            aria-label="删除节点"
-            disabled={isRoot}
-            onClick={(event) => {
-              event.stopPropagation()
-              onRemove(path)
-            }}
-          >
-            <TrashIcon size={12} />
-          </button>
-        </span>
       </div>
       {hasChild &&
         open &&
         rawChildren(node).map((raw, childIndex) => {
           const child = asObject(raw)
           if (!child) return null
-          const siblings = rawChildren(node)
           return (
             <Row
               key={`${key}.${childIndex}`}
               node={child}
               path={[...path, childIndex]}
               depth={depth + 1}
-              index={childIndex}
-              siblingCount={siblings.length}
               selectedPath={selectedPath}
               expanded={expanded}
               issues={issues}
               onSelect={onSelect}
               onToggle={onToggle}
-              onAddChild={onAddChild}
-              onAddSibling={onAddSibling}
-              onMove={onMove}
-              onRemove={onRemove}
             />
           )
         })}
@@ -238,6 +153,22 @@ export function NodeTree(props: NodeTreeProps): JSX.Element {
   const root = rootNode(doc)
   const selectedKey = pathKey(selectedPath)
   const scrollRef = useRef<HTMLDivElement | null>(null)
+
+  const selected = nodeAt(doc, selectedPath)
+  const isRootSelected = selectedPath.length === 0
+  const index = selectedPath[selectedPath.length - 1] ?? 0
+  const parent = nodeAt(doc, selectedPath.slice(0, -1))
+  const siblingCount = parent ? rawChildren(parent).length : 0
+  const name = selected ? nodeTitle(selected) || '（未命名）' : ''
+  const canMoveUp = selected !== null && !isRootSelected && index > 0
+  const canMoveDown = selected !== null && !isRootSelected && index < siblingCount - 1
+  const noNode = '先在中栏选一个节点'
+  /** 按钮的悬停提示：按不了的说原因，按得了的说清按的是谁（根节点那几条原因相同） */
+  const opTitle = (ready: string, blocked: string): string => {
+    if (selected === null) return noNode
+    if (isRootSelected) return '选中的是根节点：没有同级，也不能移动、不能删除'
+    return blocked === '' ? ready : blocked
+  }
 
   /**
    * 选中项滚入可视区：新加的节点、树上点选都得看得见。
@@ -252,6 +183,59 @@ export function NodeTree(props: NodeTreeProps): JSX.Element {
     <section className="tpl-col tpl-col-tree" aria-label="节点树">
       <header className="tpl-col-head">
         <h2>节点树</h2>
+        {/* 结构操作：对选中的那一个节点办事，所以贴在这一栏的头上 */}
+        <div className="tpl-tree-ops">
+          <button
+            type="button"
+            className="tpl-icon-btn"
+            title={selected === null ? noNode : `在「${name}」下面加一个子节点`}
+            aria-label="添加子节点"
+            disabled={selected === null}
+            onClick={() => props.onAddChild(selectedPath)}
+          >
+            <AddChildIcon />
+          </button>
+          <button
+            type="button"
+            className="tpl-icon-btn"
+            title={opTitle(`在「${name}」后面加一个同级节点`, '')}
+            aria-label="添加同级"
+            disabled={selected === null || isRootSelected}
+            onClick={() => props.onAddSibling(selectedPath)}
+          >
+            <AddSiblingIcon />
+          </button>
+          <button
+            type="button"
+            className="tpl-icon-btn"
+            title={opTitle(`「${name}」上移`, canMoveUp ? '' : '已经是第一个子节点')}
+            aria-label="上移"
+            disabled={!canMoveUp}
+            onClick={() => props.onMove(selectedPath, -1)}
+          >
+            <MoveUpIcon />
+          </button>
+          <button
+            type="button"
+            className="tpl-icon-btn"
+            title={opTitle(`「${name}」下移`, canMoveDown ? '' : '已经是最后一个子节点')}
+            aria-label="下移"
+            disabled={!canMoveDown}
+            onClick={() => props.onMove(selectedPath, 1)}
+          >
+            <MoveDownIcon />
+          </button>
+          <button
+            type="button"
+            className="tpl-icon-btn tpl-danger"
+            title={opTitle(`删除「${name}」及其子节点`, '')}
+            aria-label="删除节点"
+            disabled={selected === null || isRootSelected}
+            onClick={() => props.onRemove(selectedPath)}
+          >
+            <TrashIcon />
+          </button>
+        </div>
         <div className="tpl-col-tools">
           <button
             type="button"
@@ -285,17 +269,11 @@ export function NodeTree(props: NodeTreeProps): JSX.Element {
             node={root}
             path={[]}
             depth={0}
-            index={0}
-            siblingCount={1}
             selectedPath={selectedPath}
             expanded={expanded}
             issues={issues}
             onSelect={onSelect}
             onToggle={onToggle}
-            onAddChild={props.onAddChild}
-            onAddSibling={props.onAddSibling}
-            onMove={props.onMove}
-            onRemove={props.onRemove}
           />
         )}
       </div>

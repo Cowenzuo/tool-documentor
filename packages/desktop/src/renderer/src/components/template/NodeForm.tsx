@@ -1,6 +1,6 @@
 /**
  * 右栏：选中节点的表单。
- * 节点部分：标题、标题级别、节点类型、三个开关、说明文字，加上节点自己的增删移；
+ * 节点部分：标题、标题级别、节点类型、说明、三个开关（节点自己的增删移在节点树栏头上）；
  * 内容块部分：一块一张卡片（见 BlockForm），可增删移。
  * 这一栏只写内存草稿，写文件是页脚那个「保存」按钮的事。
  */
@@ -9,7 +9,7 @@ import { BLOCK_TYPE_NAMES } from '@documentor/core/blocks'
 import type { TemplateIssueDto } from '../../../../shared/project'
 import { BLOCK_TYPE_LABELS } from '../editor/blockTypes'
 import BlockForm from './BlockForm'
-import { AddChildIcon, AddSiblingIcon, MoveDownIcon, MoveUpIcon, PlusIcon, TrashIcon } from './icons'
+import { PlusIcon } from './icons'
 import { CheckField, IssueLines, NumberField, SelectField, TextAreaField, TextField, jsonTip } from './fields'
 import {
   NODE_FIELDS,
@@ -161,7 +161,17 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
           />
         </div>
 
-        {/* 第二行：三个开关 + 说明（说明的标题也排在这一行，展开才占一整行） */}
+        {/* 第二行：说明常驻（写给作者与用户的填写提示），排在三个开关前面 */}
+        <TextAreaField
+          label="说明"
+          tip={jsonTip('description', '写给作者和用户看的填写提示')}
+          value={str(node['description'])}
+          placeholder="给作者与用户看的填写提示（可留空）"
+          rows={3}
+          onChange={(value) => props.onPatch({ description: value })}
+        />
+
+        {/* 第三行：三个开关 —— 决定用户在新工程里能对这个节点做什么 */}
         <div className="tpl-row tpl-row-flat">
           <CheckField
             label="可复制"
@@ -181,25 +191,6 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
             checked={nodeSwitch(node, 'allowContentBlocks')}
             onChange={(checked) => props.onPatch({ allowContentBlocks: checked })}
           />
-          <details className="tpl-fold tpl-fold-inline">
-            <summary title={jsonTip('description', '写给作者和用户看的填写提示')}>
-              说明
-              {str(node['description']).trim() !== '' && (
-                <span className="tpl-fold-preview">
-                  {str(node['description']).split('\n').find((line) => line.trim() !== '') ?? ''}
-                </span>
-              )}
-            </summary>
-            <div className="tpl-fold-body">
-              <TextAreaField
-                label=""
-                value={str(node['description'])}
-                placeholder="给作者与用户看的填写提示（可留空）"
-                rows={3}
-                onChange={(value) => props.onPatch({ description: value })}
-              />
-            </div>
-          </details>
         </div>
 
         {extra.length > 0 && (
