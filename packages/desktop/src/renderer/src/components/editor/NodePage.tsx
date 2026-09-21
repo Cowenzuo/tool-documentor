@@ -344,7 +344,7 @@ export default function NodePage(): React.JSX.Element {
   if (!node) {
     return (
       <main className="node-page node-page-empty">
-        <div className="np-hint">从左侧结构树选择章节开始编辑</div>
+        <div className="np-hint">未选中章节</div>
       </main>
     )
   }
@@ -374,7 +374,7 @@ export default function NodePage(): React.JSX.Element {
               }}
             />
             {editing && (
-              <span className="np-dirty" title="停顿一下就会自动进入工程数据">
+              <span className="np-dirty" title="待写入">
                 编辑中…
               </span>
             )}
@@ -396,7 +396,7 @@ export default function NodePage(): React.JSX.Element {
               {!node.copyable && !node.deletable && !canEditBlocks && (
                 <span
                   className="np-chip"
-                  title="模板限定了该章节：不可复制、不可删除，也不能添加内容"
+                  title="模板限定"
                 >
                   只读
                 </span>

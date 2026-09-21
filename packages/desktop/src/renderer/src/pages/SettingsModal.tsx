@@ -79,7 +79,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
       showToast({ kind: 'info', text: '设置已保存' })
       onClose()
     } catch (err) {
-      showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
+      showToast({ kind: 'error', text: '设置保存失败' })
     } finally {
       setSaving(false)
     }

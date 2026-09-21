@@ -134,7 +134,7 @@ export function PreviewPage(): React.JSX.Element {
   if (nodes.length === 0) {
     return (
       <main className="node-page node-page-empty">
-        <div className="np-hint">从左侧结构树选择章节查看排版</div>
+        <div className="np-hint">未选中章节</div>
       </main>
     )
   }

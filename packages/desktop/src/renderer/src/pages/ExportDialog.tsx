@@ -83,7 +83,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
       })
       onClose()
     } catch (err) {
-      showToast({ kind: 'error', text: `导出失败：${err instanceof Error ? err.message : String(err)}` })
+      showToast({ kind: 'error', text: `导出失败` })
     } finally {
       setBusy(false)
     }

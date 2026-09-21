@@ -354,7 +354,7 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
       <div className="be-table-merge-bar">
         <label
           className="be-table-merge"
-          title="同一列中连续且内容相同的单元格会合并成一个，表头不参与，空单元格不合并"
+          title="同列相邻同值合并"
         >
           <input
             type="checkbox"
@@ -549,7 +549,7 @@ export function CodeEditor(props: EditorBaseProps<CodeBlock>): React.JSX.Element
           onChange={(e) => onChange({ ...block, language: e.target.value })}
           aria-label="代码语言"
           disabled={readOnly === true}
-          title={readOnly === true ? '模板规定该代码块为定稿，语言也不能改' : undefined}
+          title={readOnly === true ? '模板定稿' : undefined}
         >
           {CODE_LANGUAGES.map((lang) => (
             <option key={lang} value={lang}>

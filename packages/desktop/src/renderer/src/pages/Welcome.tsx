@@ -77,7 +77,7 @@ export default function Welcome(): JSX.Element {
                 type="button"
                 className="btn-secondary btn-xl"
                 disabled={busy}
-                title="打开模板编辑页；编辑的是本机已保存的模板目录"
+                title="编辑本机模板目录"
                 onClick={openTemplateEditor}
               >
                 模板编辑

@@ -294,20 +294,20 @@ function statusOf(args: {
   if (styleId !== '' && !info.read) {
     return {
       status: 'inert',
-      message: `程序不读这个键（列表各层都用第 1 档），配了不生效`
+      message: `不读取`
     }
   }
   if (styleId === '') {
     if (required) {
       return {
         status: 'missing',
-        message: `必需但没配：${owners.join('、')} 用到了它，这些位置导出时按 Word 默认样式输出`
+        message: `必需项未配`
       }
     }
     if (!info.read) {
       return {
         status: 'unset',
-        message: '没配；程序不读这个键（列表各层都用第 1 档），配不配都一样'
+        message: '未配 · 不读取'
       }
     }
     return {
@@ -321,7 +321,7 @@ function statusOf(args: {
   if (styleIds === null) {
     return {
       status: 'unchecked',
-      message: `指向${target}；骨架没读到（或缺 styles.xml），这一行没能核对`
+      message: `未核对`
     }
   }
   if (!styleIds.has(styleId)) {
@@ -334,7 +334,7 @@ function statusOf(args: {
   }
   return {
     status: 'ok',
-    message: required ? `指向${target}（${owners.join('、')} 需要它）` : `指向${target}`
+    message: required ? `指向${target}` : `指向${target}`
   }
 }
 

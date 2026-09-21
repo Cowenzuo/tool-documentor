@@ -112,7 +112,7 @@ export function validateStyleMap(
       level: 'error',
       rule: 'style.name.missing',
       path: 'name',
-      message: `${stylemapLabel} 缺顶层 name（缺了整份被丢弃）`
+      message: `顶层name缺失`
     })
   }
   const styleMap = asObject(doc['styleMap'])
@@ -121,7 +121,7 @@ export function validateStyleMap(
       level: 'error',
       rule: 'style.styleMap.missing',
       path: 'styleMap',
-      message: `${stylemapLabel} 缺顶层 styleMap（缺了整份被丢弃）`
+      message: `顶层styleMap缺失`
     })
     return out
   }
@@ -131,7 +131,7 @@ export function validateStyleMap(
       level: 'error',
       rule: 'style.docxFolder.missing',
       path: 'docxFolder',
-      message: `styles/${id}：stylemap 缺 docxFolder，程序找不到骨架目录`
+      message: `docxFolder未写`
     })
     return out
   }
@@ -141,8 +141,8 @@ export function validateStyleMap(
       rule: 'style.manifestStyleFolder.mismatch',
       path: 'manifest.style_folder',
       message:
-        `manifest 的 style_folder=「${opts.manifestStyleFolder}」与 stylemap 的 docxFolder=` +
-        `「${text(docxFolder)}」不一致；程序实际用 docxFolder`
+        `style_folder「${opts.manifestStyleFolder}」≠ docxFolder` +
+        `「${text(docxFolder)}」`
     })
   }
 
@@ -156,7 +156,7 @@ export function validateStyleMap(
         level: 'error',
         rule: 'style.skeleton.missing',
         path: label('skeleton', skeleton.folder),
-        message: `styles/${id}/${skeleton.folder} 骨架目录不存在`
+        message: `样式目录不存在`
       })
       return out
     }
@@ -165,7 +165,7 @@ export function validateStyleMap(
         level: 'error',
         rule: 'style.skeleton.part',
         path: label('skeleton', part),
-        message: `styles/${id}/${skeleton.folder} 缺部件 ${part}`
+        message: `必需部件缺失：${part}`
       })
     }
 
@@ -175,7 +175,7 @@ export function validateStyleMap(
         level: 'error',
         rule: 'style.skeleton.styleId.none',
         path: 'skeleton/word/styles.xml',
-        message: `styles/${id}/${skeleton.folder}/word/styles.xml 读不到任何 styleId`
+        message: `样式读取失败`
       })
     } else {
       const validIds = new Set(skeleton.styleIds)
@@ -186,8 +186,8 @@ export function validateStyleMap(
             rule: 'style.styleMap.styleId.missing',
             path: `styleMap['${logical}']`,
             message:
-              `styles/${id}：styleMap 的 ${logical}=${text(JSON.stringify(styleId))} ` +
-              `在骨架 styles.xml 里不存在（该处会按默认样式输出）`
+              `${logical}=${text(JSON.stringify(styleId))} · ` +
+              `样式不存在`
           })
         }
       }
@@ -200,8 +200,8 @@ export function validateStyleMap(
         rule: 'style.skeleton.headingStarts',
         path: 'skeleton/word/numbering.xml',
         message:
-          `styles/${id}：读不到骨架 numbering.xml 的 abstractNum 起始编号，` +
-          `题注章节号会从 1 起算`
+          `起始编号读取失败 · ` +
+          `题注章节号从 1 起算`
       })
     }
     // 起始编号不是 1 在脚本里是事实陈述（有意的模板设计），不产出结论
@@ -218,8 +218,8 @@ export function validateStyleMap(
           rule: 'style.captionNumbering.mode',
           path: `captionNumbering.${kind}`,
           message:
-            `styles/${id}：captionNumbering.${kind}=${text(JSON.stringify(mode))} ` +
-            `不是 auto/static/field`
+            `captionNumbering.${kind}=${text(JSON.stringify(mode))} · ` +
+            `取值非法`
         })
       }
     }
@@ -231,8 +231,8 @@ export function validateStyleMap(
           rule: 'style.captionNumbering.chapterStyleNames',
           path: 'captionNumbering.chapterStyleNames',
           message:
-            `styles/${id}：题注用 field 模式但没配 chapterStyleNames，` +
-            `程序按中文惯例用「标题 N」，英文版 Word 打开会算不出章节号`
+            `chapterStyleNames未配 · ` +
+            `英文版 Word 算不出章节号`
         })
       }
     }
@@ -261,10 +261,10 @@ export function validateStyleMap(
         rule: 'style.captionNumbering.absent',
         path: 'captionNumbering',
         message:
-          `styles/${id}：没有 captionNumbering，` +
+          `styles/${id}：captionNumbering未配 · ` +
           `${noSource.map((k) => (k === 'table' ? '表题' : '图题')).join(' / ')}按 auto 处理，` +
           `但骨架样式 ${noSource.map((k) => text(JSON.stringify(captionStyleId(k)))).join(' / ')} ` +
-          `没带多级列表编号——这样导出的题注不会有自动号（靠题注文字手写号的话可忽略本条）`
+          `题注样式无多级列表编号`
       })
     }
   }
@@ -286,8 +286,8 @@ export function validateStyleMap(
         rule: 'style.structure.keysMissing',
         path: `structure[${stName}].styleMap`,
         message:
-          `样式 ${id} 没有覆盖结构「${stName}」需要的逻辑键：${missing.join(' / ')}` +
-          `（这些位置会按默认样式输出）`
+          `结构「${stName}」缺逻辑键：${missing.join(' / ')}` +
+          ``
       })
     }
     // 题注手写号：号已经由样式（auto 且样式带编号）或题注域（field）给出时，
@@ -308,8 +308,8 @@ export function validateStyleMap(
           path: `structure[${stName}].captions[${i}]`,
           message:
             `样式 ${id}：结构「${stName}」的题注「${cap.text.slice(0, 28)}…」自己写了号，` +
-            `而 ${mode} 模式下号由${from}给——程序不剥离手写前缀，导出会重复` +
-            `（题注只写名称，号交给样式或题注域）`
+            `与${from}重复` +
+            ``
         })
       }
     }
@@ -319,7 +319,7 @@ export function validateStyleMap(
         level: 'warn',
         rule: 'style.figure.absent',
         path: 'styleMap.figure',
-        message: `样式 ${id} 没配可选的 figure 键，图片段落会回退成 body 样式`
+        message: `figure未配 · 回退body`
       })
     }
     // 用不到的高阶列表键
@@ -329,7 +329,7 @@ export function validateStyleMap(
           level: 'warn',
           rule: 'style.listKey.unread',
           path: `styleMap['${k}']`,
-          message: `样式 ${id}：${k} 程序不读，配了不生效`
+          message: `${k}不读取`
         })
       }
     }

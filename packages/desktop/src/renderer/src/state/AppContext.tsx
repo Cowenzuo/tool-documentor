@@ -191,7 +191,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         setSelectedId(saved && ids.includes(saved) ? saved : null)
         return true
       } catch (err) {
-        showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
+        showToast({ kind: 'error', text: '操作失败' })
         return false
       } finally {
         setBusy(false)
@@ -209,7 +209,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         setSelectedId(null)
         return true
       } catch (err) {
-        showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
+        showToast({ kind: 'error', text: '操作失败' })
         return false
       } finally {
         setBusy(false)
@@ -226,7 +226,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
     } catch (err) {
       showToast({
         kind: 'error',
-        text: `保存失败，未关闭工程：${err instanceof Error ? err.message : String(err)}`
+        text: '保存失败，未关闭工程'
       })
       return false
     }
@@ -244,7 +244,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
       showToast({ kind: 'info', text: `已保存 ${result.savedAt.slice(11, 19)}` })
       return true
     } catch (err) {
-      showToast({ kind: 'error', text: `保存失败：${err instanceof Error ? err.message : String(err)}` })
+      showToast({ kind: 'error', text: '保存失败' })
       return false
     }
   }, [flushAll, showToast])
@@ -286,7 +286,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         updateRoot((root) => updateNode(root, nodeId, { title }))
         refreshHistory()
       } catch (err) {
-        showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
+        showToast({ kind: 'error', text: '操作失败' })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -301,7 +301,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         updateRoot((root) => updateNode(root, nodeId, { description }))
         refreshHistory()
       } catch (err) {
-        showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
+        showToast({ kind: 'error', text: '操作失败' })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -321,7 +321,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         })
         refreshHistory()
       } catch (err) {
-        showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
+        showToast({ kind: 'error', text: '操作失败' })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -337,7 +337,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         setSelectedId((current) => (current === nodeId ? null : current))
         refreshHistory()
       } catch (err) {
-        showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
+        showToast({ kind: 'error', text: '操作失败' })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -353,7 +353,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         updateRoot((root) => addBlockOp(root, nodeId, block, index))
         refreshHistory()
       } catch (err) {
-        showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
+        showToast({ kind: 'error', text: '操作失败' })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -368,7 +368,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         updateRoot((root) => removeBlockAt(root, nodeId, index))
         refreshHistory()
       } catch (err) {
-        showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
+        showToast({ kind: 'error', text: '操作失败' })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -384,7 +384,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         updateRoot((root) => moveBlockIn(root, nodeId, from, to))
         refreshHistory()
       } catch (err) {
-        showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
+        showToast({ kind: 'error', text: '操作失败' })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -399,7 +399,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         updateRoot((root) => updateBlockOp(root, nodeId, index, block))
         refreshHistory()
       } catch (err) {
-        showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
+        showToast({ kind: 'error', text: '操作失败' })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
