@@ -2,8 +2,8 @@
  * 样式对照表（PLAN-11 批次 3）：一份 stylemap 的逐行视图，也是这一批唯一能改样式的地方。
  *
  * 它占中栏与右栏两栏的位置（`grid-column: 3 / -1`）：一行有五列，挤在 292px 的树栏里没法看。
- * 每行一个逻辑键，回答四件事——**这一行管什么（用途）、现在指向谁（映射）、
- * 这份结构模板要不要它（必需）、没配或配错了会怎样（状态与回退）**。
+ * 每行一个逻辑键，回答三件事——**这一行管什么（用途）、现在指向谁（映射）、
+ * 没配或配错了会怎样（状态与回退）**。完整性按软件支持的全集算，所以"缺哪一行"就是 error。
  *
  * 事实与结论都由外面算好传进来（`rows` 按草稿实时算、`issues` 跑的是主进程那份规则），
  * 这里只负责显示与"改了哪一行"的回调——规则不在这份组件里。
@@ -78,7 +78,10 @@ export function StyleTable({
   }
 
   const docxFolder = typeof doc['docxFolder'] === 'string' ? doc['docxFolder'] : ''
-  const name = typeof doc['name'] === 'string' && doc['name'] !== '' ? doc['name'] : result.id
+  // 栏头写展示名：中文名作主名，空则退英文名；两个都空就说"未命名"
+  const cnName = typeof doc['cn'] === 'string' ? doc['cn'].trim() : ''
+  const enName = typeof doc['en'] === 'string' ? doc['en'].trim() : ''
+  const displayName = cnName !== '' ? cnName : enName !== '' ? enName : '未命名'
   const byId = new Map(result.skeletonStyles.map((style) => [style.styleId, style]))
   const errors = issues.filter((i) => i.level === 'error').length
   const warnings = issues.length - errors
@@ -107,7 +110,7 @@ export function StyleTable({
         <h2>样式对照表</h2>
         {/* 栏头只说"这一栏是什么"：名字 + 骨架目录（悬停看全路径） */}
         <span className="tpl-col-hint" title={result.skeletonPath}>
-          {name}
+          {displayName}
         </span>
         {/* 两条提示靠右：有活干、会影响别人。正常时这一头什么都不显示 */}
         {(problemRows.length > 0 || result.usedBy.length > 1) && (
@@ -116,11 +119,7 @@ export function StyleTable({
               <span className="tpl-map-bad">待修正 {problemRows.length} 行</span>
             )}
             {result.usedBy.length > 1 && (
-              <span
-                title={result.usedBy
-                  .map((u) => `${u.name}${u.isDefault ? '（默认）' : ''}`)
-                  .join('、')}
-              >
+              <span title={result.usedBy.map((u) => u.name).join('、')}>
                 共用 {result.usedBy.length} 份
               </span>
             )}

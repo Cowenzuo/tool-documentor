@@ -13,7 +13,7 @@ export function CreateProjectWizard({
   const { createProject, busy } = useApp()
   const [workspaceDir, setWorkspaceDir] = useState('')
   const [name, setName] = useState('')
-  const [templateName, setTemplateName] = useState('')
+  const [templateUuid, setTemplateUuid] = useState('')
   const [structures, setStructures] = useState<StructureTemplateDto[]>([])
   const [category, setCategory] = useState('全部')
   const [report, setReport] = useState<TemplateLoadReport | null>(null)
@@ -30,17 +30,13 @@ export function CreateProjectWizard({
   const emptyHint = useMemo((): string => {
     const configured = report?.dirs.filter((d) => d.dir.trim()) ?? []
     if (configured.length === 0) {
-      return '还没有配置模板目录。请到 设置 → 模板目录 添加包含 manifest.json 的目录。'
+      return '还没有配置模板目录。请到 设置 → 模板目录 添加模板目录。'
     }
     const broken = configured.filter((d) => d.loadFailed)
     if (broken.length === 0) return '无可用结构模板'
     return broken
       .map((d) => {
-        const why = !d.exists
-          ? '目录不存在'
-          : !d.hasManifest
-            ? '没有 manifest.json（要选到含 manifest.json 的那一层，如模板仓库的 packages/ 子目录）'
-            : d.reasons[0] ?? '未加载到任何模板'
+        const why = !d.exists ? '目录不存在' : d.reasons[0] ?? '未加载到任何模板'
         return `${d.dir} —— ${why}`
       })
       .join('；')
@@ -56,14 +52,14 @@ export function CreateProjectWizard({
     [structures, category]
   )
 
-  const canCreate = workspaceDir.trim().length > 0 && name.trim().length > 0 && !!templateName && !busy
+  const canCreate = workspaceDir.trim().length > 0 && name.trim().length > 0 && !!templateUuid && !busy
 
   const submit = async (): Promise<void> => {
     if (!canCreate) return
     const ok = await createProject({
       workspaceDir: workspaceDir.trim(),
       name: name.trim(),
-      templateName
+      templateUuid
     })
     if (ok) onClose()
   }
@@ -129,10 +125,10 @@ export function CreateProjectWizard({
             <div className="w-cards">
               {visible.map((s) => (
                 <button
-                  key={s.name}
+                  key={s.uuid}
                   type="button"
-                  className={`w-card${templateName === s.name ? ' selected' : ''}`}
-                  onClick={() => setTemplateName(s.name)}
+                  className={`w-card${templateUuid === s.uuid ? ' selected' : ''}`}
+                  onClick={() => setTemplateUuid(s.uuid)}
                 >
                   <span className="w-card-name">{s.name}</span>
                   <span className="w-card-desc">{s.description}</span>

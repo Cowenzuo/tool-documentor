@@ -17,7 +17,8 @@ import type { ContentBlock } from './blocks'
 
 export interface ProjectMeta {
   name: string
-  templateName: string
+  /** 结构模板的 uuid（PLAN-12：引用只认 uuid，名字不参与匹配） */
+  templateUuid: string
 }
 
 function str(v: unknown): string {
@@ -36,12 +37,12 @@ export class ProjectStore {
   private db: DatabaseSync | null = null
   private mDbPath = ''
   private mName = ''
-  private mTemplateName = ''
+  private mTemplateUuid = ''
   private loadWarningsValue: string[] = []
 
   // ================= 打开 / 创建 =================
 
-  create(dbPath: string, projectName: string, templateName: string): void {
+  create(dbPath: string, projectName: string, templateUuid: string): void {
     this.close()
     rmSync(dbPath, { force: true })
     mkdirSync(dirname(dbPath), { recursive: true })
@@ -50,14 +51,14 @@ export class ProjectStore {
     this.db = db
     this.mDbPath = dbPath
     this.mName = projectName
-    this.mTemplateName = templateName
+    this.mTemplateUuid = templateUuid
     db.exec('PRAGMA foreign_keys = ON')
     this.createSchema()
 
     const now = localIsoNow()
     db.prepare(
-      'INSERT INTO project (name, template_name, created_at, updated_at) VALUES (?, ?, ?, ?)'
-    ).run(projectName, templateName, now, now)
+      'INSERT INTO project (name, template_uuid, created_at, updated_at) VALUES (?, ?, ?, ?)'
+    ).run(projectName, templateUuid, now, now)
   }
 
   open(dbPath: string): void {
@@ -66,9 +67,9 @@ export class ProjectStore {
     this.db = db
     this.mDbPath = dbPath
     db.exec('PRAGMA foreign_keys = ON')
-    const row = db.prepare('SELECT name, template_name FROM project LIMIT 1').get()
+    const row = db.prepare('SELECT name, template_uuid FROM project LIMIT 1').get()
     this.mName = row ? str(row['name']) : ''
-    this.mTemplateName = row ? str(row['template_name']) : ''
+    this.mTemplateUuid = row ? str(row['template_uuid']) : ''
   }
 
   close(): void {
@@ -82,7 +83,7 @@ export class ProjectStore {
     }
     this.mDbPath = ''
     this.mName = ''
-    this.mTemplateName = ''
+    this.mTemplateUuid = ''
   }
 
   isOpen(): boolean {
@@ -97,12 +98,13 @@ export class ProjectStore {
     return this.mName
   }
 
-  templateName(): string {
-    return this.mTemplateName
+  /** 这份工程用的是哪份结构模板（uuid） */
+  templateUuid(): string {
+    return this.mTemplateUuid
   }
 
   projectMeta(): ProjectMeta {
-    return { name: this.mName, templateName: this.mTemplateName }
+    return { name: this.mName, templateUuid: this.mTemplateUuid }
   }
 
   // ================= 表结构 =================
@@ -113,7 +115,7 @@ export class ProjectStore {
       'CREATE TABLE project (' +
         'id INTEGER PRIMARY KEY,' +
         "name TEXT NOT NULL," +
-        "template_name TEXT NOT NULL," +
+        "template_uuid TEXT NOT NULL," +
         "created_at TEXT NOT NULL," +
         "updated_at TEXT NOT NULL)"
     )

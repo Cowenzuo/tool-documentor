@@ -3,6 +3,7 @@
  * handler 抛错统一转为 rejection（renderer 侧可捕获 message）。
  */
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { displayNameOf } from '@documentor/templates'
 import { buildTemplateManager } from './services/template-host'
 import type {
   AppConfigDto,
@@ -22,21 +23,20 @@ import type {
   NodeDeleteInput,
   NodeDescriptionInput,
   NodeTitleInput,
-  StyleCandidateDto,
+  StyleOptionDto,
   StyleTemplateDto,
   StructureTemplateDto,
   TemplateCreateInput,
   TemplateDeleteInput,
-  TemplateDeleteResult,
   TemplateEditorSnapshotDto,
   TemplateLoadReport,
+  TemplateMigrateInput,
+  TemplateMigrateResult,
   TemplateReadInput,
   TemplateReadResult,
   TemplateRenameInput,
   TemplateSaveInput,
   TemplateSaveResult,
-  TemplateStyleForkInput,
-  TemplateStyleForkResult,
   TemplateStyleImportInput,
   TemplateStyleImportResult,
   TemplateStyleReadInput,
@@ -277,43 +277,36 @@ export function registerProjectIpc(service: ProjectService): void {
   })
 
   handle<void, StructureTemplateDto[]>(ProjectIpc.TemplatesListStructures, () =>
-    service
-      .getManager()
-      .listStructures()
-      .map((s) => {
-        const style = service.getManager().styleForStructure(s)
-        return {
-          name: s.name,
-          category: s.category,
-          description: s.description,
-          version: s.version,
-          styleFileKey: style?.fileKey ?? ''
-        }
-      })
+    service.getManager().listStructures().map((s) => ({
+      uuid: s.uuid,
+      name: displayNameOf(s),
+      category: s.category,
+      description: s.description,
+      version: s.version,
+      defaultStyleUuid: s.defaultStyleUuid
+    }))
   )
 
   handle<void, StyleTemplateDto[]>(ProjectIpc.TemplatesListStyles, () =>
     service.getManager().listStyles().map((s) => ({
-      name: s.name,
+      uuid: s.uuid,
+      name: displayNameOf(s),
       version: s.version,
-      description: s.description,
-      fileKey: s.fileKey
+      description: s.description
     }))
   )
 
   handle<void, TemplateLoadReport>(ProjectIpc.TemplatesDiagnose, () => buildTemplateManager().report)
 
-  handle<string, StyleCandidateDto[]>(ProjectIpc.TemplatesStyleCandidates, (structureName) => {
-    const def = service.getManager().findStructureByName(structureName)
-    if (!def) return []
-    return service.getManager().styleCandidatesForStructure(def).map((c) => ({
-      fileKey: c.fileKey,
-      name: c.name,
-      version: c.version,
-      description: c.description,
-      available: c.available,
-      missingKeys: c.missingKeys,
-      isDefault: c.isDefault
+  // 导出可选的样式：新口径下每份样式都是完整的，所以列全部；标出结构里写的那一份
+  handle<string, StyleOptionDto[]>(ProjectIpc.TemplatesStyleOptions, (structureUuid) => {
+    const manager = service.getManager()
+    const def = manager.findStructureByUuid(structureUuid)
+    return manager.listStyles().map((s) => ({
+      uuid: s.uuid,
+      name: displayNameOf(s),
+      version: s.version,
+      isDefault: def !== undefined && def.defaultStyleUuid === s.uuid
     }))
   })
 
@@ -336,18 +329,18 @@ export function registerProjectIpc(service: ProjectService): void {
     ProjectIpc.TemplateImportStyle,
     (input) => templateEditor.importStyle(input)
   )
-  handle<TemplateStyleForkInput, TemplateStyleForkResult>(ProjectIpc.TemplateForkStyle, (input) =>
-    templateEditor.forkStyle(input)
-  )
   handle<TemplateStyleRenameInput, TemplateStyleRenameResult>(
     ProjectIpc.TemplateRenameStyle,
     (input) => templateEditor.renameStyle(input)
   )
-  handle<TemplateDeleteInput, TemplateDeleteResult>(ProjectIpc.TemplateDeleteStyle, (input) =>
+  handle<TemplateDeleteInput, void>(ProjectIpc.TemplateDeleteStyle, (input) =>
     templateEditor.removeStyle(input)
   )
   handle<TemplateTrialInput, TemplateTrialResult>(ProjectIpc.TemplateTrialRun, (input) =>
     templateEditor.trialRun(input)
+  )
+  handle<TemplateMigrateInput, TemplateMigrateResult>(ProjectIpc.TemplateMigrate, (input) =>
+    templateEditor.migrate(input)
   )
   handle<TemplateSaveInput, TemplateSaveResult>(ProjectIpc.TemplateSave, (input) =>
     templateEditor.save(input)
@@ -355,7 +348,7 @@ export function registerProjectIpc(service: ProjectService): void {
   handle<TemplateCreateInput, TemplateReadResult>(ProjectIpc.TemplateCreate, (input) =>
     templateEditor.create(input)
   )
-  handle<TemplateDeleteInput, TemplateDeleteResult>(ProjectIpc.TemplateDelete, (input) =>
+  handle<TemplateDeleteInput, void>(ProjectIpc.TemplateDelete, (input) =>
     templateEditor.remove(input)
   )
   handle<TemplateRenameInput, TemplateReadResult>(ProjectIpc.TemplateRename, (input) =>

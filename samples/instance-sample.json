@@ -1,7 +1,5 @@
 {
   "name": "CLI 样例实例（合成数据）",
-  "basedOn": "示例文档模板 (Demo)",
-  "styleTemplate": "demo-stylemap",
   "root": {
     "title": "示例文档（CLI 样例）",
     "children": [

@@ -11,7 +11,8 @@ export const DEFAULT_DB_FILE = 'documentor.db'
 export interface ProjectAnchor {
   version: number
   name: string
-  template: string
+  /** 结构模板的 uuid（PLAN-12：引用只认 uuid，名字不参与匹配） */
+  template_uuid: string
   db_file: string
   created_at: string
   updated_at: string
@@ -30,7 +31,7 @@ export function readAnchor(projectDir: string): ProjectAnchor | null {
     return {
       version: Number(raw['version'] ?? 1),
       name: String(raw['name'] ?? ''),
-      template: String(raw['template'] ?? ''),
+      template_uuid: String(raw['template_uuid'] ?? ''),
       db_file: String(raw['db_file'] ?? DEFAULT_DB_FILE),
       created_at: String(raw['created_at'] ?? ''),
       updated_at: String(raw['updated_at'] ?? '')
@@ -44,7 +45,7 @@ export function writeAnchor(projectDir: string, anchor: ProjectAnchor): void {
   const payload = {
     version: anchor.version,
     name: anchor.name,
-    template: anchor.template,
+    template_uuid: anchor.template_uuid,
     db_file: anchor.db_file,
     created_at: anchor.created_at,
     updated_at: anchor.updated_at

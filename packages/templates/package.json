@@ -2,7 +2,7 @@
   "name": "@documentor/templates",
   "version": "0.1.0",
   "private": true,
-  "description": "Documentor 模板系统：manifest 注册表、结构模板加载与实例化、样式映射定位",
+  "description": "Documentor 模板系统：按 uuid 扫描与解析模板目录、结构模板加载与实例化、样式映射定位",
   "main": "./dist/index.js",
   "types": "./src/index.ts",
   "exports": {

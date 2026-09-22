@@ -1,7 +1,9 @@
 {
-  "name": "示例文档样式·完整备选",
+  "uuid": "2b7453a9-7f78-466a-ad85-9e467d29b990",
+  "cn": "示例文档样式",
+  "en": "demo",
   "version": "1.0",
-  "description": "键集完整的备选样式，用于一对多关联验证",
+  "description": "示例样式映射：逻辑样式名指向 styles.xml 的 styleId，样式 Id 用通用数字命名",
   "docxFolder": "demo-style",
   "styleMap": {
     "heading.1": "49",
@@ -24,6 +26,7 @@
     "list.unordered.3": "64",
     "list.ordered.1": "65",
     "list.ordered.2": "67",
-    "list.ordered.3": "94"
+    "list.ordered.3": "94",
+    "figure": "45"
   }
 }

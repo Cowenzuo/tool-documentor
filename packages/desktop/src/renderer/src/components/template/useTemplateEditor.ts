@@ -102,12 +102,6 @@ function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
 
-/** 结构模板的显示名：JSON 里的 name，没有就用模板 id */
-function nodeTitleOfDoc(doc: TemplateDoc): string {
-  const name = doc['name']
-  return typeof name === 'string' && name !== '' ? name : '（未命名）'
-}
-
 /** 选中目录：保留当前目录，否则用默认目录，再否则第一份 */
 function pickDir(snapshot: TemplateEditorSnapshotDto, current: string | null): string | null {
   const has = (dir: string): boolean => snapshot.dirs.some((d) => d.dir === dir)
@@ -120,7 +114,7 @@ function pickDir(snapshot: TemplateEditorSnapshotDto, current: string | null): s
 function pickEntry(dirSnapshot: TemplateDirSnapshotDto | null, current: string | null): TemplateEntryDto | null {
   if (!dirSnapshot) return null
   if (current) {
-    const hit = dirSnapshot.structures.find((entry) => entry.id === current)
+    const hit = dirSnapshot.structures.find((entry) => entry.uuid === current)
     if (hit) return hit
   }
   return dirSnapshot.structures[0] ?? null
@@ -165,17 +159,18 @@ export interface UseTemplateEditorResult {
   save: () => Promise<void>
   /** 试跑：用这份模板导出一份 .docx，看样式告警是不是零 */
   trialRun: () => Promise<void>
-  createTemplate: (input: { id: string; name: string; styleTemplate?: string }) => Promise<boolean>
+  createTemplate: (input: { cn: string; en?: string; defaultStyleUuid?: string }) => Promise<boolean>
   /** 导入自备样式（.docx 或已解包的骨架目录） */
-  importStyle: (input: { id: string; name: string; source: string }) => Promise<boolean>
-  /** 把共用的对照表另存为眼前这份结构模板专用（复制骨架与映射 + 改引用） */
-  forkStyleFor: (sourceStyleId: string) => Promise<boolean>
+  importStyle: (input: { cn: string; en?: string; source: string }) => Promise<boolean>
+  /** 迁移旧格式目录：分配 uuid、改目录与文件名、引用换 uuid、清单退场 */
+  migrateDir: () => Promise<boolean>
   removeTemplate: () => Promise<boolean>
-  renameTemplate: (input: { newId: string; name: string }) => Promise<boolean>
-  /** 删除眼前这份样式模板（整份目录含骨架先备份，主进程做） */
+  /** 改这份结构模板的中英文名：uuid 不变，改名不碰文件 */
+  renameTemplate: (input: { cn: string; en?: string }) => Promise<boolean>
+  /** 删除眼前这份样式模板（整份目录含骨架，主进程做） */
   removeStyleEntry: () => Promise<boolean>
-  /** 改眼前这份样式模板的 id 与名称：id 变了目录与 stylemap 文件名跟着改 */
-  renameStyleEntry: (input: { newId: string; name: string }) => Promise<boolean>
+  /** 改眼前这份样式模板的中英文名：uuid 不变，改名不碰文件 */
+  renameStyleEntry: (input: { cn: string; en?: string }) => Promise<boolean>
   dismissNotice: () => void
   selectNode: (path: NodePath) => void
   revealNode: (path: NodePath) => void
@@ -239,11 +234,11 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     [snapshot, dir]
   )
   const entry = useMemo(
-    () => dirSnapshot?.structures.find((item) => item.id === entryId) ?? null,
+    () => dirSnapshot?.structures.find((item) => item.uuid === entryId) ?? null,
     [dirSnapshot, entryId]
   )
   const styleEntry = useMemo(
-    () => dirSnapshot?.styles.find((item) => item.id === styleId) ?? null,
+    () => dirSnapshot?.styles.find((item) => item.uuid === styleId) ?? null,
     [dirSnapshot, styleId]
   )
   const openKind: TemplateOpenKind | null = styleId !== null ? 'style' : doc !== null ? 'structure' : null
@@ -255,10 +250,8 @@ export function useTemplateEditor(): UseTemplateEditorResult {
    */
   const localIssues = useMemo(() => {
     if (!doc) return []
-    const opts: { id?: string; file?: string } = {}
-    if (entryId) opts.id = entryId
-    if (file) opts.file = file
-    return validateStructureDoc(doc, opts)
+    // 校验只认文档本身：模板身份不再进规则（uuid 由加载器管）
+    return validateStructureDoc(doc)
   }, [doc, entryId, file])
 
   const issues = issuesSource === 'server' ? serverIssues : localIssues
@@ -277,9 +270,9 @@ export function useTemplateEditor(): UseTemplateEditorResult {
   /** 打开一份读回来的结构模板：草稿、选中、展开、问题列表一起归位 */
   const applyRead = useCallback((result: TemplateReadResult) => {
     setDoc(result.doc)
-    setFile(result.file)
+    
     setDir(result.dir)
-    setEntryId(result.id)
+    setEntryId(result.uuid)
     setServerIssues(result.issues)
     setIssuesSource('server')
     setSelectedPath(ROOT_PATH)
@@ -303,7 +296,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     async (api: EditorApi, targetDir: string, target: TemplateEntryDto): Promise<void> => {
       setBusy(true)
       try {
-        applyRead(await api.read({ dir: targetDir, id: target.id }))
+        applyRead(await api.read({ dir: targetDir, uuid: target.uuid }))
         // 结构视图在前：样式那一段收起来（能走到这里说明它没有未保存的改动）
         closeStyleView()
       } catch (err) {
@@ -323,13 +316,13 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     async (api: EditorApi, targetDir: string, target: TemplateEntryDto): Promise<void> => {
       setBusy(true)
       try {
-        const result = await api.readStyle({ dir: targetDir, id: target.id })
+        const result = await api.readStyle({ dir: targetDir, uuid: target.uuid })
         setStyle(result)
         setStyleDoc(result.doc)
         setStyleServerIssues(result.issues)
         setStyleIssuesSource('server')
         setStyleDirty(false)
-        setStyleId(target.id)
+        setStyleId(target.uuid)
         setDir(targetDir)
         setNotice(null)
         setPending(null)
@@ -372,7 +365,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
       setDir(nextDir)
       const nextEntry = pickEntry(nextDirSnapshot, entryIdRef.current)
       if (nextEntry && nextDir) {
-        setEntryId(nextEntry.id)
+        setEntryId(nextEntry.uuid)
         await readEntry(api, nextDir, nextEntry)
       } else {
         setDoc(null)
@@ -412,7 +405,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
         setPending(null)
         return
       }
-      setEntryId(nextEntry.id)
+      setEntryId(nextEntry.uuid)
       void readEntry(api, nextDir, nextEntry)
     },
     [closeStyleView, readEntry, snapshot]
@@ -438,7 +431,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
    */
   const requestEntry = useCallback(
     (target: TemplateEntryDto): void => {
-      const alreadyOpen = styleId === null && target.id === entryId && doc !== null
+      const alreadyOpen = styleId === null && target.uuid === entryId && doc !== null
       if (alreadyOpen) return
       if (dirty) {
         setPending({ kind: 'entry', entry: target })
@@ -446,13 +439,13 @@ export function useTemplateEditor(): UseTemplateEditorResult {
       }
       const api = templateApi()
       if (!api || !dir) return
-      if (styleId !== null && target.id === entryId && doc !== null) {
+      if (styleId !== null && target.uuid === entryId && doc !== null) {
         // 结构草稿还在内存里：只是把样式视图收起来，不重读
         setStyleId(null)
         setNotice(null)
         return
       }
-      setEntryId(target.id)
+      setEntryId(target.uuid)
       void readEntry(api, dir, target)
     },
     [dir, dirty, doc, entryId, readEntry, styleId]
@@ -461,7 +454,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
   /** 点一份样式模板：读回对照表。有未保存的结构改动时同样先问一句。 */
   const requestStyle = useCallback(
     (target: TemplateEntryDto): void => {
-      if (styleId === target.id) return
+      if (styleId === target.uuid) return
       if (dirty) {
         setPending({ kind: 'entry', entry: target })
         return
@@ -491,7 +484,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
       void readStyleEntry(api, dir, action.entry)
       return
     }
-    setEntryId(action.entry.id)
+    setEntryId(action.entry.uuid)
     void readEntry(api, dir, action.entry)
   }, [dir, pending, readEntry, readStyleEntry, reload, switchDir])
 
@@ -575,17 +568,13 @@ export function useTemplateEditor(): UseTemplateEditorResult {
         return
       }
       try {
-        const result = await api.saveStyle({ dir, id: styleId, doc: styleDoc })
+        const result = await api.saveStyle({ dir, uuid: styleId, doc: styleDoc })
         setStyleServerIssues(result.issues)
         setStyleIssuesSource('server')
         setStyleDirty(false)
-        const time = result.savedAt.slice(11, 19)
         setNotice({
           kind: 'info',
-          text: result.backupPath
-            ? `已保存 ${time}`
-            : `已保存 ${time} · 首次保存，无可备份原文件`,
-          detail: result.backupPath ?? undefined,
+          text: `已保存 ${result.savedAt.slice(11, 19)}`,
           staleOnEdit: true
         })
         void refreshSnapshot()
@@ -601,17 +590,13 @@ export function useTemplateEditor(): UseTemplateEditorResult {
       return
     }
     try {
-      const result = await api.save({ dir, id: entryId, doc })
+      const result = await api.save({ dir, uuid: entryId, doc })
       setServerIssues(result.issues)
       setIssuesSource('server')
       setDirty(false)
-      const time = result.savedAt.slice(11, 19)
       setNotice({
         kind: 'info',
-        text: result.backupPath
-          ? `已保存 ${time}`
-          : `已保存 ${time} · 首次保存，无可备份原文件`,
-        detail: result.backupPath ?? undefined,
+        text: `已保存 ${result.savedAt.slice(11, 19)}`,
         staleOnEdit: true
       })
       // 徽标跟着新结论走；草稿不动
@@ -624,17 +609,21 @@ export function useTemplateEditor(): UseTemplateEditorResult {
   }, [dir, doc, entryId, openKind, refreshSnapshot, styleDoc, styleId])
 
   const createTemplate = useCallback(
-    async (input: { id: string; name: string; styleTemplate?: string }): Promise<boolean> => {
+    async (input: { cn: string; en?: string; defaultStyleUuid?: string }): Promise<boolean> => {
       const api = templateApi()
       if (!api || !dir) return false
       setBusy(true)
       try {
-        const payload = input.styleTemplate
-          ? { dir, id: input.id, name: input.name, styleTemplate: input.styleTemplate }
-          : { dir, id: input.id, name: input.name }
-        const result = await api.create(payload)
+        const result = await api.create({
+          dir,
+          cn: input.cn,
+          ...(input.en !== undefined && input.en !== '' ? { en: input.en } : {}),
+          ...(input.defaultStyleUuid !== undefined && input.defaultStyleUuid !== ''
+            ? { defaultStyleUuid: input.defaultStyleUuid }
+            : {})
+        })
         applyRead(result)
-        setNotice({ kind: 'info', text: `已新建「${result.id}」` })
+        setNotice({ kind: 'info', text: `已新建「${input.cn}」` })
         void refreshSnapshot()
         return true
       } catch (err) {
@@ -652,7 +641,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
    * 回来之后直接把这份新样式打开——作者接着补没认出来的键就行。
    */
   const importStyle = useCallback(
-    async (input: { id: string; name: string; source: string }): Promise<boolean> => {
+    async (input: { cn: string; en?: string; source: string }): Promise<boolean> => {
       const api = templateApi()
       if (!api || !dir) return false
       // 导入会把眼前这份样式的草稿换掉：有未保存的改动就先说清，不许静默丢掉
@@ -665,17 +654,22 @@ export function useTemplateEditor(): UseTemplateEditorResult {
       }
       setBusy(true)
       try {
-        const imported = await api.importStyle({ dir, id: input.id, name: input.name, source: input.source })
+        const imported = await api.importStyle({
+          dir,
+          cn: input.cn,
+          ...(input.en !== undefined && input.en !== '' ? { en: input.en } : {}),
+          source: input.source
+        })
         setStyle(imported.style)
         setStyleDoc(imported.style.doc)
         setStyleServerIssues(imported.style.issues)
         setStyleIssuesSource('server')
         setStyleDirty(false)
-        setStyleId(imported.style.id)
+        setStyleId(imported.style.uuid)
         setNotice({
           kind: imported.draft.empty.length > 0 ? 'warn' : 'info',
           text:
-            `已导入「${input.name}」 · 匹配 ${imported.draft.filled.length} 个键` +
+            `已导入「${input.cn}」 · 匹配 ${imported.draft.filled.length} 个键` +
             (imported.draft.empty.length > 0
               ? ` · 待补 ${imported.draft.empty.length} 个：${imported.draft.empty.join('、')}`
               : ' · 无需补键')
@@ -693,45 +687,56 @@ export function useTemplateEditor(): UseTemplateEditorResult {
   )
 
   /**
-   * 把共用的对照表另存为**眼前这份结构模板专用**：主进程整份复制骨架与映射、改引用，
-   * 回来之后重新读这份结构与目录（引用变了，徽标与样式那一段都要跟着刷新）。
+   * 迁移旧格式目录：主进程分配 uuid、改目录与文件名、把结构里的引用换成样式 uuid、清单退场。
+   * 目录名全变了，所以迁完整份重读；有未保存的草稿先拦住，别让改动写到搬走之后的路径上。
    */
-  const forkStyleFor = useCallback(
-    async (sourceStyleId: string): Promise<boolean> => {
-      const api = templateApi()
-      if (!api || !dir || !entryId || !doc) return false
-      const source = dirSnapshot?.styles.find((item) => item.id === sourceStyleId)
-      const sourceName = source?.name || sourceStyleId
-      const newId = `${sourceStyleId}-${entryId}`
-      setBusy(true)
-      try {
-        const forked = await api.forkStyle({
-          dir,
-          sourceId: sourceStyleId,
-          newId,
-          name: `${sourceName}（${nodeTitleOfDoc(doc)}专用）`,
-          structureId: entryId
-        })
-        const next = await api.snapshot()
-        setSnapshot(next)
-        const target = next.dirs.find((item) => item.dir === dir) ?? null
-        const nextEntry = target?.structures.find((item) => item.id === entryId) ?? null
-        if (nextEntry) await readEntry(api, dir, nextEntry)
-        // 回执放在重新读之后：读那一趟会把状态栏清干净（applyRead 里 setNotice(null)）
-        setNotice({
-          kind: 'info',
-          text: `已另存为专用「${forked.style.id}」 · 默认样式已切换`
-        })
-        return true
-      } catch (err) {
-        setNotice({ kind: 'error', text: '另存为专用失败', detail: errorText(err) })
-        return false
-      } finally {
-        setBusy(false)
+  const migrateDir = useCallback(async (): Promise<boolean> => {
+    const api = templateApi()
+    if (!api || !dir) return false
+    if (dirty || styleDirty) {
+      setNotice({ kind: 'warn', text: '未保存的改动 · 先保存或丢弃再迁移' })
+      return false
+    }
+    setBusy(true)
+    try {
+      const result = await api.migrate({ dir })
+      const next = await api.snapshot()
+      setSnapshot(next)
+      const target = next.dirs.find((item) => item.dir === dir) ?? null
+      const nextEntry = target?.structures[0] ?? null
+      if (nextEntry) {
+        setEntryId(nextEntry.uuid)
+        await readEntry(api, dir, nextEntry)
+      } else {
+        setDoc(null)
+        setFile(null)
+        setEntryId(null)
+        setServerIssues([])
+        setDirty(false)
       }
-    },
-    [dir, dirSnapshot, doc, entryId, readEntry]
-  )
+      // 回执放在重新读之后：读那一趟会把状态栏清干净（applyRead 里 setNotice(null)）
+      const migrated = result.structures + result.styles
+      const lines = [
+        ...(result.manifestRemoved ? ['清单文件已删'] : []),
+        ...result.restyle,
+        ...result.skipped
+      ]
+      setNotice({
+        kind: result.skipped.length > 0 ? 'warn' : 'info',
+        text:
+          migrated === 0
+            ? '没有可迁移的旧格式目录'
+            : `已迁移 结构 ${result.structures} 份 · 样式 ${result.styles} 份`,
+        ...(lines.length === 0 ? {} : { detail: lines.join('\n') })
+      })
+      return true
+    } catch (err) {
+      setNotice({ kind: 'error', text: '迁移失败', detail: errorText(err) })
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }, [dir, dirty, readEntry, styleDirty])
 
   /**
    * 试跑：拿这份结构模板真导出一份 .docx，判据是**样式告警为零**。
@@ -742,7 +747,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     if (!api || !dir || !entryId) return
     setBusy(true)
     try {
-      const result = await api.trialRun({ dir, id: entryId })
+      const result = await api.trialRun({ dir, uuid: entryId })
       const passed = result.styleWarnings.length === 0
       setNotice({
         kind: passed ? 'info' : 'error',
@@ -759,18 +764,19 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     }
   }, [dir, entryId])
 
-  const removeTemplate = useCallback(async (): Promise<boolean> => {    const api = templateApi()
+  const removeTemplate = useCallback(async (): Promise<boolean> => {
+    const api = templateApi()
     if (!api || !dir || !entryId) return false
     setBusy(true)
     try {
-      const result = await api.remove({ dir, id: entryId })
+      await api.remove({ dir, uuid: entryId })
       const next = await api.snapshot()
       setSnapshot(next)
-      setNotice({ kind: 'info', text: `已删除「${entryId}」`, detail: result.backupPath })
+      setNotice({ kind: 'info', text: `已删除「${entryId}」` })
       const nextDirSnapshot = next.dirs.find((item) => item.dir === dir) ?? null
       const nextEntry = nextDirSnapshot?.structures[0] ?? null
       if (nextEntry) {
-        setEntryId(nextEntry.id)
+        setEntryId(nextEntry.uuid)
         await readEntry(api, dir, nextEntry)
       } else {
         setDoc(null)
@@ -789,24 +795,19 @@ export function useTemplateEditor(): UseTemplateEditorResult {
   }, [dir, entryId, readEntry])
 
   const renameTemplate = useCallback(
-    async (input: { newId: string; name: string }): Promise<boolean> => {
+    async (input: { cn: string; en?: string }): Promise<boolean> => {
       const api = templateApi()
       if (!api || !dir || !entryId) return false
       setBusy(true)
       try {
-        const idChanged = input.newId !== '' && input.newId !== entryId
         const result = await api.rename({
           dir,
-          id: entryId,
-          name: input.name,
-          ...(idChanged ? { newId: input.newId } : {})
+          uuid: entryId,
+          cn: input.cn,
+          ...(input.en !== undefined && input.en !== '' ? { en: input.en } : {})
         })
         applyRead(result)
-        setNotice({
-          kind: 'info',
-          text: idChanged ? `已改 id 与名称：${entryId} → ${result.id}` : '已改名',
-          detail: result.backupPath ?? undefined
-        })
+        setNotice({ kind: 'info', text: `已改名：${input.cn}` })
         void refreshSnapshot()
         return true
       } catch (err) {
@@ -820,7 +821,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
   )
 
   /**
-   * 删除眼前这份样式模板：主进程整份备份再删（含骨架），回来之后按目录快照打开剩下的第一份，
+   * 删除眼前这份样式模板：整份目录（含骨架）一起删，回来之后按目录快照打开剩下的第一份，
    * 一份都不剩就收起样式视图——视图不能停在一份已经没了的模板上。
    */
   const removeStyleEntry = useCallback(async (): Promise<boolean> => {
@@ -828,7 +829,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     if (!api || !dir || !styleId) return false
     setBusy(true)
     try {
-      const result = await api.removeStyle({ dir, id: styleId })
+      await api.removeStyle({ dir, uuid: styleId })
       const next = await api.snapshot()
       setSnapshot(next)
       const nextDirSnapshot = next.dirs.find((item) => item.dir === dir) ?? null
@@ -839,7 +840,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
         closeStyleView()
       }
       // 回执放在重新读之后：读那一趟会把状态栏清干净（readStyleEntry 里 setNotice(null)）
-      setNotice({ kind: 'info', text: `已删除「${styleId}」`, detail: result.backupPath })
+      setNotice({ kind: 'info', text: `已删除「${styleId}」` })
       return true
     } catch (err) {
       setNotice({ kind: 'error', text: '删除失败', detail: errorText(err) })
@@ -850,34 +851,29 @@ export function useTemplateEditor(): UseTemplateEditorResult {
   }, [closeStyleView, dir, readStyleEntry, styleId])
 
   /**
-   * 改样式模板的名字与 id：动的是**样式自己**（目录、stylemap 文件名与 JSON），
-   * 结构模板的引用留旧文件键不动，由导出侧重链接。回来之后按新 id 重新读一遍：
+   * 改样式模板的名字：只写样式自己那一个 JSON。
+   * 目录名与文件名都是 uuid，所以改名不碰文件、不碰任何引用。回来之后重读一遍：
    * 目录快照与"谁在共用它"都跟着变，界面不能停在改之前那份上。
    */
   const renameStyleEntry = useCallback(
-    async (input: { newId: string; name: string }): Promise<boolean> => {
+    async (input: { cn: string; en?: string }): Promise<boolean> => {
       const api = templateApi()
       if (!api || !dir || !styleId) return false
       setBusy(true)
       try {
-        const idChanged = input.newId !== '' && input.newId !== styleId
         const result = await api.renameStyle({
           dir,
-          id: styleId,
-          name: input.name,
-          ...(idChanged ? { newId: input.newId } : {})
+          uuid: styleId,
+          cn: input.cn,
+          ...(input.en !== undefined && input.en !== '' ? { en: input.en } : {})
         })
         const next = await api.snapshot()
         setSnapshot(next)
         const nextDirSnapshot = next.dirs.find((item) => item.dir === dir) ?? null
-        const nextStyle = nextDirSnapshot?.styles.find((item) => item.id === result.id) ?? null
+        const nextStyle = nextDirSnapshot?.styles.find((item) => item.uuid === result.uuid) ?? null
         if (nextStyle) await readStyleEntry(api, dir, nextStyle)
         // 回执放在重新读之后：读那一趟会把状态栏清干净（readStyleEntry 里 setNotice(null)）
-        setNotice({
-          kind: 'info',
-          text: idChanged ? `已改 id 与名称：${styleId} → ${result.id}` : '已改名',
-          detail: result.backupPath ?? undefined
-        })
+        setNotice({ kind: 'info', text: `已改名：${input.cn}` })
         return true
       } catch (err) {
         setNotice({ kind: 'error', text: '改名失败', detail: errorText(err) })
@@ -1102,7 +1098,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     trialRun,
     createTemplate,
     importStyle,
-    forkStyleFor,
+    migrateDir,
     removeTemplate,
     renameTemplate,
     removeStyleEntry,

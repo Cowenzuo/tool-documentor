@@ -1,9 +1,10 @@
 /**
  * 左栏：模板目录里的模板列表。
  * 结构模板可选可改（新建在这一段，改名与删除在右键菜单里）；样式模板可选可看对照表，
- * 改名与删除同样在右键菜单里——动的是样式自己（目录、stylemap 文件名与 JSON 里的字段），
- * 对照表在右栏改。
- * 目录级问题（清单缺失、目录不存在、目录没登记等）单独一行一条地提示。
+ * 改名与删除同样在右键菜单里——改名只写模板自己那一个 JSON，对照表在右栏改。
+ * 身份是 uuid，由程序生成、界面不显示：列表上写的是名字，主名后面跟副名。
+ * 目录级问题（目录不存在、子目录缺失、目录名不是 uuid 等）单独一行一条地提示；
+ * 旧格式目录那一条旁边给一个迁移动作。
  */
 import { useState, type JSX } from 'react'
 import type { TemplateDirSnapshotDto, TemplateEntryDto } from '../../../../shared/project'
@@ -15,44 +16,35 @@ import type { TemplateEditorStatus, TemplateOpenKind } from './useTemplateEditor
 interface TemplateListProps {
   status: TemplateEditorStatus
   dirSnapshot: TemplateDirSnapshotDto | null
-  /** 眼前开的是哪一类（结构 / 样式），与 openId 一起决定哪一行高亮 */
+  /** 眼前开的是哪一类（结构 / 样式），与 openUuid 一起决定哪一行高亮 */
   openKind: TemplateOpenKind | null
-  openId: string | null
+  openUuid: string | null
   busy: boolean
   dirty: boolean
   onOpen: (entry: TemplateEntryDto) => void
   onOpenStyle: (entry: TemplateEntryDto) => void
-  onCreate: (input: { id: string; name: string; styleTemplate?: string }) => Promise<boolean>
+  onCreate: (input: { cn: string; en?: string; defaultStyleUuid?: string }) => Promise<boolean>
   /** 导入自备样式：源是 .docx 或已解包的骨架目录 */
-  onImport: (input: { id: string; name: string; source: string }) => Promise<boolean>
+  onImport: (input: { cn: string; en?: string; source: string }) => Promise<boolean>
+  /** 迁移旧格式目录：分配 uuid、改目录与文件名、引用换 uuid、清单退场 */
+  onMigrate: () => Promise<boolean>
   /** 选一个 .docx / 一个目录（对话框在主进程） */
   onPickDocx: () => Promise<string | null>
   onPickDirectory: () => Promise<string | null>
-  onRename: (input: { newId: string; name: string }) => Promise<boolean>
+  onRename: (input: { cn: string; en?: string }) => Promise<boolean>
   onRemove: () => Promise<boolean>
-  /** 样式模板的改名与删除：与结构模板那两条同形状，落点换成样式自己 */
-  onRenameStyle: (input: { newId: string; name: string }) => Promise<boolean>
+  /** 样式模板的改名与删除：与结构模板那两条同形状 */
+  onRenameStyle: (input: { cn: string; en?: string }) => Promise<boolean>
   onRemoveStyle: () => Promise<boolean>
 }
 
 type Mode = 'none' | 'create' | 'rename' | 'remove' | 'import'
 
-/** id 同时是目录名，规则与主进程一致（单段目录名，不含路径分隔符与控制字符） */
-const INVALID_ID = /[\\/:*?"<>|\u0000-\u001f]/u
-
-function idProblem(id: string): string | null {
-  if (id === '') return null
-  if (id === '.' || id === '..') return 'id 不能是 . 或 ..'
-  if (INVALID_ID.test(id)) return 'id 里不能有 \\ / : * ? " < > |'
-  if (id.endsWith('.') || id.endsWith(' ')) return 'id 不能以点或空格结尾'
-  return null
-}
-
 /**
  * 校验结论徽标：红=错误、黄=提示，数字与顶部那两个同源。
  * 光一个数字没人看得懂，所以徽标上挂一句话说清它是什么、以及"这里能不能改"。
  */
-function badges(entry: TemplateEntryDto, what: 'structure' | 'style'): JSX.Element | null {
+function badges(entry: TemplateEntryDto): JSX.Element | null {
   if (entry.errors === 0 && entry.warnings === 0) return null
   const counts = [
     entry.errors > 0 ? `${entry.errors} 个错误` : '',
@@ -71,14 +63,7 @@ function badges(entry: TemplateEntryDto, what: 'structure' | 'style'): JSX.Eleme
   )
 }
 
-/**
- * 结构模板 `styleTemplate` 要写的是样式对照表的 fileKey（文件名去掉 .json），
- * 不是样式模板的 id：真实模板里两者并不一样（id 438c-srs / fileKey 438c-srs-stylemap）。
- */
-function styleFileKey(entry: TemplateEntryDto): string {
-  return entry.file.replace(/\.json$/i, '')
-}
-
+/** 新建结构模板：uuid 由主进程生成，这里只起名字，并可选一份默认样式 */
 function CreateForm({
   styles,
   busy,
@@ -88,55 +73,49 @@ function CreateForm({
   styles: TemplateEntryDto[]
   busy: boolean
   onCancel: () => void
-  onSubmit: (input: { id: string; name: string; styleTemplate?: string }) => void
+  onSubmit: (input: { cn: string; en?: string; defaultStyleUuid?: string }) => void
 }): JSX.Element {
-  const [id, setId] = useState('')
-  const [name, setName] = useState('')
-  const [style, setStyle] = useState('')
-  const problem = idProblem(id)
-  const idOk = id.trim() !== '' && problem === null
+  const [cn, setCn] = useState('')
+  const [en, setEn] = useState('')
+  const [styleUuid, setStyleUuid] = useState('')
   return (
     <div className="tpl-form">
       <label className="tpl-field">
-        <span className="tpl-field-label" title={jsonTip('id', '目录名与模板清单 id')}>
-          模板 id<span className="tpl-field-hint">目录名</span>
-        </span>
-        <input
-          className="tpl-input tpl-mono"
-          value={id}
-          placeholder="my-template"
-          autoFocus
-          onChange={(event) => setId(event.target.value)}
-        />
-      </label>
-      {problem && <p className="tpl-note tpl-note-bad">{problem}</p>}
-      <label className="tpl-field">
-        <span className="tpl-field-label" title={jsonTip('name')}>
+        <span className="tpl-field-label" title={jsonTip('cn', '中文名作主名')}>
           模板名称
         </span>
         <input
           className="tpl-input"
-          value={name}
+          value={cn}
           placeholder="给作者看的名字"
-          onChange={(event) => setName(event.target.value)}
+          autoFocus
+          onChange={(event) => setCn(event.target.value)}
         />
       </label>
       <label className="tpl-field">
-        <span
-          className="tpl-field-label"
-          title={jsonTip('styleTemplate', '对照表文件键（不带 .json）')}
-        >
-          配对的样式模板<span className="tpl-field-hint">可留空</span>
+        <span className="tpl-field-label" title={jsonTip('en', '英文名作副名，可留空')}>
+          英文名<span className="tpl-field-hint">可留空</span>
+        </span>
+        <input
+          className="tpl-input"
+          value={en}
+          placeholder="English name"
+          onChange={(event) => setEn(event.target.value)}
+        />
+      </label>
+      <label className="tpl-field">
+        <span className="tpl-field-label" title={jsonTip('defaultStyleUuid', '导出默认取这份')}>
+          默认样式<span className="tpl-field-hint">可留空</span>
         </span>
         <select
           className="tpl-select"
-          value={style}
-          onChange={(event) => setStyle(event.target.value)}
+          value={styleUuid}
+          onChange={(event) => setStyleUuid(event.target.value)}
         >
           <option value="">不指定</option>
           {styles.map((entry) => (
-            <option key={entry.id} value={styleFileKey(entry)}>
-              {entry.name || entry.id}（{styleFileKey(entry)}）
+            <option key={entry.uuid} value={entry.uuid}>
+              {entry.name}
             </option>
           ))}
         </select>
@@ -148,12 +127,12 @@ function CreateForm({
         <button
           type="button"
           className="tpl-mini tpl-primary"
-          disabled={busy || !idOk || name.trim() === ''}
+          disabled={busy || cn.trim() === ''}
           onClick={() =>
             onSubmit({
-              id: id.trim(),
-              name: name.trim(),
-              ...(style ? { styleTemplate: style } : {})
+              cn: cn.trim(),
+              ...(en.trim() === '' ? {} : { en: en.trim() }),
+              ...(styleUuid === '' ? {} : { defaultStyleUuid: styleUuid })
             })
           }
         >
@@ -166,7 +145,7 @@ function CreateForm({
 
 /**
  * 导入自备样式（PLAN-11 批次 3 步骤 4）：源可以是 `.docx`，也可以是**已经解包**的骨架目录。
- * 两条路走同一套检查（主进程那边），这里只负责选源、起 id 与名字。
+ * 两条路走同一套检查（主进程那边），这里只负责选源与起名字；uuid 由主进程生成。
  */
 function ImportForm({
   busy,
@@ -179,46 +158,40 @@ function ImportForm({
   onPickDocx: () => Promise<string | null>
   onPickDirectory: () => Promise<string | null>
   onCancel: () => void
-  onSubmit: (input: { id: string; name: string; source: string }) => void
+  onSubmit: (input: { cn: string; en?: string; source: string }) => void
 }): JSX.Element {
-  const [id, setId] = useState('')
-  const [name, setName] = useState('')
+  const [cn, setCn] = useState('')
+  const [en, setEn] = useState('')
   const [source, setSource] = useState('')
-  const problem = idProblem(id)
-  const idOk = id.trim() !== '' && problem === null
   /** 源是文件还是目录：只影响显示（是不是 .docx 由主进程按实际类型判） */
   const sourceIsDocx = /\.docx$/iu.test(source)
   return (
     <div className="tpl-form">
       <label className="tpl-field">
-        <span className="tpl-field-label" title={jsonTip('id', '目录名与模板清单 id')}>
-          模板 id<span className="tpl-field-hint">目录名</span>
-        </span>
-        <input
-          className="tpl-input tpl-mono"
-          value={id}
-          placeholder="my-style"
-          autoFocus
-          onChange={(event) => setId(event.target.value)}
-        />
-      </label>
-      {problem && <p className="tpl-note tpl-note-bad">{problem}</p>}
-      <label className="tpl-field">
-        <span className="tpl-field-label" title={jsonTip('name')}>
+        <span className="tpl-field-label" title={jsonTip('cn', '中文名作主名')}>
           模板名称
         </span>
         <input
           className="tpl-input"
-          value={name}
+          value={cn}
           placeholder="给作者看的名字"
-          onChange={(event) => setName(event.target.value)}
+          autoFocus
+          onChange={(event) => setCn(event.target.value)}
+        />
+      </label>
+      <label className="tpl-field">
+        <span className="tpl-field-label" title={jsonTip('en', '英文名作副名，可留空')}>
+          英文名<span className="tpl-field-hint">可留空</span>
+        </span>
+        <input
+          className="tpl-input"
+          value={en}
+          placeholder="English name"
+          onChange={(event) => setEn(event.target.value)}
         />
       </label>
       <div className="tpl-field">
-        <span
-          className="tpl-field-label"
-          title="不改样式文件 · 导入后生成映射草稿"
-        >
+        <span className="tpl-field-label" title="不改样式文件 · 导入后生成映射草稿">
           样式文件<span className="tpl-field-hint">Word 文档或已解包目录</span>
         </span>
         <div className="tpl-import-pick">
@@ -268,8 +241,14 @@ function ImportForm({
         <button
           type="button"
           className="tpl-mini tpl-primary"
-          disabled={busy || !idOk || name.trim() === '' || source === ''}
-          onClick={() => onSubmit({ id: id.trim(), name: name.trim(), source })}
+          disabled={busy || cn.trim() === '' || source === ''}
+          onClick={() =>
+            onSubmit({
+              cn: cn.trim(),
+              ...(en.trim() === '' ? {} : { en: en.trim() }),
+              source
+            })
+          }
         >
           导入
         </button>
@@ -278,13 +257,81 @@ function ImportForm({
   )
 }
 
+/**
+ * 改名表单（结构与样式共用）：只改中文名与英文名。
+ * uuid 是身份、目录与文件名都按它来，所以改名不碰文件、不碰引用、不碰别的模板。
+ */
+function RenameForm({
+  kind,
+  busy,
+  cn,
+  en,
+  onCn,
+  onEn,
+  onCancel,
+  onSubmit
+}: {
+  kind: 'structure' | 'style'
+  busy: boolean
+  cn: string
+  en: string
+  onCn: (value: string) => void
+  onEn: (value: string) => void
+  onCancel: () => void
+  onSubmit: () => void
+}): JSX.Element {
+  return (
+    <div className="tpl-form">
+      <label className="tpl-field">
+        <span className="tpl-field-label" title={jsonTip('cn', '中文名作主名')}>
+          模板名称
+        </span>
+        <input
+          className="tpl-input"
+          value={cn}
+          autoFocus
+          onChange={(event) => onCn(event.target.value)}
+        />
+      </label>
+      <label className="tpl-field">
+        <span className="tpl-field-label" title={jsonTip('en', '英文名作副名，可留空')}>
+          英文名<span className="tpl-field-hint">可留空</span>
+        </span>
+        <input
+          className="tpl-input"
+          value={en}
+          onChange={(event) => onEn(event.target.value)}
+        />
+      </label>
+      <p className="tpl-note">
+        {kind === 'structure'
+          ? '改名只写这一个 JSON · 目录与文件名不动'
+          : '改名只写这一个 JSON · 引用它默认为样式的结构模板不受影响'}
+      </p>
+      <div className="tpl-form-foot">
+        <button type="button" className="tpl-mini" onClick={onCancel} disabled={busy}>
+          取消
+        </button>
+        <button
+          type="button"
+          className="tpl-mini tpl-primary"
+          disabled={busy || cn.trim() === ''}
+          onClick={onSubmit}
+        >
+          确定
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function TemplateList(props: TemplateListProps): JSX.Element {
-  const { status, dirSnapshot, openKind, openId, busy, dirty } = props
+  const { status, dirSnapshot, openKind, openUuid, busy, dirty, onMigrate } = props
   const [mode, setMode] = useState<Mode>('none')
   /** 挂着的那张改名/删除表单是给哪一类条目开的：mode 留着，切回来还是它，换了一类就不拿出来 */
   const [formKind, setFormKind] = useState<'structure' | 'style'>('structure')
-  const [renameValue, setRenameValue] = useState('')
-  const [renameId, setRenameId] = useState('')
+  const [renameCn, setRenameCn] = useState('')
+  const [renameEn, setRenameEn] = useState('')
   /** 模板那一行的右键菜单（改名 / 删除）：菜单开在右键的那一份上，两类条目共用这一个控件 */
   const menu = useContextMenu<{ entry: TemplateEntryDto }>()
 
@@ -297,41 +344,16 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
     setMode(next)
   }
 
-  // 两类条目可能有同名 id（示例模板里结构与样式都叫 demo）：只认眼前开着的那一类
   const selected =
-    openKind === 'structure' ? (structures.find((entry) => entry.id === openId) ?? null) : null
+    openKind === 'structure' ? (structures.find((entry) => entry.uuid === openUuid) ?? null) : null
   const openStyle =
-    openKind === 'style' ? (styles.find((entry) => entry.id === openId) ?? null) : null
+    openKind === 'style' ? (styles.find((entry) => entry.uuid === openUuid) ?? null) : null
   /** 改名与删除都落在"当前打开的那一份"上（服务端就是按它读写的） */
   const isOpenEntry =
-    openKind === 'structure' && menu.payload !== null && menu.payload.entry.id === openId
+    openKind === 'structure' && menu.payload !== null && menu.payload.entry.uuid === openUuid
   const isOpenStyleEntry =
-    openKind === 'style' && menu.payload !== null && menu.payload.entry.id === openId
+    openKind === 'style' && menu.payload !== null && menu.payload.entry.uuid === openUuid
 
-  /** 结构那一份的改名表单：id 与原来不同（且合法、不撞已有 id）才动目录与文件名 */
-  const renameIdValue = renameId.trim()
-  const idChanged = selected !== null && renameIdValue !== selected.id
-  const renameIdProblem = ((): string | null => {
-    if (selected === null || !idChanged) return null
-    const basic = idProblem(renameIdValue)
-    if (basic !== null) return basic
-    if (structures.some((entry) => entry.id === renameIdValue)) {
-      return `这个目录里已经有 id 为「${renameIdValue}」的结构模板`
-    }
-    return null
-  })()
-
-  /** 样式那一份用同一套判定：id 变了，目录名与 stylemap 文件名一起改 */
-  const styleIdChanged = openStyle !== null && renameIdValue !== openStyle.id
-  const styleRenameIdProblem = ((): string | null => {
-    if (openStyle === null || !styleIdChanged) return null
-    const basic = idProblem(renameIdValue)
-    if (basic !== null) return basic
-    if (styles.some((entry) => entry.id === renameIdValue)) {
-      return `这个目录里已经有 id 为「${renameIdValue}」的样式模板`
-    }
-    return null
-  })()
   /** 删除样式时顺口提示一句谁在用它（目录快照里的 usedBy），但不拦删除 */
   const styleUsedBy = openStyle?.usedBy ?? []
 
@@ -347,8 +369,8 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
           : undefined,
       disabled: busy || dirty || !isOpenEntry,
       run: () => {
-        setRenameValue(selected?.name || selected?.id || '')
-        setRenameId(selected?.id || '')
+        setRenameCn(selected?.name ?? '')
+        setRenameEn('')
         openForm('structure', 'rename')
       }
     },
@@ -376,8 +398,8 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
           : undefined,
       disabled: busy || dirty || !isOpenStyleEntry,
       run: () => {
-        setRenameValue(openStyle?.name || openStyle?.id || '')
-        setRenameId(openStyle?.id || '')
+        setRenameCn(openStyle?.name ?? '')
+        setRenameEn('')
         openForm('style', 'rename')
       }
     },
@@ -419,6 +441,18 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
                 {dirSnapshot.issues.map((issue, index) => (
                   <IssueLine key={`${issue.rule}-${index}`} issue={issue} />
                 ))}
+                {/* 目录名不是 uuid 的那些：这一条旁边就是迁移动作，旧格式不并存 */}
+                {dirSnapshot.issues.some((issue) => issue.rule === 'dir.legacy') && (
+                  <button
+                    type="button"
+                    className="tpl-mini tpl-inline-action"
+                    title="旧格式目录：分配 uuid、改目录与文件名、引用换 uuid、清单退场"
+                    disabled={busy || dirty}
+                    onClick={() => void onMigrate()}
+                  >
+                    迁移旧格式
+                  </button>
+                )}
               </div>
             )}
 
@@ -455,15 +489,14 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
             ) : (
               <ul className="tpl-items">
                 {structures.map((entry) => (
-                  <li key={entry.id}>
+                  <li key={entry.uuid}>
                     <button
                       type="button"
                       className={`tpl-item${
-                        openKind === 'structure' && entry.id === openId ? ' is-selected' : ''
+                        openKind === 'structure' && entry.uuid === openUuid ? ' is-selected' : ''
                       }`}
-                      data-entry={entry.id}
+                      data-entry={entry.uuid}
                       data-kind="structure"
-                      title={entry.file}
                       onClick={() => props.onOpen(entry)}
                       onContextMenu={(event) => {
                         event.preventDefault()
@@ -484,10 +517,16 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
                         )
                       }}
                     >
-                      <span className="tpl-item-name">{entry.name || entry.id}</span>
-                      {/* 问题徽标紧跟名字（它是"这份模板有事"的提示），id 是给对照用的，挪到最后 */}
-                      {badges(entry, 'structure')}
-                      <span className="tpl-item-id">{entry.id}</span>
+                      <span className="tpl-item-name">
+                        {entry.name}
+                        {entry.en === '' ? null : (
+                          <span className="tpl-item-en" title="英文名">
+                            {entry.en}
+                          </span>
+                        )}
+                      </span>
+                      {/* 问题徽标紧跟名字（它是"这份模板有事"的提示） */}
+                      {badges(entry)}
                     </button>
                   </li>
                 ))}
@@ -497,59 +536,30 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
             {/* 改名 / 删除表单只跟"开着的那一份"走：切到别处先收起来（mode 留着，切回来还是它）。
                 两类条目各有一张同名的表单，值不一样，所以还要 formKind 对上才拿出来 */}
             {mode === 'rename' && formKind === 'structure' && openKind === 'structure' && selected && (
-              <div className="tpl-form">
-                <label className="tpl-field">
-                  <span className="tpl-field-label" title={jsonTip('id', '目录名与文件名前缀')}>
-                    模板 id<span className="tpl-field-hint">目录名</span>
-                  </span>
-                  <input
-                    className="tpl-input tpl-mono"
-                    value={renameId}
-                    autoFocus
-                    onChange={(event) => setRenameId(event.target.value)}
-                  />
-                </label>
-                {renameIdProblem && <p className="tpl-note tpl-note-bad">{renameIdProblem}</p>}
-                <label className="tpl-field">
-                  <span className="tpl-field-label" title={jsonTip('name', '工程锚点按它匹配模板')}>
-                    模板名称
-                  </span>
-                  <input
-                    className="tpl-input"
-                    value={renameValue}
-                    onChange={(event) => setRenameValue(event.target.value)}
-                  />
-                </label>
-                <p className="tpl-note">
-                  {idChanged
-                    ? `改 id · 目录与文件名一并改为 ${renameIdValue}。改前先备份`
-                    : '只改名称 · 目录与文件名不变'}
-                </p>
-                <div className="tpl-form-foot">
-                  <button type="button" className="tpl-mini" onClick={() => setMode('none')}>
-                    取消
-                  </button>
-                  <button
-                    type="button"
-                    className="tpl-mini tpl-primary"
-                    disabled={busy || renameValue.trim() === '' || renameId.trim() === '' || renameIdProblem !== null}
-                    onClick={() => {
-                      void props
-                        .onRename({ newId: renameId.trim(), name: renameValue.trim() })
-                        .then((ok) => {
-                          if (ok) setMode('none')
-                        })
-                    }}
-                  >
-                    确定
-                  </button>
-                </div>
-              </div>
+              <RenameForm
+                kind="structure"
+                busy={busy}
+                cn={renameCn}
+                en={renameEn}
+                onCn={setRenameCn}
+                onEn={setRenameEn}
+                onCancel={() => setMode('none')}
+                onSubmit={() => {
+                  void props
+                    .onRename({
+                      cn: renameCn.trim(),
+                      ...(renameEn.trim() === '' ? {} : { en: renameEn.trim() })
+                    })
+                    .then((ok) => {
+                      if (ok) setMode('none')
+                    })
+                }}
+              />
             )}
 
             {mode === 'remove' && formKind === 'structure' && openKind === 'structure' && selected && (
               <div className="tpl-form">
-                <p className="tpl-note">删除「{selected.name || selected.id}」？删除前先备份</p>
+                <p className="tpl-note">删除「{selected.name}」？整份目录一起删</p>
                 <div className="tpl-form-foot">
                   <button type="button" className="tpl-mini" onClick={() => setMode('none')}>
                     取消
@@ -571,12 +581,8 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
             )}
 
             {/* 样式模板这一段：点开看的是**对照表**（逻辑键 → 骨架样式），不是样式文件本身。
-                骨架里的字节程序一个字节都不改；改名与删除动的是样式自己（目录、stylemap 文件名与
-                JSON 里的字段），在下面那一行的右键菜单里。 */}
-            <div
-              className="tpl-section-head"
-              title="样式文件由作者提供 · 此处只改对照表"
-            >
+                骨架里的字节程序一个字节都不改；改名与删除动的是样式自己，在下面那一行的右键菜单里。 */}
+            <div className="tpl-section-head" title="样式文件由作者提供 · 此处只改对照表">
               <h3>样式模板</h3>
               <span className="tpl-count">点开看对照表</span>
               {/* 导入：把自备的样式文件铺进模板目录，并按样式名生成映射草稿 */}
@@ -610,13 +616,13 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
             ) : (
               <ul className="tpl-items">
                 {styles.map((entry) => (
-                  <li key={entry.id}>
+                  <li key={entry.uuid}>
                     <button
                       type="button"
                       className={`tpl-item${
-                        openKind === 'style' && entry.id === openId ? ' is-selected' : ''
+                        openKind === 'style' && entry.uuid === openUuid ? ' is-selected' : ''
                       }`}
-                      data-entry={entry.id}
+                      data-entry={entry.uuid}
                       data-kind="style"
                       onClick={() => props.onOpenStyle(entry)}
                       onContextMenu={(event) => {
@@ -639,89 +645,43 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
                         )
                       }}
                     >
-                      <span className="tpl-item-name">{entry.name || entry.id}</span>
-                      {/* 与结构模板同一顺序：问题徽标跟名字，引用键放最后 */}
-                      {badges(entry, 'style')}
-                      {/* 右边只留结构模板要引用的那个值：文件键就是 <id>-stylemap，
-                          再印一遍 id 等于把同一件事写两遍；文件名进悬停 */}
-                      <span className="tpl-item-id" title={entry.file}>
-                        {styleFileKey(entry)}
-                      </span>
+                      <span className="tpl-item-name">{entry.name}</span>
+                      {badges(entry)}
                     </button>
                   </li>
                 ))}
               </ul>
             )}
 
-            {/* 样式那一份的改名表单：与结构同一套摆法，落点是样式自己——id 变了目录名与
-                stylemap 文件名一起改，结构模板的引用不动（导出侧重链接） */}
+            {/* 样式那一份的改名表单：与结构同一套摆法，落点是样式自己那一个 JSON */}
             {mode === 'rename' && formKind === 'style' && openKind === 'style' && openStyle && (
-              <div className="tpl-form">
-                <label className="tpl-field">
-                  <span
-                    className="tpl-field-label"
-                    title={jsonTip('id', '目录名与 stylemap 文件名前缀')}
-                  >
-                    模板 id<span className="tpl-field-hint">目录名</span>
-                  </span>
-                  <input
-                    className="tpl-input tpl-mono"
-                    value={renameId}
-                    autoFocus
-                    onChange={(event) => setRenameId(event.target.value)}
-                  />
-                </label>
-                {styleRenameIdProblem && (
-                  <p className="tpl-note tpl-note-bad">{styleRenameIdProblem}</p>
-                )}
-                <label className="tpl-field">
-                  <span className="tpl-field-label" title={jsonTip('name', 'stylemap 里的显示名')}>
-                    模板名称
-                  </span>
-                  <input
-                    className="tpl-input"
-                    value={renameValue}
-                    onChange={(event) => setRenameValue(event.target.value)}
-                  />
-                </label>
-                <p className="tpl-note">
-                  {styleIdChanged
-                    ? `改 id · 目录与文件名一并改为 ${renameIdValue}。改前先备份`
-                    : '只改名称 · 目录与文件名不变'}
-                </p>
-                <div className="tpl-form-foot">
-                  <button type="button" className="tpl-mini" onClick={() => setMode('none')}>
-                    取消
-                  </button>
-                  <button
-                    type="button"
-                    className="tpl-mini tpl-primary"
-                    disabled={
-                      busy ||
-                      renameValue.trim() === '' ||
-                      renameId.trim() === '' ||
-                      styleRenameIdProblem !== null
-                    }
-                    onClick={() => {
-                      void props
-                        .onRenameStyle({ newId: renameId.trim(), name: renameValue.trim() })
-                        .then((ok) => {
-                          if (ok) setMode('none')
-                        })
-                    }}
-                  >
-                    确定
-                  </button>
-                </div>
-              </div>
+              <RenameForm
+                kind="style"
+                busy={busy}
+                cn={renameCn}
+                en={renameEn}
+                onCn={setRenameCn}
+                onEn={setRenameEn}
+                onCancel={() => setMode('none')}
+                onSubmit={() => {
+                  void props
+                    .onRenameStyle({
+                      cn: renameCn.trim(),
+                      ...(renameEn.trim() === '' ? {} : { en: renameEn.trim() })
+                    })
+                    .then((ok) => {
+                      if (ok) setMode('none')
+                    })
+                }}
+              />
             )}
 
-            {/* 删除样式：被谁引用只说一句，不拦——那几份结构模板的样式引用由导出侧重链接 */}
+            {/* 删除样式：被谁用只说一句，不拦——找不到样式就是悬挂，由用户重选 */}
             {mode === 'remove' && formKind === 'style' && openKind === 'style' && openStyle && (
               <div className="tpl-form">
-                <p className="tpl-note">删除「{openStyle.name || openStyle.id}」？删除前先备份</p>
+                <p className="tpl-note">删除「{openStyle.name}」？整份目录含骨架一起删</p>
                 {styleUsedBy.length > 0 && (
-                  <p className="tpl-note">这些结构模板在用这份样式：{styleUsedBy.join('、')}</p>
+                  <p className="tpl-note">这些结构模板把它当默认样式：{styleUsedBy.join('、')}</p>
                 )}
                 <div className="tpl-form-foot">
                   <button type="button" className="tpl-mini" onClick={() => setMode('none')}>
@@ -753,8 +713,7 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
           control={menu}
           className="tpl-list-menu"
           label="模板操作"
-          head={menu.payload.entry.name || menu.payload.entry.id}
-          headTitle={menu.payload.entry.file}
+          head={menu.payload.entry.name}
           items={menuItems}
         />
       )}

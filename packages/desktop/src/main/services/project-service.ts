@@ -30,6 +30,7 @@ import {
 import type { DocumentTree, DocumentNode } from '@documentor/core/tree'
 import { createBlock, type BlockTypeName, type ContentBlock } from '@documentor/core/blocks'
 import { exportTreeToDocxWithFigures, collectMermaidFigures, resolveMmdFacade, skeletonTextWidthTwips } from '@documentor/docx'
+import { displayNameOf } from '@documentor/templates'
 import type { TemplateManager } from '@documentor/templates'
 import type {
   BlockAddInput,
@@ -124,9 +125,9 @@ export class ProjectService {
     if (existsSync(projectDir)) {
       throw new ProjectServiceError('已存在同名工程')
     }
-    const template = this.managerValue.findStructureByName(input.templateName)
+    const template = this.managerValue.findStructureByUuid(input.templateUuid)
     if (!template) {
-      throw new ProjectServiceError(`未找到结构模板：${input.templateName}`)
+      throw new ProjectServiceError('未找到结构模板')
     }
 
     mkdirSync(projectDir, { recursive: true })
@@ -134,7 +135,7 @@ export class ProjectService {
     if (!tree) throw new ProjectServiceError('模板实例化失败')
 
     const dbPath = join(projectDir, 'documentor.db')
-    this.store.create(dbPath, input.name, input.templateName)
+    this.store.create(dbPath, input.name, input.templateUuid)
     try {
       this.store.save(tree)
     } catch (err) {
@@ -146,7 +147,7 @@ export class ProjectService {
     const anchor: ProjectAnchor = {
       version: 1,
       name: input.name,
-      template: input.templateName,
+      template_uuid: input.templateUuid,
       db_file: 'documentor.db',
       created_at: now,
       updated_at: now
@@ -225,9 +226,13 @@ export class ProjectService {
   }
 
   projectInfo(): ProjectInfoDto {
+    const templateUuid = this.store.templateUuid()
+    const template = templateUuid === '' ? undefined : this.managerValue.findStructureByUuid(templateUuid)
     return {
       name: this.store.projectName(),
-      templateName: this.store.templateName(),
+      templateUuid,
+      // 模板没了就是悬挂：名字留空，导出那一头会拦下来
+      templateName: template ? displayNameOf(template) : '',
       projectDir: this.projectDirValue,
       dprojPath: join(this.projectDirValue, ANCHOR_FILE_NAME)
     }
@@ -294,16 +299,14 @@ export class ProjectService {
 
   /**
    * 当前工程的正文栏宽（twips），供预览按导出栏宽排版。
-   * 取"结构模板可用样式里的第一套"——与导出对话框的默认选择一致；
+   * 取结构与导出同一份样式：结构里写的那个默认样式；没配或找不到就没有栏宽。
    * 解析交给 docx 包的骨架解析函数，界面侧不另算一份。
    */
   pageTextWidthTwips(): number | null {
     if (!this.isOpen) return null
-    const def = this.managerValue.findStructureByName(this.store.templateName())
-    const candidates = def ? this.managerValue.styleCandidatesForStructure(def) : []
-    const pick = candidates.find((c) => c.available) ?? candidates[0]
-    if (!pick) return null
-    const styleDef = this.managerValue.findStyleTemplate(pick.fileKey)
+    const def = this.managerValue.findStructureByUuid(this.store.templateUuid())
+    if (!def) return null
+    const styleDef = this.managerValue.styleForStructure(def).style
     if (!styleDef) return null
     return skeletonTextWidthTwips(styleDef.skeletonPath)
   }
@@ -608,25 +611,12 @@ export class ProjectService {
 
   // ================= 导出 =================
 
-  /** 先保存再导出 DOCX（样式模板按 fileKey 查找；软校验候选可用性） */
+  /** 先保存再导出 DOCX（样式按 uuid 查找；找不到这份样式就拒导出） */
   async exportDocx(input: ExportDocxInput): Promise<ExportDocxResult> {
     const tree = this.requireTree()
-    const def = this.managerValue.findStructureByName(this.store.templateName())
-    const candidates = def ? this.managerValue.styleCandidatesForStructure(def) : []
-    const target = candidates.find((c) => c.fileKey === input.styleFileKey)
-    if (!target) {
-      throw new ProjectServiceError(
-        `样式模板「${input.styleFileKey}」不属于当前结构模板的可用集合`
-      )
-    }
-    if (!target.available) {
-      throw new ProjectServiceError(
-        `样式模板「${target.name}」不可用于当前结构模板，缺少样式键：${target.missingKeys.join('、')}`
-      )
-    }
-    const styleDef = this.managerValue.findStyleTemplate(input.styleFileKey)
+    const styleDef = this.managerValue.findStyleByUuid(input.styleUuid)
     if (!styleDef) {
-      throw new ProjectServiceError(`未找到样式模板：${input.styleFileKey}`)
+      throw new ProjectServiceError('找不到这份样式模板，可能已经被删除')
     }
     // 导出前先落库，保证导出内容与当前编辑一致；落库即封口，与保存同一口径
     this.store.save(tree)

@@ -1,24 +1,17 @@
 /**
- * 即时校验（渲染层）：结构模板的节点树与内容块规则，判定条件与文案逐条对齐
+ * 即时校验（渲染层）：身份字段、结构模板的节点树与内容块规则，判定条件与文案逐条对齐
  * `packages/templates/src/validate.ts` 的 `validateStructureTemplate`，
  * 让人改动后立刻看到结论，而不是等到保存被主进程打回。
  *
  * 为什么是镜像而不是直接 import 那个包：它在模块顶层 import 了 `node:fs`
  * （读骨架用），出口 index 还会带出 `manager.ts` → `@documentor/core`（库里带原生模块）。
  * 渲染层打进浏览器包时，node 内置模块会被替换成只有 default 的 shim，具名导入当场报错。
- * 所以这里只镜像**单份模板能判的规则**（文件级字段、节点开关、内容块字段、表格形状、
- * 锁取值、复制组），目录与 manifest 级别的规则仍只由主进程报。
+ * 所以这里只镜像**单份模板能判的规则**（身份、节点开关、内容块字段、表格形状、
+ * 锁取值、复制组）。
  *
  * 保存仍以主进程的校验为准：这里只决定按钮亮不亮、以及问题列表长什么样。
  */
 import type { TemplateIssueDto } from '../../../../shared/project'
-
-export interface StructureValidateOptions {
-  /** 模板 id（目录名）；缺省取结构 JSON 的 name */
-  id?: string
-  /** manifest 里登记的文件名；给了才拼得出 structures/<id>/<file> 这种文件级措辞 */
-  file?: string
-}
 
 /** 认识的内容块类型（与 @documentor/core 的 BLOCK_TYPE_NAMES 同值同序） */
 const KNOWN_BLOCK_TYPES = [
@@ -54,27 +47,33 @@ function whereOf(trail: string): string {
   return trail || '(root)'
 }
 
+/** 身份只认 uuid（与 `@documentor/templates` 的 isTemplateUuid 同一条正则） */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu
+
 /**
- * 校验一份结构模板 JSON 原文（`{ name, root }`）。
+ * 校验一份结构模板 JSON 原文（`{ uuid, cn, en, root }`）。
  * `path` 与主进程同一套写法：`root.children[2].contentBlocks[0].lock`。
  */
-export function validateStructureDoc(
-  def: unknown,
-  opts: StructureValidateOptions = {}
-): TemplateIssueDto[] {
+export function validateStructureDoc(def: unknown): TemplateIssueDto[] {
   const out: TemplateIssueDto[] = []
   const doc = asObject(def) ?? {}
-  const id = opts.id !== undefined && opts.id !== '' ? opts.id : text(doc['name'] ?? '') || '(未命名)'
-  const fileLabel = opts.file
-    ? `structures/${id}/${opts.file}`
-    : `structures/${id}`
 
-  if (!doc['name']) {
+  const uuid = doc['uuid']
+  if (typeof uuid !== 'string' || !UUID_RE.test(uuid)) {
     out.push({
       level: 'error',
-      rule: 'structure.name.missing',
-      path: 'name',
-      message: `顶层name缺失`
+      rule: 'structure.uuid.invalid',
+      path: 'uuid',
+      message: `顶层uuid缺失或非法`
+    })
+  }
+  const cn = doc['cn']
+  if (typeof cn !== 'string' || cn.trim() === '') {
+    out.push({
+      level: 'error',
+      rule: 'structure.cn.missing',
+      path: 'cn',
+      message: `顶层cn缺失`
     })
   }
   const root = asObject(doc['root'])
@@ -87,16 +86,8 @@ export function validateStructureDoc(
     })
     return out
   }
-  if (!doc['styleTemplate'] && !Array.isArray(doc['styleTemplates'])) {
-    out.push({
-      level: 'warn',
-      rule: 'structure.styleTemplate.absent',
-      path: 'styleTemplate',
-      message: `对照表未声明`
-    })
-  }
 
-  checkStructureNode(root, '', 'root', id, out)
+  checkStructureNode(root, '', 'root', out)
   checkCopyGroups(root, 'root', out)
   return out
 }
@@ -106,7 +97,6 @@ function checkStructureNode(
   node: Record<string, unknown>,
   trail: string,
   path: string,
-  id: string,
   out: TemplateIssueDto[]
 ): void {
   const where = whereOf(trail)
@@ -292,7 +282,7 @@ function checkStructureNode(
     const child = asObject(children[i])
     if (!child) continue
     const childTrail = `${trail}/${text(node['title'] ?? '?')}`
-    checkStructureNode(child, childTrail, `${path}.children[${i}]`, id, out)
+    checkStructureNode(child, childTrail, `${path}.children[${i}]`, out)
   }
 }
 

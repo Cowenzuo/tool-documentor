@@ -127,9 +127,6 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
                     if (!r.exists) {
                       status = '目录不存在'
                       bad = true
-                    } else if (!r.hasManifest) {
-                      status = '这一层没有模板清单，已跳过'
-                      bad = true
                     } else if (r.loadFailed) {
                       status = '未加载到模板'
                       bad = true
