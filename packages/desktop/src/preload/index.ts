@@ -1,5 +1,5 @@
 /**
- * preload — contextBridge 类型化桥，把主进程 IPC 暴露成 window.desktopApi。
+ * preload — contextBridge 类型化桥，把主进程 IPC 暴露成 window.documentor。
  * 沙箱开启时这里只能 require electron，不做其它导入。
  */
 

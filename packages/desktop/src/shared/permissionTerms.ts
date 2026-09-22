@@ -1,7 +1,7 @@
 /**
  * 权限口径：同一个权限，模板作者侧与工程编辑侧、界面标签与拒绝语里必须是同一个词。
  *
- * 口径来源是 PLAN-13 第 1 节：节点级四个开关（复制／裁剪／编辑／排版），
+ * 口径来源是 DESIGN-06：节点级四个开关（复制／裁剪／编辑／排版），
  * 内容块级三档（自由编辑／类型限制编辑／只读），另加作废的旧档位 `type`。
  * 词表只写在这一处：模板编辑器（作者侧）与工程编辑器（用户侧）都从这里取，
  * 谁也别再自己写一份，否则两边又会各说各话。
@@ -20,7 +20,7 @@ export interface PermissionTerm {
   tip: string
 }
 
-/** 节点级：模板作者给用户的四个开关，按 PLAN-13 第 1.1 节的顺序 */
+/** 节点级：模板作者给用户的四个开关，按 DESIGN-06的顺序 */
 export const NODE_PERMISSION = {
   copyable: { name: '复制', tip: '模板允许复制这一章及其子章节' },
   deletable: { name: '裁剪', tip: '模板允许裁掉这一章' },
@@ -59,7 +59,7 @@ export interface NodePermissionInput {
 }
 
 /**
- * 编辑 × 排版 取交之后，这一章的块能做什么（PLAN-13 第 1.3 节那张表）。
+ * 编辑 × 排版 取交之后，这一章的块能做什么（DESIGN-06那张表）。
  *
  * 三条轴的分工：
  *   - 编辑关 → 内容块一律不动；
@@ -111,9 +111,14 @@ export function reshapeRefusal(lock: string | undefined, perms: BlockPermissions
   return '模板规定的类型不能改，内容可以照常编辑'
 }
 
-/** 块被拒时的说法：先讲模板的规定，再讲这件事做不了 */
-export function lockRefusal(lock: string | undefined, what: 'remove' | 'move' | 'edit'): string {
+/**
+ * 块被拒时的说法：先讲模板的规定，再讲这件事做不了。
+ *
+ * 只有两件事会被块档位挡住：改内容（只读档）与删块（`keep`／`readonly`）。
+ * 位置没有这一档：移块只由节点的「排版」决定，拒绝语是 `whyMove`。
+ */
+export function lockRefusal(lock: string | undefined, what: 'remove' | 'edit'): string {
   if (what === 'edit') return '模板规定该内容为只读，内容不能改'
   const head = lock === 'readonly' ? '模板规定该内容为只读' : '模板规定该内容必须存在'
-  return what === 'remove' ? `${head}，不能删除` : `${head}，不能移动`
+  return `${head}，不能删除`
 }

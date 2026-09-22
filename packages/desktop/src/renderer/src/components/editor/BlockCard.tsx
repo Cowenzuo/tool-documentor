@@ -72,11 +72,11 @@ export function BlockCard(props: BlockCardProps): React.JSX.Element {
   const change = (next: ContentBlock): void => onChange(index, next)
   const lock = block.lock
   /**
-   * 档位与两个总闸取交之后这一块能做什么（PLAN-13 第 1.3 节）：
+   * 档位与两个总闸取交之后这一块能做什么（DESIGN-06）：
    *   - 改内容：编辑开着且不是只读；
    *   - 挪动：排版开着就成，块档位不管顺序；
    *   - 删除与换形状：排版开着，且块上没有锁，类型限制编辑与只读都不行。
-   * 换类型的入口在卡片头的类型名字上，置灰理由与写入侧的拒绝语同一句（见 PLAN-20）。
+   * 换类型的入口在卡片头的类型名字上，置灰理由与写入侧的拒绝语同一句（见 DESIGN-06）。
    */
   const moveUp = canMoveUp && perms.move
   const moveDown = canMoveDown && perms.move

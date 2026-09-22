@@ -6,7 +6,7 @@
  * - 根节点特殊写（parent NULL / heading 0 / node_type 'root'）；
  * - 时间戳为本地 ISO（yyyy-MM-ddTHH:mm:ss，无时区）。
  *
- * 新口径加过两列：`project.template_uuid`（PLAN-12／14）与 `node.allow_layout_edit`（PLAN-16）。
+ * 新口径加过两列：`project.template_uuid`（DESIGN-04）与 `node.allow_layout_edit`（DESIGN-06）。
  * 老库没有它们：**读的时候按缺省值读**（模板引用回落到名字、排版当开着），
  * **保存的时候补列**，所以老工程不用事先改库也能打开与保存。
  */
@@ -21,7 +21,7 @@ import type { ContentBlock } from './blocks'
 
 export interface ProjectMeta {
   name: string
-  /** 结构模板的 uuid（PLAN-12：引用只认 uuid，名字不参与匹配） */
+  /** 结构模板的 uuid（DESIGN-04：引用只认 uuid，名字不参与匹配） */
   templateUuid: string
 }
 
@@ -42,7 +42,7 @@ export class ProjectStore {
   private mDbPath = ''
   private mName = ''
   private mTemplateUuid = ''
-  /** 老库记的模板名（PLAN-12 之前的 `project.template_name`），只在没有 uuid 时当线索用 */
+  /** 老库记的模板名（改用 uuid 之前的 `project.template_name`），只在没有 uuid 时当线索用 */
   private mLegacyTemplateName = ''
   private loadWarningsValue: string[] = []
 
@@ -69,7 +69,7 @@ export class ProjectStore {
   }
 
   /**
-   * 打开库。老库（PLAN-12 之前）的 project 表只有 `template_name`，没有 `template_uuid`：
+   * 打开库。老库（改用 uuid 之前）的 project 表只有 `template_name`，没有 `template_uuid`：
    * 按实际存在的列读，缺的那一列读成空串，交给上层按名字认一次 uuid。
    * 直接 SELECT template_uuid 会让老工程整个打不开（no such column），所以列在这里必须问一遍。
    */

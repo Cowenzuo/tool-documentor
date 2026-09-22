@@ -117,7 +117,7 @@ export default function NodePage(): React.JSX.Element {
    *
    * 只比 store 的签名不够。用户刚打的字先落在本地（防抖缓冲里），store 还没动；这时若 store
    * 的签名回到上一次对账时那个值（撤销正是如此），按签名判就会跳过同步，那次打字留在界面上，
-   * 树其实已经退回去了 —— 用户看到"撤销没生效"，切一下章节才恢复（见 PLAN-21）。
+   * 树其实已经退回去了 —— 用户看到"撤销没生效"，切一下章节才恢复（见 DESIGN-08）。
    */
   const blocksRef = useRef<ContentBlock[]>(blocks)
   blocksRef.current = blocks
@@ -232,7 +232,7 @@ export default function NodePage(): React.JSX.Element {
    *
    * 返回值必须等：保存、切换节点、撤销与重做都会先调它。只"喊一声"就走的话，
    * 撤销会赶在这次编辑之前执行 —— 撤掉的是上一步，而这次编辑随后自己落地，
-   * 用户看到的是"按了 Ctrl+Z，字还在"（见 PLAN-21）。
+   * 用户看到的是"按了 Ctrl+Z，字还在"（见 DESIGN-08）。
    */
   const flushPending = useCallback(async () => {
     const nodeId = nodeIdRef.current
@@ -314,7 +314,7 @@ export default function NodePage(): React.JSX.Element {
    *
    * 先 `flushPending`：这一块可能还有 600ms 防抖里的挂起编辑，那一份是**旧类型**的块，
    * 不先写完就换，定时器到点会把类型改动静默改回去（加块、删块、移动三处同理）。
-   * 两次写入共用同一个合并键，撤销时算一步（PLAN-20 第 4 件）。
+   * 两次写入共用同一个合并键，撤销时算一步（DESIGN-06 第 4 件）。
    */
   const applyConversion = useCallback(
     async (index: number, conversion: BlockConversion) => {

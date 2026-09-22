@@ -2,7 +2,7 @@
  * 工程锚点文件 documentor.dproj（JSON）读写。
  * 工程目录 = 锚点文件所在目录：<dir>/documentor.dproj + db_file + images/ + mermaid/
  *
- * 老工程（PLAN-12 之前）这里记的是模板名（`template` 键）。名字只用来认一次 uuid，
+ * 老工程（改用 uuid 之前）这里记的是模板名（`template` 键）。名字只用来认一次 uuid，
  * 认到就换成 `template_uuid` 记；认不到就原样留着，不把线索抹掉。
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
@@ -14,7 +14,7 @@ export const DEFAULT_DB_FILE = 'documentor.db'
 export interface ProjectAnchor {
   version: number
   name: string
-  /** 结构模板的 uuid（PLAN-12：引用只认 uuid，名字不参与匹配） */
+  /** 结构模板的 uuid（DESIGN-04：引用只认 uuid，名字不参与匹配） */
   template_uuid: string
   /**
    * 老工程写的模板名（锚点里的 `template`、库里的 `template_name`）。

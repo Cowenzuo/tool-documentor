@@ -78,9 +78,9 @@ function windowOf(): BrowserWindow | null {
 }
 
 export function registerProjectIpc(service: ProjectService): void {
-  // 模板编辑（PLAN-11 批次 1）：只动模板目录里的 JSON，与工程库无关，所以单独一个服务。
+  // 模板编辑（DESIGN-03）：只动模板目录里的 JSON，与工程库无关，所以单独一个服务。
   // 依赖从设置与 Electron 取：模板目录列表每次现读（设置里改完不用重启），
-  // 备份落 userData（绝不写进模板目录，那里通常受版本控制）。
+  // 备份不写：模板目录通常受版本控制，可恢复性归 git（服务里明确不写 .bak、不留备份目录）。
   const templateEditor = new TemplateEditorService({
     // 冒烟时只认夹具目录（DOC_E2E_TEMPLATES）：探针会真的往模板文件里写，
     // 本机真实模板仓库要保护起来；正常启动完全没有这个分支。
@@ -310,7 +310,7 @@ export function registerProjectIpc(service: ProjectService): void {
     }))
   })
 
-  // ---------- 模板编辑（PLAN-11 批次 1）----------
+  // ---------- 模板编辑（DESIGN-03）----------
   // 入参出参与错误口径见 services/template-editor-service.ts；
   // 这里的 handle() 统一把抛出的 message 转成 renderer 能 catch 的 rejection。
   handle<void, TemplateEditorSnapshotDto>(ProjectIpc.TemplateSnapshot, () =>

@@ -1,5 +1,5 @@
 /**
- * style-keys.ts — 逻辑样式键的元数据与对照表行（PLAN-12：完整性按软件支持的全集算）。
+ * style-keys.ts — 逻辑样式键的元数据与对照表行（DESIGN-03：完整性按软件支持的全集算）。
  *
  * 一份 stylemap 的 `styleMap` 是「逻辑键 → 骨架 styleId」的字典：键是程序拼 DOCX 时查的
  * 名字（`heading.1`、`table.header`…），值必须能在骨架 `word/styles.xml` 里找到。

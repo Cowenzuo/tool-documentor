@@ -1,6 +1,6 @@
-# electron-builder 配置（PLAN-05 P1-2）
+# electron-builder 配置（门禁与发布见 docs/版本开发过程/DESIGN-09-质量门禁与发布.md）
 #
-# 分发边界（决策 C1，见 docs/M7-合规说明.md §3.2）：
+# 分发边界（见 docs/版本开发过程/DESIGN-07-导出、题注与图嵌入.md）：
 #   发行包**不含** mmd2vsdx（其产物内嵌官方 Visio 母版 XML，属 Microsoft 许可内容）。
 #   运行时缺少该能力时导出自动降级为文本占位，并给出用户提示。
 #

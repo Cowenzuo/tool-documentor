@@ -1,5 +1,5 @@
 /**
- * TemplateManager：模板目录加载、检索、实例化（PLAN-12：清单不再存在，索引按 uuid 建）。
+ * TemplateManager：模板目录加载、检索、实例化（DESIGN-03：清单不再存在，索引按 uuid 建）。
  * - 每个模板目录就是 `structures/<uuid>/<uuid>.json` 与 `styles/<uuid>/<uuid>.json`；
  * - 找与读由 `scanTemplateDir` 负责（目录名不是 uuid 的收进 legacy，交给迁移动作）；
  * - 注册键一律是 uuid：结构模板按 uuid 建索引，样式模板同样，名字只作展示；
@@ -165,7 +165,7 @@ export class TemplateManager {
   }
 
   /**
-   * 老工程只记了模板名：按名字认回结构模板（PLAN-12 之前建的那批工程）。
+   * 老工程只记了模板名：按名字认回结构模板（改用 uuid 之前建的工程）。
    * 只认唯一一份，认不出或撞名字返回 undefined —— 与"模板没了"同样处理。
    */
   findStructureByLegacyName(legacyName: string): TemplateDef | undefined {

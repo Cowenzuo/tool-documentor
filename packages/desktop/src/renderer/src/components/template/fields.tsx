@@ -1,7 +1,7 @@
 /**
  * 模板编辑页的输入控件与问题行。
  * 类名统一 `tpl-` 前缀、样式全部写在 template.css：这一页要能独立成自己的根
- * （PLAN-11 第 3 节），所以不借 editor.css 里的 `.be-*`，避免哪天编辑器不在这棵树里样式就没了。
+ * （DESIGN-03），所以不借 editor.css 里的 `.be-*`，避免哪天编辑器不在这棵树里样式就没了。
  */
 import type { JSX, ReactNode } from 'react'
 import type { TemplateIssueDto } from '../../../../shared/project'

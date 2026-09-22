@@ -4,7 +4,7 @@
  * 目的：让"上游接口漂移"在提交/发布前立刻红灯，而不是被假转换器与优雅降级掩盖。
  * 做法：只做静态检查（读 package.json 与入口文件文本），不 import 上游模块，
  *       因此可在 `pnpm verify` 里快速运行；真实转换行为由
- *       `packages/docx/tests/mmd2vsdx.contract.test.ts`（DOC_REAL_MMD=1）负责。
+ *       `localscripts/tests/docx/mmd2vsdx.contract.test.ts`（DOC_REAL_MMD=1）负责。
  *
  * 期望契约（上游改造完成后应达到的形态）：
  *   - 包根导出可解析，且声明类型（package.json "types" 或 exports["."].types）

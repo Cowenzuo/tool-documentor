@@ -6,11 +6,11 @@
 > 样式模板是一份 stylemap 加一个 docx 骨架。出于版权考虑，模板不随软件分发，
 > 由用户提供模板目录，每份模板的身份是 uuid，中文名与英文名只作展示，软件只提供处理管线。
 > 新增一种文档格式等于新增一套模板，不用改代码。
-> 详情见 `docs/版本开发过程/PLAN-01-项目规划与架构.md` §1 与 §8。
+> 详情见 `docs/版本开发过程/DESIGN-01-总体架构与模块.md`。
 
 - 规格基线：旧版 C++/Qt 实现的实测规格 01 到 06，已通读
-- 设计规划：`docs/版本开发过程/PLAN-01-项目规划与架构.md`、`docs/版本开发过程/PLAN-02-界面重设计方案.md`
-- 里程碑：见 PLAN-01 §6，从 M0 骨架一路到 M7 图嵌入链路，mmd2vsdx 最后做
+- 现役设计：`docs/版本开发过程/` 下的 DESIGN 系列，一篇管一块；文档索引见那一区的 README
+- 图嵌入（M7）最后做：链路与上游现状见 `docs/版本开发过程/DESIGN-07-导出、题注与图嵌入.md`
 
 ## 技术栈
 
@@ -119,9 +119,9 @@ pnpm check:undo        # 撤销：改形状这一步退得回去，保存前后�
 | 项 | 说明 |
 |---|---|
 | 模板目录 | 由用户提供，目录里是 `structures/<uuid>/` 与 `styles/<uuid>/`；软件不内置模板 |
-| 图转换 | Mermaid 转 Visio 对象嵌入依赖上游 `mmd2vsdx` 与本机 Chromium，开发期用 `link:` 指到本机目录。发行包不含上游，版权边界见 `docs/版本开发过程/M7-合规说明.md` §3.2；上游缺失时导出照常成功，图以文本形式呈现 |
-| 上游接口 | 唯一消费点是 `packages/docx/src/figure-export.ts`，契约与同步清单见 `docs/版本开发过程/UPSTREAM-mmd2vsdx.md` |
-| 已知状态 | 上游 2026-09-09 重构后接口已变，图嵌入待修复，见 `docs/版本开发过程/PLAN-05-修复方案.md`；`pnpm verify` 的上游检查当前是预期红灯 |
+| 图转换 | Mermaid 转 Visio 对象嵌入依赖上游 `mmd2vsdx` 与本机 Chromium，开发期用 `link:` 指到本机目录。发行包不含上游，版权边界见 `docs/版本开发过程/DESIGN-07-导出、题注与图嵌入.md`；上游缺失时导出照常成功，图以文本形式呈现 |
+| 上游接口 | 唯一消费点是 `packages/docx/src/figure-export.ts`，契约与同步清单见 `docs/版本开发过程/DESIGN-07-导出、题注与图嵌入.md` 的上游一节 |
+| 已知状态 | 上游 2026-09-09 重构后接口已变，图嵌入待修复，见 `docs/版本开发过程/DESIGN-07-导出、题注与图嵌入.md`；`pnpm verify` 的上游检查当前是预期红灯 |
 
 ## 打包与安全
 
@@ -144,14 +144,15 @@ release/
   对应提交 `2e4c5c2`）；另保留着 `0.1.1-alpha1`、`0.1.0-beta1`、`0.1.0-alpha3`、`0.1.0-alpha1`
   四个更早的安装包（重新打包由用户明确要求时才做）。
   这一个 `0.1.2-alpha1` 是**同版本号重打**的：先前那一版（对应 `f95bc8d`）的读语句里还有
-  `node.copy_group_id`，而这一列已随复制组字段退役从工程库里删掉（PLAN-19），老包打不开那些工程；
+  `node.copy_group_id`，而这一列已随复制组字段退役从工程库里删掉（见
+  `docs/版本开发过程/DESIGN-04-工程数据与存储.md`），老包打不开那些工程；
   内部版本不对外，重打比加回一个空转的列划算。
-  **成品之后主干上又落了新东西**（例如 PLAN-20 的用户侧换类型），那些还没打包，
+  **成品之后主干上又落了新东西**（例如用户侧换类型与撤销的两处修复），那些还没打包，
   要用新功能就跑开发版或者让维护者重新打包。
   开发新功能期间请继续用发布版改数据，别用 `pnpm dev`——
   理由与分界见工程工作区 `../tool-documentor-projs/README.md` 第 0 节。
 - **分发边界**：发行包不含 `mmd2vsdx`。它的产物内嵌官方 Visio 母版 XML，属 Microsoft 许可内容，
-  见 `docs/版本开发过程/M7-合规说明.md` §3.2。打包后用 `node scripts/verify-package.cjs` 复核。
+  见 `docs/版本开发过程/DESIGN-07-导出、题注与图嵌入.md`。打包后用 `node scripts/verify-package.cjs` 复核。
 - **生产 CSP**：构建期注入 `<meta http-equiv="Content-Security-Policy">`，防闪烁的那段内联脚本用
   sha256 哈希放行。开发环境不注入，因为 HMR 需要内联脚本与 ws。
 - **沙箱**：`webPreferences.sandbox: true`，预加载产物只 `require('electron')`。
