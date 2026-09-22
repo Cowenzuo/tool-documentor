@@ -24,10 +24,10 @@ import type {
   SavePathDialogOptions,
   TemplateCreateInput,
   TemplateDeleteInput,
+  TemplateMigrateInput,
   TemplateReadInput,
   TemplateRenameInput,
   TemplateSaveInput,
-  TemplateStyleForkInput,
   TemplateStyleImportInput,
   TemplateStyleReadInput,
   TemplateStyleRenameInput,
@@ -145,9 +145,9 @@ const api: DesktopApi = {
       >,
     listStyles: () =>
       invoke(ProjectIpc.TemplatesListStyles) as ReturnType<DesktopApi['templates']['listStyles']>,
-    styleCandidates: (structureName: string) =>
-      invoke(ProjectIpc.TemplatesStyleCandidates, structureName) as ReturnType<
-        DesktopApi['templates']['styleCandidates']
+    styles: (structureUuid: string) =>
+      invoke(ProjectIpc.TemplatesStyleOptions, structureUuid) as ReturnType<
+        DesktopApi['templates']['styles']
       >,
     diagnose: () =>
       invoke(ProjectIpc.TemplatesDiagnose) as ReturnType<DesktopApi['templates']['diagnose']>
@@ -171,9 +171,9 @@ const api: DesktopApi = {
       invoke(ProjectIpc.TemplateImportStyle, input) as ReturnType<
         DesktopApi['templateEditor']['importStyle']
       >,
-    forkStyle: (input: TemplateStyleForkInput) =>
-      invoke(ProjectIpc.TemplateForkStyle, input) as ReturnType<
-        DesktopApi['templateEditor']['forkStyle']
+    migrate: (input: TemplateMigrateInput) =>
+      invoke(ProjectIpc.TemplateMigrate, input) as ReturnType<
+        DesktopApi['templateEditor']['migrate']
       >,
     save: (input: TemplateSaveInput) =>
       invoke(ProjectIpc.TemplateSave, input) as ReturnType<DesktopApi['templateEditor']['save']>,

@@ -355,6 +355,19 @@ body.is-splitting {
   font-weight: 600;
 }
 
+/* 副名（英文名）跟在主名后面：同一条线上，弱一档，读不出来也不占地方 */
+.tpl-item-en {
+  margin-left: 6px;
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--text-3);
+}
+
+.tpl-item.is-selected .tpl-item-en {
+  color: var(--accent);
+  opacity: 0.75;
+}
+
 .tpl-item-id {
   flex: none;
   margin-left: auto;

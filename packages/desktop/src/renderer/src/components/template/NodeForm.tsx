@@ -45,13 +45,11 @@ interface NodeFormProps {
   path: NodePath
   /** 该节点下的全部结论（含内容块） */
   issues: TemplateIssueDto[]
-  /** 这个目录里的样式模板（根节点那一节选引用用；带"被谁引用"） */
+  /** 这个目录里的样式模板（根节点那一节选默认样式用） */
   styles: TemplateEntryDto[]
   onPatch: (patch: TemplateObject) => void
   /** 把这一组改齐（同级不许混的"直接修复"） */
   onGroupFix: () => void
-  /** 把共用的对照表另存为这份结构模板专用 */
-  onForkStyle: (styleId: string) => void
   onBlockPatch: (index: number, patch: TemplateObject) => void
   onBlockMove: (index: number, delta: -1 | 1) => void
   onBlockRemove: (index: number) => void
@@ -207,53 +205,25 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
     : ''
 
   /**
-   * 根节点上的"这份结构用哪些样式对照表"：
-   *   - `styleTemplates`（可用集合，1:N）缺省时按加载器的口径回退成 `[styleTemplate]`；
-   *   - `styleTemplate` 是导出时的默认那一份；默认必须在可用集合里（否则导出会找不到）。
-   * 注意"这份结构是谁"用的是**模板的 name**（`doc.name`，usedBy 里记的就是它），
-   * 不是根节点的标题——两者常常不一样（模板名"甲结构"、根标题可能叫别的）。
+   * 根节点上的"这份结构用哪份样式"：
+   *   - `defaultStyleUuid` 就是导出时取的那一份；写了但目录里没有，就是悬挂，要重选；
+   *   - 下拉里列这个目录里能读出来的全部样式，选一个写进去。
+   * 名字只作展示：这份结构是谁看 `cn` / `en`，与根节点标题常常不一样。
    */
-  const docName = doc ? str(doc['name']) : ''
-  const declaredDefault = doc ? str(doc['styleTemplate']) : ''
-  const declaredList =
-    doc && Array.isArray(doc['styleTemplates'])
-      ? (doc['styleTemplates'] as unknown[]).filter(
-          (key): key is string => typeof key === 'string'
-        )
-      : null
-  const availableKeys = declaredList ?? (declaredDefault === '' ? [] : [declaredDefault])
-  const refs = props.styles.map((entry) => {
-    const fileKey = entry.file.replace(/\.json$/iu, '')
-    return {
-      id: entry.id,
-      fileKey,
-      label: `${entry.name || entry.id}`,
-      available: availableKeys.includes(fileKey),
-      isDefault: declaredDefault === fileKey,
-      usedBy: entry.usedBy ?? []
-    }
-  })
-  const sharedNames = refs
-    .filter((ref) => ref.available && ref.usedBy.filter((name) => name !== docName).length > 0)
-    .map((ref) => ref.label)
-  /** 一份都没标默认（或默认不在集合里）：导出会不知道用哪份 */
-  const noDefault = refs.length > 0 && !refs.some((ref) => ref.isDefault && ref.available)
-
-  /** 打上/取消「可用」：写进 styleTemplates（取消时先从默认上让开，避免默认不在集合里） */
-  const toggleRef = (fileKey: string, checked: boolean): void => {
-    if (checked) {
-      const next = availableKeys.includes(fileKey) ? availableKeys : [...availableKeys, fileKey]
-      props.onPatch({
-        styleTemplates: next,
-        ...(declaredDefault === '' ? { styleTemplate: fileKey } : {})
-      })
-      return
-    }
-    // 默认那一份不让取消：它必须在集合里（要换就先换默认）
-    if (declaredDefault === fileKey) return
-    const next = availableKeys.filter((key) => key !== fileKey)
-    props.onPatch({ styleTemplates: next })
-  }
+  const declaredDefault = doc ? str(doc['defaultStyleUuid']) : ''
+  const danglingDefault =
+    declaredDefault !== '' && !props.styles.some((entry) => entry.uuid === declaredDefault)
+  const styleChoices: Array<{ value: string; label: string }> = [
+    // 悬挂那份先占一个位置：当前值得看得见，选了别的才换掉
+    ...(danglingDefault ? [{ value: declaredDefault, label: '找不到这份样式' }] : []),
+    { value: '', label: '未指定' },
+    ...[...props.styles]
+      .sort((a, b) => a.name.localeCompare(b.name, 'zh'))
+      .map((entry) => ({
+        value: entry.uuid,
+        label: entry.en === '' ? entry.name : `${entry.name} · ${entry.en}`
+      }))
+  ]
 
   /** 类型只按用途选，两种：层级标题 / 列表子标题（chapter、section 这些词程序不读） */
   const kindOptions: Array<{ value: string; label: string }> = [
@@ -390,62 +360,27 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
           </p>
         )}
 
-        {/* 引用关系只在根节点上设：一份结构模板用哪些样式对照表，是"整份模板"的事 */}
+        {/* 默认样式只在根节点上选：一份结构用哪份样式，是"整份模板"的事 */}
         {isRoot && (
           <section className="tpl-style-refs">
             <header className="tpl-blocks-head">
-              <h3>样式对照表</h3>
-              {/* 几份可选数得出来，只在这一份都没有时说一句 */}
-              {refs.length === 0 && (
-                <span className="tpl-count">这个目录里还没有样式模板</span>
-              )}
+              <h3>默认样式</h3>
             </header>
-            {refs.length === 0 ? (
+            {props.styles.length === 0 ? (
               <p className="tpl-empty">左栏「样式模板」导入一份，或直接放进模板目录</p>
             ) : (
               <>
-                <ul className="tpl-ref-list">
-                  {refs.map((ref) => (
-                    <li key={ref.id}>
-                      {/* 「可用」= 写进 styleTemplates；「默认」= 写进 styleTemplate */}
-                      <CheckField
-                        label={ref.label}
-                        tip={`${ref.fileKey}${
-                          ref.usedBy.length > 0 ? ` · 共用 ${ref.usedBy.join('、')}` : ''
-                        }`}
-                        checked={ref.available}
-                        onChange={(checked) => toggleRef(ref.fileKey, checked)}
-                      />
-                      <label className="tpl-ref-default" title="默认 · 导出取这份">
-                        <input
-                          type="radio"
-                          name="tpl-default-style"
-                          checked={ref.isDefault}
-                          disabled={!ref.available}
-                          onChange={() => props.onPatch({ styleTemplate: ref.fileKey })}
-                        />
-                        <span>默认</span>
-                      </label>
-                      {ref.usedBy.filter((name) => name !== docName).length > 0 && (
-                        <button
-                          type="button"
-                          className="tpl-mini tpl-inline-action"
-                          title={`共用 ${ref.usedBy
-                            .filter((name) => name !== docName)
-                            .join('、')} · 另存为专用`}
-                          onClick={() => props.onForkStyle(ref.id)}
-                        >
-                          另存为专用
-                        </button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-                {sharedNames.length > 0 && (
-                  <p className="tpl-note">共用：{sharedNames.join('、')}</p>
+                <SelectField
+                  label=""
+                  value={declaredDefault}
+                  options={styleChoices}
+                  onChange={(value) => props.onPatch({ defaultStyleUuid: value })}
+                />
+                {danglingDefault && (
+                  <p className="tpl-note tpl-note-bad">默认样式找不到 · 可能已被删除，重选一份</p>
                 )}
-                {noDefault && (
-                  <p className="tpl-note tpl-note-bad">未指定默认样式 · 导出取不到对照表</p>
+                {declaredDefault === '' && (
+                  <p className="tpl-note">未指定默认样式 · 导出时先选一份</p>
                 )}
               </>
             )}

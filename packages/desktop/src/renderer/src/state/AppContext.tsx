@@ -54,7 +54,7 @@ interface AppContextValue {
   createProject: (input: {
     workspaceDir: string
     name: string
-    templateName: string
+    templateUuid: string
   }) => Promise<boolean>
   closeProject: () => Promise<boolean>
   saveProject: () => Promise<boolean>
@@ -201,7 +201,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
   )
 
   const createProject = useCallback(
-    async (input: { workspaceDir: string; name: string; templateName: string }) => {
+    async (input: { workspaceDir: string; name: string; templateUuid: string }) => {
       setBusy(true)
       try {
         const result = await window.documentor.project.create(input)

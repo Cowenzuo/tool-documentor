@@ -308,13 +308,14 @@ export default function TemplateEditorPage(): JSX.Element {
           status={editor.status}
           dirSnapshot={editor.dirSnapshot}
           openKind={editor.openKind}
-          openId={styleOpen ? (editor.styleEntry?.id ?? null) : (editor.entry?.id ?? null)}
+          openUuid={styleOpen ? (editor.styleEntry?.uuid ?? null) : (editor.entry?.uuid ?? null)}
           busy={editor.busy}
           dirty={editor.dirty}
           onOpen={editor.requestEntry}
           onOpenStyle={editor.requestStyle}
           onCreate={editor.createTemplate}
           onImport={editor.importStyle}
+          onMigrate={editor.migrateDir}
           onPickDocx={() => window.documentor.dialog.selectDocx()}
           onPickDirectory={() => window.documentor.dialog.selectDirectory()}
           onRename={editor.renameTemplate}
@@ -389,7 +390,6 @@ export default function TemplateEditorPage(): JSX.Element {
               styles={editor.dirSnapshot?.styles ?? []}
               onPatch={editor.patchSelectedNode}
               onGroupFix={() => editor.fixGroupAt(editor.selectedPath)}
-              onForkStyle={(styleId) => void editor.forkStyleFor(styleId)}
               onBlockPatch={editor.patchBlock}
               onBlockMove={editor.moveBlock}
               onBlockRemove={editor.removeBlock}

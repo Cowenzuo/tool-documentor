@@ -11,15 +11,13 @@ import type { TemplateIssueDto } from '../../../../shared/project'
 import type { IssueGroup } from './templateDoc'
 
 /** 对照表那一行的状态（与主进程 `StyleMapRowDto.status` 同值） */
-export type StyleRowStatus = 'ok' | 'missing' | 'dangling' | 'inert' | 'unset' | 'unchecked'
+export type StyleRowStatus = 'ok' | 'dangling' | 'inert' | 'unset' | 'unchecked'
 
 /** 状态的短话（状态列的头一句；"为什么"由主进程给的 message 说） */
 export function styleStatusLabel(status: StyleRowStatus): string {
   switch (status) {
     case 'ok':
       return '正常'
-    case 'missing':
-      return '必需项未配'
     case 'dangling':
       return '样式文件无此样式'
     case 'inert':
@@ -33,7 +31,7 @@ export function styleStatusLabel(status: StyleRowStatus): string {
 
 /** 状态的红/黄/中性：错的两档红、没核对黄、其余中性 */
 export function styleStatusTone(status: StyleRowStatus): 'error' | 'warn' | 'plain' {
-  if (status === 'missing' || status === 'dangling') return 'error'
+  if (status === 'dangling') return 'error'
   if (status === 'unchecked') return 'warn'
   return 'plain'
 }
@@ -54,17 +52,16 @@ export function skeletonStyleTip(style: {
 }
 
 /**
- * 校验结论的 path → 人读的位置（映射 heading.1 / 骨架 word/styles.xml /
- * 结构「甲结构」的覆盖 / 题注编号 表题 …）。认不出的原样返回：
- * 显示一个字段名也比显示"未知位置"强。
+ * 校验结论的 path → 人读的位置（映射 heading.1 / 骨架 word/styles.xml / 题注编号 表题 …）。
+ * 认不出的原样返回：显示一个字段名也比显示"未知位置"强。
  */
 export function issueWhereForStyle(path: string): string {
   const mapKey = /^styleMap\['(.+)'\]$/u.exec(path) ?? /^styleMap\.(.+)$/u.exec(path)
   if (mapKey) return `映射 ${mapKey[1]}`
   if (path === 'styleMap') return '映射表'
-  if (path === 'name') return '名称'
+  if (path === 'cn') return '中文名'
+  if (path === 'en') return '英文名'
   if (path === 'docxFolder') return '骨架目录名'
-  if (path === 'manifest.style_folder') return '清单里的 style_folder'
   if (path.startsWith('skeleton/')) return `骨架 ${path.slice('skeleton/'.length)}`
   if (path === 'skeleton') return '骨架'
   const caption = /^captionNumbering\.(.+)$/u.exec(path)
@@ -81,13 +78,6 @@ export function issueWhereForStyle(path: string): string {
     return `题注编号 ${label}`
   }
   if (path === 'captionNumbering') return '题注编号'
-  // 结构名里不会有 ]，所以第一段用 [^\]]+ 收住：`structure[甲].captions[0]` 才不会被贪到最后一个 ]
-  const struct = /^structure\[([^\]]+)\](?:\.(.+))?$/u.exec(path)
-  if (struct) {
-    const what = struct[2] ?? ''
-    const tail = what.startsWith('captions') ? '的题注' : what.startsWith('styleMap') ? '的覆盖' : ''
-    return `结构「${struct[1]}」${tail}`
-  }
   return path
 }
 

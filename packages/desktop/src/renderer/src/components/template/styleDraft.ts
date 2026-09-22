@@ -8,7 +8,7 @@
  */
 import { buildStyleMapRows } from '@documentor/templates/style-keys'
 import { validateStyleMap } from '@documentor/templates/style-rules'
-import type { SkeletonFacts, StyleStructureFacts } from '@documentor/templates/style-rules'
+import type { SkeletonFacts } from '@documentor/templates/style-rules'
 import type {
   StyleMapRowDto,
   TemplateIssueDto,
@@ -48,19 +48,8 @@ export function skeletonFactsOf(result: TemplateStyleReadResult): SkeletonFacts 
 }
 
 /**
- * 引用这份对照表的结构 → 规则要的"诉求"。`usedBy` 里的每一条本来就是因为引用了它才进来的，
- * 所以这里把文件键填成它，规则里那道"只比对声明引用了的结构"就自动对上。
+ * 草稿的 styleMap（不是对象就当空：校验会自己报"缺 styleMap"）
  */
-export function structureFactsOf(result: TemplateStyleReadResult): StyleStructureFacts[] {
-  return result.usedBy.map((user) => ({
-    name: user.name,
-    fileKeys: [result.fileKey],
-    keys: [...user.requiredKeys],
-    captions: user.captions.map((caption) => ({ ...caption }))
-  }))
-}
-
-/** 草稿的 styleMap（不是对象就当空：校验会自己报"缺 styleMap"） */
 export function styleMapOf(doc: TemplateObject | null): Record<string, unknown> {
   return (doc ? asObject(doc['styleMap']) : null) ?? {}
 }
@@ -78,7 +67,6 @@ export function styleRowsFor(
   if (!result || !doc) return []
   return buildStyleMapRows({
     styleMap: styleMapOf(doc),
-    requirements: result.usedBy.map((user) => ({ name: user.name, keys: user.requiredKeys })),
     skeletonStyleIds: result.skeleton.styleIds.length > 0 ? result.skeleton.styleIds : null,
     skeletonStyles: skeletonFactsOf(result).styles
   })
@@ -90,12 +78,7 @@ export function styleIssuesFor(
   doc: TemplateObject | null
 ): TemplateIssueDto[] {
   if (!result || !doc) return []
-  return validateStyleMap(doc, structureFactsOf(result), {
-    id: result.id,
-    stylemapFile: result.file,
-    manifestStyleFolder: result.manifestStyleFolder,
-    skeleton: skeletonFactsOf(result)
-  })
+  return validateStyleMap(doc, { skeleton: skeletonFactsOf(result) })
 }
 
 /**

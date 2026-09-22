@@ -1,16 +1,16 @@
 /**
  * 导出对话框：DOCX 导出（Markdown 预留禁用）。
- * 样式模板下拉 = 该结构模板声明的候选集合（软校验：不可用项禁用并显示原因；
- * 全部不可用 → 导出禁用 + 提示）。
+ * 样式模板下拉 = 模板目录里能读出来的**全部**样式，默认选中结构里写的那一份，可以改选。
+ * 新口径下样式一律完整，所以没有"这份结构与这份样式不匹配"这回事。
  */
 import { useEffect, useMemo, useState } from 'react'
-import type { FigureCountsDto, StyleCandidateDto } from '../../../shared/project'
+import type { FigureCountsDto, StyleOptionDto } from '../../../shared/project'
 import { useApp } from '../state/AppContext'
 
 export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.Element {
   const { session, showToast } = useApp()
-  const [candidates, setCandidates] = useState<StyleCandidateDto[]>([])
-  const [styleFileKey, setStyleFileKey] = useState('')
+  const [candidates, setCandidates] = useState<StyleOptionDto[]>([])
+  const [styleUuid, setStyleUuid] = useState('')
   const [outputPath, setOutputPath] = useState('')
   const [format, setFormat] = useState<'docx' | 'md'>('docx')
   const [figures, setFigures] = useState<FigureCountsDto | null>(null)
@@ -20,11 +20,11 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
 
   useEffect(() => {
     if (!info) return
-    void window.documentor.templates.styleCandidates(info.templateName).then((list) => {
+    void window.documentor.templates.styles(info.templateUuid).then((list) => {
       setCandidates(list)
       const preferred =
-        list.find((c) => c.isDefault && c.available) ?? list.find((c) => c.available)
-      setStyleFileKey(preferred?.fileKey ?? '')
+        list.find((c) => c.isDefault) ?? list[0]
+      setStyleUuid(preferred?.uuid ?? '')
     })
     void window.documentor.export.figureCounts().then(setFigures, () => setFigures(null))
     setOutputPath(`${info.projectDir.replace(/\\/g, '/')}/${info.name}.docx`)
@@ -32,24 +32,20 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
   }, [])
 
   const selected = useMemo(
-    () => candidates.find((c) => c.fileKey === styleFileKey) ?? null,
-    [candidates, styleFileKey]
+    () => candidates.find((c) => c.uuid === styleUuid) ?? null,
+    [candidates, styleUuid]
   )
-  const anyAvailable = candidates.some((c) => c.available)
+  /** 一份样式都没有（模板目录还没放样式模板）：导出无从谈起 */
+  const hasStyles = candidates.length > 0
 
-  const canExport =
-    !!selected &&
-    selected.available &&
-    outputPath.trim().length > 0 &&
-    !busy &&
-    !!info
+  const canExport = !!selected && outputPath.trim().length > 0 && !busy && !!info
 
   const doExport = async (): Promise<void> => {
     if (!canExport) return
     setBusy(true)
     try {
       const result = await window.documentor.export.docx({
-        styleFileKey,
+        styleUuid,
         outputPath: outputPath.trim()
       })
       const f = result.figures
@@ -123,29 +119,21 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
             <div className="export-style-row">
               <select
                 className="be-select export-style-select"
-                value={styleFileKey}
-                onChange={(e) => setStyleFileKey(e.target.value)}
+                value={styleUuid}
+                onChange={(e) => setStyleUuid(e.target.value)}
                 disabled={candidates.length === 0}
               >
                 {candidates.map((c) => (
-                  <option
-                    key={c.fileKey}
-                    value={c.fileKey}
-                    disabled={!c.available}
-                    title={c.available ? c.name : '不适用于这份文档的结构'}
-                  >
+                  <option key={c.uuid} value={c.uuid} title={c.name}>
                     {c.name} · v{c.version || '1.0'}
-                    {c.isDefault ? '（默认）' : ''}
-                    {c.available ? '' : '（不适用）'}
+                    {c.isDefault ? ' · 默认' : ''}
                   </option>
                 ))}
               </select>
             </div>
-            {!anyAvailable && (
+            {!hasStyles && (
               <p className="settings-hint export-style-desc">
-                {candidates.length > 0
-                  ? '样式与这份文档的结构不匹配，换一份样式再导出。'
-                  : '结构模板没有声明样式模板。'}
+                模板目录里没有样式模板，先放一份进去
               </p>
             )}
           </section>
@@ -202,8 +190,8 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
           <span className="wizard-error">
             {canExport
               ? '导出为 Word 可直接打开的标准 DOCX'
-              : !anyAvailable
-                ? '无可用样式模板，导出已禁用'
+              : !hasStyles
+                ? '模板目录里没有样式模板，导出已禁用'
                 : ''}
           </span>
           <button
