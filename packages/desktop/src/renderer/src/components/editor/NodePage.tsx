@@ -4,6 +4,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ContentBlock } from '@documentor/core/blocks'
+import { NODE_PERMISSION } from '../../../../shared/permissionTerms'
 import { useApp, useSelectedNode } from '../../state/AppContext'
 import { BlockCard } from './BlockCard'
 import type { LightboxRequest } from './BlockEditors'
@@ -50,7 +51,7 @@ function reconcileKeys(prev: string[], incomingLength: number, op: StructureOp |
   return Array.from({ length: incomingLength }, () => newBlockKey())
 }
 
-/** keep 与 readonly 两档不能挪：相邻块是这样的话，交换位置会把锁定的内容挪走 */
+/** keep 与 readonly 两档不能挪：相邻块是这样的话，交换位置会把它挪走 */
 function isPinnedLock(lock: ContentBlock['lock']): boolean {
   return lock === 'keep' || lock === 'readonly'
 }
@@ -387,18 +388,30 @@ export default function NodePage(): React.JSX.Element {
                 <span className="np-badge">标题级别 {node.headingLevel}</span>
               )}
               {/*
-                只列能做的事：以前把「不可复制/不可删除/锁定」也摆出来，
-                三个否定标签读着像出错。模板限死了就合并成一句「只读」，鼠标悬停给原因。
+                只列能做的事：以前把三个否定标签也摆出来，读着像出错。
+                词与模板编辑器的四个开关同一份（见 shared/permissionTerms），悬停给模板的许可。
               */}
-              {node.copyable && <span className="np-chip np-chip-ok">可复制</span>}
-              {node.deletable && <span className="np-chip np-chip-ok">可删除</span>}
-              {canEditBlocks && <span className="np-chip np-chip-ok">可加内容</span>}
+              {node.copyable && (
+                <span className="np-chip np-chip-ok" title={NODE_PERMISSION.copyable.tip}>
+                  {NODE_PERMISSION.copyable.name}
+                </span>
+              )}
+              {node.deletable && (
+                <span className="np-chip np-chip-ok" title={NODE_PERMISSION.deletable.tip}>
+                  {NODE_PERMISSION.deletable.name}
+                </span>
+              )}
+              {canEditBlocks && (
+                <span className="np-chip np-chip-ok" title={NODE_PERMISSION.allowContentBlocks.tip}>
+                  {NODE_PERMISSION.allowContentBlocks.name}
+                </span>
+              )}
               {!node.copyable && !node.deletable && !canEditBlocks && (
                 <span
                   className="np-chip"
-                  title="模板限定"
+                  title="模板限定：复制、裁剪与内容块都关着，标题与编制说明照常可改"
                 >
-                  只读
+                  内容只读
                 </span>
               )}
             </div>
@@ -439,7 +452,7 @@ export default function NodePage(): React.JSX.Element {
                         className="np-insert-btn"
                         title={
                           insertBlockedAt(index)
-                            ? `这里往下有模板锁定的内容，位置不能变：新内容只能排在它后面`
+                            ? `这里往下是模板规定不能移动的内容：新内容只能排在它后面`
                             : '在此上方插入内容'
                         }
                         aria-label={`在第 ${index + 1} 项上方插入内容`}

@@ -3,6 +3,7 @@
  * 折叠后只留一行摘要，长章节里一屏能扫过更多块。
  */
 import type { BlockLockLevel, ContentBlock } from '@documentor/core/blocks'
+import { blockTierOf } from '../../../../shared/permissionTerms'
 import {
   CodeEditor,
   FormulaEditor,
@@ -16,27 +17,20 @@ import {
 import { BLOCK_TYPE_BADGES, BLOCK_TYPE_LABELS, summarizeBlock } from './blockTypes'
 
 /**
- * 模板锁在卡片上的说法：`type` 与 `keep` 都显示「锁定」，`readonly` 显示「只读」。
+ * 卡片头上的档位标记与提示：词与模板编辑器那三档同一份（见 shared/permissionTerms）。
  * 提示里只讲模板的规定与还能做什么，不写"不可编辑"这类喊话式文案。
  */
 function lockTagText(lock: BlockLockLevel): string {
-  return lock === 'readonly' ? '只读' : '锁定'
+  return blockTierOf(lock).tag ?? blockTierOf(lock).name
 }
 
-function lockTagTitle(lock: BlockLockLevel, typeLabel: string): string {
-  switch (lock) {
-    case 'type':
-      return `模板规定这里必须放${typeLabel}，内容可以改，类型不能改`
-    case 'keep':
-      return `模板规定这里必须放${typeLabel}，内容可以改，不能删除、不能移动，类型也不能改`
-    case 'readonly':
-      return '模板规定该内容为定稿，内容与类型都不能改'
-  }
+function lockTagTitle(lock: BlockLockLevel): string {
+  return blockTierOf(lock).tip
 }
 
 /** 按钮置灰的原因：按档位说清为什么这件事做不了 */
 function lockReason(lock: BlockLockLevel, what: 'remove' | 'move'): string {
-  const head = lock === 'readonly' ? '模板规定该内容为定稿' : '模板规定该内容必须存在'
+  const head = lock === 'readonly' ? '模板规定该内容为只读' : '模板规定该内容必须存在'
   return what === 'remove' ? `${head}，不能删除` : `${head}，不能移动`
 }
 
@@ -74,17 +68,16 @@ export function BlockCard(props: BlockCardProps): React.JSX.Element {
   } = props
   const change = (next: ContentBlock): void => onChange(index, next)
   const lock = block.lock
-  const typeLabel = BLOCK_TYPE_LABELS[block.type]
   /**
-   * 档位的可做项：`keep` 与 `readonly` 不能删也不能挪，`type` 只锁类型。
+   * 档位的可做项：`keep` 与 `readonly` 不能删也不能挪，作废的 `type` 只锁类型。
    * 块类型在这套编辑器里没有切换控件，类型一律在写入侧拦（见 project-service 的 updateBlock），
-   * 卡片上只用锁标记与提示交代模板的规定。
+   * 卡片上只用档位标记与提示交代模板的规定。
    */
   const keepLocked = lock === 'keep' || lock === 'readonly'
   const moveUp = canMoveUp && !keepLocked && !neighborLockedUp
   const moveDown = canMoveDown && !keepLocked && !neighborLockedDown
   // 交换是双向的：相邻块被模板钉住时，本块也挪不过去，原因要照样说清
-  const neighborReason = '相邻内容是模板锁定的，交换位置会把它挪走'
+  const neighborReason = '相邻内容是模板规定不能移动的，交换位置会把它挪走'
   const moveUpTitle = keepLocked && lock ? lockReason(lock, 'move') : neighborLockedUp ? neighborReason : null
   const moveDownTitle = keepLocked && lock ? lockReason(lock, 'move') : neighborLockedDown ? neighborReason : null
   const removeTitle = keepLocked && lock ? lockReason(lock, 'remove') : null
@@ -128,9 +121,9 @@ export function BlockCard(props: BlockCardProps): React.JSX.Element {
         <span className="block-type-badge" aria-hidden="true">
           {BLOCK_TYPE_BADGES[block.type]}
         </span>
-        <span className="block-type-label">{typeLabel}</span>
+        <span className="block-type-label">{BLOCK_TYPE_LABELS[block.type]}</span>
         {lock && (
-          <span className="block-lock-tag" title={lockTagTitle(lock, typeLabel)}>
+          <span className="block-lock-tag" title={lockTagTitle(lock)}>
             {lockTagText(lock)}
           </span>
         )}

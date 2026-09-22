@@ -313,12 +313,13 @@ export class ProjectService {
 
   deleteNode(input: NodeDeleteInput): void {
     const node = this.requireNode(input.nodeId)
-    if (node.isRoot()) throw new ProjectServiceError('根章节不能删除')
-    if (!node.deletable) throw new ProjectServiceError('该章节不允许删除')
+    // 节点级的删叫「裁剪」：与模板编辑器那个开关、界面上的标签同一个词（见 shared/permissionTerms）
+    if (node.isRoot()) throw new ProjectServiceError('根章节不能裁剪')
+    if (!node.deletable) throw new ProjectServiceError('该章节不允许裁剪')
     const parent = node.parent
     if (!parent) throw new ProjectServiceError('找不到上级章节')
     // 同复制：动的是父节点的子级名单，快照存父节点
-    this.withSnapshot('删除章节', parent, null, () => {
+    this.withSnapshot('裁剪章节', parent, null, () => {
       parent.removeChild(node)
     })
   }
@@ -722,12 +723,12 @@ function isBlockPinned(lock: ContentBlock['lock']): lock is 'keep' | 'readonly' 
 }
 
 /**
- * 写入侧拒绝时的说法，与界面上按钮置灰的提示同一口径：
+ * 写入侧拒绝时的说法，与界面上按钮置灰的提示同一口径（见 shared/permissionTerms）：
  * 先讲模板的规定，再讲这件事做不了，不写"不可编辑"这类喊话式文案。
  */
 function lockRefusal(lock: 'keep' | 'readonly', what: 'remove' | 'move' | 'edit'): string {
-  if (what === 'edit') return '模板规定该内容为定稿，内容不能改'
-  const head = lock === 'readonly' ? '模板规定该内容为定稿' : '模板规定该内容必须存在'
+  if (what === 'edit') return '模板规定该内容为只读，内容不能改'
+  const head = lock === 'readonly' ? '模板规定该内容为只读' : '模板规定该内容必须存在'
   return what === 'remove' ? `${head}，不能删除` : `${head}，不能移动`
 }
 

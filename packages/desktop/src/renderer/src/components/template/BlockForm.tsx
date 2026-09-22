@@ -14,6 +14,7 @@ import { BLOCK_TYPE_LABELS, CODE_LANGUAGES, CODE_LANGUAGE_LABELS } from '../edit
 import { ChevronDownIcon } from '../icons'
 import { MoveDownIcon, MoveUpIcon, TrashIcon } from './icons'
 import type { TemplateIssueDto } from '../../../../shared/project'
+import { BLOCK_TIER, blockTierOf } from '../../../../shared/permissionTerms'
 import {
   CheckField,
   TextAreaField,
@@ -36,33 +37,23 @@ import {
 } from './templateDoc'
 
 const LOCK_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: '', label: '自由编辑' },
-  { value: 'keep', label: '类型限制编辑' },
-  { value: 'readonly', label: '只读' }
+  { value: '', label: BLOCK_TIER.free.name },
+  { value: 'keep', label: BLOCK_TIER.keep.name },
+  { value: 'readonly', label: BLOCK_TIER.readonly.name }
 ]
 
 /**
- * 档位在模板使用者那一侧意味着什么，一句话。
+ * 档位在模板使用者那一侧意味着什么，一句话（词表在 shared/permissionTerms，与工程编辑器同一份）。
  * 位置（顺序）不在档位里：那由节点级的「排版」管，所以这里只说内容、类型与存在。
+ * 旧档位那一句带作者侧的动作建议，只在这一侧说。
  */
 function lockHint(lock: string): string {
-  switch (lock) {
-    case 'type':
-      return '旧档位：类型固定但可删 · 建议改成类型限制编辑'
-    case 'keep':
-      return '内容可改，类型不能换，也不能删'
-    case 'readonly':
-      return '内容与类型都由模板给定，也不能删'
-    default:
-      return '内容、类型、增删都由用户定'
-  }
+  if (lock === 'type') return `${BLOCK_TIER.legacy.name}：${BLOCK_TIER.legacy.tip} · 建议改成${BLOCK_TIER.keep.name}`
+  return blockTierOf(lock).tip
 }
 
 function lockTag(lock: string): string | null {
-  if (lock === 'readonly') return '只读'
-  if (lock === 'keep') return '类型限制'
-  if (lock === 'type') return '旧档位'
-  return null
+  return blockTierOf(lock).tag
 }
 
 /** 表头格子读成字符串数组（写坏的元素按空串看，校验那边另有话说） */
