@@ -99,12 +99,14 @@ export interface BlockFormProps {
   onPatch: (patch: TemplateObject) => void
   onMove: (delta: -1 | 1) => void
   onRemove: () => void
+  /** 选一张本机图片（对话框在主进程），回来把路径填进字段 */
+  onPickImage: () => Promise<string | null>
   /** 右键卡片：上方插入 / 下方插入 / 复制这一块（挪与删是卡片上的按钮，菜单里不重复） */
   onOpenMenu: (x: number, y: number) => void
 }
 
 export function BlockForm(props: BlockFormProps): JSX.Element {
-  const { block, index, count, open, onToggle, issues, prevLocked, nextLocked, onPatch, onMove, onRemove, onOpenMenu } =
+  const { block, index, count, open, onToggle, issues, prevLocked, nextLocked, onPatch, onMove, onRemove, onOpenMenu, onPickImage } =
     props
   const type = blockType(block)
   const lock = blockLock(block)
@@ -360,22 +362,37 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
           )}
 
           {type === 'image' && (
-            <div className="tpl-grid-2">
-              <TextField
-                label="图片路径"
-                tip={jsonTip('content', '工程内相对路径')}
-                mono
-                hint="可留空"
-                value={str(block['content'])}
-                onChange={(value) => onPatch({ content: value })}
-              />
+            <>
+              {/* 路径旁边就是选图片的按钮：本机挑一张，路径直接填进来，不用手抄 */}
+              <div className="tpl-row">
+                <TextField
+                  label="图片路径"
+                  tip={jsonTip('content', '工程内相对路径')}
+                  mono
+                  hint="可留空"
+                  value={str(block['content'])}
+                  onChange={(value) => onPatch({ content: value })}
+                />
+                <button
+                  type="button"
+                  className="tpl-mini"
+                  title="从本机选一张图片，路径填进这个字段"
+                  onClick={() => {
+                    void onPickImage().then((picked) => {
+                      if (picked !== null && picked !== '') onPatch({ content: picked })
+                    })
+                  }}
+                >
+                  选图片…
+                </button>
+              </div>
               <TextField
                 label="图题"
                 tip={jsonTip('caption')}
                 value={str(block['caption'])}
                 onChange={(value) => onPatch({ caption: value })}
               />
-            </div>
+            </>
           )}
 
           {type === 'formula' && (

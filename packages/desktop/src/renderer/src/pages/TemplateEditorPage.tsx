@@ -395,6 +395,7 @@ export default function TemplateEditorPage(): JSX.Element {
               onBlockRemove={editor.removeBlock}
               onBlockAdd={editor.addBlock}
               onBlockDuplicate={editor.duplicateBlock}
+              onPickImage={() => window.documentor.dialog.selectImage()}
             />
           </>
         )}

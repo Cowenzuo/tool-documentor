@@ -55,6 +55,8 @@ interface NodeFormProps {
   onBlockRemove: (index: number) => void
   onBlockAdd: (type: string, index?: number) => void
   onBlockDuplicate: (index: number) => void
+  /** 选一张本机图片（对话框在主进程）：图片块的路径字段用它，不用手抄路径 */
+  onPickImage: () => Promise<string | null>
 }
 
 /**
@@ -441,6 +443,7 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
                     onMove={(delta) => moveBlock(index, delta)}
                     onRemove={() => removeBlock(index)}
                     onOpenMenu={(x: number, y: number) => blockMenu.openIn({ index }, x, y)}
+                    onPickImage={props.onPickImage}
                   />
                 </div>
               )
