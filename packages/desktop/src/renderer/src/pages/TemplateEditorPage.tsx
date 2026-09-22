@@ -389,6 +389,7 @@ export default function TemplateEditorPage(): JSX.Element {
               issues={nodeIssues}
               styles={editor.dirSnapshot?.styles ?? []}
               onPatch={editor.patchSelectedNode}
+              onPatchDoc={editor.patchDocFields}
               onGroupFix={() => editor.fixGroupAt(editor.selectedPath)}
               onBlockPatch={editor.patchBlock}
               onBlockMove={editor.moveBlock}

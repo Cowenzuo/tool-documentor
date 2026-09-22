@@ -347,12 +347,21 @@ function checkStructureNode(
   }
 
   // 排版开关缺省是 true（可编排）；写歪了程序按缺省处理，所以报出来
-  if (node['allowLayoutEdit'] !== undefined && typeof node['allowLayoutEdit'] !== 'boolean') {
-    out.push({
+  if (node['allowLayoutEdit'] !== undefined && typeof node['allowLayoutEdit'] !== 'boolean') {    out.push({
       level: 'error',
       rule: 'node.allowLayoutEdit.invalid',
       path: `${path}.allowLayoutEdit`,
       message: `allowLayoutEdit需为布尔值`
+    })
+  }
+
+  // defaultStyleUuid 是整份模板级的字段：写在节点上程序不读，界面选了也不生效
+  if ('defaultStyleUuid' in node) {
+    out.push({
+      level: 'error',
+      rule: 'node.defaultStyleUuid.misplaced',
+      path: `${path}.defaultStyleUuid`,
+      message: `defaultStyleUuid位置错误`
     })
   }
 

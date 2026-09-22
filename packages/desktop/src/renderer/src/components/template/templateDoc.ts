@@ -706,6 +706,15 @@ export function patchNodeAt(
   )
 }
 
+/**
+ * 合并一次**整份模板级**的字段改动（`defaultStyleUuid` 这一层）。
+ * 这些字段不在节点里：拿节点补丁写它们会落进 root，程序读的还是顶层那份，等于白改。
+ * 值为 undefined 的键照旧是删掉这个键。
+ */
+export function patchDocFields(doc: TemplateDoc, patch: TemplateObject): TemplateDoc {
+  return mergePatch({ ...doc }, patch)
+}
+
 function patchWithin(
   doc: TemplateDoc,
   path: NodePath,

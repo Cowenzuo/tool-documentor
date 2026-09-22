@@ -46,6 +46,8 @@ interface NodeFormProps {
   /** 这个目录里的样式模板（根节点那一节选默认样式用） */
   styles: TemplateEntryDto[]
   onPatch: (patch: TemplateObject) => void
+  /** 改整份模板级的字段：默认样式不在节点里，得写顶层 */
+  onPatchDoc: (patch: TemplateObject) => void
   /** 把这一组改齐（同级不许混的"直接修复"） */
   onGroupFix: () => void
   onBlockPatch: (index: number, patch: TemplateObject) => void
@@ -381,7 +383,9 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
                   label=""
                   value={declaredDefault}
                   options={styleChoices}
-                  onChange={(value) => props.onPatch({ defaultStyleUuid: value })}
+                  onChange={(value) =>
+                    props.onPatchDoc({ defaultStyleUuid: value === '' ? undefined : value })
+                  }
                 />
                 {danglingDefault && (
                   <p className="tpl-note tpl-note-bad">默认样式找不到 · 可能已被删除，重选一份</p>

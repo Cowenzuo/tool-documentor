@@ -145,6 +145,16 @@ function checkStructureNode(
     })
   }
 
+  // defaultStyleUuid 是整份模板级的字段：写在节点上程序不读，界面选了也不生效
+  if ('defaultStyleUuid' in node) {
+    out.push({
+      level: 'error',
+      rule: 'node.defaultStyleUuid.misplaced',
+      path: `${path}.defaultStyleUuid`,
+      message: `defaultStyleUuid位置错误`
+    })
+  }
+
   const blocks = asArray(node['contentBlocks'])
   for (let i = 0; i < blocks.length; i++) {
     const b = asObject(blocks[i])
