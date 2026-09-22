@@ -179,7 +179,9 @@ export class ProjectService {
       this.treeValue = this.store.load()
     } catch (err) {
       this.store.close()
-      throw new ProjectServiceError(`工程加载失败：${String(err)}`)
+      // 读库失败（工程数据损坏）照原话说出去：用户要拿着这句话去查是哪一块坏了
+      const why = err instanceof Error ? err.message : String(err)
+      throw new ProjectServiceError(`工程加载失败：${why}`)
     }
     this.anchorValue = anchor
     this.projectDirValue = projectDir

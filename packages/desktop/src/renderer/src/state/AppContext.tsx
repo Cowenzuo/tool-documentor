@@ -183,7 +183,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         const result = await window.documentor.project.open(dprojPath)
         enterSession(result)
         const notices = [...(result.warnings ?? [])]
-        // 打开的工程若有内容块被跳过，必须让用户知道：下一次保存就再也找不回来了。
+        // 打开时的非致命问题（当前是块上的 lock 取值不认识）要说出来，别让用户以为没事。
         // 老工程只记模板名、又没认到 uuid 时也在这里说一句：状态栏空着等于没说原因
         if (result.info.templateUuid === '' && result.info.legacyTemplateName !== '') {
           notices.push(`模板未认到：${result.info.legacyTemplateName}`)

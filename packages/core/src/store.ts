@@ -13,7 +13,7 @@
 import { DatabaseSync } from 'node:sqlite'
 import { mkdirSync, rmSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { blockFromDb, blockTypeIndex, parseBlockType, propsOf } from './blocks'
+import { blockFromDb, blockTypeIndex, parseBlockLock, parseBlockType, propsOf } from './blocks'
 import { seedIdCounter } from './idgen'
 import { localIsoNow } from './time'
 import { DocumentNode, DocumentTree } from './tree'
@@ -368,7 +368,10 @@ export class ProjectStore {
     return tree
   }
 
-  /** 上次 load 遇到的问题（目前只有"内容块类型无法识别，已跳过"） */
+  /**
+   * 上次 load 读到的非致命问题：当前只有"块上的 lock 取值不认识"。
+   * 类型与属性读不出来是硬失败（拒绝载入），不走这条通道。
+   */
   loadWarnings(): string[] {
     return [...this.loadWarningsValue]
   }
@@ -426,9 +429,14 @@ export class ProjectStore {
   }
 
   /**
-   * 读内容块。类型无法识别时**跳过这一块并记一条警告**，不抛错。
-   * 抛错会让整个工程打不开（历史上写入过 -1 的项目就是这样坏掉的）；
-   * 跳过至少让用户能打开、能看见缺了什么，打开工程时会把警告弹给用户。
+   * 读内容块。**类型认不出、属性读不出来，就是数据损坏：拒绝载入**（硬失败）。
+   *
+   * 以前这里是"跳过这一块并记一条警告"，理由是老库被写坏过 `-1`、抛错会让工程整个打不开。
+   * 但跳过更糟：界面看不到这一块，下一次保存就把它从库里永久抹掉 —— 这是唯一一条
+   * 会真的弄丢内容的路径（锁也拦不住，因为它压根没进内存）。拒绝载入不改盘，用户拿着报错
+   * 能去查是哪一块坏了，坏数据还在。
+   *
+   * 锁的取值不认识不算损坏（模板那边有校验会拦）：照旧按不锁处理，但记一条警告说出来。
    */
   private loadBlocks(node: DocumentNode): void {
     const db = this.requireDb()
@@ -437,18 +445,28 @@ export class ProjectStore {
         'SELECT block_type, props_json FROM content_block WHERE node_id = ? ORDER BY sort_order'
       )
       .all(node.id)
-    for (const brow of blockRows) {
+    for (const [index, brow] of blockRows.entries()) {
+      const where = `节点「${node.title || '·'}」(${node.id}) 第 ${index + 1} 块`
       const rawType = str(brow['block_type'])
       const name = parseBlockType(rawType)
       if (!name) {
-        this.loadWarningsValue.push(`节点 ${node.id} 有一个无法识别的内容块类型 ${rawType}，已跳过`)
-        continue
+        throw new Error(`工程数据损坏：${where}的类型「${rawType}」认不出来`)
       }
       let props: Record<string, unknown>
       try {
-        props = JSON.parse(str(brow['props_json'])) as Record<string, unknown>
+        const parsed: unknown = JSON.parse(str(brow['props_json']))
+        if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('不是对象')
+        }
+        props = parsed as Record<string, unknown>
       } catch {
-        props = {}
+        throw new Error(`工程数据损坏：${where}的属性读不出来`)
+      }
+      // 锁取值不认识：照常打开（按不锁处理），但要让人知道，不静默
+      if (props['lock'] !== undefined && parseBlockLock(props['lock']) === undefined) {
+        this.loadWarningsValue.push(
+          `${where}的 lock 取值「${String(props['lock'])}」不认识，已按不锁处理`
+        )
       }
       const block: ContentBlock = blockFromDb(name, props)
       node.contentBlocks.push(block)
