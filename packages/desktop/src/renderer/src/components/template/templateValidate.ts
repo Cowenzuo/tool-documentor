@@ -25,7 +25,10 @@ const KNOWN_BLOCK_TYPES = [
   'unorderedList'
 ] as const
 
-/** 块锁三档；顺序参与文案，不要调整 */
+/**
+ * 块锁取值（三档，外加 PLAN-13 作废的 `type`）；顺序参与文案，不要调整。
+ * 与主进程侧的 `LOCK_TIERS` 同值同序，两处口径一致。
+ */
 const LOCK_TIERS = ['type', 'keep', 'readonly'] as const
 
 /** 与模板校验同法：任意 JSON 值按 JS 插值语义转成文案（undefined → "undefined"） */

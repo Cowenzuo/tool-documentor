@@ -20,8 +20,10 @@ export interface TemplateContentBlockDef {
   mergeVertical?: boolean
   items?: string[]
   /**
-   * 模板锁：`type` 只锁类型 / `keep` 类型锁住且必须存在 / `readonly` 整块只读。
-   * 不写就是不锁；非法取值加载时按不锁处理。语义见 docs/版本开发过程/PLAN-09-内容块锁定方案.md
+   * 模板锁：`keep` 类型限制编辑（内容可改，类型不能换、也不能删）/ `readonly` 只读
+   * （内容与类型都由模板给定）/ `type` 已作废的旧档位。
+   * 不写就是不锁；非法取值加载时按不锁处理。位置不在档位里，由节点级「排版」管；
+   * 档位与两个总闸怎么取交见 PLAN-13 与 PLAN-16。
    */
   lock?: BlockLockLevel
 }

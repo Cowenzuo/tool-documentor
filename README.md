@@ -62,12 +62,25 @@ pnpm build      # 产物 packages/desktop/out/
 pnpm verify     # 门禁：typecheck + build，收尾再跑上游契约检查（只报告不阻断；不再跑测试）
 pnpm verify:upstream  # 上游契约检查的严格模式，漂移即退出码 1（发布前用）
 pnpm test:local     # 本机单测：源码在 localscripts/tests/（不入库）
-pnpm e2e:local      # 先构建，再起真实 Electron 跑生产产物冒烟（工作区落 temp/，见下）
 node localscripts/tools/test-export.cjs <instance.json> [out.docx] --templates <模板目录>   # 无界面导出对照（本机工具）
 DOC_REAL_MMD=1 pnpm test:local   # 真实图转换契约测试（缺省跳过，需 Chromium）
 pnpm package:dir  # 免安装包：release/win-unpacked（仓库根）
 pnpm package      # NSIS 安装包：release/Documentor-<version>-setup.exe
 pnpm verify:package   # 出免安装目录后校验 asar 内容（必需项齐全 / mmd2vsdx 不入包 / 无开发依赖）
+```
+
+能力自检八份，脚本都在本机 `localscripts/`（不入库）。一个能力一份，改哪块跑哪块；
+界面那三份要先 `pnpm build`：
+
+```bash
+pnpm check:locks       # 权限：模板里写的锁，工程侧拦不拦得住
+pnpm check:terms       # 权限文案：一个权限一个词，旧说法一个不剩
+pnpm check:structure   # 结构模板编辑：目录快照、新建、读、保存、改名、删除、试跑、迁移
+pnpm check:styles      # 样式模板编辑：读、写回、导入、改名、删除、试跑、迁移
+pnpm check:open        # 工程打开：老格式工程的引用认出 uuid、保存补列
+pnpm check:ui          # 模板编辑界面
+pnpm check:open:ui     # 工程打开界面
+pnpm check:terms:ui    # 权限标签与置灰
 ```
 
 > **单测、E2E 探针、核对脚本、开发工具都在本机 `localscripts/`，不入库**。`.gitignore`
@@ -87,8 +100,8 @@ pnpm verify:package   # 出免安装目录后校验 asar 内容（必需项齐�
 > 四个库包的源码没变就跳过构建（省约 4 秒），变了才重编。手工跑过 `pnpm build:libs` 后
 > 用 `pnpm build:libs:mark` 刷新指纹，否则下次启动会白重编一遍。
 
-> **临时产物约定**：E2E 工作区、冒烟导出、打包调试等一律放仓库根 `temp/`，该目录已被 .gitignore 忽略，
-> 不写入系统临时目录。`pnpm e2e:local` 默认跑完即清理，加 `--keep` 可以保留。
+> **临时产物约定**：界面自检工作区、导出对照、打包调试等一律放仓库根 `temp/`，该目录已被 .gitignore 忽略，
+> 不写入系统临时目录。界面自检默认跑完即清理，加 `--keep` 可以保留（工作区在 `temp/check-ui/`）。
 
 > 模板由外部目录提供，软件不内置。
 > 真身在仓库外，由同级目录 `../tool-documentor-template/` 单独管理，不属本仓库；

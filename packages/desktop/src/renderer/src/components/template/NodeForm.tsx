@@ -1,6 +1,6 @@
 /**
  * 右栏：选中节点的表单。
- * 节点部分：标题、级别（只显示，程序算的）、节点类型、说明、三个开关
+ * 节点部分：标题、级别（只显示，程序算的）、节点类型、说明、四个权限开关
  * （节点自己的增删移在节点树的行右键菜单里）；内容块部分：一块一张卡片（见 BlockForm），可增删移。
  * 这一栏只写内存草稿，写文件是页脚那个「保存」按钮的事。
  */
@@ -272,7 +272,7 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
         </span>
       </header>
       <div className="tpl-col-body">
-        {/* 第一行：标题 / 类型。三个开关搭在「标题」标签那一行的空处——
+        {/* 第一行：标题 / 类型。四个开关搭在「标题」标签那一行的空处——
             它们不占这一行的宽度份额，所以标题输入框与类型下拉都不会被挤窄 */}
         <div className="tpl-row">
           <TextField
@@ -355,7 +355,7 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
           </p>
         )}
 
-        {/* 第二行：说明常驻（写给作者与用户的填写提示），排在三个开关前面 */}
+        {/* 第二行：说明常驻（写给作者与用户的填写提示），排在四个开关前面 */}
         <TextAreaField
           label="说明"
           tip={jsonTip('description')}
