@@ -137,19 +137,7 @@ function checkStructureNode(
     })
   }
 
-  // copyable/deletable 缺省是 false，漏写会锁死节点
-  if (
-    node['copyable'] === undefined &&
-    node['deletable'] === undefined &&
-    node['nodeType'] !== 'root'
-  ) {
-    out.push({
-      level: 'warn',
-      rule: 'node.switches.absent',
-      path,
-      message: `copyable / deletable未写`
-    })
-  }
+  // copyable/deletable 缺省是 false，但界面上的开关本来就是没勾的样子，不另报
 
   // 排版开关缺省是 true（可编排）；写歪了程序按缺省处理，所以报出来
   if (node['allowLayoutEdit'] !== undefined && typeof node['allowLayoutEdit'] !== 'boolean') {
@@ -189,7 +177,7 @@ function checkStructureNode(
         level: 'warn',
         rule: 'block.description.unread',
         path: `${bp}.description`,
-        message: `${bw} · description 写在块上不读取 · 说明应写在节点上`
+        message: `${bw} · description 写在块上不读取`
       })
     }
     // 块锁：认 keep / readonly 两档，外加已作废的 type；其它值程序按自由编辑处理并记警告
@@ -264,7 +252,7 @@ function checkStructureNode(
           level: 'warn',
           rule: 'block.image.caption',
           path: `${bp}.caption`,
-          message: `${bw} · 无 caption · 导出无图题`
+          message: `${bw} · 图题缺失`
         })
       }
     }
@@ -282,7 +270,7 @@ function checkStructureNode(
           level: 'warn',
           rule: 'block.mermaid.caption',
           path: `${bp}.caption`,
-          message: `${bw} · 无 caption · 导出无图题`
+          message: `${bw} · 图题缺失`
         })
       }
     }
@@ -291,7 +279,7 @@ function checkStructureNode(
         level: 'error',
         rule: 'block.code.content',
         path: `${bp}.content`,
-        message: `${bw} · code 缺 content`
+        message: `${bw} · content缺失`
       })
     }
 
@@ -381,21 +369,6 @@ function checkTableBlock(
             `${data.length + 1} · 渲染取 min(rows, data.length)`
         })
       }
-    }
-  }
-  if (b['mergeVertical'] === true && Array.isArray(b['data'])) {
-    // 与主进程同一口径：mergeVertical 现在会被读进工程（PLAN-06），不再报"程序不读"。
-    // 只留"开了开关但 data 全空"这条真的会导致合并不上来的提示。
-    const data = b['data']
-    const flat = data.flat()
-    const filled = flat.filter((c) => typeof c === 'string' && c.trim() !== '').length
-    if (filled === 0) {
-      out.push({
-        level: 'warn',
-        rule: 'block.table.mergeVertical.empty',
-        path: `${bp}.data`,
-        message: `${bw} · data 全为空 · 合并不生效`
-      })
     }
   }
 }

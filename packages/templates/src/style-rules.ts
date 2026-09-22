@@ -37,14 +37,6 @@ export interface StyleRulesOptions {
   skeleton?: SkeletonFacts
 }
 
-/** 程序不读的高阶列表键：不进全集，配了只提示不生效 */
-const UNREAD_LIST_KEYS = [
-  'list.ordered.2',
-  'list.ordered.3',
-  'list.unordered.2',
-  'list.unordered.3'
-] as const
-
 /** 题注编号合法的三个取值 */
 const CAPTION_MODES = ['auto', 'static', 'field'] as const
 
@@ -122,7 +114,7 @@ export function validateStyleMap(
       level: 'error',
       rule: 'style.docxFolder.missing',
       path: 'docxFolder',
-      message: `docxFolder未写`
+      message: `docxFolder缺失`
     })
     return out
   }
@@ -211,9 +203,7 @@ export function validateStyleMap(
           level: 'warn',
           rule: 'style.captionNumbering.chapterStyleNames',
           path: 'captionNumbering.chapterStyleNames',
-          message:
-            `chapterStyleNames未配 · ` +
-            `英文版 Word 算不出章节号`
+          message: `章节号不随标题自动更新 · 英文版 Word 取不到标题样式名`
         })
       }
     }
@@ -221,6 +211,7 @@ export function validateStyleMap(
   /**
    * 题注的号从哪来：auto 靠骨架题注样式的多级列表，field 靠题注域，static 靠题注文字自带。
    * 缺 captionNumbering 等于全都按 auto；auto 的号来自骨架样式，样式也没带编号才是真没号。
+   * 只说结果（号不会出现），不说"你没配 captionNumbering"——那半句是废话。
    */
   const captionStyleId = (kind: 'table' | 'figure'): string =>
     text(styleMap[kind === 'table' ? 'table.caption' : 'figure.caption'] ?? '')
@@ -237,22 +228,9 @@ export function validateStyleMap(
         rule: 'style.captionNumbering.absent',
         path: 'captionNumbering',
         message:
-          `captionNumbering未配 · ` +
-          `${noSource.map((k) => (k === 'table' ? '表题' : '图题')).join(' / ')}按 auto 处理，` +
-          `但骨架样式 ${noSource.map((k) => text(JSON.stringify(captionStyleId(k)))).join(' / ')} ` +
+          `题注编号不会出现 · ` +
+          `骨架样式 ${noSource.map((k) => text(JSON.stringify(captionStyleId(k)))).join(' / ')} ` +
           `无多级列表编号`
-      })
-    }
-  }
-
-  // 用不到的高阶列表键：不进全集，配了不生效
-  for (const key of UNREAD_LIST_KEYS) {
-    if (key in styleMap) {
-      out.push({
-        level: 'warn',
-        rule: 'style.listKey.unread',
-        path: `styleMap['${key}']`,
-        message: `${key}不读取`
       })
     }
   }
