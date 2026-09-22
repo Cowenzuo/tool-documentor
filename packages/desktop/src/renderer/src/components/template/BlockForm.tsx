@@ -363,6 +363,13 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
 
           {type === 'image' && (
             <>
+              {/* 题注在前、内容在后：与流程图（图题 + 源码）和表格（表名 + 网格）同一个次序 */}
+              <TextField
+                label="图题"
+                tip={jsonTip('caption')}
+                value={str(block['caption'])}
+                onChange={(value) => onPatch({ caption: value })}
+              />
               {/* 路径旁边就是选图片的按钮：本机挑一张，路径直接填进来，不用手抄 */}
               <div className="tpl-row">
                 <TextField
@@ -386,12 +393,6 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
                   选图片…
                 </button>
               </div>
-              <TextField
-                label="图题"
-                tip={jsonTip('caption')}
-                value={str(block['caption'])}
-                onChange={(value) => onPatch({ caption: value })}
-              />
             </>
           )}
 
