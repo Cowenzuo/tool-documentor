@@ -6,7 +6,7 @@
  * 目录级问题（目录不存在、子目录缺失、目录名不是 uuid 等）单独一行一条地提示；
  * 旧格式目录那一条旁边给一个迁移动作。
  */
-import { useState, type JSX } from 'react'
+import { useCallback, useRef, useState, type JSX } from 'react'
 import type { TemplateDirSnapshotDto, TemplateEntryDto } from '../../../../shared/project'
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu'
 import { IssueLine, jsonTip } from './fields'
@@ -39,6 +39,26 @@ interface TemplateListProps {
 }
 
 type Mode = 'none' | 'create' | 'rename' | 'remove' | 'import'
+
+/** 两段列表之间的分隔条高度（px），与 template.css 的 .tpl-pane-split 一致 */
+const PANE_HANDLE = 5
+/** 每段至少留这么高：一行标题加一条条目 */
+const PANE_MIN = 96
+const PANE_SPLIT_KEY = 'layout.templateListPaneSplit'
+
+/**
+ * 上半段（结构模板）的高度。返回 null 表示还没拖过：两段等分。
+ * 拖过之后按拖出来的高度记在本机，下次打开还是这个高度。
+ */
+function readPaneSplit(): number | null {
+  try {
+    const saved = Number.parseInt(localStorage.getItem(PANE_SPLIT_KEY) ?? '', 10)
+    if (Number.isFinite(saved) && saved >= PANE_MIN) return saved
+  } catch {
+    /* 忽略：读不到就等分 */
+  }
+  return null
+}
 
 /**
  * 校验结论徽标：红=错误、黄=提示，数字与顶部那两个同源。
@@ -334,6 +354,55 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
   const [renameEn, setRenameEn] = useState('')
   /** 模板那一行的右键菜单（改名 / 删除）：菜单开在右键的那一份上，两类条目共用这一个控件 */
   const menu = useContextMenu<{ entry: TemplateEntryDto }>()
+  /** 结构模板那一段的高度；null = 还没拖过，两段等分 */
+  const [paneSplit, setPaneSplit] = useState<number | null>(readPaneSplit)
+  const panesRef = useRef<HTMLDivElement | null>(null)
+
+  /** 落一个高度：写进 state（界面）并记到本机（下次打开还是这个高度） */
+  const commitPaneSplit = useCallback((value: number): void => {
+    const box = panesRef.current
+    const total = box ? box.getBoundingClientRect().height : 0
+    const max = total > 0 ? total - PANE_HANDLE - PANE_MIN : Number.MAX_SAFE_INTEGER
+    const next = Math.round(Math.min(Math.max(PANE_MIN, value), Math.max(PANE_MIN, max)))
+    setPaneSplit(next)
+    try {
+      localStorage.setItem(PANE_SPLIT_KEY, String(next))
+    } catch {
+      /* 忽略：写不进去也不影响本次使用 */
+    }
+  }, [])
+
+  /** 拖动分隔条：向下拖给结构那一段更多高度，向上拖给样式那一段 */
+  const startPaneDrag = useCallback(
+    (event: React.MouseEvent): void => {
+      event.preventDefault()
+      const box = panesRef.current
+      if (!box) return
+      const startY = event.clientY
+      const total = box.getBoundingClientRect().height
+      const from = paneSplit ?? Math.round((total - PANE_HANDLE) / 2)
+      document.body.classList.add('is-splitting-row')
+      const onMove = (ev: MouseEvent): void => commitPaneSplit(from + (ev.clientY - startY))
+      const onUp = (): void => {
+        document.body.classList.remove('is-splitting-row')
+        document.removeEventListener('mousemove', onMove)
+        document.removeEventListener('mouseup', onUp)
+      }
+      document.addEventListener('mousemove', onMove)
+      document.addEventListener('mouseup', onUp)
+    },
+    [commitPaneSplit, paneSplit]
+  )
+
+  /** 分隔条也能用键盘推：上下方向键各 16px */
+  const nudgePane = useCallback(
+    (delta: number): void => {
+      const box = panesRef.current
+      const total = box ? box.getBoundingClientRect().height : 0
+      commitPaneSplit((paneSplit ?? Math.round((total - PANE_HANDLE) / 2)) + delta)
+    },
+    [commitPaneSplit, paneSplit]
+  )
 
   const structures = dirSnapshot?.structures ?? []
   const styles = dirSnapshot?.styles ?? []
@@ -424,7 +493,7 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
       <header className="tpl-col-head">
         <h2>模板</h2>
       </header>
-      <div className="tpl-col-body">
+      <div className="tpl-col-body tpl-col-list-body">
         {!dirSnapshot ? (
           <>
             <p className="tpl-empty">
@@ -456,257 +525,294 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
               </div>
             )}
 
-            <div className="tpl-section-head">
-              <h3>结构模板</h3>
-              {/* 新建放在这一行的右端（与"选中哪一份"无关，是整段列表的动作） */}
-              <button
-                type="button"
-                className="tpl-icon-btn"
-                disabled={busy}
-                title="新建结构模板"
-                aria-label="新建结构模板"
-                onClick={() => setMode(mode === 'create' ? 'none' : 'create')}
+            {/* 两段各占一块、各滚各的：结构模板在上，样式模板在下。
+                谁多谁少在中间那条分隔条上定，内容再多也是自己那一块里滚，不挤对面 */}
+            <div className="tpl-panes" ref={panesRef}>
+              <div
+                className={`tpl-pane${paneSplit === null ? '' : ' is-sized'}`}
+                style={paneSplit === null ? undefined : { height: paneSplit }}
               >
-                <PlusIcon />
-              </button>
-            </div>
-
-            {mode === 'create' && (
-              <CreateForm
-                styles={styles}
-                busy={busy}
-                onCancel={() => setMode('none')}
-                onSubmit={(input) => {
-                  void props.onCreate(input).then((ok) => {
-                    if (ok) setMode('none')
-                  })
-                }}
-              />
-            )}
-
-            {structures.length === 0 ? (
-              <p className="tpl-empty">这个目录里还没有结构模板</p>
-            ) : (
-              <ul className="tpl-items">
-                {structures.map((entry) => (
-                  <li key={entry.uuid}>
-                    <button
-                      type="button"
-                      className={`tpl-item${
-                        openKind === 'structure' && entry.uuid === openUuid ? ' is-selected' : ''
-                      }`}
-                      data-entry={entry.uuid}
-                      data-kind="structure"
-                      onClick={() => props.onOpen(entry)}
-                      onContextMenu={(event) => {
-                        event.preventDefault()
-                        // 右键不开这份模板（那会牵动未保存确认）：菜单就作用在右键的那一份上
-                        menu.openIn({ entry }, event.clientX, event.clientY)
-                      }}
-                      onKeyDown={(event) => {
-                        // 键盘也要能开这单（Windows 的习惯键：Shift+F10 或菜单键）
-                        if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) {
-                          return
-                        }
-                        event.preventDefault()
-                        const rect = event.currentTarget.getBoundingClientRect()
-                        menu.openIn(
-                          { entry },
-                          Math.round(rect.right - 8),
-                          Math.round(rect.bottom - 4)
-                        )
-                      }}
-                    >
-                      <span className="tpl-item-name">{entry.name}</span>
-                      {/* 问题徽标紧跟名字（它是"这份模板有事"的提示） */}
-                      {badges(entry)}
-                      {/* 副名贴在行的右端：与主名分开，扫一眼就知道哪个是中文名 */}
-                      {entry.en === '' ? null : (
-                        <span className="tpl-item-en" title="英文名">
-                          {entry.en}
-                        </span>
-                      )}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {/* 改名 / 删除表单只跟"开着的那一份"走：切到别处先收起来（mode 留着，切回来还是它）。
-                两类条目各有一张同名的表单，值不一样，所以还要 formKind 对上才拿出来 */}
-            {mode === 'rename' && formKind === 'structure' && openKind === 'structure' && selected && (
-              <RenameForm
-                kind="structure"
-                busy={busy}
-                cn={renameCn}
-                en={renameEn}
-                onCn={setRenameCn}
-                onEn={setRenameEn}
-                onCancel={() => setMode('none')}
-                onSubmit={() => {
-                  void props
-                    .onRename({
-                      cn: renameCn.trim(),
-                      ...(renameEn.trim() === '' ? {} : { en: renameEn.trim() })
-                    })
-                    .then((ok) => {
-                      if (ok) setMode('none')
-                    })
-                }}
-              />
-            )}
-
-            {mode === 'remove' && formKind === 'structure' && openKind === 'structure' && selected && (
-              <div className="tpl-form">
-                <p className="tpl-note">删除「{selected.name}」？整份目录一起删</p>
-                <div className="tpl-form-foot">
-                  <button type="button" className="tpl-mini" onClick={() => setMode('none')}>
-                    取消
-                  </button>
+                <div className="tpl-section-head">
+                  <h3>结构模板</h3>
+                  {/* 新建放在这一行的右端（与"选中哪一份"无关，是整段列表的动作） */}
                   <button
                     type="button"
-                    className="tpl-mini tpl-danger"
+                    className="tpl-icon-btn"
                     disabled={busy}
-                    onClick={() => {
-                      void props.onRemove().then((ok) => {
-                        if (ok) setMode('none')
-                      })
-                    }}
+                    title="新建结构模板"
+                    aria-label="新建结构模板"
+                    onClick={() => setMode(mode === 'create' ? 'none' : 'create')}
                   >
-                    删除
+                    <PlusIcon />
                   </button>
                 </div>
-              </div>
-            )}
 
-            {/* 样式模板这一段：点开看的是**对照表**（逻辑键 → 骨架样式），不是样式文件本身。
-                骨架里的字节程序一个字节都不改；改名与删除动的是样式自己，在下面那一行的右键菜单里。 */}
-            <div className="tpl-section-head" title="样式文件由作者提供 · 此处只改对照表">
-              <h3>样式模板</h3>
-              <span className="tpl-count">点开看对照表</span>
-              {/* 导入：把自备的样式文件铺进模板目录，并按样式名生成映射草稿 */}
-              <button
-                type="button"
-                className="tpl-icon-btn"
-                disabled={busy}
-                title="导入样式文件 · Word 文档或已解包目录"
-                aria-label="导入样式文件"
-                onClick={() => setMode(mode === 'import' ? 'none' : 'import')}
-              >
-                <ImportIcon />
-              </button>
-            </div>
-
-            {mode === 'import' && (
-              <ImportForm
-                busy={busy}
-                onPickDocx={props.onPickDocx}
-                onPickDirectory={props.onPickDirectory}
-                onCancel={() => setMode('none')}
-                onSubmit={(input) => {
-                  void props.onImport(input).then((ok) => {
-                    if (ok) setMode('none')
-                  })
-                }}
-              />
-            )}
-            {styles.length === 0 ? (
-              <p className="tpl-empty">这个目录里还没有样式模板</p>
-            ) : (
-              <ul className="tpl-items">
-                {styles.map((entry) => (
-                  <li key={entry.uuid}>
-                    <button
-                      type="button"
-                      className={`tpl-item${
-                        openKind === 'style' && entry.uuid === openUuid ? ' is-selected' : ''
-                      }`}
-                      data-entry={entry.uuid}
-                      data-kind="style"
-                      onClick={() => props.onOpenStyle(entry)}
-                      onContextMenu={(event) => {
-                        event.preventDefault()
-                        // 与结构模板那一行同一套：右键不打开这份（那会牵动未保存确认），
-                        // 菜单就作用在右键的那一份上
-                        menu.openIn({ entry }, event.clientX, event.clientY)
+                <div className="tpl-pane-body">
+                  {mode === 'create' && (
+                    <CreateForm
+                      styles={styles}
+                      busy={busy}
+                      onCancel={() => setMode('none')}
+                      onSubmit={(input) => {
+                        void props.onCreate(input).then((ok) => {
+                          if (ok) setMode('none')
+                        })
                       }}
-                      onKeyDown={(event) => {
-                        // 键盘也要能开这单（Windows 的习惯键：Shift+F10 或菜单键）
-                        if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) {
-                          return
-                        }
-                        event.preventDefault()
-                        const rect = event.currentTarget.getBoundingClientRect()
-                        menu.openIn(
-                          { entry },
-                          Math.round(rect.right - 8),
-                          Math.round(rect.bottom - 4)
-                        )
-                      }}
-                    >
-                      <span className="tpl-item-name">{entry.name}</span>
-                      {badges(entry)}
-                      {/* 副名贴在行的右端：与主名分开，扫一眼就知道哪个是中文名 */}
-                      {entry.en === '' ? null : (
-                        <span className="tpl-item-en" title="英文名">
-                          {entry.en}
-                        </span>
-                      )}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
+                    />
+                  )}
 
-            {/* 样式那一份的改名表单：与结构同一套摆法，落点是样式自己那一个 JSON */}
-            {mode === 'rename' && formKind === 'style' && openKind === 'style' && openStyle && (
-              <RenameForm
-                kind="style"
-                busy={busy}
-                cn={renameCn}
-                en={renameEn}
-                onCn={setRenameCn}
-                onEn={setRenameEn}
-                onCancel={() => setMode('none')}
-                onSubmit={() => {
-                  void props
-                    .onRenameStyle({
-                      cn: renameCn.trim(),
-                      ...(renameEn.trim() === '' ? {} : { en: renameEn.trim() })
-                    })
-                    .then((ok) => {
-                      if (ok) setMode('none')
-                    })
-                }}
-              />
-            )}
-
-            {/* 删除样式：被谁用只说一句，不拦——找不到样式就是悬挂，由用户重选 */}
-            {mode === 'remove' && formKind === 'style' && openKind === 'style' && openStyle && (
-              <div className="tpl-form">
-                <p className="tpl-note">删除「{openStyle.name}」？整份目录含骨架一起删</p>
-                {styleUsedBy.length > 0 && (
-                  <p className="tpl-note">这些结构模板把它当默认样式：{styleUsedBy.join('、')}</p>
+                {structures.length === 0 ? (
+                  <p className="tpl-empty">这个目录里还没有结构模板</p>
+                ) : (
+                  <ul className="tpl-items">
+                    {structures.map((entry) => (
+                      <li key={entry.uuid}>
+                        <button
+                          type="button"
+                          className={`tpl-item${
+                            openKind === 'structure' && entry.uuid === openUuid ? ' is-selected' : ''
+                          }`}
+                          data-entry={entry.uuid}
+                          data-kind="structure"
+                          onClick={() => props.onOpen(entry)}
+                          onContextMenu={(event) => {
+                            event.preventDefault()
+                            // 右键不开这份模板（那会牵动未保存确认）：菜单就作用在右键的那一份上
+                            menu.openIn({ entry }, event.clientX, event.clientY)
+                          }}
+                          onKeyDown={(event) => {
+                            // 键盘也要能开这单（Windows 的习惯键：Shift+F10 或菜单键）
+                            if (
+                              event.key !== 'ContextMenu' &&
+                              !(event.shiftKey && event.key === 'F10')
+                            ) {
+                              return
+                            }
+                            event.preventDefault()
+                            const rect = event.currentTarget.getBoundingClientRect()
+                            menu.openIn(
+                              { entry },
+                              Math.round(rect.right - 8),
+                              Math.round(rect.bottom - 4)
+                            )
+                          }}
+                        >
+                          <span className="tpl-item-name">{entry.name}</span>
+                          {/* 问题徽标紧跟名字（它是"这份模板有事"的提示） */}
+                          {badges(entry)}
+                          {/* 副名贴在行的右端：与主名分开，扫一眼就知道哪个是中文名 */}
+                          {entry.en === '' ? null : (
+                            <span className="tpl-item-en" title="英文名">
+                              {entry.en}
+                            </span>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 )}
-                <div className="tpl-form-foot">
-                  <button type="button" className="tpl-mini" onClick={() => setMode('none')}>
-                    取消
-                  </button>
-                  <button
-                    type="button"
-                    className="tpl-mini tpl-danger"
-                    disabled={busy}
-                    onClick={() => {
-                      void props.onRemoveStyle().then((ok) => {
-                        if (ok) setMode('none')
-                      })
+
+                {/* 改名 / 删除表单只跟"开着的那一份"走：切到别处先收起来（mode 留着，切回来还是它）。
+                    两类条目各有一张同名的表单，值不一样，所以还要 formKind 对上才拿出来 */}
+                {mode === 'rename' && formKind === 'structure' && openKind === 'structure' && selected && (
+                  <RenameForm
+                    kind="structure"
+                    busy={busy}
+                    cn={renameCn}
+                    en={renameEn}
+                    onCn={setRenameCn}
+                    onEn={setRenameEn}
+                    onCancel={() => setMode('none')}
+                    onSubmit={() => {
+                      void props
+                        .onRename({
+                          cn: renameCn.trim(),
+                          ...(renameEn.trim() === '' ? {} : { en: renameEn.trim() })
+                        })
+                        .then((ok) => {
+                          if (ok) setMode('none')
+                        })
                     }}
-                  >
-                    删除
-                  </button>
+                  />
+                )}
+
+                {mode === 'remove' && formKind === 'structure' && openKind === 'structure' && selected && (
+                  <div className="tpl-form">
+                    <p className="tpl-note">删除「{selected.name}」？整份目录一起删</p>
+                    <div className="tpl-form-foot">
+                      <button type="button" className="tpl-mini" onClick={() => setMode('none')}>
+                        取消
+                      </button>
+                      <button
+                        type="button"
+                        className="tpl-mini tpl-danger"
+                        disabled={busy}
+                        onClick={() => {
+                          void props.onRemove().then((ok) => {
+                            if (ok) setMode('none')
+                          })
+                        }}
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 </div>
               </div>
-            )}
+
+              <div
+                className="tpl-pane-split"
+                role="separator"
+                aria-orientation="horizontal"
+                aria-label="调整两段列表高度"
+                tabIndex={0}
+                onMouseDown={startPaneDrag}
+                onKeyDown={(event) => {
+                  if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+                  event.preventDefault()
+                  nudgePane(event.key === 'ArrowUp' ? -16 : 16)
+                }}
+              />
+
+              {/* 样式模板这一段：点开看的是**对照表**（逻辑键 → 骨架样式），不是样式文件本身。
+                  骨架里的字节程序一个字节都不改；改名与删除动的是样式自己，在下面那一行的右键菜单里。 */}
+              <div className="tpl-pane">
+                <div className="tpl-section-head" title="样式文件由作者提供 · 此处只改对照表">
+                  <h3>样式模板</h3>
+                  {/* 导入：把自备的样式文件铺进模板目录，并按样式名生成映射草稿 */}
+                  <button
+                    type="button"
+                    className="tpl-icon-btn"
+                    disabled={busy}
+                    title="导入样式文件 · Word 文档或已解包目录"
+                    aria-label="导入样式文件"
+                    onClick={() => setMode(mode === 'import' ? 'none' : 'import')}
+                  >
+                    <ImportIcon />
+                  </button>
+                </div>
+
+                <div className="tpl-pane-body">
+                  {mode === 'import' && (
+                    <ImportForm
+                      busy={busy}
+                      onPickDocx={props.onPickDocx}
+                      onPickDirectory={props.onPickDirectory}
+                      onCancel={() => setMode('none')}
+                      onSubmit={(input) => {
+                        void props.onImport(input).then((ok) => {
+                          if (ok) setMode('none')
+                        })
+                      }}
+                    />
+                  )}
+                  {styles.length === 0 ? (
+                    <p className="tpl-empty">这个目录里还没有样式模板</p>
+                  ) : (
+                    <ul className="tpl-items">
+                      {styles.map((entry) => (
+                        <li key={entry.uuid}>
+                          <button
+                            type="button"
+                            className={`tpl-item${
+                              openKind === 'style' && entry.uuid === openUuid ? ' is-selected' : ''
+                            }`}
+                            data-entry={entry.uuid}
+                            data-kind="style"
+                            onClick={() => props.onOpenStyle(entry)}
+                            onContextMenu={(event) => {
+                              event.preventDefault()
+                              // 与结构模板那一行同一套：右键不打开这份（那会牵动未保存确认），
+                              // 菜单就作用在右键的那一份上
+                              menu.openIn({ entry }, event.clientX, event.clientY)
+                            }}
+                            onKeyDown={(event) => {
+                              // 键盘也要能开这单（Windows 的习惯键：Shift+F10 或菜单键）
+                              if (
+                                event.key !== 'ContextMenu' &&
+                                !(event.shiftKey && event.key === 'F10')
+                              ) {
+                                return
+                              }
+                              event.preventDefault()
+                              const rect = event.currentTarget.getBoundingClientRect()
+                              menu.openIn(
+                                { entry },
+                                Math.round(rect.right - 8),
+                                Math.round(rect.bottom - 4)
+                              )
+                            }}
+                          >
+                            <span className="tpl-item-name">{entry.name}</span>
+                            {badges(entry)}
+                            {/* 副名贴在行的右端：与主名分开，扫一眼就知道哪个是中文名 */}
+                            {entry.en === '' ? null : (
+                              <span className="tpl-item-en" title="英文名">
+                                {entry.en}
+                              </span>
+                            )}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {/* 样式那一份的改名表单：与结构同一套摆法，落点是样式自己那一个 JSON */}
+                  {mode === 'rename' && formKind === 'style' && openKind === 'style' && openStyle && (
+                    <RenameForm
+                      kind="style"
+                      busy={busy}
+                      cn={renameCn}
+                      en={renameEn}
+                      onCn={setRenameCn}
+                      onEn={setRenameEn}
+                      onCancel={() => setMode('none')}
+                      onSubmit={() => {
+                        void props
+                          .onRenameStyle({
+                            cn: renameCn.trim(),
+                            ...(renameEn.trim() === '' ? {} : { en: renameEn.trim() })
+                          })
+                          .then((ok) => {
+                            if (ok) setMode('none')
+                          })
+                      }}
+                    />
+                  )}
+
+                  {/* 删除样式：被谁用只说一句，不拦——找不到样式就是悬挂，由用户重选 */}
+                  {mode === 'remove' && formKind === 'style' && openKind === 'style' && openStyle && (
+                    <div className="tpl-form">
+                      <p className="tpl-note">删除「{openStyle.name}」？整份目录含骨架一起删</p>
+                      {styleUsedBy.length > 0 && (
+                        <p className="tpl-note">
+                          这些结构模板把它当默认样式：{styleUsedBy.join('、')}
+                        </p>
+                      )}
+                      <div className="tpl-form-foot">
+                        <button type="button" className="tpl-mini" onClick={() => setMode('none')}>
+                          取消
+                        </button>
+                        <button
+                          type="button"
+                          className="tpl-mini tpl-danger"
+                          disabled={busy}
+                          onClick={() => {
+                            void props.onRemoveStyle().then((ok) => {
+                              if (ok) setMode('none')
+                            })
+                          }}
+                        >
+                          删除
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </>
         )}
       </div>

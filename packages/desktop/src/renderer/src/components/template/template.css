@@ -264,6 +264,80 @@ body.is-splitting {
   padding: var(--space-2) var(--space-3) var(--space-6);
 }
 
+/* 左栏自己不分上下滚：滚的是里面那两段（结构模板 / 样式模板） */
+.tpl-col-list-body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.tpl-col-list-body .tpl-dir-issues {
+  flex: none;
+  margin: var(--space-2) var(--space-3) 0;
+}
+
+/* 页面自己的边距在这一层没有了（padding: 0），空态那几句话自己带回来 */
+.tpl-col-list-body > .tpl-empty,
+.tpl-col-list-body > .tpl-note {
+  margin: var(--space-3) var(--space-3) 0;
+}
+
+/* 两段列表：各占一块，各滚各的。谁多谁少在中间那条分隔条上定 */
+.tpl-panes {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tpl-pane {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 拖过之后上半段按拖出来的高度，下半段吃剩下的 */
+.tpl-pane.is-sized {
+  flex: 0 0 auto;
+}
+
+.tpl-pane .tpl-section-head {
+  flex: none;
+  padding: 0 var(--space-3);
+}
+
+.tpl-pane-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+}
+
+/* 两段之间的分隔条：与三栏那几条一个行为，只是方向横过来 */
+.tpl-pane-split {
+  flex: none;
+  height: 5px;
+  cursor: row-resize;
+  border-top: 1px solid var(--border);
+  background: transparent;
+  transition: background-color var(--duration-fast) ease;
+}
+
+.tpl-pane-split:hover,
+.tpl-pane-split:focus-visible,
+body.is-splitting-row .tpl-pane-split {
+  background: var(--accent-soft-strong);
+  outline: none;
+}
+
+/* 拖动期间整页一个光标：与三栏分隔条同一套 body 类，只是方向横过来 */
+body.is-splitting-row {
+  cursor: row-resize;
+  user-select: none;
+}
+
 .tpl-empty {
   margin: var(--space-3) 0;
   font-size: var(--text-xs);
