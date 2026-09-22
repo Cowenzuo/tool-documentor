@@ -28,6 +28,7 @@
     "verify:upstream": "node scripts/check-upstream.cjs --strict",
     "test:local": "set NODE_OPTIONS=--experimental-sqlite&& vitest run -c localscripts/vitest.config.ts",
     "check:locks": "node localscripts/lock-check.cjs",
+    "check:structure": "node localscripts/structure-check.cjs",
     "check:styles": "node localscripts/style-check.cjs",
     "check:ui": "node localscripts/e2e/run.cjs"
   }
