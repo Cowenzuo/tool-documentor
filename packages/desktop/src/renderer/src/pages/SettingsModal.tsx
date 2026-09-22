@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import type { AppConfigDto, TemplateLoadReport } from '../../../shared/project'
 import { useApp } from '../state/AppContext'
 import { useTheme, type ThemePreference } from '../theme/ThemeProvider'
+import { errorText } from '../utils/errorText'
 
 /** 主题三选项：顺序与标题栏原先的循环顺序一致 */
 const THEME_OPTIONS: Array<{ value: ThemePreference; label: string }> = [
@@ -79,7 +80,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
       showToast({ kind: 'info', text: '设置已保存' })
       onClose()
     } catch (err) {
-      showToast({ kind: 'error', text: '设置保存失败' })
+      showToast({ kind: 'error', text: `设置保存失败：${errorText(err)}` })
     } finally {
       setSaving(false)
     }
