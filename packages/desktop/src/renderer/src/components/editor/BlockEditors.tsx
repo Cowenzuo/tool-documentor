@@ -192,14 +192,6 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
    */
   const shapeLocked = locked || props.shapeLocked === true
   const shapeWhy = locked ? '模板规定该表格为只读' : (props.shapeLockedWhy ?? '')
-  /** 缩表会丢内容时，先挂起等用户确认（不做静默截断） */
-  const [pendingShrink, setPendingShrink] = useState<{
-    rows: number
-    cols: number
-    lostRows: number
-    lostCols: number
-    lostCells: number
-  } | null>(null)
 
   // 显示真实规模：以前行数框显示 clamp 后的 50，而界面渲染 85 行，两处对不上。
   // 上限只用来提示"超出界面舒适区"，不再当作数据的截断依据。
@@ -207,29 +199,17 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
   const realCols = Math.max(block.cols, ...block.data.map((r) => r.length), block.headers.length, 0)
   const overLimit = realRows > TABLE_MAX_ROWS || realCols > TABLE_MAX_COLS
 
-  /** 缩减时会丢掉的非空单元格数（增量增长不算丢失） */
-  const countLoss = (rows: number, cols: number): { rows: number; cols: number; cells: number } => {
-    const lostRows = Math.max(0, block.data.length - rows)
-    const rowLoss = block.data.slice(rows)
-    const lostCellsInRows = rowLoss.flat().filter((v) => v.trim() !== '').length
-    // 列方向的丢失：只在真正缩列时统计右侧非空单元格
-    let lostCols = 0
-    let lostCellsInCols = 0
-    if (cols < realCols) {
-      lostCols = realCols - cols
-      for (const row of block.data) {
-        lostCellsInCols += row.slice(cols).filter((v) => v.trim() !== '').length
-      }
-      if (block.headers.slice(cols).some((h) => h.trim() !== '')) lostCellsInCols += 1
-    }
-    return { rows: lostRows, cols: lostCols, cells: lostCellsInRows + lostCellsInCols }
-  }
-
-  /** 真正执行尺寸变更：只在这里改 data，且**只扩容不静默裁剪** */
+  /**
+   * 真正执行尺寸变更：只在这里改 data。
+   *
+   * 缩容时裁掉的行列直接落库，不再弹确认：这一步在撤销栈里（`updateBlock` 会存整块快照），
+   * 裁错了撤销一次就回来，界面上也看得见少了几列——再问一句只是噪音（2026-09-22 实测，
+   * 缩表前后都能撤销，连保存之后也能）。
+   */
   const applySize = (rows: number, cols: number): void => {
     const r = Math.max(0, rows)
     const c = Math.max(1, cols)
-    // 扩容补空；缩容时保留原数据（由调用方确认后再调 applySize）
+    // 先按新尺寸裁到 c 列：扩容的位置补空串，缩掉的那几列就是丢了（撤销能退回）
     const data = Array.from({ length: Math.max(r, block.data.length) }, (_, ri) => {
       const src = block.data[ri] ?? []
       const width = Math.max(c, src.length)
@@ -238,7 +218,6 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
         width
       )
     })
-    // 确认缩容后才真正裁掉
     const trimmed = data.slice(0, r).map((row) => row.slice(0, c))
     const headers = [
       ...block.headers.slice(0, c),
@@ -256,15 +235,6 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
       data: trimmed,
       rowSpans: clamped.changed ? clamped.spans : block.rowSpans
     })
-  }
-
-  const requestSize = (rows: number, cols: number): void => {
-    const loss = countLoss(rows, cols)
-    if (loss.cells > 0) {
-      setPendingShrink({ rows, cols, lostRows: loss.rows, lostCols: loss.cols, lostCells: loss.cells })
-      return
-    }
-    applySize(rows, cols)
   }
 
   const setCell = (r: number, c: number, value: string): void => {
@@ -309,7 +279,7 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
               type="number"
               min={0}
               value={realRows}
-              onChange={(e) => requestSize(Number(e.target.value) || 0, realCols)}
+              onChange={(e) => applySize(Number(e.target.value) || 0, realCols)}
               disabled={shapeLocked}
               title={shapeLocked ? `${shapeWhy}，行数不能改` : undefined}
             />
@@ -320,7 +290,7 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
               type="number"
               min={1}
               value={realCols}
-              onChange={(e) => requestSize(realRows, Number(e.target.value) || 1)}
+              onChange={(e) => applySize(realRows, Number(e.target.value) || 1)}
               disabled={shapeLocked}
               title={shapeLocked ? `${shapeWhy}，列数不能改` : undefined}
             />
@@ -335,33 +305,6 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
           {TABLE_MAX_ROWS} 行 × {TABLE_MAX_COLS} 列）。数据完整保留，导出不受影响；
           建议分批编辑或拆表。
         </p>
-      )}
-
-      {/* 缩表会丢内容：先确认，不静默截断 */}
-      {pendingShrink && (
-        <div className="be-confirm" role="alertdialog" aria-label="确认缩减表格">
-          <div>
-            这次缩减会丢失
-            {pendingShrink.lostRows > 0 ? ` ${pendingShrink.lostRows} 行` : ''}
-            {pendingShrink.lostCols > 0 ? ` ${pendingShrink.lostCols} 列` : ''}
-            {`（共 ${pendingShrink.lostCells} 个非空单元格）`}，无法撤销。
-          </div>
-          <div className="be-confirm-actions">
-            <button
-              type="button"
-              className="be-btn danger-text"
-              onClick={() => {
-                applySize(pendingShrink.rows, pendingShrink.cols)
-                setPendingShrink(null)
-              }}
-            >
-              确认缩减为 {pendingShrink.rows} 行 × {pendingShrink.cols} 列
-            </button>
-            <button type="button" className="be-btn" onClick={() => setPendingShrink(null)}>
-              取消
-            </button>
-          </div>
-        </div>
       )}
 
       <div className="be-table-merge-bar">

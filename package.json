@@ -34,6 +34,7 @@
     "check:styles": "node localscripts/style-check.cjs",
     "check:terms": "node localscripts/terms-check.cjs",
     "check:terms:ui": "node localscripts/e2e/run.cjs --fixture localscripts/e2e/fixture-permissions.cjs --probe localscripts/e2e/probe-permissions.cjs",
+    "check:undo": "node localscripts/e2e/run.cjs --fixture localscripts/e2e/fixture-permissions.cjs --probe localscripts/e2e/probe-undo.cjs",
     "check:ui": "node localscripts/e2e/run.cjs"
   }
 }

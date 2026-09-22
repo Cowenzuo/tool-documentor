@@ -69,8 +69,8 @@ pnpm package      # NSIS 安装包：release/Documentor-<version>-setup.exe
 pnpm verify:package   # 出免安装目录后校验 asar 内容（必需项齐全 / mmd2vsdx 不入包 / 无开发依赖）
 ```
 
-能力自检八份，脚本都在本机 `localscripts/`（不入库）。一个能力一份，改哪块跑哪块；
-界面那三份要先 `pnpm build`：
+能力自检九份，脚本都在本机 `localscripts/`（不入库）。一个能力一份，改哪块跑哪块；
+界面那四份要先 `pnpm build`：
 
 ```bash
 pnpm check:locks       # 权限：模板里写的锁，工程侧拦不拦得住
@@ -81,6 +81,7 @@ pnpm check:open        # 工程打开：老格式工程的引用认出 uuid、�
 pnpm check:ui          # 模板编辑界面
 pnpm check:open:ui     # 工程打开界面
 pnpm check:terms:ui    # 权限标签、置灰与换类型入口
+pnpm check:undo        # 撤销：改形状这一步退得回去，保存前后都退得回去
 ```
 
 > **单测、E2E 探针、核对脚本、开发工具都在本机 `localscripts/`，不入库**。`.gitignore`
