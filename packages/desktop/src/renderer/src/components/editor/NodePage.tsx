@@ -112,6 +112,15 @@ export default function NodePage(): React.JSX.Element {
   const typeMenuRef = useRef<HTMLDivElement | null>(null)
   /** 上一次与 store 对账过的块序列；用于识别"store 侧发生了结构性变化" */
   const storeSignatureRef = useRef('')
+  /**
+   * 界面上这份块序列的镜像：对账时除了比 store 的签名，还要比它一眼。
+   *
+   * 只比 store 的签名不够。用户刚打的字先落在本地（防抖缓冲里），store 还没动；这时若 store
+   * 的签名回到上一次对账时那个值（撤销正是如此），按签名判就会跳过同步，那次打字留在界面上，
+   * 树其实已经退回去了 —— 用户看到"撤销没生效"，切一下章节才恢复（见 PLAN-21）。
+   */
+  const blocksRef = useRef<ContentBlock[]>(blocks)
+  blocksRef.current = blocks
   const descValueRef = useRef(desc)
   const descDirtyRef = useRef(false)
   const descTimerRef = useRef<number | undefined>(undefined)
@@ -200,7 +209,9 @@ export default function NodePage(): React.JSX.Element {
     if (!node || node.id !== nodeIdRef.current) return
     const incoming = node.contentBlocks
     const signature = incoming.map((b) => JSON.stringify(b)).join('\u0000')
-    if (signature === storeSignatureRef.current) return
+    const localSignature = (blocksRef.current ?? []).map((b) => JSON.stringify(b)).join('\u0000')
+    // store 没变**且界面也还跟它一致**才跳过：界面已经分叉就必须按 store 覆盖回来
+    if (signature === storeSignatureRef.current && signature === localSignature) return
     storeSignatureRef.current = signature
     setBlocks(
       incoming.map((b, i) => {
@@ -216,20 +227,27 @@ export default function NodePage(): React.JSX.Element {
     setBlockKeys((prev) => reconcileKeys(prev, incoming.length, op))
   }, [node?.contentBlocks])
 
-  /** 提交全部挂起编辑（标题 + 编制说明 + 内容块） */
-  const flushPending = useCallback(() => {
+  /**
+   * 提交全部挂起编辑（标题 + 编制说明 + 内容块），**等它们真的写下去**。
+   *
+   * 返回值必须等：保存、切换节点、撤销与重做都会先调它。只"喊一声"就走的话，
+   * 撤销会赶在这次编辑之前执行 —— 撤掉的是上一步，而这次编辑随后自己落地，
+   * 用户看到的是"按了 Ctrl+Z，字还在"（见 PLAN-21）。
+   */
+  const flushPending = useCallback(async () => {
     const nodeId = nodeIdRef.current
+    const writes: Array<Promise<void>> = []
     // 标题
     window.clearTimeout(titleTimerRef.current)
     if (titleDirtyRef.current && nodeId) {
       titleDirtyRef.current = false
-      void setNodeTitle(nodeId, titleValueRef.current)
+      writes.push(setNodeTitle(nodeId, titleValueRef.current))
     }
     // 编制说明
     window.clearTimeout(descTimerRef.current)
     if (descDirtyRef.current && nodeId) {
       descDirtyRef.current = false
-      void setNodeDescription(nodeId, descValueRef.current)
+      writes.push(setNodeDescription(nodeId, descValueRef.current))
     }
     // 内容块
     for (const [index, block] of [...pendingRef.current]) {
@@ -237,17 +255,18 @@ export default function NodePage(): React.JSX.Element {
       if (timer !== undefined) window.clearTimeout(timer)
       pendingRef.current.delete(index)
       timersRef.current.delete(index)
-      if (nodeId) void updateContentBlock(nodeId, index, block)
+      if (nodeId) writes.push(updateContentBlock(nodeId, index, block))
     }
     setEditing(false)
+    await Promise.all(writes)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setNodeDescription, setNodeTitle, updateContentBlock])
 
-  // 向 store 注册本页 flush（保存/关闭/切换节点前调用）
+  // 向 store 注册本页 flush（保存/关闭/切换节点/撤销前调用）
   useEffect(() => registerFlushAll(flushPending), [registerFlushAll, flushPending])
 
-  // 卸载时提交挂起编辑
-  useEffect(() => () => flushPending(), [flushPending])
+  // 卸载时提交挂起编辑（组件要走了，不等结果）
+  useEffect(() => () => void flushPending(), [flushPending])
 
   const onDescChange = useCallback(
     (value: string) => {

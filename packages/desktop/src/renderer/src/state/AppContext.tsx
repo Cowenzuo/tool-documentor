@@ -76,8 +76,8 @@ interface AppContextValue {
   removeContentBlock: (nodeId: string, index: number) => Promise<void>
   moveContentBlock: (nodeId: string, from: number, to: number) => Promise<void>
   updateContentBlock: (nodeId: string, index: number, block: ContentBlock) => Promise<void>
-  /** NodePage 注册/注销其 flush（块编辑器挂起提交），保存/切换前调用 */
-  registerFlushAll: (fn: () => void) => () => void
+  /** NodePage 注册/注销其 flush（块编辑器挂起提交），保存/切换/撤销前调用；返回值要等 */
+  registerFlushAll: (fn: () => void | Promise<void>) => () => void
   flushAll: () => Promise<void>
   /** 全局弹层（设置/导出）——由 App 壳层统一渲染，避免挂在标题栏 drag 区域内 */
   settingsOpen: boolean
@@ -126,7 +126,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
   const [exportOpen, setExportOpen] = useState(false)
   const [templateEditorOpen, setTemplateEditorOpen] = useState(false)
   const toastTimer = useRef<number | undefined>(undefined)
-  const flushesRef = useRef(new Set<() => void>())
+  const flushesRef = useRef(new Set<() => void | Promise<void>>())
 
   const showToast = useCallback((item: ToastItem) => {
     setToast(item)
@@ -134,17 +134,26 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
     toastTimer.current = window.setTimeout(() => setToast(null), 3200)
   }, [])
 
+  /**
+   * 把各页注册的挂起编辑全部交上去，**等它们真的落定**。
+   *
+   * 等这一步是真等：以前只是挨个调用、丢掉返回值，而页面那边的 flush 内部是
+   * `void updateContentBlock(...)` 一发了之，于是"先落定再撤销"等于没生效 ——
+   * 打完字立刻按 Ctrl+Z，撤销撤掉的是上一步，这次打字随后自己写回去
+   * （2026-09-22 实测，见 PLAN-21）。
+   */
   const flushAll = useCallback(async () => {
-    for (const fn of [...flushesRef.current]) {
+    const pending = [...flushesRef.current].map(async (fn) => {
       try {
-        fn()
+        await fn()
       } catch (err) {
         console.error('[store] flush failed:', err)
       }
-    }
+    })
+    await Promise.all(pending)
   }, [])
 
-  const registerFlushAll = useCallback((fn: () => void) => {
+  const registerFlushAll = useCallback((fn: () => void | Promise<void>) => {
     flushesRef.current.add(fn)
     return () => {
       flushesRef.current.delete(fn)
