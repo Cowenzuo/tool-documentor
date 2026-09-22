@@ -7,7 +7,7 @@
  * （读骨架用），出口 index 还会带出 `manager.ts` → `@documentor/core`（库里带原生模块）。
  * 渲染层打进浏览器包时，node 内置模块会被替换成只有 default 的 shim，具名导入当场报错。
  * 所以这里只镜像**单份模板能判的规则**（身份、节点开关、内容块字段、表格形状、
- * 锁取值、复制组）。
+ * 锁取值）。
  *
  * 保存仍以主进程的校验为准：这里只决定按钮亮不亮、以及问题列表长什么样。
  */
@@ -87,7 +87,6 @@ export function validateStructureDoc(def: unknown): TemplateIssueDto[] {
   }
 
   checkStructureNode(root, 'root', out)
-  checkCopyGroups(root, 'root', out)
   return out
 }
 
@@ -375,28 +374,6 @@ function checkTableBlock(
         })
       }
     }
-  }
-}
-
-/** 复制组检查：只判"有 copyGroupId 但 copyable 不是 true" */
-function checkCopyGroups(node: Record<string, unknown>, path: string, out: TemplateIssueDto[]): void {
-  const children = asArray(node['children'])
-  for (let i = 0; i < children.length; i++) {
-    const c = asObject(children[i])
-    if (!c) continue
-    const childPath = `${path}.children[${i}]`
-    if (c['copyGroupId']) {
-      if (c['copyable'] !== true) {
-        out.push({
-          level: 'warn',
-          rule: 'node.copyGroup.notCopyable',
-          path: `${childPath}.copyable`,
-          // 与主进程同一份说法：结论挂在这个节点自己身上，不重复它的名字
-          message: `copyGroupId 在，copyable 不是 true · 复制不了`
-        })
-      }
-    }
-    checkCopyGroups(c, childPath, out)
   }
 }
 

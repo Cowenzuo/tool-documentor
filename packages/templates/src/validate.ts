@@ -260,7 +260,7 @@ export function parseSkeletonIndex(skeletonPath: string): SkeletonIndex {
 
 /**
  * 校验结构模板：身份（uuid / 中文名）、root、整棵节点树的节点开关、内容块字段、
- * 表格形状、锁取值与复制组开关。
+ * 表格形状与锁取值。
  *
  * 引用指向的样式在不在不在这里判：那是加载与解析的事（找不到就是悬挂，由用户重选）。
  */
@@ -297,7 +297,6 @@ export function validateStructureTemplate(def: unknown): ValidationIssue[] {
   }
 
   checkStructureNode(root, 'root', out)
-  checkCopyGroups(root, 'root', out)
   return out
 }
 
@@ -587,35 +586,6 @@ function checkTableBlock(
         })
       }
     }
-  }
-}
-
-/**
- * 复制组检查：只判"有 copyGroupId 但 copyable 不是 true"。
- * 复制组的份数统计是事实陈述，不是问题，故不产出结论。
- */
-function checkCopyGroups(
-  node: Record<string, unknown>,
-  path: string,
-  out: ValidationIssue[]
-): void {
-  const children = asArray(node['children'])
-  for (let i = 0; i < children.length; i++) {
-    const c = asObject(children[i])
-    if (!c) continue
-    const childPath = `${path}.children[${i}]`
-    if (c['copyGroupId']) {
-      if (c['copyable'] !== true) {
-        out.push({
-          level: 'warn',
-          rule: 'node.copyGroup.notCopyable',
-          path: `${childPath}.copyable`,
-          // 结论挂在那个节点自己身上，不重复它的名字
-          message: `copyGroupId 在，copyable 不是 true · 复制不了`
-        })
-      }
-    }
-    checkCopyGroups(c, childPath, out)
   }
 }
 

@@ -23,8 +23,6 @@ export class DocumentNode {
   /** 编号风格: 'numeric' | 'alpha' | 'alphabetic'（其它视为 numeric） */
   subTitleStyle = 'numeric'
   subTitleAutoNumber = true
-  /** 复制组标识，同组节点共享 */
-  copyGroupId = ''
   /** 允许的子节点标题级别（字符串数组），空 = 不限制（对齐 db 存储形态） */
   allowedChildLevels: string[] = []
 
@@ -198,19 +196,9 @@ export class DocumentNode {
     return labels
   }
 
-  /** 同父下同 copyGroupId 的节点数（含自身；无组返回 1） */
-  copyGroupCount(): number {
-    if (!this.copyGroupId || !this.parent) return 1
-    let count = 0
-    for (const sibling of this.parent.children) {
-      if (sibling.copyGroupId === this.copyGroupId) count += 1
-    }
-    return count
-  }
-
   /**
    * 深拷贝整棵子树（parent=null）：**原样复制**。
-   * 新 id，其余状态一律照抄——四个权限开关、编组、内容，块上的档位也跟着来。
+   * 新 id，其余状态一律照抄——四个权限开关与内容，块上的档位也跟着来。
    * 复制出来的是"同一个槽位的另一份"，不是另一种东西；要把它扔掉，走的是它自己的 `deletable`。
    */
   deepClone(): DocumentNode {
@@ -225,7 +213,6 @@ export class DocumentNode {
     clone.subTitleStyle = this.subTitleStyle
     clone.subTitleAutoNumber = this.subTitleAutoNumber
     clone.allowedChildLevels = [...this.allowedChildLevels]
-    clone.copyGroupId = this.copyGroupId
     for (const child of this.children) {
       // 递归克隆中子树内部校验通常通过；失败（极端模板）则跳过该分支
       clone.addChild(child.deepClone())
@@ -253,7 +240,6 @@ export class DocumentNode {
     copy.subTitleStyle = this.subTitleStyle
     copy.subTitleAutoNumber = this.subTitleAutoNumber
     copy.allowedChildLevels = [...this.allowedChildLevels]
-    copy.copyGroupId = this.copyGroupId
     copy.contentBlocks = this.contentBlocks.map((block) => cloneBlock(block))
     copy.children = this.children.map((child) => {
       const childCopy = child.snapshot()
@@ -279,7 +265,6 @@ export class DocumentNode {
     this.subTitleStyle = snapshot.subTitleStyle
     this.subTitleAutoNumber = snapshot.subTitleAutoNumber
     this.allowedChildLevels = [...snapshot.allowedChildLevels]
-    this.copyGroupId = snapshot.copyGroupId
     this.contentBlocks = snapshot.contentBlocks.map((block) => cloneBlock(block))
     this.children = snapshot.children.map((child) => {
       const childCopy = child.snapshot()

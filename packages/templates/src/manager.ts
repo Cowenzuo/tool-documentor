@@ -213,7 +213,6 @@ export class TemplateManager {
     node.isSubTitle = nodeDef.isSubTitle
     node.subTitleStyle = nodeDef.subTitleStyle
     node.subTitleAutoNumber = nodeDef.subTitleAutoNumber
-    node.copyGroupId = nodeDef.copyGroupId
 
     // allowedChildLevels 由子定义推导（与旧版一致：各子节点 headingLevel 去重）
     const levels: string[] = []
@@ -306,7 +305,6 @@ export class TemplateManager {
       isSubTitle,
       subTitleStyle: String(obj['subTitleStyle'] ?? 'numeric'),
       subTitleAutoNumber: Boolean(obj['subTitleAutoNumber'] ?? true),
-      copyGroupId: String(obj['copyGroupId'] ?? ''),
       defaultChildren: children,
       contentBlocks
     }

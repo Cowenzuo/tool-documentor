@@ -775,7 +775,7 @@ async function isMermaidConversionAvailable(): Promise<boolean> {
   }
 }
 
-/** 一个节点固有字段（级别/权限/复制组/子级名单）折算成的固定开销 */
+/** 一个节点固有字段（级别/权限/子级名单）折算成的固定开销 */
 const NODE_OVERHEAD_BYTES = 128
 
 /**
