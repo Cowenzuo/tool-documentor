@@ -77,6 +77,16 @@ export type {
   TemplateScan
 } from './discover'
 /**
+ * 引用解析（PLAN-12）：按 uuid 找样式，找不到就是悬挂；导出可用集合是全部样式。
+ */
+export {
+  findStructureByUuid,
+  findStyleByUuid,
+  resolveDefaultStyle,
+  stylesForExport
+} from './resolve'
+export type { StyleResolution } from './resolve'
+/**
  * 样式规则（不碰 fs 的那一半）：编辑模式从 `@documentor/templates/style-rules`
  * 直接拿，渲染层实时跑与主进程**同一份**判定。
  */
