@@ -1462,7 +1462,14 @@ button.tpl-issue-where:hover {
   bottom: calc(100% + 6px);
   left: 0;
   z-index: 60;
-  max-width: min(560px, 70vw);
+  /*
+   * 宽度按内容定：绝对定位的包含块是触发它的那个小结按钮（一百来像素宽），
+   * 不给宽度的话浮层就按它收缩，里面的位置与条数只好一行行折下去，成一根很长的窄条。
+   * 定成 max-content，再夹在上下限之间：下限保证条数不挤成两行，上限别顶出窗口。
+   */
+  width: max-content;
+  min-width: 280px;
+  max-width: min(620px, 72vw);
   max-height: 40vh;
   overflow: auto;
   display: flex;
