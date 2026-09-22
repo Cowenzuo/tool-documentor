@@ -35,10 +35,6 @@ export interface InstanceFile {
   category?: string
   description?: string
   version?: string
-  /** 结构模板名（优先） */
-  basedOn?: string
-  /** 样式映射文件名（basedOn 缺失时按此匹配结构模板的 styleTemplate 字段） */
-  styleTemplate?: string
   root: {
     title?: string
     children?: InstanceNodeJson[]
