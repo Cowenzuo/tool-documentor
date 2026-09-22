@@ -517,16 +517,15 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
                         )
                       }}
                     >
-                      <span className="tpl-item-name">
-                        {entry.name}
-                        {entry.en === '' ? null : (
-                          <span className="tpl-item-en" title="英文名">
-                            {entry.en}
-                          </span>
-                        )}
-                      </span>
+                      <span className="tpl-item-name">{entry.name}</span>
                       {/* 问题徽标紧跟名字（它是"这份模板有事"的提示） */}
                       {badges(entry)}
+                      {/* 副名贴在行的右端：与主名分开，扫一眼就知道哪个是中文名 */}
+                      {entry.en === '' ? null : (
+                        <span className="tpl-item-en" title="英文名">
+                          {entry.en}
+                        </span>
+                      )}
                     </button>
                   </li>
                 ))}
@@ -647,6 +646,12 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
                     >
                       <span className="tpl-item-name">{entry.name}</span>
                       {badges(entry)}
+                      {/* 副名贴在行的右端：与主名分开，扫一眼就知道哪个是中文名 */}
+                      {entry.en === '' ? null : (
+                        <span className="tpl-item-en" title="英文名">
+                          {entry.en}
+                        </span>
+                      )}
                     </button>
                   </li>
                 ))}

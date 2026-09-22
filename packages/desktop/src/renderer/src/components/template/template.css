@@ -341,7 +341,7 @@ body.is-splitting {
 
 .tpl-item-name {
   /* 名字按内容宽：徽标要跟在名字后面（问题徽标属于这一份模板），
-     尾部的 id 用 margin-left: auto 贴右边 */
+     副名用 margin-left: auto 贴到行的右端 */
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -355,29 +355,21 @@ body.is-splitting {
   font-weight: 600;
 }
 
-/* 副名（英文名）跟在主名后面：同一条线上，弱一档，读不出来也不占地方 */
+/* 副名（英文名）贴在行的右端：与主名分开，弱一档，窄了先让它省略 */
 .tpl-item-en {
-  margin-left: 6px;
-  font-size: var(--text-xs);
-  font-weight: 400;
-  color: var(--text-3);
-}
-
-.tpl-item.is-selected .tpl-item-en {
-  color: var(--accent);
-  opacity: 0.75;
-}
-
-.tpl-item-id {
   flex: none;
   margin-left: auto;
   max-width: 45%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--text-3);
+}
+
+.tpl-item.is-selected .tpl-item-en {
+  color: var(--accent);
+  opacity: 0.75;
 }
 
 .tpl-badges {
@@ -1667,7 +1659,7 @@ button.tpl-issue-where:hover {
 }
 
 @media (max-width: 940px) {
-  .tpl-item-id {
+  .tpl-item-en {
     display: none;
   }
 }
