@@ -253,9 +253,12 @@ export class ProjectService {
       templateUuid,
       // 模板没了就是悬挂：名字留空，导出那一头会拦下来
       templateName: template ? displayNameOf(template) : '',
-      // 老工程还没认成 uuid 时把那个名字带出来，界面据此说明"是哪一份没认到"
+      // 老工程还没认成 uuid 时把那个名字带出来，界面据此说明"是哪一份没认到"。
+      // 认到之后不再报：库里那一列是留着当线索的，不该当成"还没认到"
       legacyTemplateName:
-        this.store.legacyTemplateName() || this.anchorValue?.legacyTemplateName || '',
+        templateUuid === ''
+          ? this.store.legacyTemplateName() || this.anchorValue?.legacyTemplateName || ''
+          : '',
       projectDir: this.projectDirValue,
       dprojPath: join(this.projectDirValue, ANCHOR_FILE_NAME)
     }
