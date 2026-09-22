@@ -16,7 +16,7 @@ import { TEMPLATE_SUBDIR, scanTemplateDir } from './discover'
 import type { DiscoveredTemplate, TemplateScan } from './discover'
 import { displayNameOf, templateIdentityOf } from './identity'
 import type { TemplateIdentity } from './identity'
-import { resolveDefaultStyle } from './resolve'
+import { resolveDefaultStyle, findStructureByLegacyName } from './resolve'
 import type {
   CaptionNumberingMode,
   DefaultStyleRef,
@@ -162,6 +162,15 @@ export class TemplateManager {
   /** 按 uuid 查找结构模板 */
   findStructureByUuid(uuid: string): TemplateDef | undefined {
     return this.structures.get(uuid)
+  }
+
+  /**
+   * 老工程只记了模板名：按名字认回结构模板（PLAN-12 之前建的那批工程）。
+   * 只认唯一一份，认不出或撞名字返回 undefined —— 与"模板没了"同样处理。
+   */
+  findStructureByLegacyName(legacyName: string): TemplateDef | undefined {
+    const hit = findStructureByLegacyName(this.scanValue, legacyName)
+    return hit ? this.structures.get(hit.uuid) : undefined
   }
 
   /** 按 uuid 查找样式模板 */

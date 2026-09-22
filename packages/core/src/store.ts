@@ -38,6 +38,8 @@ export class ProjectStore {
   private mDbPath = ''
   private mName = ''
   private mTemplateUuid = ''
+  /** 老库记的模板名（PLAN-12 之前的 `project.template_name`），只在没有 uuid 时当线索用 */
+  private mLegacyTemplateName = ''
   private loadWarningsValue: string[] = []
 
   // ================= 打开 / 创建 =================
@@ -52,6 +54,7 @@ export class ProjectStore {
     this.mDbPath = dbPath
     this.mName = projectName
     this.mTemplateUuid = templateUuid
+    this.mLegacyTemplateName = ''
     db.exec('PRAGMA foreign_keys = ON')
     this.createSchema()
 
@@ -61,15 +64,32 @@ export class ProjectStore {
     ).run(projectName, templateUuid, now, now)
   }
 
+  /**
+   * 打开库。老库（PLAN-12 之前）的 project 表只有 `template_name`，没有 `template_uuid`：
+   * 按实际存在的列读，缺的那一列读成空串，交给上层按名字认一次 uuid。
+   * 直接 SELECT template_uuid 会让老工程整个打不开（no such column），所以列在这里必须问一遍。
+   */
   open(dbPath: string): void {
     this.close()
     const db = new DatabaseSync(dbPath)
     this.db = db
     this.mDbPath = dbPath
     db.exec('PRAGMA foreign_keys = ON')
-    const row = db.prepare('SELECT name, template_uuid FROM project LIMIT 1').get()
+    const columns = this.projectColumns()
+    if (columns.length === 0) {
+      this.close()
+      throw new Error('工程数据异常：project 表读不到')
+    }
+    const col = (name: string): string => (columns.includes(name) ? name : "''")
+    const row = db
+      .prepare(
+        `SELECT name, ${col('template_uuid')} AS template_uuid, ` +
+          `${col('template_name')} AS template_name FROM project LIMIT 1`
+      )
+      .get()
     this.mName = row ? str(row['name']) : ''
     this.mTemplateUuid = row ? str(row['template_uuid']) : ''
+    this.mLegacyTemplateName = row ? str(row['template_name']) : ''
   }
 
   close(): void {
@@ -84,6 +104,7 @@ export class ProjectStore {
     this.mDbPath = ''
     this.mName = ''
     this.mTemplateUuid = ''
+    this.mLegacyTemplateName = ''
   }
 
   isOpen(): boolean {
@@ -101,6 +122,21 @@ export class ProjectStore {
   /** 这份工程用的是哪份结构模板（uuid） */
   templateUuid(): string {
     return this.mTemplateUuid
+  }
+
+  /** 老库只记名字时带出来的模板名；新库与认到 uuid 之后都是空串 */
+  legacyTemplateName(): string {
+    return this.mLegacyTemplateName
+  }
+
+  /**
+   * 认出模板之后把 uuid 记到这次会话上，随下一次保存落库（老库同时补列）。
+   * 认不出来就不要调：宁可留着名字，也不要把空 uuid 写进去。
+   */
+  setTemplateUuid(uuid: string): void {
+    if (uuid === '') return
+    this.mTemplateUuid = uuid
+    this.mLegacyTemplateName = ''
   }
 
   projectMeta(): ProjectMeta {
@@ -179,7 +215,7 @@ export class ProjectStore {
         order += 1
       }
 
-      db.prepare('UPDATE project SET updated_at = ?').run(localIsoNow())
+      this.writeProjectRow()
       db.exec('COMMIT')
     } catch (err) {
       try {
@@ -188,6 +224,35 @@ export class ProjectStore {
         /* 忽略：清理失败不影响关闭 */
       }
       throw err
+    }
+  }
+
+  /**
+   * 落库当前工程的名字与模板引用：时间戳照旧，模板 uuid 这次会话认到的也一并写。
+   * 老库没有 `template_uuid` 列，在这里补上（保存本来就在写库，迁移随第一次保存发生）。
+   */
+  private writeProjectRow(): void {
+    const db = this.requireDb()
+    if (!this.projectColumns().includes('template_uuid')) {
+      // 补列不动 `template_name`：没认到 uuid 的工程下次打开还要靠它认
+      db.exec("ALTER TABLE project ADD COLUMN template_uuid TEXT NOT NULL DEFAULT ''")
+    }
+    db.prepare('UPDATE project SET updated_at = ?, template_uuid = ?').run(
+      localIsoNow(),
+      this.mTemplateUuid
+    )
+  }
+
+  /** project 表的列名。表不存在或读不动时返回空数组，由调用方报"工程数据异常" */
+  private projectColumns(): string[] {
+    const db = this.requireDb()
+    try {
+      return db
+        .prepare('PRAGMA table_info(project)')
+        .all()
+        .map((row) => str(row['name']))
+    } catch {
+      return []
     }
   }
 

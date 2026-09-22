@@ -28,6 +28,11 @@ export interface ProjectInfoDto {
   templateUuid: string
   /** 结构模板的展示名，只给人看；模板没了就是空串 */
   templateName: string
+  /**
+   * 老工程（PLAN-12 之前）只记了模板名、又没认成 uuid 时，这里带出那个名字；
+   * 认到了或本来就是新工程则为空串。界面用它说明"是哪一份模板没认到"。
+   */
+  legacyTemplateName: string
   projectDir: string
   dprojPath: string
 }
