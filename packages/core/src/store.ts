@@ -5,6 +5,10 @@
  * - save 在事务内全量重写（DELETE node/content_block → 递归 INSERT）；
  * - 根节点特殊写（parent NULL / heading 0 / node_type 'root'）；
  * - 时间戳为本地 ISO（yyyy-MM-ddTHH:mm:ss，无时区）。
+ *
+ * 新口径加过两列：`project.template_uuid`（PLAN-12／14）与 `node.allow_layout_edit`（PLAN-16）。
+ * 老库没有它们：**读的时候按缺省值读**（模板引用回落到名字、排版当开着），
+ * **保存的时候补列**，所以老工程不用事先改库也能打开与保存。
  */
 import { DatabaseSync } from 'node:sqlite'
 import { mkdirSync, rmSync } from 'node:fs'
