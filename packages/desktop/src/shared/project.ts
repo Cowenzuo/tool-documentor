@@ -18,7 +18,6 @@ export interface NodeDto {
   isSubTitle: boolean
   subTitleStyle: string
   subTitleAutoNumber: boolean
-  copyGroupId: string
   allowedChildLevels: string[]
   contentBlocks: ContentBlock[]
   children: NodeDto[]

@@ -17,7 +17,6 @@ export function toNodeDto(node: DocumentNode): NodeDto {
     isSubTitle: node.isSubTitle,
     subTitleStyle: node.subTitleStyle,
     subTitleAutoNumber: node.subTitleAutoNumber,
-    copyGroupId: node.copyGroupId,
     allowedChildLevels: [...node.allowedChildLevels],
     contentBlocks: node.contentBlocks.map((b) => structuredClone(b)),
     children: node.children.map((c) => toNodeDto(c))

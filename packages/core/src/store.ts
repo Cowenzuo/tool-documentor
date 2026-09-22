@@ -175,7 +175,6 @@ export class ProjectStore {
         'deletable INTEGER NOT NULL DEFAULT 0,' +
         'allow_content_blocks INTEGER NOT NULL DEFAULT 1,' +
         'allow_layout_edit INTEGER NOT NULL DEFAULT 1,' +
-        "copy_group_id TEXT DEFAULT ''," +
         "allowed_child_levels TEXT DEFAULT ''," +
         'FOREIGN KEY (parent_id) REFERENCES node(id) ON DELETE CASCADE)'
     )
@@ -310,9 +309,9 @@ export class ProjectStore {
     db.prepare(
       'INSERT INTO node (id, parent_id, sort_order, heading_level, title, description, ' +
         'node_type, is_sub_title, sub_title_style, sub_title_auto_number, ' +
-        'copyable, deletable, allow_content_blocks, allow_layout_edit, copy_group_id, ' +
+        'copyable, deletable, allow_content_blocks, allow_layout_edit, ' +
         'allowed_child_levels) ' +
-        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).run(
       node.id,
       parentId,
@@ -328,7 +327,6 @@ export class ProjectStore {
       node.deletable ? 1 : 0,
       node.allowContentBlocks ? 1 : 0,
       node.allowLayoutEdit ? 1 : 0,
-      node.copyGroupId,
       node.allowedChildLevels.join(',')
     )
 
@@ -403,7 +401,7 @@ export class ProjectStore {
           'heading_level, title, description, is_sub_title, sub_title_style, ' +
           'sub_title_auto_number, copyable, deletable, allow_content_blocks, ' +
           `${col('allow_layout_edit', '1')}, ` +
-          'copy_group_id, allowed_child_levels FROM node WHERE id = ?'
+          'allowed_child_levels FROM node WHERE id = ?'
       )
       .get(nodeId)
     if (!row) return null
@@ -418,7 +416,6 @@ export class ProjectStore {
     node.deletable = bool(row['deletable'])
     node.allowContentBlocks = bool(row['allow_content_blocks'])
     node.allowLayoutEdit = bool(row['allow_layout_edit'])
-    node.copyGroupId = str(row['copy_group_id'])
     const levels = str(row['allowed_child_levels'])
     if (levels) {
       node.allowedChildLevels = levels.split(',').filter((x) => x.length > 0)

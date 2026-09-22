@@ -200,7 +200,7 @@ export function nodeTypeBadge(node: TemplateObject): string | null {
  * 文件里那串英文类型名对作者没有意义，程序也只对 `subTitle`（列表子标题）分支：
  * `root` 只被几条检查用到，`chapter` / `section`（真实模板里 chapter 出现在 1~3 层、
  * section 在 2~5 层，连"第几层叫什么"都不是固定约定）与 `repeatable` 全库没有一处读它们——
- * 复制组那件事由 `copyGroupId` 决定，与这个字段无关，所以按层级标题对待、值原样留着。
+ * 所以按层级标题对待、值原样留着。
  */
 export type NodeKind = 'heading' | 'listSubTitle' | 'unknown'
 

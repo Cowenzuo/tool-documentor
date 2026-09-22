@@ -42,7 +42,6 @@ export interface TemplateNodeDef {
   isSubTitle: boolean
   subTitleStyle: string
   subTitleAutoNumber: boolean
-  copyGroupId: string
   defaultChildren: TemplateNodeDef[]
   contentBlocks: TemplateContentBlockDef[]
 }
