@@ -1,6 +1,6 @@
 /**
  * 模板编辑页的状态：自己的根、自己的状态，不碰 AppContext 的会话与编辑器组件树
- * （PLAN-11 第 3 节：两套状态互不引用）。
+ * （DESIGN-03：两套状态互不引用）。
  *
  * 模型：主进程是文件的权威，这里是**内存草稿**——所有编辑只落在 doc 上，
  * 点保存才写文件；每次改动用本地规则即时校验一次，保存结果里的 issues 覆盖显示。
@@ -61,7 +61,7 @@ import {
 export type TemplateEditorStatus = 'loading' | 'ready' | 'failed'
 export type TemplateIssuesSource = 'local' | 'server'
 
-/** 页面上的一条结果提示；detail 放备份路径或主进程给的错误原文 */
+/** 页面上的一条结果提示；detail 放长内容（迁移回执、试跑产物路径、主进程给的错误原文） */
 export interface TemplateNotice {
   kind: 'info' | 'warn' | 'error'
   text: string

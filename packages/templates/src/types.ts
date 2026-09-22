@@ -1,5 +1,5 @@
 /**
- * 模板系统类型（PLAN-12：身份是 uuid，名字只作展示）。
+ * 模板系统类型（DESIGN-03：身份是 uuid，名字只作展示）。
  * 结构模板与样式模板各一份 JSON，目录名与文件名都用 uuid；
  * 结构里只记一个默认样式 uuid，找不到就是悬挂。
  */
@@ -23,7 +23,7 @@ export interface TemplateContentBlockDef {
    * 模板锁：`keep` 类型限制编辑（内容可改，类型不能换、也不能删）/ `readonly` 只读
    * （内容与类型都由模板给定）/ `type` 已作废的旧档位。
    * 不写就是不锁；非法取值加载时按不锁处理。位置不在档位里，由节点级「排版」管；
-   * 档位与两个总闸怎么取交见 PLAN-13 与 PLAN-16。
+   * 档位与两个总闸怎么取交见 DESIGN-06 与 DESIGN-06。
    */
   lock?: BlockLockLevel
 }

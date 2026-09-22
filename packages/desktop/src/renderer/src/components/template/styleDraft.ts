@@ -4,7 +4,7 @@
  *
  * 判定与文案**直接用主进程那份实现**：`@documentor/templates/style-rules`（不碰 fs）
  * 与 `style-keys`（对照表行）。这里只负责"从读回来的事实 + 草稿算出结果"，
- * 不再维护第二份规则——校验一份实现（PLAN-11 第 8 节第 7 条）。
+ * 不再维护第二份规则——校验一份实现（DESIGN-03）。
  */
 import { buildStyleMapRows } from '@documentor/templates/style-keys'
 import { validateStyleMap } from '@documentor/templates/style-rules'

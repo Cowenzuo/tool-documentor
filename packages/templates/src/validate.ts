@@ -1,7 +1,7 @@
 /**
  * validate.ts — 单份模板的静态校验（结构模板 + 样式模板）：规则的唯一实现。
  *
- * 口径（PLAN-12）：模板的引用只认 uuid，目录与文件名都用 uuid，清单不再存在。
+ * 口径（DESIGN-03）：模板的引用只认 uuid，目录与文件名都用 uuid，清单不再存在。
  * 所以这里只做**单份模板自己**能判的事，不查目录、不查清单、不比名字：
  *   1. `parseSkeletonIndex(skeletonPath)`：读骨架 styles.xml / numbering.xml，给出可读样式表
  *      （styleId、样式名、段落或字符、字号）与各级标题起始号；
@@ -40,10 +40,10 @@ export const KNOWN_BLOCK_TYPES = [
 ] as const
 
 /**
- * 块锁取值（PLAN-09 起的三档，外加 PLAN-13 作废的 `type`）。**顺序参与文案**：
+ * 块锁取值（DESIGN-06 起的三档，外加 DESIGN-06 作废的 `type`）。**顺序参与文案**：
  * 非法取值时按 `"type" / "keep" / "readonly"` 列出，不要调整。
  * 与 `@documentor/core` 的 `BLOCK_LOCK_LEVELS` 同值同序。
- * 档位管的是块自己（内容、类型、在不在），位置由节点级「排版」管，见 PLAN-16 第 2 节。
+ * 档位管的是块自己（内容、类型、在不在），位置由节点级「排版」管，见 DESIGN-06。
  */
 export const LOCK_TIERS: readonly BlockLockLevel[] = ['type', 'keep', 'readonly']
 
@@ -398,7 +398,7 @@ function checkStructureNode(
         message: `description 写在块上不读取`
       })
     }
-    // 块锁（PLAN-13）：认 keep / readonly，外加已作废的 type；其它值按自由编辑处理并记警告
+    // 块锁（DESIGN-06）：认 keep / readonly，外加已作废的 type；其它值按自由编辑处理并记警告
     const rawLock = b['lock']
     const lock = rawLock === undefined ? '' : text(rawLock)
     if (rawLock !== undefined && !(LOCK_TIERS as readonly string[]).includes(lock)) {

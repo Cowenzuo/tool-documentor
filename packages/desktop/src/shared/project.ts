@@ -13,7 +13,7 @@ export interface NodeDto {
   copyable: boolean
   deletable: boolean
   allowContentBlocks: boolean
-  /** 排版：块集合、顺序、类型能不能动；关掉后只能改各块的内容（PLAN-13 第 1.1 节） */
+  /** 排版：块集合、顺序、类型能不能动；关掉后只能改各块的内容（DESIGN-06） */
   allowLayoutEdit: boolean
   isSubTitle: boolean
   subTitleStyle: string
@@ -30,7 +30,7 @@ export interface ProjectInfoDto {
   /** 结构模板的展示名，只给人看；模板没了就是空串 */
   templateName: string
   /**
-   * 老工程（PLAN-12 之前）只记了模板名、又没认成 uuid 时，这里带出那个名字；
+   * 老工程（改用 uuid 之前）只记了模板名、又没认成 uuid 时，这里带出那个名字；
    * 认到了或本来就是新工程则为空串。界面用它说明"是哪一份模板没认到"。
    */
   legacyTemplateName: string
@@ -176,7 +176,7 @@ export interface TemplateLoadReport {
   loadedAny: boolean
 }
 
-// ---------- 模板编辑（PLAN-11）----------
+// ---------- 模板编辑（DESIGN-03）----------
 
 /** 一条校验结论：level 决定阻断与否，rule 是规则 id，path 指到具体节点或字段 */
 export interface TemplateIssueDto {
@@ -272,11 +272,11 @@ export interface TemplateRenameInput {
   en?: string
 }
 
-// ---------- 试跑（PLAN-11 批次 4）----------
+// ---------- 试跑（DESIGN-03）----------
 
 export interface TemplateTrialInput {
   dir: string
-  /** 结构模板的 uuid（PLAN-12：引用只认 uuid） */
+  /** 结构模板的 uuid（DESIGN-04：引用只认 uuid） */
   uuid: string
 }
 
@@ -297,7 +297,7 @@ export interface TemplateTrialResult {
   styleWarnings: string[]
 }
 
-// ---------- 样式对照表（PLAN-11 批次 3）----------
+// ---------- 样式对照表（DESIGN-03）----------
 
 /** 骨架里的一条样式：对照表下拉的选项（来源 `word/styles.xml`） */
 export interface SkeletonStyleDto {
@@ -398,7 +398,7 @@ export interface TemplateStyleSaveResult {
 }
 
 /**
- * 导入一份自备样式（PLAN-11 批次 3 步骤 4）：
+ * 导入一份自备样式（DESIGN-03）：
  * 源是 `.docx` 文件或**已经解包**的骨架目录，两条路走同一套部件检查。
  */
 export interface TemplateStyleImportInput {
@@ -441,8 +441,8 @@ export interface TemplateStyleRenameInput {
 export type TemplateStyleRenameResult = TemplateStyleReadResult
 
 /**
- * 迁移旧格式模板目录（PLAN-12 §6）：目录名不是 uuid 的那些，分配 uuid、改目录与文件名、
- * 把结构里的样式引用换成样式 uuid，清单文件退场。旧格式不并存，迁完这一批就没有旧目录了。
+ * 迁移旧格式模板目录（DESIGN-04）：目录名不是 uuid 的那些，分配 uuid、改目录与文件名、
+ * 把结构里的样式引用换成样式 uuid，清单文件退场。旧格式不并存，迁完就没有旧目录了。
  */
 export interface TemplateMigrateInput {
   dir: string
@@ -660,7 +660,7 @@ export interface DesktopBlockApi {
 }
 
 /**
- * 模板编辑（PLAN-11）：只动模板目录，不碰工程库、不进撤销栈。
+ * 模板编辑（DESIGN-03）：只动模板目录，不碰工程库、不进撤销栈。
  * 结构模板可读可写、可改名与删除；样式模板可读，对照表（styleMap 与 captionNumbering）可写，
  * 也可改名与删除（动的是样式自己那一个 JSON 或整份目录，不含骨架里的字节）。
  */

@@ -1,5 +1,5 @@
 /**
- * template-editor-service.ts — 模板编辑模式（PLAN-12：身份是 uuid）的主进程服务：只动模板目录里的 JSON。
+ * template-editor-service.ts — 模板编辑模式（DESIGN-03：身份是 uuid）的主进程服务：只动模板目录里的 JSON。
  *
  * 边界：
  *   - 不依赖工程库/数据库，不进撤销栈（编辑模式与文档会话是两套东西）；
@@ -445,7 +445,7 @@ export class TemplateEditorService {
   }
 
   /**
-   * 读一份样式模板（PLAN-11 批次 3）：stylemap 原文 + 骨架样式表 + 对照表。
+   * 读一份样式模板（DESIGN-03）：stylemap 原文 + 骨架样式表 + 对照表。
    *
    * 对照表里的"缺"按**软件支持的全集**算（`SUPPORTED_STYLE_KEYS`），与任何结构模板无关；
    * `usedBy` 只是事实陈述——哪些结构把这份样式写成了默认样式。
@@ -482,7 +482,7 @@ export class TemplateEditorService {
   }
 
   /**
-   * 试跑（PLAN-11 批次 4）：拿这份结构模板 + 它默认的样式模板，**真的导出一份 .docx**。
+   * 试跑（DESIGN-03）：拿这份结构模板 + 它默认的样式模板，**真的导出一份 .docx**。
    *
    * 判据是导出链路的告警：结构里用到的每个样式键都得在骨架里找到对应样式，
    * 否则那一段会按默认样式输出（`…的样式未生效`）——这类告警必须为零。
@@ -542,7 +542,7 @@ export class TemplateEditorService {
   }
 
   /**
-   * 导入一份自备样式（PLAN-11 批次 3 步骤 4）：源可以是 `.docx` 文件，也可以是**已经解包**的
+   * 导入一份自备样式（DESIGN-03）：源可以是 `.docx` 文件，也可以是**已经解包**的
    * 骨架目录；两条路走同一套检查——必需部件齐不齐（缺一个就报错并把这半份目录清掉）。
    *
    * 落点：`styles/<新 uuid>/<骨架目录>/` 与 `styles/<新 uuid>/<新 uuid>.json`（对照表草稿）。
@@ -622,7 +622,7 @@ export class TemplateEditorService {
 
   /**
    * 把 `.docx`（就是个 zip）解包到目标目录。**只解包，一个字节的 XML 都不改**——
-   * 样式是作者提供的资产，程序只读不写（PLAN-11 第 4 节第 1 条）。
+   * 样式是作者提供的资产，程序只读不写（DESIGN-03）。
    */
   private async unpackDocx(sourcePath: string, targetDir: string): Promise<void> {
     const zip = await JSZip.loadAsync(readFileSync(sourcePath))
@@ -721,7 +721,7 @@ export class TemplateEditorService {
   }
 
   /**
-   * 迁移旧格式模板目录（PLAN-12 §6）：目录名不是 uuid 的那些，分配 uuid、改目录与文件名、
+   * 迁移旧格式模板目录（DESIGN-03）：目录名不是 uuid 的那些，分配 uuid、改目录与文件名、
    * 把结构里的样式引用换成样式 uuid，清单文件退场。旧格式不并存，迁完就没有旧目录了。
    *
    * 先样式后结构：结构的引用要按老的文件键换成新分配的样式 uuid，样式得先落地。

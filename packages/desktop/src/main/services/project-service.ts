@@ -193,7 +193,7 @@ export class ProjectService {
 
   /**
    * 认这份工程用的是哪份结构模板。新工程库里就是 uuid，直接读；
-   * 老工程（PLAN-12 之前）库里与锚点里只有模板名，按名字认一次 uuid —— 认到就换过来记，
+   * 老工程（改用 uuid 之前）库里与锚点里只有模板名，按名字认一次 uuid —— 认到就换过来记，
    * 认不到就留着名字（`legacyTemplateName` 会带到界面），不猜、不写空 uuid。
    */
   private resolveTemplateRef(anchor: ProjectAnchor): void {

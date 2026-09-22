@@ -87,7 +87,7 @@ interface AppContextValue {
   openExport: () => void
   closeExport: () => void
   /**
-   * 模板编辑页（PLAN-11 批次 2）：整页独立于文档会话——不打开工程、不进撤销栈，
+   * 模板编辑页（DESIGN-02）：整页独立于文档会话——不打开工程、不进撤销栈，
    * 页面自己的状态在 useTemplateEditor 里，这里只管它在不在最前面。
    */
   templateEditorOpen: boolean
@@ -140,7 +140,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
    * 等这一步是真等：以前只是挨个调用、丢掉返回值，而页面那边的 flush 内部是
    * `void updateContentBlock(...)` 一发了之，于是"先落定再撤销"等于没生效 ——
    * 打完字立刻按 Ctrl+Z，撤销撤掉的是上一步，这次打字随后自己写回去
-   * （2026-09-22 实测，见 PLAN-21）。
+   * （2026-09-22 实测，见 DESIGN-08）。
    */
   const flushAll = useCallback(async () => {
     const pending = [...flushesRef.current].map(async (fn) => {

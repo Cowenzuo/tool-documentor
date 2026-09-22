@@ -2,7 +2,7 @@
   "name": "@documentor/core",
   "version": "0.1.0",
   "private": true,
-  "description": "Documentor 核心：文档树/内容块数据模型、SQLite 工程存储、题注剥离",
+  "description": "Documentor 核心：文档树/内容块数据模型、SQLite 工程存储、表格与块转换",
   "main": "./dist/index.js",
   "types": "./src/index.ts",
   "exports": {
@@ -21,10 +21,6 @@
     "./block-convert": {
       "import": "./src/block-convert.ts",
       "require": "./dist/block-convert.js"
-    },
-    "./captions": {
-      "import": "./src/captions.ts",
-      "require": "./dist/captions.js"
     },
     "./table-merge": {
       "import": "./src/table-merge.ts",

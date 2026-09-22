@@ -17,7 +17,7 @@ export class DocumentNode {
   copyable = false
   deletable = false
   allowContentBlocks = true
-  /** 排版：块集合、顺序、类型能不能动；关掉后只能改各块的内容（PLAN-13 第 1.1 节） */
+  /** 排版：块集合、顺序、类型能不能动；关掉后只能改各块的内容（DESIGN-06） */
   allowLayoutEdit = true
   isSubTitle = false
   /** 编号风格: 'numeric' | 'alpha' | 'alphabetic'（其它视为 numeric） */

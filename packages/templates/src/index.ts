@@ -46,7 +46,7 @@ export type {
 export { draftStyleMap } from './style-match'
 export type { StyleMapDraft } from './style-match'
 /**
- * 模板身份（PLAN-12）：uuid 是唯一身份，中文名与英文名只作展示。
+ * 模板身份（DESIGN-03）：uuid 是唯一身份，中文名与英文名只作展示。
  * 目录与文件名的推导也收在这一处，别处不许自己拼。
  */
 export {
@@ -59,7 +59,7 @@ export {
 } from './identity'
 export type { TemplateIdentity } from './identity'
 /**
- * 模板目录扫描（PLAN-12）：目录名是 uuid 才认，清单不再存在。
+ * 模板目录扫描（DESIGN-03）：目录名是 uuid 才认，清单不再存在。
  */
 export { TEMPLATE_SUBDIR, scanTemplateDir } from './discover'
 export type {
@@ -69,7 +69,7 @@ export type {
   TemplateScan
 } from './discover'
 /**
- * 引用解析（PLAN-12）：按 uuid 找样式，找不到就是悬挂；导出可用集合是全部样式。
+ * 引用解析（DESIGN-03）：按 uuid 找样式，找不到就是悬挂；导出可用集合是全部样式。
  */
 export {
   findStructureByUuid,

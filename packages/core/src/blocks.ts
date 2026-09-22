@@ -55,7 +55,7 @@ export function blockTypeName(index: number | string): BlockTypeName {
  * 不写就是不锁，与没有这个字段的老数据完全一致。
  *
  * 位置（顺序）不在档位里：那由节点级的「排版」管，见
- * `packages/desktop/src/shared/permissionTerms.ts` 的取交与 PLAN-16 第 2 节。
+ * `packages/desktop/src/shared/permissionTerms.ts` 的取交与 DESIGN-06。
  */
 export const BLOCK_LOCK_LEVELS = ['type', 'keep', 'readonly'] as const
 

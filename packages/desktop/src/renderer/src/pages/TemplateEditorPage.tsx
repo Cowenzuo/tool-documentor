@@ -1,5 +1,5 @@
 /**
- * 模板编辑页（PLAN-11 批次 2）：整页独立，不打开工程、不进撤销栈、不挂编辑器的组件树。
+ * 模板编辑页（DESIGN-03）：整页独立，不打开工程、不进撤销栈、不挂编辑器的组件树。
  * 三栏：左栏模板列表（目录与模板、问题徽标），中栏节点树，右栏选中节点的表单。
  * 改动只落在内存草稿里，写文件只发生在页脚那个「保存」按钮。
  *
@@ -7,7 +7,7 @@
  * 否则三栏跟着缩一截，看着像页面在抖。这条上的消息分三类：
  *   ① 要你先点一下的确认（未保存改动）——文字与两个按钮都摆在这一行上；
  *   ② 一次操作的回执（保存/新建/删除/改名，失败带原因）——一行摘要，
- *      备份位置、报错原文这类长内容点「详情」弹浮层；
+ *      迁移回执、报错原文这类长内容点「详情」弹浮层；
  *   ③ 校验小结（几个错误、几处提示）——点开是"问题在哪"的索引（浮层里按位置归堆、
  *      可点着跳过去）；逐条原话只在节点详情视图里说，状态栏不重复一遍。
  *
@@ -407,7 +407,7 @@ export default function TemplateEditorPage(): JSX.Element {
             这一条上的消息分三类：
               ① 要你先点一下的确认（未保存改动）——文字与两个按钮都摆在这一行上；
               ② 一次操作的回执（已保存/已新建/已删除/已改名，失败时带原因）——一行摘要，
-                 备份位置与报错原文这类长内容点「详情」弹浮层；
+                 迁移回执与报错原文这类长内容点「详情」弹浮层；
               ③ 校验小结（几个错误、几处提示）——点开是"问题在哪"的索引，浮层里按位置归堆，
                  逐条原话在节点详情里说（那里才是动手改的地方），这里不重复。 */}
         {editor.pending ? (
@@ -437,7 +437,7 @@ export default function TemplateEditorPage(): JSX.Element {
               <span className="tpl-status-text">{editor.notice.text}</span>
               {editor.notice.detail && (
                 <Popover
-                  label={editor.notice.kind === 'error' ? '报错原文' : '备份位置'}
+                  label={editor.notice.kind === 'error' ? '报错原文' : '详情'}
                   kind={editor.notice.kind}
                   text={editor.notice.detail}
                 />
@@ -473,7 +473,7 @@ export default function TemplateEditorPage(): JSX.Element {
 }
 
 /**
- * 一条状态上的长内容（备份路径 / 报错原文）：默认收着，点开是**浮层**——
+ * 一条状态上的长内容（迁移回执 / 报错原文）：默认收着，点开是**浮层**——
  * 铺在状态栏里会把这一条撑高，三栏跟着缩一截，看着像页面在抖。
  */
 function Popover({ label, kind, text }: { label: string; kind: string; text: string }): JSX.Element {
