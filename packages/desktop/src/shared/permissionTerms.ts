@@ -44,3 +44,66 @@ export function blockTierOf(lock: string | undefined): PermissionTerm {
   if (lock === 'type') return BLOCK_TIER.legacy
   return BLOCK_TIER.free
 }
+
+/** 节点上那两个总闸（界面与写入侧都按它判） */
+export interface NodePermissionInput {
+  allowContentBlocks: boolean
+  allowLayoutEdit: boolean
+}
+
+/**
+ * 编辑 × 排版 取交之后，这一章的块能做什么（PLAN-13 第 1.3 节那张表）。
+ *
+ * 三条轴的分工：
+ *   - 编辑关 → 内容块一律不动；
+ *   - 排版关 → 集合、顺序、类型都不能动，只剩改各块的内容；
+ *   - 块档位 → 在写入侧再叠一层：只读连内容也不能改，类型限制编辑能改内容、不能删也不能换形状。
+ *     位置不归块档位管：那是排版的事。
+ *
+ * 界面与写入侧用的是同一个函数、同一批说法，所以置灰提示与拒绝语不会各说各话。
+ */
+export interface BlockPermissions {
+  editContent: boolean
+  reshape: boolean
+  add: boolean
+  remove: boolean
+  move: boolean
+  /** 拒绝语：说清是哪一条挡的 */
+  whyEditContent: string
+  whyAdd: string
+  whyRemove: string
+  whyMove: string
+}
+
+export function blockPermissions(node: NodePermissionInput): BlockPermissions {
+  const editing = node.allowContentBlocks
+  const layout = node.allowLayoutEdit
+  // 拒绝语先说挡在最前面的那一条：编辑关着就说编辑，编辑开着还拦得住就是排版
+  const which = (what: string): string =>
+    editing ? `模板把这一章的排版关着，不能${what}` : `模板把这一章的编辑关着，不能${what}`
+  return {
+    editContent: editing,
+    reshape: editing && layout,
+    add: editing && layout,
+    remove: editing && layout,
+    move: editing && layout,
+    whyEditContent: '模板把这一章的编辑关着，内容块不能改',
+    whyAdd: which('加内容'),
+    whyRemove: which('删内容'),
+    whyMove: which('移动内容')
+  }
+}
+
+/** 换类型与换表头被拒时的说法：先看排版，再看块档位 */
+export function reshapeRefusal(lock: string | undefined, perms: BlockPermissions): string {
+  if (!perms.reshape) return '模板把这一章的排版关着，类型与表头不能改'
+  if (lock === 'readonly') return '模板规定该内容为只读，类型不能改'
+  return '模板规定的类型不能改，内容可以照常编辑'
+}
+
+/** 块被拒时的说法：先讲模板的规定，再讲这件事做不了 */
+export function lockRefusal(lock: string | undefined, what: 'remove' | 'move' | 'edit'): string {
+  if (what === 'edit') return '模板规定该内容为只读，内容不能改'
+  const head = lock === 'readonly' ? '模板规定该内容为只读' : '模板规定该内容必须存在'
+  return what === 'remove' ? `${head}，不能删除` : `${head}，不能移动`
+}

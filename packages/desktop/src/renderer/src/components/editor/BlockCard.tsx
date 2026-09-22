@@ -3,7 +3,7 @@
  * 折叠后只留一行摘要，长章节里一屏能扫过更多块。
  */
 import type { BlockLockLevel, ContentBlock } from '@documentor/core/blocks'
-import { blockTierOf } from '../../../../shared/permissionTerms'
+import { blockTierOf, lockRefusal, type BlockPermissions } from '../../../../shared/permissionTerms'
 import {
   CodeEditor,
   FormulaEditor,
@@ -29,20 +29,14 @@ function lockTagTitle(lock: BlockLockLevel): string {
 }
 
 /** 按钮置灰的原因：按档位说清为什么这件事做不了 */
-function lockReason(lock: BlockLockLevel, what: 'remove' | 'move'): string {
-  const head = lock === 'readonly' ? '模板规定该内容为只读' : '模板规定该内容必须存在'
-  return what === 'remove' ? `${head}，不能删除` : `${head}，不能移动`
-}
-
 export interface BlockCardProps {
   nodeId: string
   index: number
   block: ContentBlock
+  /** 这一章的块权限（编辑 × 排版取交），与写入侧同一份判定 */
+  perms: BlockPermissions
   canMoveUp: boolean
   canMoveDown: boolean
-  /** 相邻块是 keep/readonly 档：交换位置会把它挪走，写入侧也会拒绝 */
-  neighborLockedUp?: boolean
-  neighborLockedDown?: boolean
   collapsed: boolean
   onToggleCollapse: (index: number) => void
   onChange: (index: number, block: ContentBlock) => void
@@ -56,31 +50,38 @@ export function BlockCard(props: BlockCardProps): React.JSX.Element {
   const {
     block,
     index,
+    perms,
     collapsed,
     onToggleCollapse,
     onChange,
     onMove,
     onRemove,
     canMoveUp,
-    canMoveDown,
-    neighborLockedUp,
-    neighborLockedDown
+    canMoveDown
   } = props
   const change = (next: ContentBlock): void => onChange(index, next)
   const lock = block.lock
   /**
-   * 档位的可做项：`keep` 与 `readonly` 不能删也不能挪，作废的 `type` 只锁类型。
-   * 块类型在这套编辑器里没有切换控件，类型一律在写入侧拦（见 project-service 的 updateBlock），
-   * 卡片上只用档位标记与提示交代模板的规定。
+   * 档位与两个总闸取交之后这一块能做什么（PLAN-13 第 1.3 节）：
+   *   - 改内容：编辑开着且不是只读；
+   *   - 挪动：排版开着就成，块档位不管顺序；
+   *   - 删除与换形状：排版开着，且块上没有锁，类型限制编辑与只读都不行。
+   * 块类型在这套编辑器里没有切换控件，卡片上只用档位标记与提示交代模板的规定。
    */
-  const keepLocked = lock === 'keep' || lock === 'readonly'
-  const moveUp = canMoveUp && !keepLocked && !neighborLockedUp
-  const moveDown = canMoveDown && !keepLocked && !neighborLockedDown
-  // 交换是双向的：相邻块被模板钉住时，本块也挪不过去，原因要照样说清
-  const neighborReason = '相邻内容是模板规定不能移动的，交换位置会把它挪走'
-  const moveUpTitle = keepLocked && lock ? lockReason(lock, 'move') : neighborLockedUp ? neighborReason : null
-  const moveDownTitle = keepLocked && lock ? lockReason(lock, 'move') : neighborLockedDown ? neighborReason : null
-  const removeTitle = keepLocked && lock ? lockReason(lock, 'remove') : null
+  const moveUp = canMoveUp && perms.move
+  const moveDown = canMoveDown && perms.move
+  const removable = perms.remove && lock === undefined
+  const shapeLocked = !perms.reshape || lock !== undefined
+  const shapeLockedWhy = perms.reshape
+    ? `${blockTierOf(lock).name}：${blockTierOf(lock).tip}`
+    : '模板把这一章的排版关着'
+  const moveUpTitle = perms.move ? '上移（Alt+↑）' : perms.whyMove
+  const moveDownTitle = perms.move ? '下移（Alt+↓）' : perms.whyMove
+  const removeTitle = removable
+    ? '删除此内容'
+    : lock !== undefined
+      ? lockRefusal(lock, 'remove')
+      : perms.whyRemove
 
   /**
    * 卡片级快捷键：Alt+↑/↓ 移动本块，Ctrl+Enter 折叠/展开。
@@ -132,7 +133,7 @@ export function BlockCard(props: BlockCardProps): React.JSX.Element {
           <button
             type="button"
             className="be-icon-btn"
-            title={moveUpTitle ?? '上移（Alt+↑）'}
+            title={moveUpTitle}
             aria-label="上移此内容"
             disabled={!moveUp}
             onClick={() => onMove(index, -1)}
@@ -144,7 +145,7 @@ export function BlockCard(props: BlockCardProps): React.JSX.Element {
           <button
             type="button"
             className="be-icon-btn"
-            title={moveDownTitle ?? '下移（Alt+↓）'}
+            title={moveDownTitle}
             aria-label="下移此内容"
             disabled={!moveDown}
             onClick={() => onMove(index, 1)}
@@ -156,9 +157,9 @@ export function BlockCard(props: BlockCardProps): React.JSX.Element {
           <button
             type="button"
             className="be-icon-btn danger"
-            title={removeTitle ?? '删除此内容'}
+            title={removeTitle}
             aria-label="删除此内容"
-            disabled={keepLocked}
+            disabled={!removable}
             onClick={() => onRemove(index)}
           >
             <svg viewBox="0 0 16 16" width="13" height="13">
@@ -183,13 +184,29 @@ function BlockBody(props: BlockCardProps & { change: (b: ContentBlock) => void }
   const { block, change, onPreview } = props
   /** `readonly` 档的内容由模板给定：编辑器只呈现，不接收改动 */
   const readOnly = block.lock === 'readonly'
+  /**
+   * 形状锁：块档位不是自由编辑，或这一章的排版关着。
+   * 表格的表头、行数列数与合并开关按它置灰，说法用同一句（见卡片头那次计算）。
+   */
+  const shapeLocked = !props.perms.reshape || block.lock !== undefined
+  const shapeLockedWhy = props.perms.reshape
+    ? `${blockTierOf(block.lock).name}：${blockTierOf(block.lock).tip}`
+    : '模板把这一章的排版关着'
   switch (block.type) {
     case 'text':
       return <TextEditor block={block} onChange={change} readOnly={readOnly} />
     case 'image':
       return <ImageEditor block={block} onChange={change} onPreview={onPreview} readOnly={readOnly} />
     case 'table':
-      return <TableEditor block={block} onChange={change} readOnly={readOnly} />
+      return (
+        <TableEditor
+          block={block}
+          onChange={change}
+          readOnly={readOnly}
+          shapeLocked={shapeLocked}
+          shapeLockedWhy={shapeLockedWhy}
+        />
+      )
     case 'formula':
       return <FormulaEditor block={block} onChange={change} readOnly={readOnly} />
     case 'code':

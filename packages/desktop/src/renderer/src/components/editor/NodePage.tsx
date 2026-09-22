@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ContentBlock } from '@documentor/core/blocks'
-import { NODE_PERMISSION } from '../../../../shared/permissionTerms'
+import { NODE_PERMISSION, blockPermissions } from '../../../../shared/permissionTerms'
 import { useApp, useSelectedNode } from '../../state/AppContext'
 import { BlockCard } from './BlockCard'
 import type { LightboxRequest } from './BlockEditors'
@@ -51,10 +51,6 @@ function reconcileKeys(prev: string[], incomingLength: number, op: StructureOp |
   return Array.from({ length: incomingLength }, () => newBlockKey())
 }
 
-/** keep 与 readonly 两档不能挪：相邻块是这样的话，交换位置会把它挪走 */
-function isPinnedLock(lock: ContentBlock['lock']): boolean {
-  return lock === 'keep' || lock === 'readonly'
-}
 /** 添加内容的下拉菜单：末尾「＋ 添加内容」与块间插入共用同一份 */
 function AddBlockMenu({
   onPick
@@ -350,10 +346,8 @@ export default function NodePage(): React.JSX.Element {
     )
   }
 
-  const canEditBlocks = node.allowContentBlocks
-  /** 在第 index 项之前插入会把它（及后面每一块）往后挤：里面有锁定块就不给插 */
-  const insertBlockedAt = (index: number): boolean =>
-    blocks.slice(index).some((block) => isPinnedLock(block.lock))
+  /** 这一章的块能做什么：编辑与排版两个开关取交，界面与写入侧同一份判定 */
+  const perms = blockPermissions(node)
 
   return (
     <main className="node-page">
@@ -401,15 +395,20 @@ export default function NodePage(): React.JSX.Element {
                   {NODE_PERMISSION.deletable.name}
                 </span>
               )}
-              {canEditBlocks && (
+              {node.allowContentBlocks && (
                 <span className="np-chip np-chip-ok" title={NODE_PERMISSION.allowContentBlocks.tip}>
                   {NODE_PERMISSION.allowContentBlocks.name}
                 </span>
               )}
-              {!node.copyable && !node.deletable && !canEditBlocks && (
+              {node.allowLayoutEdit && (
+                <span className="np-chip np-chip-ok" title={NODE_PERMISSION.allowLayoutEdit.tip}>
+                  {NODE_PERMISSION.allowLayoutEdit.name}
+                </span>
+              )}
+              {!node.copyable && !node.deletable && !node.allowContentBlocks && !node.allowLayoutEdit && (
                 <span
                   className="np-chip"
-                  title="模板限定：复制、裁剪与内容块都关着，标题与编制说明照常可改"
+                  title="模板限定：复制、裁剪、内容块与排版都关着，标题与编制说明照常可改"
                 >
                   内容只读
                 </span>
@@ -426,8 +425,8 @@ export default function NodePage(): React.JSX.Element {
             aria-label="编制说明"
           />
 
-          {!canEditBlocks && node.contentBlocks.length === 0 ? (
-            <div className="np-block-hint">该模板的章节不能添加内容</div>
+          {!perms.editContent && node.contentBlocks.length === 0 ? (
+            <div className="np-block-hint">模板把这一章的编辑关着，内容块不能改</div>
           ) : (
             <div className="np-blocks">
               {blocks.length > 0 && (
@@ -444,20 +443,15 @@ export default function NodePage(): React.JSX.Element {
               )}
               {blocks.map((block, index) => (
                 <div className="np-block-slot" key={blockKeys[index] ?? `${node.id}:${index}`}>
-                  {canEditBlocks && (
+                  {perms.add && (
                     <div className="np-insert">
-                      {/* 插在锁定块前面等于把它往后挤：keep/readonly 的位置也不能变 */}
+                      {/* 位置归「排版」管：排版开着，插在任何位置都允许 */}
                       <button
                         type="button"
                         className="np-insert-btn"
-                        title={
-                          insertBlockedAt(index)
-                            ? `这里往下是模板规定不能移动的内容：新内容只能排在它后面`
-                            : '在此上方插入内容'
-                        }
+                        title="在此上方插入内容"
                         aria-label={`在第 ${index + 1} 项上方插入内容`}
                         aria-expanded={addOpen === index}
-                        disabled={insertBlockedAt(index)}
                         onClick={() => setAddOpen((v) => (v === index ? null : index))}
                       >
                         ＋ 在此插入
@@ -476,12 +470,11 @@ export default function NodePage(): React.JSX.Element {
                     nodeId={node.id}
                     index={index}
                     block={block}
+                    perms={perms}
                     collapsed={collapsed.has(index)}
                     onToggleCollapse={toggleCollapse}
                     canMoveUp={index > 0}
                     canMoveDown={index < blocks.length - 1}
-                    neighborLockedUp={index > 0 && isPinnedLock(blocks[index - 1]?.lock)}
-                    neighborLockedDown={index < blocks.length - 1 && isPinnedLock(blocks[index + 1]?.lock)}
                     onChange={handleChange}
                     onMove={(i, d) => void handleMove(i, d)}
                     onRemove={(i) => void handleRemove(i)}
@@ -489,7 +482,7 @@ export default function NodePage(): React.JSX.Element {
                   />
                 </div>
               ))}
-              {canEditBlocks && (
+              {perms.add && (
                 <div className="np-add">
                   <button
                     type="button"

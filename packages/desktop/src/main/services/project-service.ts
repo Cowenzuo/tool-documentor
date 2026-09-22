@@ -29,6 +29,7 @@ import {
 } from '@documentor/core'
 import type { DocumentTree, DocumentNode } from '@documentor/core/tree'
 import { createBlock, type BlockTypeName, type ContentBlock } from '@documentor/core/blocks'
+import { blockPermissions, lockRefusal, reshapeRefusal } from '../../shared/permissionTerms'
 import { exportTreeToDocxWithFigures, collectMermaidFigures, resolveMmdFacade, skeletonTextWidthTwips } from '@documentor/docx'
 import { displayNameOf } from '@documentor/templates'
 import type { TemplateManager } from '@documentor/templates'
@@ -339,23 +340,15 @@ export class ProjectService {
   }
 
   // ================= 内容块变更 =================
+  // 每一处写入都先过 blockPermissions（编辑 × 排版，见 shared/permissionTerms），拒绝语说清是哪一条挡的
   addBlock(input: BlockAddInput): number {
     const node = this.requireNode(input.nodeId)
-    this.assertBlocksAllowed(node)
-    // 插在锁定块前面等于把它往后挤：keep/readonly 是"必须存在 + 位置也不能变"
-    if (typeof input.index === 'number') {
-      const pushed = node.contentBlocks.findIndex(
-        (block, i) => i >= input.index! && isBlockPinned(block.lock)
-      )
-      if (pushed >= 0) {
-        throw new ProjectServiceError(
-          `模板规定第 ${pushed + 1} 块必须存在、位置也不能变：不能往它前面插内容`
-        )
-      }
-    }
+    const perms = blockPermissions(node)
+    if (!perms.add) throw new ProjectServiceError(perms.whyAdd)
     const block = createBlock(input.type)
     return this.withSnapshot('添加内容', node, null, () => {
-      // 带 index 就是"插到这一项之前"，不带就追加到末尾
+      // 带 index 就是"插到这一项之前"，不带就追加到末尾。
+      // 插在前面等于把后面的块往后挤：位置现在归「排版」管，排版开就允许
       if (typeof input.index === 'number') {
         node.insertContentBlock(input.index, block)
       } else {
@@ -367,9 +360,11 @@ export class ProjectService {
 
   removeBlock(input: BlockIndexInput): number {
     const node = this.requireNode(input.nodeId)
+    const perms = blockPermissions(node)
+    if (!perms.remove) throw new ProjectServiceError(perms.whyRemove)
     const existing = node.contentBlocks[input.index]
     if (!existing) throw new ProjectServiceError('内容位置不对，请刷新后重试')
-    // 模板锁在这里也要拦一道：界面按档位置灰只是提示，写入侧才是最后一道
+    // 锁在这里也要拦一道：界面按档位置灰只是提示，写入侧才是最后一道
     if (isBlockPinned(existing.lock)) {
       throw new ProjectServiceError(lockRefusal(existing.lock, 'remove'))
     }
@@ -383,15 +378,12 @@ export class ProjectService {
 
   moveBlock(input: BlockMoveInput): void {
     const node = this.requireNode(input.nodeId)
+    const perms = blockPermissions(node)
+    if (!perms.move) throw new ProjectServiceError(perms.whyMove)
     const from = node.contentBlocks[input.from]
     const to = node.contentBlocks[input.to]
     if (!from || !to) throw new ProjectServiceError('内容位置不对，请刷新后重试')
-    // 交换是双向的：目标位置上的块同样会被挪走，两边都要看
-    for (const block of [from, to]) {
-      if (isBlockPinned(block.lock)) {
-        throw new ProjectServiceError(lockRefusal(block.lock, 'move'))
-      }
-    }
+    // 位置归「排版」管：块档位不再管顺序，keep 块排版开着也挪得动
     this.withSnapshot('移动内容', node, null, () => {
       node.swapContentBlocks(input.from, input.to)
     })
@@ -399,18 +391,22 @@ export class ProjectService {
 
   updateBlock(input: BlockUpdateInput): void {
     const node = this.requireNode(input.nodeId)
+    const perms = blockPermissions(node)
+    if (!perms.editContent) throw new ProjectServiceError(perms.whyEditContent)
     const existing = node.contentBlocks[input.index]
     if (!existing) throw new ProjectServiceError('内容位置不对，请刷新后重试')
-    if (existing.type !== input.block.type) {
-      // 模板锁只锁类型：这条拦的是改类型，内容变更照常放行
-      throw new ProjectServiceError(
-        existing.lock
-          ? '模板规定该内容的类型不能改，内容可以照常编辑'
-          : '内容类型不能直接改，请删除后重新添加'
-      )
-    }
+    // 只读档连内容都不能改；换类型与表头另按形状那一关看
     if (existing.lock === 'readonly') {
       throw new ProjectServiceError(lockRefusal(existing.lock, 'edit'))
+    }
+    // 换形状要两条都成立：这一章的排版开着，且块上没有锁（类型限制编辑与只读都不让换）
+    const reshapable = perms.reshape && existing.lock === undefined
+    if (existing.type !== input.block.type) {
+      // 换类型：写回时按新类型整块替换
+      if (!reshapable) throw new ProjectServiceError(reshapeRefusal(existing.lock, perms))
+    } else if (tableShapeChanged(existing, input.block)) {
+      // 表头与列数算形状，不算内容
+      if (!reshapable) throw new ProjectServiceError(reshapeRefusal(existing.lock, perms))
     }
     assertTableShape(input.block)
     // 同一块同一位置连续编辑按停顿合并成一步
@@ -423,6 +419,8 @@ export class ProjectService {
   importImage(input: ImageImportInput): { imagePath: string } {
     if (!existsSync(input.srcPath)) throw new ProjectServiceError('图片文件不存在')
     const node = this.requireNode(input.nodeId)
+    const perms = blockPermissions(node)
+    if (!perms.editContent) throw new ProjectServiceError(perms.whyEditContent)
     const existing = node.contentBlocks[input.index]
     if (!existing || existing.type !== 'image') {
       throw new ProjectServiceError('目标不是图片块')
@@ -692,12 +690,6 @@ export class ProjectService {
     this.history.push({ label, before, after, coalesceKey })
     return result
   }
-
-  private assertBlocksAllowed(node: DocumentNode): void {
-    if (!node.allowContentBlocks) {
-      throw new ProjectServiceError('该章节不能添加内容')
-    }
-  }
 }
 
 const IMAGE_MIME: Record<string, string> = {
@@ -722,15 +714,25 @@ function isBlockPinned(lock: ContentBlock['lock']): lock is 'keep' | 'readonly' 
   return lock === 'keep' || lock === 'readonly'
 }
 
-/**
- * 写入侧拒绝时的说法，与界面上按钮置灰的提示同一口径（见 shared/permissionTerms）：
- * 先讲模板的规定，再讲这件事做不了，不写"不可编辑"这类喊话式文案。
- */
-function lockRefusal(lock: 'keep' | 'readonly', what: 'remove' | 'move' | 'edit'): string {
-  if (what === 'edit') return '模板规定该内容为只读，内容不能改'
-  const head = lock === 'readonly' ? '模板规定该内容为只读' : '模板规定该内容必须存在'
-  return what === 'remove' ? `${head}，不能删除` : `${head}，不能移动`
+/** 表格形状（表头、列数、合并）动没动：这几项算形状，不算内容 */
+function tableShapeChanged(existing: ContentBlock, incoming: ContentBlock): boolean {
+  if (existing.type !== 'table' || incoming.type !== 'table') return false
+  const same = (a: unknown, b: unknown): boolean => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+  return (
+    existing.cols !== incoming.cols ||
+    !same(existing.headers, incoming.headers) ||
+    !same(existing.rowSpans, incoming.rowSpans) ||
+    (existing.mergeVertical === true) !== (incoming.mergeVertical === true)
+  )
 }
+
+/**
+ * 表格形状校验：拦在写入侧。
+ *
+ * 以前没有任何校验，形状不一致要等到导出时被 `min(rows, data.length)` 掩盖过去，
+ * 界面上完全看不出来（`rows` 写成"数据行 + 表头"就是这么混过去的）。
+ * 现在把问题在写入时报出来，附上具体位置。
+ */
 
 /**
  * 表格形状校验：拦在写入侧。
