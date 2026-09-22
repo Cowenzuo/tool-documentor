@@ -882,16 +882,3 @@ export function moveBlockIn(
     return { ...node, contentBlocks: blocks }
   })
 }
-
-// ================= 文本 ↔ 字段 =================
-
-/** 多行文本 → 字符串数组：一行一条，末尾那个换行不算一条 */
-export function linesToArray(text: string): string[] {
-  const lines = text.split(/\r?\n/)
-  if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop()
-  return lines
-}
-
-export function arrayToLines(items: readonly unknown[]): string {
-  return items.map((item) => str(item)).join('\n')
-}

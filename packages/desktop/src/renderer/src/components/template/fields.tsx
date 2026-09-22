@@ -3,7 +3,7 @@
  * 类名统一 `tpl-` 前缀、样式全部写在 template.css：这一页要能独立成自己的根
  * （PLAN-11 第 3 节），所以不借 editor.css 里的 `.be-*`，避免哪天编辑器不在这棵树里样式就没了。
  */
-import { useEffect, useState, type JSX, type ReactNode } from 'react'
+import type { JSX, ReactNode } from 'react'
 import type { TemplateIssueDto } from '../../../../shared/project'
 
 export function Field({
@@ -233,54 +233,6 @@ export function InlineSelect({
         </option>
       ))}
     </select>
-  )
-}
-
-/**
- * 「一行一条」的字段（列表项、表格数据）：编辑期间留着用户敲的原文，
- * 不拿规范化后的结果回写输入框——不然在末尾敲回车会被当场抹掉，光标也跟着跳。
- * 改动照旧即时生效（校验用的是规范化后的数组），失焦时再把显示对齐回数据。
- */
-export function LinesAreaField({
-  label,
-  value,
-  placeholder,
-  hint,
-  tip,
-  rows,
-  onChange
-}: {
-  label: string
-  value: string
-  placeholder?: string
-  hint?: string
-  tip?: string
-  rows?: number
-  onChange: (value: string) => void
-}): JSX.Element {
-  const [draft, setDraft] = useState(value)
-  const [editing, setEditing] = useState(false)
-  useEffect(() => {
-    if (!editing) setDraft(value)
-  }, [value, editing])
-  return (
-    <Field label={label} hint={hint} tip={tip}>
-      <textarea
-        className="tpl-textarea tpl-mono"
-        value={draft}
-        rows={rows ?? 4}
-        placeholder={placeholder ?? ''}
-        onFocus={() => setEditing(true)}
-        onBlur={() => {
-          setEditing(false)
-          setDraft(value)
-        }}
-        onChange={(event) => {
-          setDraft(event.target.value)
-          onChange(event.target.value)
-        }}
-      />
-    </Field>
   )
 }
 

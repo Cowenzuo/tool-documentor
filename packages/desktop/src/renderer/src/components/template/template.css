@@ -1272,6 +1272,51 @@ body.is-splitting-row {
   margin-left: auto;
 }
 
+/* ===== 列表条目 ===== */
+
+.tpl-list-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tpl-list-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* 标记列：有序列表是 1. 2. 3.，无序列表是 •，宽度按最长的那种留 */
+.tpl-list-mark {
+  flex: none;
+  min-width: 20px;
+  text-align: right;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 换位按钮平时收着：指针进这一行（或键盘落到行里）才显形，不跟输入框抢宽度 */
+.tpl-list-move {
+  flex: none;
+  display: inline-flex;
+  gap: 2px;
+  opacity: 0;
+}
+
+.tpl-list-row:hover .tpl-list-move,
+.tpl-list-row:focus-within .tpl-list-move {
+  opacity: 1;
+}
+
+.tpl-list-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
 .tpl-tag {
   flex: none;
   font-size: 10.5px;

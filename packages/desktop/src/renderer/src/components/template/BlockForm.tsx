@@ -20,17 +20,15 @@ import {
   TextField,
   InlineSelect,
   IssueLines,
-  LinesAreaField,
   jsonTip
 } from './fields'
+import ListRows from './ListRows'
 import TableGrid from './TableGrid'
 import {
-  arrayToLines,
   blockLock,
   blockSummary,
   blockType,
   isPinnedLock,
-  linesToArray,
   rawBlockLock,
   str,
   typoField,
@@ -78,6 +76,12 @@ function dataRows(block: TemplateObject): string[][] {
   return raw.map((row) =>
     Array.isArray(row) ? row.map((cell) => (cell === undefined || cell === null ? '' : String(cell))) : []
   )
+}
+
+/** 列表条目读成字符串数组（写坏的元素按空串看，校验那边另有话说） */
+function itemCells(block: TemplateObject): string[] {
+  const raw = block['items']
+  return Array.isArray(raw) ? raw.map((item) => (item === undefined || item === null ? '' : String(item))) : []
 }
 
 export interface BlockFormProps {
@@ -264,13 +268,10 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
           )}
 
           {(type === 'orderedList' || type === 'unorderedList') && (
-            <LinesAreaField
-              label="列表项"
-              tip={jsonTip('items')}
-              hint="一行一条"
-              value={arrayToLines(Array.isArray(block['items']) ? (block['items'] as unknown[]) : [])}
-              rows={5}
-              onChange={(value) => onPatch({ items: linesToArray(value) })}
+            <ListRows
+              ordered={type === 'orderedList'}
+              items={itemCells(block)}
+              onChange={(items) => onPatch({ items })}
             />
           )}
 
