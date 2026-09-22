@@ -895,29 +895,3 @@ export function linesToArray(text: string): string[] {
 export function arrayToLines(items: readonly unknown[]): string {
   return items.map((item) => str(item)).join('\n')
 }
-
-/** 表格一行 → 文本：单元格用 | 分隔 */
-export function rowToLine(cells: readonly unknown[]): string {
-  return cells.map((cell) => str(cell)).join(' | ')
-}
-
-export function lineToRow(line: string): string[] {
-  return line.split('|').map((cell) => cell.trim())
-}
-
-export function rowsToText(rows: readonly unknown[]): string {
-  return rows.map((row) => (Array.isArray(row) ? rowToLine(row) : str(row))).join('\n')
-}
-
-export function textToRows(text: string): string[][] {
-  return linesToArray(text).map(lineToRow)
-}
-
-/** 表头文本：一行，用 | 分隔 */
-export function headersToText(headers: readonly unknown[]): string {
-  return rowToLine(headers)
-}
-
-export function textToHeaders(text: string): string[] {
-  return lineToRow(text)
-}
