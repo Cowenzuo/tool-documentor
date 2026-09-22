@@ -53,6 +53,19 @@ export type {
 export { draftStyleMap } from './style-match'
 export type { StyleMapDraft } from './style-match'
 /**
+ * 模板身份（PLAN-12）：uuid 是唯一身份，中文名与英文名只作展示。
+ * 目录与文件名的推导也收在这一处，别处不许自己拼。
+ */
+export {
+  displayNameOf,
+  identityFields,
+  isTemplateUuid,
+  newTemplateUuid,
+  templateFileName,
+  templateIdentityOf
+} from './identity'
+export type { TemplateIdentity } from './identity'
+/**
  * 样式规则（不碰 fs 的那一半）：编辑模式从 `@documentor/templates/style-rules`
  * 直接拿，渲染层实时跑与主进程**同一份**判定。
  */
