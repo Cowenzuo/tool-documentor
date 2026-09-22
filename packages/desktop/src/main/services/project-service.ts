@@ -29,7 +29,13 @@ import {
 } from '@documentor/core'
 import type { DocumentTree, DocumentNode } from '@documentor/core/tree'
 import { createBlock, type BlockTypeName, type ContentBlock } from '@documentor/core/blocks'
-import { blockPermissions, lockRefusal, reshapeRefusal } from '../../shared/permissionTerms'
+import {
+  blockPermissions,
+  hasPinnedBlock,
+  lockRefusal,
+  reshapeRefusal,
+  PINNED_BLOCK_REFUSAL
+} from '../../shared/permissionTerms'
 import { exportTreeToDocxWithFigures, collectMermaidFigures, resolveMmdFacade, skeletonTextWidthTwips } from '@documentor/docx'
 import { displayNameOf } from '@documentor/templates'
 import type { TemplateManager } from '@documentor/templates'
@@ -317,6 +323,8 @@ export class ProjectService {
     // 节点级的删叫「裁剪」：与模板编辑器那个开关、界面上的标签同一个词（见 shared/permissionTerms）
     if (node.isRoot()) throw new ProjectServiceError('根章节不能裁剪')
     if (!node.deletable) throw new ProjectServiceError('该章节不允许裁剪')
+    // 裁掉整章会把里面的块一起带走：子树里有「必须存在」的块就一并护住（两级取交，谁更严听谁的）
+    if (hasPinnedBlock(node)) throw new ProjectServiceError(PINNED_BLOCK_REFUSAL)
     const parent = node.parent
     if (!parent) throw new ProjectServiceError('找不到上级章节')
     // 同复制：动的是父节点的子级名单，快照存父节点

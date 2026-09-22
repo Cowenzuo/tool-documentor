@@ -107,3 +107,26 @@ export function lockRefusal(lock: string | undefined, what: 'remove' | 'move' | 
   const head = lock === 'readonly' ? '模板规定该内容为只读' : '模板规定该内容必须存在'
   return what === 'remove' ? `${head}，不能删除` : `${head}，不能移动`
 }
+
+/** 子树这种形状就够用：文档树的节点与 NodeDto 都满足 */
+interface BlockHost {
+  contentBlocks: ReadonlyArray<{ lock?: string }>
+  children: readonly BlockHost[]
+}
+
+/**
+ * 这一棵子树里有没有模板规定必须存在的块（类型限制编辑与只读）。
+ *
+ * 裁掉一整章会把里面的块一起带走，所以「必须存在」的块连它所在的章节一起护住：
+ * 两级取交，谁更严听谁的（PLAN-13 第 1 节）。用户自己复制出来的那一份不带锁
+ * （见 `DocumentNode.deepClone`），所以复制出来的章节不受这条限制。
+ */
+export function hasPinnedBlock(node: BlockHost): boolean {
+  for (const block of node.contentBlocks) {
+    if (block.lock === 'keep' || block.lock === 'readonly') return true
+  }
+  return node.children.some((child) => hasPinnedBlock(child))
+}
+
+/** 整章不能裁时的说法，写入侧与界面同一句 */
+export const PINNED_BLOCK_REFUSAL = '模板规定这一章里有必须存在的内容：不能裁剪'
