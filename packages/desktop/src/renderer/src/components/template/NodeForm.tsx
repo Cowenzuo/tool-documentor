@@ -14,11 +14,9 @@ import { CheckField, IssueLines, SelectField, TextAreaField, TextField, jsonTip 
 import {
   NODE_FIELDS,
   asObject,
-  blockLock,
   blockType,
   breadcrumbOf,
   headingLevel,
-  isPinnedLock,
   groupFixFor,
   kindChangeProblem,
   nodeJsonPath,
@@ -189,11 +187,6 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
   const level = headingLevel(node)
   /** 字段名只差大小写（headingLevel 写成 headinglevel 这种）：程序会当没写，必须让人看见 */
   const typo = typoField(node, NODE_FIELDS)
-  /** 相邻块是不是锁着的（keep/readonly）：换位会把它挪走，所以邻居那一侧也不给挪 */
-  const pinnedAt = (index: number): boolean => {
-    const block = asObject(blocks[index])
-    return block ? isPinnedLock(blockLock(block)) : false
-  }
   /** 节点自己字段上的结论：内容块下面的单独挂在块卡片上，不在这里重复 */
   const nodeIssues = issues.filter(
     (issue) => !issue.path.startsWith(`${jsonPath}.contentBlocks`)
@@ -289,21 +282,33 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
               <span className="tpl-switches" role="group" aria-label="用户在新工程里能做什么">
                 <CheckField
                   label="复制"
-                  tip={jsonTip('copyable', '缺省 false')}
+                  tip={jsonTip('copyable', '缺省 false · 用户能不能把这一章连子树复制一份')}
                   checked={nodeSwitch(node, 'copyable')}
                   onChange={(checked) => props.onPatch({ copyable: checked })}
                 />
                 <CheckField
                   label="裁剪"
-                  tip={jsonTip('deletable', '缺省 false')}
+                  tip={jsonTip('deletable', '缺省 false · 用户能不能删掉这一章')}
                   checked={nodeSwitch(node, 'deletable')}
                   onChange={(checked) => props.onPatch({ deletable: checked })}
                 />
                 <CheckField
                   label="编辑"
-                  tip={jsonTip('allowContentBlocks', '缺省 true')}
+                  tip={jsonTip(
+                    'allowContentBlocks',
+                    '缺省 true · 内容块总闸：关掉整章内容块只读，一个字段都不能改'
+                  )}
                   checked={nodeSwitch(node, 'allowContentBlocks')}
                   onChange={(checked) => props.onPatch({ allowContentBlocks: checked })}
+                />
+                <CheckField
+                  label="排版"
+                  tip={jsonTip(
+                    'allowLayoutEdit',
+                    '缺省 true · 关掉后集合、顺序、类型都固定，只能改各块的内容'
+                  )}
+                  checked={nodeSwitch(node, 'allowLayoutEdit')}
+                  onChange={(checked) => props.onPatch({ allowLayoutEdit: checked })}
                 />
               </span>
             }
@@ -436,8 +441,6 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
                     count={blocks.length}
                     open={openBlocks.has(index)}
                     onToggle={() => toggleBlock(index)}
-                    prevLocked={pinnedAt(index - 1)}
-                    nextLocked={pinnedAt(index + 1)}
                     issues={issuesUnder(issues, `${jsonPath}.contentBlocks[${index}]`)}
                     onPatch={(patch) => props.onBlockPatch(index, patch)}
                     onMove={(delta) => moveBlock(index, delta)}

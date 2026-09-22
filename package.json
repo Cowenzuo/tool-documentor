@@ -26,6 +26,7 @@
     "typecheck": "pnpm -r typecheck",
     "verify": "pnpm typecheck && pnpm build && node scripts/check-upstream.cjs",
     "verify:upstream": "node scripts/check-upstream.cjs --strict",
-    "test:local": "set NODE_OPTIONS=--experimental-sqlite&& vitest run -c localscripts/vitest.config.ts"
+    "test:local": "set NODE_OPTIONS=--experimental-sqlite&& vitest run -c localscripts/vitest.config.ts",
+    "check:locks": "node localscripts/lock-check.cjs"
   }
 }

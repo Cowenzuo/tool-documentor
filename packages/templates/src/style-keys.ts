@@ -33,7 +33,7 @@ export interface LogicalStyleKeyInfo {
   usage: string
   /**
    * 程序读不读这个键。`false` = 配了也不生效：当前只有列表的第 2/3 档
-   * （序列化器各层列表都查 `list.*.1`，与校验的 `style.listKey.unread` 是同一条事实）。
+   * （序列化器各层列表都查 `list.*.1`，与对照表那几行标的"不读取"是同一条事实）。
    */
   read: boolean
   /**
