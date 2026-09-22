@@ -25,7 +25,6 @@ export const NODE_PERMISSION = {
   copyable: { name: '复制', tip: '模板允许复制这一章及其子章节' },
   deletable: { name: '裁剪', tip: '模板允许裁掉这一章' },
   allowContentBlocks: { name: '编辑', tip: '模板允许编辑这一章的内容块' },
-  // 排版还没传到工程侧（PLAN-13 第 6 节），用户侧暂时不显示这一枚；名字先在这里占好
   allowLayoutEdit: { name: '排版', tip: '模板允许改这一章的块集合、顺序与类型' }
 } as const
 
@@ -59,6 +58,9 @@ export interface NodePermissionInput {
  *   - 排版关 → 集合、顺序、类型都不能动，只剩改各块的内容；
  *   - 块档位 → 在写入侧再叠一层：只读连内容也不能改，类型限制编辑能改内容、不能删也不能换形状。
  *     位置不归块档位管：那是排版的事。
+ *
+ * 两级的边界：这一份只管块自己（改内容／换形状／删／移），章节级的复制与裁剪由节点开关决定，
+ * 块档位不否决章节级动作 —— 作者要护住整章，把「裁剪」关掉就是（缺省就是关的）。
  *
  * 界面与写入侧用的是同一个函数、同一批说法，所以置灰提示与拒绝语不会各说各话。
  */
@@ -107,26 +109,3 @@ export function lockRefusal(lock: string | undefined, what: 'remove' | 'move' | 
   const head = lock === 'readonly' ? '模板规定该内容为只读' : '模板规定该内容必须存在'
   return what === 'remove' ? `${head}，不能删除` : `${head}，不能移动`
 }
-
-/** 子树这种形状就够用：文档树的节点与 NodeDto 都满足 */
-interface BlockHost {
-  contentBlocks: ReadonlyArray<{ lock?: string }>
-  children: readonly BlockHost[]
-}
-
-/**
- * 这一棵子树里有没有模板规定必须存在的块（类型限制编辑与只读）。
- *
- * 裁掉一整章会把里面的块一起带走，所以「必须存在」的块连它所在的章节一起护住：
- * 两级取交，谁更严听谁的（PLAN-13 第 1 节）。用户自己复制出来的那一份不带锁
- * （见 `DocumentNode.deepClone`），所以复制出来的章节不受这条限制。
- */
-export function hasPinnedBlock(node: BlockHost): boolean {
-  for (const block of node.contentBlocks) {
-    if (block.lock === 'keep' || block.lock === 'readonly') return true
-  }
-  return node.children.some((child) => hasPinnedBlock(child))
-}
-
-/** 整章不能裁时的说法，写入侧与界面同一句 */
-export const PINNED_BLOCK_REFUSAL = '模板规定这一章里有必须存在的内容：不能裁剪'
