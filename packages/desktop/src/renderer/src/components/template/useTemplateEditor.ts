@@ -39,6 +39,7 @@ import {
   normalNodeTypeFor,
   pathKey,
   patchBlockAt,
+  patchDocFields as patchDocFieldsInDoc,
   patchNodeAt,
   rawChildren,
   removeBlockAt,
@@ -178,6 +179,8 @@ export interface UseTemplateEditorResult {
   expandAll: () => void
   collapseAll: () => void
   patchSelectedNode: (patch: TemplateObject) => void
+  /** 改整份模板级的字段（defaultStyleUuid 这类） */
+  patchDocFields: (patch: TemplateObject) => void
   addChildAt: (path: NodePath) => void
   addSiblingAt: (path: NodePath) => void
   duplicateNodeAt: (path: NodePath) => void
@@ -919,6 +922,15 @@ export function useTemplateEditor(): UseTemplateEditorResult {
   )
 
   /**
+   * 改**整份模板级**的字段：`defaultStyleUuid` 不在任何节点里，必须写顶层。
+   * 走节点补丁会落进 root，程序读的仍是顶层那份，改完看着像没生效。
+   */
+  const patchDocFields = useCallback(
+    (patch: TemplateObject): void => mutate((current) => patchDocFieldsInDoc(current, patch)),
+    [mutate]
+  )
+
+  /**
    * 树上的结构操作：都按**传进来的那个路径**办事，不看当前选中谁是——
    * 右键菜单点的必须是那一行。菜单里按不了的项目自己会写明原因。
    */
@@ -1110,6 +1122,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     expandAll,
     collapseAll,
     patchSelectedNode,
+    patchDocFields,
     addChildAt,
     addSiblingAt,
     duplicateNodeAt,
