@@ -7,10 +7,13 @@
  * （`validateStyleTemplate` 读盘后把骨架事实传进来），规则本身在这里，
  * **编辑模式与加载报告用的仍然是这一份实现**（PLAN-11 第 8 节第 7 条：校验一份实现）。
  *
- * 判定条件与文案与模板仓库 `dev-scripts/check-templates.cjs` 的 `checkStyle` 逐字一致，
- * 由 `localscripts/tests/templates/parallel-check.test.ts` 拿真实模板钉住；
- * 想改判定或文案时，脚本与本模块必须一起改。
+ * 两条口径（PLAN-12）：
+ *   - 完整性按软件支持的**全集**查缺键（`SUPPORTED_STYLE_KEYS`，18 个），与结构模板无关；
+ *   - 不再有"结构所需逻辑键没覆盖"这类结论：样式齐了就任何结构都能配它导出。
+ * 指针指向骨架里不存在的 styleId 仍报错——那是配错了，与结构无关。
  */
+import { isTemplateUuid } from './identity'
+import { SUPPORTED_STYLE_KEYS } from './style-keys'
 import type { SkeletonStyleInfo, ValidationIssue } from './validate'
 
 /** 骨架的事实：读盘那一步算好传进来，规则本身不碰 fs */
@@ -29,38 +32,12 @@ export interface SkeletonFacts {
   headingStarts?: number[]
 }
 
-/** 题注：结构里的表题 / 图题（判"文字里自己写了号"用） */
-export interface StyleCaptionFact {
-  kind: 'table' | 'figure'
-  text: string
-}
-
-/**
- * 结构模板对样式提出的诉求（由 validate.ts 从结构 JSON 原文算出来，编辑模式从 DTO 里拿）：
- *   - `fileKeys`：这份结构声明引用了哪些样式文件键（`styleTemplates` 优先，缺省回退 `styleTemplate`）；
- *   - `keys`：这份结构实际用到的逻辑样式键（`requiredStyleKeys` 的结果）；
- *   - `captions`：结构里的题注。
- * 只有 `fileKeys` 含本 stylemap 文件键的结构才参与比对（与脚本同法）。
- */
-export interface StyleStructureFacts {
-  name: string
-  fileKeys: string[]
-  keys: string[]
-  captions: StyleCaptionFact[]
-}
-
 export interface StyleRulesOptions {
-  /** 模板 id（脚本用 manifest 的 id）；缺省取 stylemap 的 name */
-  id?: string
-  /** manifest 里的 stylemap_file（含 .json），同时用来推导与结构模板配对的 key */
-  stylemapFile?: string
-  /** manifest 里的 style_folder，用于报"manifest 与 stylemap 的 docxFolder 不一致" */
-  manifestStyleFolder?: string
   /** 给了才做需要骨架的检查（"缺部件 / styleId 在不在 / 起始编号"那几条） */
   skeleton?: SkeletonFacts
 }
 
-/** 程序不读的高阶列表键（脚本 checkStyle 里逐个点名的四个） */
+/** 程序不读的高阶列表键：不进全集，配了只提示不生效 */
 const UNREAD_LIST_KEYS = [
   'list.ordered.2',
   'list.ordered.3',
@@ -68,10 +45,10 @@ const UNREAD_LIST_KEYS = [
   'list.unordered.3'
 ] as const
 
-/** 题注编号合法的三个取值（脚本 checkStyle 内联的数组） */
+/** 题注编号合法的三个取值 */
 const CAPTION_MODES = ['auto', 'static', 'field'] as const
 
-/** 把任意 JSON 值按 JS 插值语义转成文案（与脚本的模板字符串一致：undefined → "undefined"） */
+/** 把任意 JSON 值按 JS 插值语义转成文案（与模板字符串一致：undefined → "undefined"） */
 function text(value: unknown): string {
   return String(value)
 }
@@ -88,31 +65,33 @@ function label(...parts: string[]): string {
 }
 
 /**
- * 校验一份 stylemap（脚本 `checkStyle` 的照抄版）。
+ * 校验一份 stylemap。
  *
- * @param styleDef stylemap JSON 原文（`{ name, styleMap, docxFolder, captionNumbering }`）
- * @param structures 结构模板对样式提出的诉求（见 `StyleStructureFacts`）；
- *   只比对 `fileKeys` 含本 stylemap 文件键的那些
- * @param opts `id`、`stylemapFile`、`manifestStyleFolder`、`skeleton`（骨架事实；不给就跳过需要骨架的检查）
+ * @param styleDef stylemap JSON 原文（`{ uuid, cn, en, styleMap, docxFolder, captionNumbering }`）
+ * @param opts `skeleton`（骨架事实；不给就跳过需要骨架的检查）
  */
 export function validateStyleMap(
   styleDef: unknown,
-  structures: readonly StyleStructureFacts[] = [],
   opts: StyleRulesOptions = {}
 ): ValidationIssue[] {
   const out: ValidationIssue[] = []
   const doc = asObject(styleDef) ?? {}
-  const id = opts.id !== undefined && opts.id !== '' ? opts.id : text(doc['name'] ?? '') || '(未命名)'
-  const stylemapLabel = opts.stylemapFile
-    ? label('styles', id, opts.stylemapFile)
-    : label('styles', id)
 
-  if (!doc['name']) {
+  if (!isTemplateUuid(doc['uuid'])) {
     out.push({
       level: 'error',
-      rule: 'style.name.missing',
-      path: 'name',
-      message: `顶层name缺失`
+      rule: 'style.uuid.invalid',
+      path: 'uuid',
+      message: `顶层uuid缺失或非法`
+    })
+  }
+  const cn = doc['cn']
+  if (typeof cn !== 'string' || cn.trim() === '') {
+    out.push({
+      level: 'error',
+      rule: 'style.cn.missing',
+      path: 'cn',
+      message: `顶层cn缺失`
     })
   }
   const styleMap = asObject(doc['styleMap'])
@@ -125,6 +104,18 @@ export function validateStyleMap(
     })
     return out
   }
+
+  // 样式模板一律完整：按软件支持的全集查缺键，缺一个就是 error（运行时缺键按正文输出）
+  const missingKeys = SUPPORTED_STYLE_KEYS.filter((key) => !(key in styleMap))
+  if (missingKeys.length > 0) {
+    out.push({
+      level: 'error',
+      rule: 'style.key.missing',
+      path: 'styleMap',
+      message: `缺逻辑键：${missingKeys.join(' / ')}`
+    })
+  }
+
   const docxFolder = doc['docxFolder']
   if (!docxFolder) {
     out.push({
@@ -134,16 +125,6 @@ export function validateStyleMap(
       message: `docxFolder未写`
     })
     return out
-  }
-  if (opts.manifestStyleFolder && opts.manifestStyleFolder !== docxFolder) {
-    out.push({
-      level: 'warn',
-      rule: 'style.manifestStyleFolder.mismatch',
-      path: 'manifest.style_folder',
-      message:
-        `style_folder「${opts.manifestStyleFolder}」≠ docxFolder` +
-        `「${text(docxFolder)}」`
-    })
   }
 
   // 骨架：没给骨架事实就没有骨架可查（编辑模式早期只改映射表时会走这条）
@@ -204,11 +185,11 @@ export function validateStyleMap(
           `题注章节号从 1 起算`
       })
     }
-    // 起始编号不是 1 在脚本里是事实陈述（有意的模板设计），不产出结论
+    // 起始编号不是 1 是事实陈述（有意的模板设计），不产出结论
   }
 
-  const cn = doc['captionNumbering']
-  const cnObj = asObject(cn)
+  const cnNumbering = doc['captionNumbering']
+  const cnObj = asObject(cnNumbering)
   if (cnObj) {
     for (const kind of ['table', 'figure'] as const) {
       const mode = cnObj[kind]
@@ -239,18 +220,13 @@ export function validateStyleMap(
   }
   /**
    * 题注的号从哪来：auto 靠骨架题注样式的多级列表，field 靠题注域，static 靠题注文字自带。
-   * 前两种情况下题注文字里再写「表N」就会出两个号——**程序不剥离手写前缀**
-   * （PLAN-07：题注文字原样带出），所以这里只看"文字里到底有没有写号"，不再猜程序会不会剥。
+   * 缺 captionNumbering 等于全都按 auto；auto 的号来自骨架样式，样式也没带编号才是真没号。
    */
   const captionStyleId = (kind: 'table' | 'figure'): string =>
     text(styleMap[kind === 'table' ? 'table.caption' : 'figure.caption'] ?? '')
   const styleNumbered = (styleId: string): boolean =>
     styleId !== '' && skeletonStyles.some((s) => s.styleId === styleId && s.numbered === true)
-  const captionMode = (kind: 'table' | 'figure'): string => text(cnObj?.[kind] ?? 'auto')
   if (!cnObj && opts.skeleton) {
-    // 缺 captionNumbering = 全都按 auto；auto 的号来自骨架样式，样式也没带编号才是真没号。
-    // （原来这条写的是"手写前缀会被剥掉"，剥离已经删掉，那句话不再成立。）
-    // 没配 caption.caption 键的不在这里报：那是"结构所需逻辑键没被覆盖"那条 error 的事。
     const noSource = (['table', 'figure'] as const).filter((kind) => {
       const styleId = captionStyleId(kind)
       return styleId !== '' && !styleNumbered(styleId)
@@ -261,77 +237,23 @@ export function validateStyleMap(
         rule: 'style.captionNumbering.absent',
         path: 'captionNumbering',
         message:
-          `styles/${id}：captionNumbering未配 · ` +
+          `captionNumbering未配 · ` +
           `${noSource.map((k) => (k === 'table' ? '表题' : '图题')).join(' / ')}按 auto 处理，` +
           `但骨架样式 ${noSource.map((k) => text(JSON.stringify(captionStyleId(k)))).join(' / ')} ` +
-          `题注样式无多级列表编号`
+          `无多级列表编号`
       })
     }
   }
 
-  // 与配对结构比对逻辑键覆盖
-  const fileKey =
-    opts.stylemapFile !== undefined ? opts.stylemapFile.replace(/\.json$/u, '') : undefined
-  if (fileKey === undefined) return out
-  for (const st of structures) {
-    // 只有声明引用了这份 stylemap 的结构才参与比对（脚本里没声明就不比）
-    if (!st.fileKeys.includes(fileKey)) continue
-    const stName = st.name
-    const keys = new Set(st.keys)
-    const styleMapKeys = styleMap
-    const missing = [...keys].filter((k) => !(k in styleMapKeys))
-    if (missing.length > 0) {
-      out.push({
-        level: 'error',
-        rule: 'style.structure.keysMissing',
-        path: `structure[${stName}].styleMap`,
-        message:
-          `结构「${stName}」缺逻辑键：${missing.join(' / ')}` +
-          ``
-      })
-    }
-    // 题注手写号：号已经由样式（auto 且样式带编号）或题注域（field）给出时，
-    // 题注文字里再写「表N」就会出两个号——程序不剥离手写前缀（PLAN-07 口径）。
-    // static 不在范围内：那种模式下号本来就写在文字里。
-    for (let i = 0; i < st.captions.length; i++) {
-      const cap = st.captions[i]!
-      const mode = captionMode(cap.kind)
-      if (mode === 'static') continue
-      if (mode === 'auto' && !styleNumbered(captionStyleId(cap.kind))) continue
-      // 「表」/「图」后面跟数字、空格、全角空格、【 或括号，才算自己写了号；
-      // 「表面处理要求」这种只是碰巧以此开头的不算。
-      if (/^(表|图)[\s\u3000\d【（(]/u.test(cap.text)) {
-        const from = mode === 'auto' ? '样式多级列表' : '题注域'
-        out.push({
-          level: 'warn',
-          rule: 'style.caption.handwritten',
-          path: `structure[${stName}].captions[${i}]`,
-          message:
-            `样式 ${id}：结构「${stName}」的题注「${cap.text.slice(0, 28)}…」自己写了号，` +
-            `与${from}重复` +
-            ``
-        })
-      }
-    }
-    // figure 是可选键：结构里有图但样式没配 figure，只是提示
-    if (keys.has('figure.caption') && !('figure' in styleMap)) {
+  // 用不到的高阶列表键：不进全集，配了不生效
+  for (const key of UNREAD_LIST_KEYS) {
+    if (key in styleMap) {
       out.push({
         level: 'warn',
-        rule: 'style.figure.absent',
-        path: 'styleMap.figure',
-        message: `figure未配 · 回退body`
+        rule: 'style.listKey.unread',
+        path: `styleMap['${key}']`,
+        message: `${key}不读取`
       })
-    }
-    // 用不到的高阶列表键
-    for (const k of UNREAD_LIST_KEYS) {
-      if (k in styleMap) {
-        out.push({
-          level: 'warn',
-          rule: 'style.listKey.unread',
-          path: `styleMap['${k}']`,
-          message: `${k}不读取`
-        })
-      }
     }
   }
 

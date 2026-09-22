@@ -1,9 +1,10 @@
 /**
- * 模板系统类型（对齐旧版 templatedef.h / styletemplatedef.h）。
- * 数据完全来自 JSON：结构模板（*-structure.json）+ 样式模板（*-stylemap.json）。
- * 任何 docx 规范文档格式 = 一对「结构模板 + 样式模板（含骨架目录）」注册进 manifest。
+ * 模板系统类型（PLAN-12：身份是 uuid，名字只作展示）。
+ * 结构模板与样式模板各一份 JSON，目录名与文件名都用 uuid；
+ * 结构里只记一个默认样式 uuid，找不到就是悬挂。
  */
 import type { BlockLockLevel } from '@documentor/core'
+import type { TemplateIdentity } from './identity'
 
 /** 模板中预置的内容块定义（模板 JSON 的 contentBlocks 条目） */
 export interface TemplateContentBlockDef {
@@ -42,47 +43,26 @@ export interface TemplateNodeDef {
   contentBlocks: TemplateContentBlockDef[]
 }
 
-/** 结构模板定义 */
-export interface TemplateDef {
-  name: string
+/** 结构模板定义：身份取模板 JSON 里的 uuid，样式只记一个默认 uuid */
+export interface TemplateDef extends TemplateIdentity {
   category: string
   description: string
   version: string
-  /** 默认样式映射文件名（不含 .json），如 'demo-stylemap'；必须 ∈ styleTemplates */
-  styleTemplate: string
-  /** 可用样式模板集合（1:N）；缺省时兼容回退为 [styleTemplate] */
-  styleTemplates: string[]
+  /** 默认样式的 uuid，空串表示还没选；指向哪份样式不影响这份结构能否加载 */
+  defaultStyleUuid: string
   rootDef: TemplateNodeDef
-}
-
-/** 结构 × 样式配对候选（软校验：不可用不影响结构模板加载/编辑） */
-export interface StyleCandidate {
-  /** stylemap 文件名（不含 .json） */
-  fileKey: string
-  name: string
-  version: string
-  description: string
-  /** 校验是否通过（键齐全 + 骨架 styleId 均在） */
-  available: boolean
-  /** 缺失的逻辑样式键（含骨架 styleId 缺失项）明细 */
-  missingKeys: string[]
-  /** 是否为结构模板声明为默认样式 */
-  isDefault: boolean
 }
 
 /** 题注编号方式：auto=样式多级列表；static=文本自带；field=STYLEREF+SEQ 域 */
 export type CaptionNumberingMode = 'auto' | 'static' | 'field'
 
 /** 样式模板定义（stylemap + docx 骨架） */
-export interface StyleTemplateDef {
-  name: string
+export interface StyleTemplateDef extends TemplateIdentity {
   version: string
   description: string
-  /** stylemap 文件名（不含 .json），注册别名 */
-  fileKey: string
-  /** 骨架文件夹名（stylemap 内 docxFolder，如 'demo-style'） */
+  /** 骨架文件夹名，相对模板自己那个目录（stylemap 内 docxFolder） */
   docxFolder: string
-  /** 骨架文件夹的父目录绝对路径（styles/<id>） */
+  /** 模板目录 `styles/<uuid>` 的绝对路径 */
   basePath: string
   /** 逻辑样式名 → styles.xml styleId */
   styleMap: Record<string, string>
@@ -114,6 +94,21 @@ export interface StyleTemplateDef {
   skeletonPath: string
 }
 
+/**
+ * 结构的默认样式解析结果：解析规则在 `resolve.ts`，这里只是把"目录里有没有"
+ * 换成"加载好的那一份"。悬挂与未设是两种事实，调用方的说法不一样。
+ */
+export interface DefaultStyleRef {
+  /** 加载好的样式模板；悬挂或未设时为空 */
+  style: StyleTemplateDef | null
+  /** 结构里写的那个 uuid，空串表示没写 */
+  uuid: string
+  /** 写了 uuid 但找不到这份样式，界面要标出来并要求重选 */
+  dangling: boolean
+  /** 没写默认样式，导出时先让用户选一份 */
+  unset: boolean
+}
+
 export interface StyleValidationReport {
   valid: boolean
   /** styleMap 中不在 styles.xml 的条目 */
@@ -130,10 +125,8 @@ export interface LoadDirResult {
   structuresLoaded: number
   stylesLoaded: number
   /**
-   * 没加载进来的东西与原因：整份模板/样式被跳过（文件缺失、解析失败、同名冲突），
-   * 或模板里的某个内容块被跳过（类型不认识）。同名冲突的记法是
-   * `structure already loaded: <name>（保留 <胜出目录> 里的那份，忽略本次 <本次目录>）`，
-   * 结构与样式都按**模板 JSON 顶层的 name** 去重（样式另加 stylemap 文件名）。
+   * 没加载进来的东西与原因：整份模板被跳过（读不到、解析失败、缺 uuid、缺 root），
+   * 或模板里的某个内容块被跳过（类型不认识）。一条一句人话，界面直接显示。
    */
   skipped: string[]
   /**

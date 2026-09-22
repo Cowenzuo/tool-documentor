@@ -5,8 +5,6 @@
  * 名字可以随便改。读写两个方向、目录名与文件名的推导都收在这里，别处不许自己拼字符串，
  * 否则又会长出第二套"按名字认模板"的口径。
  */
-import { randomUUID } from 'node:crypto'
-
 export interface TemplateIdentity {
   /** 程序生成，永不变，界面不显示 */
   uuid: string
@@ -18,8 +16,12 @@ export interface TemplateIdentity {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu
 
+/**
+ * 用 Web Crypto 的 randomUUID 而不是 node:crypto：渲染层要跑同一套 uuid 判定，
+ * 这里一旦 import node 内置模块，编辑模式的浏览器包就会带上一个用不了的 shim。
+ */
 export function newTemplateUuid(): string {
-  return randomUUID()
+  return globalThis.crypto.randomUUID()
 }
 
 export function isTemplateUuid(value: unknown): value is string {

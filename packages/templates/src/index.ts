@@ -1,11 +1,12 @@
 /**
- * @documentor/templates 对外出口：模板管理器、模板块映射、样式键推导与模板校验。
+ * @documentor/templates 对外出口：模板管理器、模板块映射、样式键元数据与模板校验。
  * 这里只做转发。
  *
- * 说明：`requiredStyleKeys` 自批次 0（PLAN-11）起由 `./validate` 提供——它与
- * `check-templates.cjs` 同一套规则，且对结构 JSON 原文、`TemplateDef`、裸节点定义都认。
- * `manager.ts` 里那份同名实现仍在（供 `TemplateManager` 内部使用，行为未变）。
- * 逻辑样式键的**说明**（用途、是否读、回退目标）与对照表行在 `./style-keys`（批次 3）。
+ * 说明：模板的身份是 uuid（`./identity`），目录扫描在 `./discover`，
+ * 引用解析在 `./resolve`；结构模板与样式模板的校验分别是
+ * `validateStructureTemplate` 与 `validateStyleTemplate`，样式完整性按
+ * `SUPPORTED_STYLE_KEYS`（软件支持的全集）查缺键。
+ * 逻辑样式键的**说明**（用途、是否读、回退目标）与对照表行在 `./style-keys`。
  */
 
 export {
@@ -18,26 +19,19 @@ export {
   LOCK_TIERS,
   SKELETON_REQUIRED_PARTS,
   parseSkeletonIndex,
-  requiredStyleKeys,
-  styleFactsOfStructure,
-  styleFactsOfStructures,
-  styleTemplateKeys,
   validateStructureTemplate,
-  validateStyleTemplate,
-  validateTemplateDir
+  validateStyleTemplate
 } from './validate'
 export type {
   SkeletonIndex,
   SkeletonStyleInfo,
-  StructureValidateOptions,
   StyleValidateOptions,
-  TemplateDirEntry,
-  TemplateDirValidation,
   ValidationIssue,
   ValidationLevel
 } from './validate'
 export {
   STYLE_KEY_INFO,
+  SUPPORTED_STYLE_KEYS,
   buildStyleMapRows,
   styleKeyInfo,
   unusedSkeletonStyleIds
@@ -46,7 +40,6 @@ export type {
   BuildStyleMapRowsInput,
   LogicalStyleKeyInfo,
   StyleKeyGroup,
-  StyleKeyRequirement,
   StyleMapRow,
   StyleMapRowStatus
 } from './style-keys'
@@ -67,7 +60,6 @@ export {
 export type { TemplateIdentity } from './identity'
 /**
  * 模板目录扫描（PLAN-12）：目录名是 uuid 才认，清单不再存在。
- * 先与新口径并存，等加载器切过来之后再删清单那一套。
  */
 export { TEMPLATE_SUBDIR, scanTemplateDir } from './discover'
 export type {
@@ -91,19 +83,14 @@ export type { StyleResolution } from './resolve'
  * 直接拿，渲染层实时跑与主进程**同一份**判定。
  */
 export { validateStyleMap } from './style-rules'
-export type {
-  SkeletonFacts,
-  StyleCaptionFact,
-  StyleRulesOptions,
-  StyleStructureFacts
-} from './style-rules'
+export type { SkeletonFacts, StyleRulesOptions } from './style-rules'
 export type {
   TemplateDef,
   TemplateNodeDef,
   TemplateContentBlockDef,
   StyleTemplateDef,
   CaptionNumberingMode,
-  StyleCandidate,
+  DefaultStyleRef,
   StyleValidationReport,
   LoadDirResult
 } from './types'
