@@ -524,12 +524,12 @@ export function TemplateList(props: TemplateListProps): JSX.Element {  const { s
                       onClick={() => props.onOpenStyle(entry)}
                     >
                       <span className="tpl-item-name">{entry.name || entry.id}</span>
-                      {/* 与结构模板同一顺序：问题徽标跟名字，id · fileKey 放最后 */}
+                      {/* 与结构模板同一顺序：问题徽标跟名字，引用键放最后 */}
                       {badges(entry, 'style')}
-                      {/* 这一条不挂悬停：id 与文件键（fileKey）常驻在右边，文件名就是把 .json 接上去，
-                          再悬停念一遍只是噪音 */}
-                      <span className="tpl-item-id">
-                        {entry.id} · {styleFileKey(entry)}
+                      {/* 右边只留结构模板要引用的那个值：文件键就是 <id>-stylemap，
+                          再印一遍 id 等于把同一件事写两遍；文件名进悬停 */}
+                      <span className="tpl-item-id" title={entry.file}>
+                        {styleFileKey(entry)}
                       </span>
                     </button>
                   </li>

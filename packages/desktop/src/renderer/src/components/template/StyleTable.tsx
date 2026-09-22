@@ -37,8 +37,8 @@ interface StyleTableProps {
   onChapterStyleName: (level: string, name: string | null) => void
 }
 
-/** 表头五列：逻辑键、用途、映射、必需、状态（宽度写在 CSS 里） */
-const COLUMNS = ['逻辑键', '用途', '当前映射', '必需', '状态与回退'] as const
+/** 表头三列：逻辑键、映射、状态。用途与必需不占列：用途进键的悬停，必需只在缺的时候由状态列说 */
+const COLUMNS = ['逻辑键', '当前映射', '状态与说明'] as const
 
 /** 一行分到哪个分区（rows 已按显示顺序排好，这里只做分段） */
 function groupRows(rows: readonly StyleMapRowDto[]): Array<{ group: string; rows: StyleMapRowDto[] }> {
@@ -105,41 +105,30 @@ export function StyleTable({
     <section className="tpl-col tpl-col-map" aria-label="样式对照表">
       <header className="tpl-col-head">
         <h2>样式对照表</h2>
-        {/* 栏头只说"这一栏是什么"：名字 + 骨架目录（悬停看全路径）。
-            这份表有多大在顶栏说，文件与文件键在下面那一行说，同一件事不说两遍 */}
+        {/* 栏头只说"这一栏是什么"：名字 + 骨架目录（悬停看全路径） */}
         <span className="tpl-col-hint" title={result.skeletonPath}>
           {name}
         </span>
+        {/* 两条提示靠右：有活干、会影响别人。正常时这一头什么都不显示 */}
+        {(problemRows.length > 0 || result.usedBy.length > 1) && (
+          <span className="tpl-col-facts">
+            {problemRows.length > 0 && (
+              <span className="tpl-map-bad">待修正 {problemRows.length} 行</span>
+            )}
+            {result.usedBy.length > 1 && (
+              <span
+                title={result.usedBy
+                  .map((u) => `${u.name}${u.isDefault ? '（默认）' : ''}`)
+                  .join('、')}
+              >
+                共用 {result.usedBy.length} 份
+              </span>
+            )}
+          </span>
+        )}
       </header>
 
       <div className="tpl-col-body tpl-map-body">
-        <div className="tpl-map-meta">
-          <div className="tpl-map-meta-line">
-            <code className="tpl-mono">styles/{result.id}/{result.file}</code>
-            <span className="tpl-count">文件键 {result.fileKey}</span>
-          </div>
-          <div className="tpl-map-meta-line">
-            <span className="tpl-count">
-              样式目录 {docxFolder === '' ? '未写' : docxFolder}
-            </span>
-            {/* 共用影响面：同一份映射可能被多份结构模板引用，改它之前先看清有谁在用 */}
-            <span className="tpl-count">
-              {result.usedBy.length === 0
-                ? '无结构模板引用'
-                : `引用它的结构模板：${result.usedBy
-                    .map((u) => `${u.name}${u.isDefault ? '（默认）' : ''}`)
-                    .join('、')}`}
-            </span>
-          </div>
-          {problemRows.length > 0 && (
-            <div className="tpl-map-meta-line">
-              <span className="tpl-count tpl-map-bad">
-                {problemRows.length} 行待修正：{problemRows.map((row) => row.key).join('、')}
-              </span>
-            </div>
-          )}
-        </div>
-
         <table className="tpl-map">
           <thead>
             <tr>
@@ -167,10 +156,7 @@ export function StyleTable({
 
         {/* 题注编号：三种方式按题注分别选；field 模式还要章节样式名（Word 只认界面上的本地化名） */}
         <div className="tpl-caption">
-          <h3>
-            题注编号
-            {!cn && <span className="tpl-count">未写此项 · 按「按样式自动编号」</span>}
-          </h3>
+          <h3>题注编号</h3>
           <div className="tpl-caption-row">
             {(['table', 'figure'] as const).map((kind) => (
               <label className="tpl-field tpl-caption-field" key={kind}>
@@ -266,34 +252,7 @@ export function StyleTable({
         </details>
 
         {/* 校验结论的原话：样式这一侧没有"节点详情"那样的落点，原话就摆在这里 */}
-        <div className="tpl-map-issues">
-          <h3>
-            校验结论
-            <span className="tpl-count">
-              {errors} 个错误 · {warnings} 处提示
-              {issuesFromServer ? '（主进程给的）' : '（按当前草稿算的）'}
-            </span>
-          </h3>
-          {issues.length === 0 ? (
-            <p className="tpl-note">未发现问题 · 与引用它的结构模板一致</p>
-          ) : (
-            <ul className="tpl-map-issue-list">
-              {issues.map((issue, index) => (
-                <li
-                  key={`${issue.rule}-${index}`}
-                  className={`tpl-map-issue is-${issue.level}`}
-                  title={issue.rule}
-                >
-                  {/* 位置给人读的话（映射 heading.1 / 结构「甲结构」的覆盖），原始 path 在标题里 */}
-                  <span className="tpl-map-issue-where" title={issue.path}>
-                    {issueWhereForStyle(issue.path)}
-                  </span>
-                  <span className="tpl-map-issue-text">{issue.message}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        {/* 校验结论不在这里印第二遍：页脚状态栏常驻同一份结论，点开就是按位置归堆的原话 */}
       </div>
     </section>
   )
@@ -321,24 +280,23 @@ function GroupRows({
     <>
       <tr className="tpl-map-group">
         <th scope="colgroup" colSpan={COLUMNS.length}>
-          {group} · {rows.length} 个键
+          {group}
         </th>
       </tr>
       {rows.map((row) => {
         const target = byId.get(row.styleId)
         const fallbackId = row.fallback === null ? '' : (fallbackIds.get(row.fallback) ?? '')
         return (
-          <tr key={row.key} className={`tpl-map-row is-${styleStatusTone(row.status)}`}>
+          <tr
+            key={row.key}
+            className={`tpl-map-row is-${styleStatusTone(row.status)}${row.read ? '' : ' is-inert'}`}
+            title={row.read ? undefined : '程序不读 · 列表各层只取第 1 档'}
+          >
             <th scope="row" className="tpl-map-key">
-              <code className="tpl-mono">{row.key}</code>
-              {/* 「不读」是键自己的属性（不是这一行配得对不对），所以挂在键这一格 */}
-              {!row.read && (
-                <span className="tpl-count" title="程序不读 · 列表各层只取第 1 档">
-                  不读
-                </span>
-              )}
+              <code className="tpl-mono" title={row.usage}>
+                {row.key}
+              </code>
             </th>
-            <td className="tpl-map-usage">{row.usage}</td>
             <td className="tpl-map-target">
               {/* 映射就是这一列的活：选骨架里的一条样式；「（不配）」= 把这一项从 styleMap 里删掉。
                   选中项的说明只说下拉里看不到的（类型、字号、编号）——
@@ -361,32 +319,16 @@ function GroupRows({
                 )}
               </select>
             </td>
-            <td className="tpl-map-required">
-              {row.required ? (
-                <span
-                  className={`tpl-badge ${row.status === 'missing' ? 'tpl-badge-error' : ''}`}
-                  title={`必需 · ${row.requiredBy.join('、')}`}
-                >
-                  必需
-                </span>
-              ) : (
-                <span className="tpl-count">—</span>
-              )}
-            </td>
             <td className="tpl-map-status">
               <span className={`tpl-map-state is-${styleStatusTone(row.status)}`}>
-                {styleStatusLabel(row.status)}
+                {row.status === 'unset'
+                  ? `未配 · ${row.fallback === null ? '按默认样式' : `回退${row.fallback}`}`
+                  : styleStatusLabel(row.status)}
               </span>
-              {/* 正常那一行不说第二遍"指向谁"（左边两列写着）；没配 / 配错 / 没核对才要说为什么 */}
-              {row.status === 'unset' ? (
-                <span className="tpl-map-why">
-                  {row.fallback === null
-                    ? '没人需要它，用到时按 Word 默认样式输出'
-                    : `程序回退用 ${row.fallback}${fallbackId === '' ? '（那个键也没配）' : ''}`}
-                </span>
-              ) : row.status === 'inert' ? null : row.status === 'ok' ? null : (
+              {/* 说明只在说得出额外信息时写：未配已并进状态标签，配了不生效由整行标记说 */}
+              {row.status === 'dangling' ? (
                 <span className="tpl-map-why">{row.message}</span>
-              )}
+              ) : null}
             </td>
           </tr>
         )

@@ -1412,6 +1412,24 @@ button.tpl-issue-where:hover {
   background: color-mix(in srgb, var(--warning) 8%, transparent);
 }
 
+/* 程序不读的键：不写字，整行左边一道琥珀边，说明进悬停 */
+.tpl-map-row.is-inert .tpl-map-key {
+  box-shadow: inset 3px 0 0 var(--warning);
+}
+
+.tpl-map-row.is-inert .tpl-map-state {
+  color: var(--warning);
+}
+
+/* 栏头右端的提示：待修正行数、共用份数，正常时整块不渲染 */
+.tpl-col-facts {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-2);
+}
+
 .tpl-map-state {
   display: inline-block;
   padding: 0 6px;
