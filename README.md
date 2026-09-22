@@ -126,8 +126,8 @@ release/
 
 - **打包**：`pnpm package` 出 NSIS 安装包，`pnpm package:dir` 出免安装目录。
   两者都复用本地 Electron（`electronDist`），不必联网下载。
-- **当前版本**：代码是 `0.1.1-alpha2`；`release/` 里的成品是上一批 `0.1.0-beta1`，
-  另保留着 alpha1 与 alpha3 两个更早的安装包（重新打包由用户明确要求时才做）。
+- **当前版本**：代码是 `0.1.2-alpha1`；`release/` 里的成品是上一批 `0.1.1-alpha1`，
+  另保留着 `0.1.0-beta1`、`0.1.0-alpha3`、`0.1.0-alpha1` 三个更早的安装包（重新打包由用户明确要求时才做）。
   开发新功能期间请继续用发布版改数据，别用 `pnpm dev`——
   理由与分界见工程工作区 `../tool-documentor-projs/README.md` 第 0 节。
 - **分发边界**：发行包不含 `mmd2vsdx`。它的产物内嵌官方 Visio 母版 XML，属 Microsoft 许可内容，
