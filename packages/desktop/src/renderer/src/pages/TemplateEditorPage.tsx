@@ -319,6 +319,8 @@ export default function TemplateEditorPage(): JSX.Element {
           onPickDirectory={() => window.documentor.dialog.selectDirectory()}
           onRename={editor.renameTemplate}
           onRemove={editor.removeTemplate}
+          onRenameStyle={editor.renameStyleEntry}
+          onRemoveStyle={editor.removeStyleEntry}
         />
         <div
           className="tpl-split"

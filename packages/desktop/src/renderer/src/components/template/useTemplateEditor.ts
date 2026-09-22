@@ -172,6 +172,10 @@ export interface UseTemplateEditorResult {
   forkStyleFor: (sourceStyleId: string) => Promise<boolean>
   removeTemplate: () => Promise<boolean>
   renameTemplate: (input: { newId: string; name: string }) => Promise<boolean>
+  /** 删除眼前这份样式模板（整份目录含骨架先备份，主进程做） */
+  removeStyleEntry: () => Promise<boolean>
+  /** 改眼前这份样式模板的 id 与名称：id 变了目录与 stylemap 文件名跟着改 */
+  renameStyleEntry: (input: { newId: string; name: string }) => Promise<boolean>
   dismissNotice: () => void
   selectNode: (path: NodePath) => void
   revealNode: (path: NodePath) => void
@@ -815,6 +819,76 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     [applyRead, dir, entryId, refreshSnapshot]
   )
 
+  /**
+   * 删除眼前这份样式模板：主进程整份备份再删（含骨架），回来之后按目录快照打开剩下的第一份，
+   * 一份都不剩就收起样式视图——视图不能停在一份已经没了的模板上。
+   */
+  const removeStyleEntry = useCallback(async (): Promise<boolean> => {
+    const api = templateApi()
+    if (!api || !dir || !styleId) return false
+    setBusy(true)
+    try {
+      const result = await api.removeStyle({ dir, id: styleId })
+      const next = await api.snapshot()
+      setSnapshot(next)
+      const nextDirSnapshot = next.dirs.find((item) => item.dir === dir) ?? null
+      const nextStyle = nextDirSnapshot?.styles[0] ?? null
+      if (nextStyle) {
+        await readStyleEntry(api, dir, nextStyle)
+      } else {
+        closeStyleView()
+      }
+      // 回执放在重新读之后：读那一趟会把状态栏清干净（readStyleEntry 里 setNotice(null)）
+      setNotice({ kind: 'info', text: `已删除「${styleId}」`, detail: result.backupPath })
+      return true
+    } catch (err) {
+      setNotice({ kind: 'error', text: '删除失败', detail: errorText(err) })
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }, [closeStyleView, dir, readStyleEntry, styleId])
+
+  /**
+   * 改样式模板的名字与 id：动的是**样式自己**（目录、stylemap 文件名与 JSON），
+   * 结构模板的引用留旧文件键不动，由导出侧重链接。回来之后按新 id 重新读一遍：
+   * 目录快照与"谁在共用它"都跟着变，界面不能停在改之前那份上。
+   */
+  const renameStyleEntry = useCallback(
+    async (input: { newId: string; name: string }): Promise<boolean> => {
+      const api = templateApi()
+      if (!api || !dir || !styleId) return false
+      setBusy(true)
+      try {
+        const idChanged = input.newId !== '' && input.newId !== styleId
+        const result = await api.renameStyle({
+          dir,
+          id: styleId,
+          name: input.name,
+          ...(idChanged ? { newId: input.newId } : {})
+        })
+        const next = await api.snapshot()
+        setSnapshot(next)
+        const nextDirSnapshot = next.dirs.find((item) => item.dir === dir) ?? null
+        const nextStyle = nextDirSnapshot?.styles.find((item) => item.id === result.id) ?? null
+        if (nextStyle) await readStyleEntry(api, dir, nextStyle)
+        // 回执放在重新读之后：读那一趟会把状态栏清干净（readStyleEntry 里 setNotice(null)）
+        setNotice({
+          kind: 'info',
+          text: idChanged ? `已改 id 与名称：${styleId} → ${result.id}` : '已改名',
+          detail: result.backupPath ?? undefined
+        })
+        return true
+      } catch (err) {
+        setNotice({ kind: 'error', text: '改名失败', detail: errorText(err) })
+        return false
+      } finally {
+        setBusy(false)
+      }
+    },
+    [dir, readStyleEntry, styleId]
+  )
+
   // ================= 节点与内容块 =================
 
   const selectNode = useCallback((path: NodePath): void => setSelectedPath(path), [])
@@ -1031,6 +1105,8 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     forkStyleFor,
     removeTemplate,
     renameTemplate,
+    removeStyleEntry,
+    renameStyleEntry,
     dismissNotice,
     selectNode,
     revealNode,

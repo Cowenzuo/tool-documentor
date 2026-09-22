@@ -249,13 +249,14 @@ export interface TemplateCreateInput {
   styleTemplate?: string
 }
 
+/** 删除一份模板（结构模板与样式模板共用这对入参出参：都按 id 定位目录，都是整份目录的事） */
 export interface TemplateDeleteInput {
   dir: string
   id: string
 }
 
 export interface TemplateDeleteResult {
-  /** 删除前整份目录备份到哪了 */
+  /** 删除前整份目录备份到哪了（样式模板那份含骨架目录） */
   backupPath: string
 }
 
@@ -468,6 +469,30 @@ export interface TemplateStyleForkResult {
   structure: { id: string; fileKey: string } | null
 }
 
+/**
+ * 改一份样式模板：`name` 是 stylemap 里的显示名，`newId` 是 id（目录名）。
+ * 只动样式自己，**不碰任何结构模板**：结构按文件键引用这份对照表，改 id 会让那些引用对不上，
+ * 由导出侧重链接。
+ */
+export interface TemplateStyleRenameInput {
+  dir: string
+  /** 改之前的 id（目录名） */
+  id: string
+  /**
+   * 新 id：`styles/<id>/` 目录名、`<newId>-stylemap.json` 文件名与 manifest 里那条登记一起改。
+   * 不带或与原值相同就只改 name。骨架目录在样式目录里，跟着一起搬，名字不动。
+   */
+  newId?: string
+  /** stylemap JSON 里的 name（显示名） */
+  name: string
+}
+
+/** 改样式模板的结果：与读一份样式同形状，外加改动前的备份 */
+export interface TemplateStyleRenameResult extends TemplateStyleReadResult {
+  /** 改动前的备份：改 id 时是整份目录，只改 name 时是单个文件；都没有则为 null */
+  backupPath: string | null
+}
+
 export interface UiStateSave {
   key: string
   value: string
@@ -540,6 +565,10 @@ export const ProjectIpc = {
   TemplateImportStyle: 'template:import-style',
   /** 模板编辑：把共用的对照表另存为某份结构模板专用（复制骨架与映射，并改引用） */
   TemplateForkStyle: 'template:fork-style',
+  /** 模板编辑：改样式模板的名字与 id（id 变了目录名、stylemap 文件名与清单登记一起改） */
+  TemplateRenameStyle: 'template:rename-style',
+  /** 模板编辑：删除样式模板（整份目录含骨架先备份，清单摘掉该条） */
+  TemplateDeleteStyle: 'template:delete-style',
   /** 模板编辑：试跑——用这份模板真导出一份 .docx，看样式告警是不是零 */
   TemplateTrialRun: 'template:trial-run',
   /** 模板编辑：写回结构模板（原子写 + .bak），写入前必须零 error */
@@ -664,8 +693,9 @@ export interface DesktopBlockApi {
 }
 
 /**
- * 模板编辑（PLAN-11）：只动模板目录里的 JSON，不碰工程库、不进撤销栈。
- * 结构模板可读可写；样式模板可读，对照表（styleMap 与 captionNumbering）可写（批次 3）。
+ * 模板编辑（PLAN-11）：只动模板目录，不碰工程库、不进撤销栈。
+ * 结构模板可读可写、可改名与删除；样式模板可读，对照表（styleMap 与 captionNumbering）可写，
+ * 也可改名与删除（动的是样式自己：目录、stylemap 文件名与 JSON，不含骨架里的字节）。
  */
 export interface DesktopTemplateEditorApi {
   snapshot(): Promise<TemplateEditorSnapshotDto>
@@ -680,6 +710,10 @@ export interface DesktopTemplateEditorApi {
   trialRun(input: TemplateTrialInput): Promise<TemplateTrialResult>
   remove(input: TemplateDeleteInput): Promise<TemplateDeleteResult>
   rename(input: TemplateRenameInput): Promise<TemplateRenameResult>
+  /** 删除样式模板：整份目录含骨架先备份，清单摘掉该条 */
+  removeStyle(input: TemplateDeleteInput): Promise<TemplateDeleteResult>
+  /** 改样式模板的 id 与名称：id 变了目录名、stylemap 文件名与清单登记一起改 */
+  renameStyle(input: TemplateStyleRenameInput): Promise<TemplateStyleRenameResult>
 }
 
 export interface DesktopUiStateApi {
