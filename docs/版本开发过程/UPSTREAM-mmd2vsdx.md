@@ -1,8 +1,8 @@
 # 上游锚定记录：mmd2vsdx
 
 > 用途：本仓库对上游 `mmd2vsdx` 的**唯一消费契约**与**变更同步清单**。
-> 上游一旦改动，按本文对照；`scripts/check-upstream.cjs` 负责静态红灯，
-> `packages/docx/tests/mmd2vsdx.contract.test.ts` 负责真实链路红灯。
+> 上游一旦改动，按本文对照：`scripts/check-upstream.cjs` 负责静态红灯，
+> 真实链路按第 5 节第 2 条用本机 CLI 手工核对（单测移出产品之后，产品侧不再跑真实转换测试）。
 
 ---
 
@@ -12,7 +12,7 @@
 |---|---|
 | 本地路径 | `D:\_dev\tool-mmd2vsdx` |
 | 包名 | `mmd2vsdx`（`private: true`，未发布 registry） |
-| 引入方式 | `link:../../../tool-mmd2vsdx`（`packages/docx` 与 `apps/desktop` 各一条） |
+| 引入方式 | `link:../../../tool-mmd2vsdx`（`packages/docx` 与 `packages/desktop` 各一条） |
 | 形态 | ESM（`"type": "module"`），入口 `main`/`exports["."]` |
 | 运行时前置 | 本机 Chromium（playwright）；母版已程序化装配，**无需 Visio** |
 
@@ -58,15 +58,16 @@ README 展示的深路径导入会被 `exports` 白名单拦截（`ERR_PACKAGE_P
 | `packages/docx/src/figure-export.ts` → `loadMmd2vsdxConverter()` | **唯一**上游调用点（动态 `import('mmd2vsdx')`） |
 | `packages/docx/src/mmd2vsdx.d.ts` | 类型声明（P0-1 后改由上游提供；保留时须与本文件同步） |
 | `packages/desktop/src/main/mmd2vsdx.d.ts` | 主进程侧声明（同上） |
-| `packages/desktop/cli/test-export.cjs` | CLI `--embed-visio` 入口（传递 `mode` 参数已失效，P0-1 清理） |
+| `localscripts/tools/test-export.cjs` | 无界面导出对照的 CLI（本机脚本，不入库；`--embed-visio` 走真实转换） |
 
 ## 5. 上游变更时的同步清单
 
 1. 跑 `node scripts/check-upstream.cjs` → 看漂移点。
-2. 跑 `pnpm --filter @documentor/docx test:real` → 看真实链路。
+2. 需要看真实链路时，用 `localscripts/tools/test-export.cjs --embed-visio` 出一份带对象的 docx 回读
+   （本机脚本，不入库；缺 Chromium 或上游不可用时那一段会降级成文本并给警告）。
 3. 按需改 `loadMmd2vsdxConverter()`（保持 `MmdConverter` 形状，调用方零改动）。
 4. 更新本文件 §2 锚定快照（HEAD / 时间 / 接口形状）。
-5. 更新 `docs/PLAN-05-修复方案.md` 与 `docs/M7-合规说明.md` 的相关记录。
+5. 更新 `docs/版本开发过程/PLAN-05-修复方案.md` 与 `docs/版本开发过程/M7-合规说明.md` 的相关记录。
 
 ## 6. 门禁入口
 
@@ -74,10 +75,8 @@ README 展示的深路径导入会被 `exports` 白名单拦截（`ERR_PACKAGE_P
 |---|---|---|
 | `node scripts/check-upstream.cjs` | 静态契约检查（入口/门面导出/类型），报告模式：漂移只打印、不阻断 | 毫秒级 |
 | `pnpm verify:upstream` | 同上但走严格模式：漂移以退出码 1 拦住，发布前用 | 毫秒级 |
-| `pnpm --filter @documentor/docx test:real` | 真实转换 + OLE 嵌入契约测试（缺省合成夹具 1 图） | 需 Chromium，数十秒 |
-| `DOC_REAL_MMD=1 DOC_REAL_MMD_TEMPLATE=localtest/templates DOC_REAL_MMD_STRUCTURE="438C-软件设计说明(SDD)" pnpm --filter @documentor/docx test:real` | 同上，但跑本地真实模板（SDD 结构实测 11 图） | 同上 |
-| `pnpm verify` | typecheck + 全量单测 + build + 上面的静态检查（收尾一项，不阻断） | 分钟级 |
-| `pnpm verify:local` | 跳过上游检查的本地门禁 | 分钟级 |
+| `pnpm verify` | typecheck + build + 上面的静态检查（收尾一项，不阻断） | 分钟级 |
 
 `pnpm verify` 把上游检查放在**最后一项且不阻断**：它是已知会红的预期状态，
-放在首位用 `&&` 串联会把类型检查、单测、构建全部短路掉，回归整体漏网。
+放在首位用 `&&` 串联会把类型检查与构建短路掉，回归整体漏网。
+真实链路的核对不在门禁里：它要 Chromium 与本机上游目录，按第 5 节第 2 条手工跑。
