@@ -273,6 +273,7 @@ export default function TreePanel(): React.JSX.Element {
   }
 
   // 右键菜单：打开时聚焦第一个可用项，越界就往回收，禁用项说明为什么不能点
+  // 节点级的删叫「裁剪」，与模板编辑器那个开关、标题下那枚标签同一个词
   const canCopy = !!menuNode && menuNode.headingLevel > 0 && menuNode.copyable
   const canDelete = !!menuNode && menuNode.headingLevel > 0 && menuNode.deletable
   const copyDeniedReason = !menuNode
@@ -283,8 +284,8 @@ export default function TreePanel(): React.JSX.Element {
   const deleteDeniedReason = !menuNode
     ? ''
     : menuNode.headingLevel === 0
-      ? '根节点不能删除'
-      : '模板未开放删除'
+      ? '根节点不能裁剪'
+      : '模板未开放裁剪'
 
   const onMenuKeyDown = (event: React.KeyboardEvent): void => {
     const items = [...(menuRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])]
@@ -469,13 +470,13 @@ export default function TreePanel(): React.JSX.Element {
             role="menuitem"
             className="danger"
             disabled={!canDelete}
-            title={canDelete ? '删除该章节及其子章节' : deleteDeniedReason}
+            title={canDelete ? '裁剪该章节及其子章节' : deleteDeniedReason}
             onClick={() => {
               void deleteNode(menuNode.id)
               setMenu(null)
             }}
           >
-            删除章节
+            裁剪章节
           </button>
           <button
             role="menuitem"

@@ -7,6 +7,7 @@
 import { useEffect, useState, type JSX } from 'react'
 import { BLOCK_TYPE_NAMES } from '@documentor/core/blocks'
 import type { TemplateEntryDto, TemplateIssueDto } from '../../../../shared/project'
+import { NODE_PERMISSION } from '../../../../shared/permissionTerms'
 import { BLOCK_TYPE_LABELS, describeBlockType } from '../editor/blockTypes'
 import BlockForm from './BlockForm'
 import { ContextMenu, useContextMenu } from './ContextMenu'
@@ -281,21 +282,22 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
             value={nodeTitle(node)}
             placeholder="章节标题"
             extra={
+              /* 四个开关的名字与用户侧标题下那排标签同一份（见 shared/permissionTerms） */
               <span className="tpl-switches" role="group" aria-label="用户在新工程里能做什么">
                 <CheckField
-                  label="复制"
+                  label={NODE_PERMISSION.copyable.name}
                   tip={jsonTip('copyable', '缺省 false · 用户能不能把这一章连子树复制一份')}
                   checked={nodeSwitch(node, 'copyable')}
                   onChange={(checked) => props.onPatch({ copyable: checked })}
                 />
                 <CheckField
-                  label="裁剪"
-                  tip={jsonTip('deletable', '缺省 false · 用户能不能删掉这一章')}
+                  label={NODE_PERMISSION.deletable.name}
+                  tip={jsonTip('deletable', '缺省 false · 用户能不能裁掉这一章')}
                   checked={nodeSwitch(node, 'deletable')}
                   onChange={(checked) => props.onPatch({ deletable: checked })}
                 />
                 <CheckField
-                  label="编辑"
+                  label={NODE_PERMISSION.allowContentBlocks.name}
                   tip={jsonTip(
                     'allowContentBlocks',
                     '缺省 true · 内容块总闸：关掉整章内容块只读，一个字段都不能改'
@@ -304,7 +306,7 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
                   onChange={(checked) => props.onPatch({ allowContentBlocks: checked })}
                 />
                 <CheckField
-                  label="排版"
+                  label={NODE_PERMISSION.allowLayoutEdit.name}
                   tip={jsonTip(
                     'allowLayoutEdit',
                     '缺省 true · 关掉后集合、顺序、类型都固定，只能改各块的内容'

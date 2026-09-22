@@ -62,7 +62,7 @@ export function ImageEditor(props: EditorBaseProps<ImageBlock>): React.JSX.Eleme
   const [thumb, setThumb] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const fileRef = useRef<HTMLInputElement | null>(null)
-  const lockedHint = readOnly === true ? '模板规定该图片为定稿，不能更换' : undefined
+  const lockedHint = readOnly === true ? '模板规定该图片为只读，不能更换' : undefined
 
   useEffect(() => {
     let disposed = false
@@ -138,7 +138,7 @@ export function ImageEditor(props: EditorBaseProps<ImageBlock>): React.JSX.Eleme
               className="be-btn"
               onClick={() => onChange({ ...block, imagePath: '' })}
               disabled={readOnly === true}
-              title={readOnly === true ? '模板规定该图片为定稿，不能移除' : undefined}
+              title={readOnly === true ? '模板规定该图片为只读，不能移除' : undefined}
             >
               移除
             </button>
@@ -298,7 +298,7 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
               value={realRows}
               onChange={(e) => requestSize(Number(e.target.value) || 0, realCols)}
               disabled={locked}
-              title={locked ? '模板规定该表格为定稿，行数不能改' : undefined}
+              title={locked ? '模板规定该表格为只读，行数不能改' : undefined}
             />
           </label>
           <label>
@@ -309,7 +309,7 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
               value={realCols}
               onChange={(e) => requestSize(realRows, Number(e.target.value) || 1)}
               disabled={locked}
-              title={locked ? '模板规定该表格为定稿，列数不能改' : undefined}
+              title={locked ? '模板规定该表格为只读，列数不能改' : undefined}
             />
           </label>
         </div>
@@ -549,7 +549,7 @@ export function CodeEditor(props: EditorBaseProps<CodeBlock>): React.JSX.Element
           onChange={(e) => onChange({ ...block, language: e.target.value })}
           aria-label="代码语言"
           disabled={readOnly === true}
-          title={readOnly === true ? '模板定稿' : undefined}
+          title={readOnly === true ? '模板只读' : undefined}
         >
           {CODE_LANGUAGES.map((lang) => (
             <option key={lang} value={lang}>
@@ -659,7 +659,7 @@ export function MermaidEditor(props: EditorBaseProps<MermaidBlock>): React.JSX.E
           onBlur={() => {
             // 失焦时把源码规整一次并落库：粘进来的围栏与 `mermaid` 语言标签留在这里
             // 会让渲染报 "No diagram type detected"，导出侧也吃同一份源码。
-            // 只清"包裹"，不碰图定义本身。整块只读时连规整也不写，免得动了模板给定的定稿。
+            // 只清"包裹"，不碰图定义本身。整块只读时连规整也不写，免得动了模板给定的内容。
             if (locked) return
             const cleaned = normalizeMermaidSource(block.code)
             if (cleaned !== block.code) onChange({ ...block, code: cleaned })
