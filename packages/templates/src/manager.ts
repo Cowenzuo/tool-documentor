@@ -209,6 +209,7 @@ export class TemplateManager {
     node.copyable = nodeDef.copyable
     node.deletable = nodeDef.deletable
     node.allowContentBlocks = nodeDef.allowContentBlocks
+    node.allowLayoutEdit = nodeDef.allowLayoutEdit
     node.isSubTitle = nodeDef.isSubTitle
     node.subTitleStyle = nodeDef.subTitleStyle
     node.subTitleAutoNumber = nodeDef.subTitleAutoNumber
@@ -301,6 +302,7 @@ export class TemplateManager {
       copyable: Boolean(obj['copyable'] ?? false),
       deletable: Boolean(obj['deletable'] ?? false),
       allowContentBlocks: Boolean(obj['allowContentBlocks'] ?? true),
+      allowLayoutEdit: Boolean(obj['allowLayoutEdit'] ?? true),
       isSubTitle,
       subTitleStyle: String(obj['subTitleStyle'] ?? 'numeric'),
       subTitleAutoNumber: Boolean(obj['subTitleAutoNumber'] ?? true),

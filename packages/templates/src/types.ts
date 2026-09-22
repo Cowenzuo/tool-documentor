@@ -35,6 +35,8 @@ export interface TemplateNodeDef {
   copyable: boolean
   deletable: boolean
   allowContentBlocks: boolean
+  /** 排版：块集合、顺序、类型能不能动；关掉后只能改各块的内容（缺省 true） */
+  allowLayoutEdit: boolean
   isSubTitle: boolean
   subTitleStyle: string
   subTitleAutoNumber: boolean
