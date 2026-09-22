@@ -21,6 +21,7 @@ import type {
 } from '../../../shared/project'
 import type { BlockTypeName, ContentBlock } from '@documentor/core/blocks'
 import { createBlock } from '@documentor/core/blocks'
+import { errorText } from '../utils/errorText'
 import {
   addBlock as addBlockOp,
   collectIds,
@@ -181,9 +182,14 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
       try {
         const result = await window.documentor.project.open(dprojPath)
         enterSession(result)
-        // 打开的工程若有内容块被跳过，必须让用户知道：下一次保存就再也找不回来了
-        if (result.warnings && result.warnings.length > 0) {
-          showToast({ kind: 'warn', text: result.warnings.join('；') })
+        const notices = [...(result.warnings ?? [])]
+        // 打开的工程若有内容块被跳过，必须让用户知道：下一次保存就再也找不回来了。
+        // 老工程只记模板名、又没认到 uuid 时也在这里说一句：状态栏空着等于没说原因
+        if (result.info.templateUuid === '' && result.info.legacyTemplateName !== '') {
+          notices.push(`模板未认到：${result.info.legacyTemplateName}`)
+        }
+        if (notices.length > 0) {
+          showToast({ kind: 'warn', text: notices.join('；') })
         }
         // 恢复上次选中节点
         const saved = await window.documentor.uiState.load(UI_STATE_SELECTED_KEY)
@@ -191,7 +197,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         setSelectedId(saved && ids.includes(saved) ? saved : null)
         return true
       } catch (err) {
-        showToast({ kind: 'error', text: '操作失败' })
+        showToast({ kind: 'error', text: errorText(err) })
         return false
       } finally {
         setBusy(false)
@@ -209,7 +215,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         setSelectedId(null)
         return true
       } catch (err) {
-        showToast({ kind: 'error', text: '操作失败' })
+        showToast({ kind: 'error', text: errorText(err) })
         return false
       } finally {
         setBusy(false)
@@ -244,7 +250,8 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
       showToast({ kind: 'info', text: `已保存 ${result.savedAt.slice(11, 19)}` })
       return true
     } catch (err) {
-      showToast({ kind: 'error', text: '保存失败' })
+      // 保存失败是要命的那种：只说"保存失败"用户没法判断能不能继续编
+      showToast({ kind: 'error', text: `保存失败：${errorText(err)}` })
       return false
     }
   }, [flushAll, showToast])
@@ -286,7 +293,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         updateRoot((root) => updateNode(root, nodeId, { title }))
         refreshHistory()
       } catch (err) {
-        showToast({ kind: 'error', text: '操作失败' })
+        showToast({ kind: 'error', text: errorText(err) })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -301,7 +308,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         updateRoot((root) => updateNode(root, nodeId, { description }))
         refreshHistory()
       } catch (err) {
-        showToast({ kind: 'error', text: '操作失败' })
+        showToast({ kind: 'error', text: errorText(err) })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -321,7 +328,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         })
         refreshHistory()
       } catch (err) {
-        showToast({ kind: 'error', text: '操作失败' })
+        showToast({ kind: 'error', text: errorText(err) })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -337,7 +344,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         setSelectedId((current) => (current === nodeId ? null : current))
         refreshHistory()
       } catch (err) {
-        showToast({ kind: 'error', text: '操作失败' })
+        showToast({ kind: 'error', text: errorText(err) })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -353,7 +360,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         updateRoot((root) => addBlockOp(root, nodeId, block, index))
         refreshHistory()
       } catch (err) {
-        showToast({ kind: 'error', text: '操作失败' })
+        showToast({ kind: 'error', text: errorText(err) })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -368,7 +375,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         updateRoot((root) => removeBlockAt(root, nodeId, index))
         refreshHistory()
       } catch (err) {
-        showToast({ kind: 'error', text: '操作失败' })
+        showToast({ kind: 'error', text: errorText(err) })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -384,7 +391,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         updateRoot((root) => moveBlockIn(root, nodeId, from, to))
         refreshHistory()
       } catch (err) {
-        showToast({ kind: 'error', text: '操作失败' })
+        showToast({ kind: 'error', text: errorText(err) })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -399,7 +406,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         updateRoot((root) => updateBlockOp(root, nodeId, index, block))
         refreshHistory()
       } catch (err) {
-        showToast({ kind: 'error', text: '操作失败' })
+        showToast({ kind: 'error', text: errorText(err) })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps

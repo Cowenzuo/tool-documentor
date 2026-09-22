@@ -182,9 +182,29 @@ export class ProjectService {
     }
     this.anchorValue = anchor
     this.projectDirValue = projectDir
+    this.resolveTemplateRef(anchor)
     // 历史不跨工程：换一个工程就从空栈开始
     this.history.clear()
     return this.openResult()
+  }
+
+  /**
+   * 认这份工程用的是哪份结构模板。新工程库里就是 uuid，直接读；
+   * 老工程（PLAN-12 之前）库里与锚点里只有模板名，按名字认一次 uuid —— 认到就换过来记，
+   * 认不到就留着名字（`legacyTemplateName` 会带到界面），不猜、不写空 uuid。
+   */
+  private resolveTemplateRef(anchor: ProjectAnchor): void {
+    if (this.store.templateUuid() !== '') return
+    const legacyName = this.store.legacyTemplateName() || anchor.legacyTemplateName || ''
+    if (legacyName === '') return
+    const def = this.managerValue.findStructureByLegacyName(legacyName)
+    if (!def) {
+      // 名字留在锚点里，下次打开还能再认一次
+      this.anchorValue = { ...anchor, legacyTemplateName: legacyName }
+      return
+    }
+    this.store.setTemplateUuid(def.uuid)
+    this.anchorValue = { ...anchor, template_uuid: def.uuid, legacyTemplateName: '' }
   }
 
   saveProject(): SaveResult {
@@ -233,6 +253,9 @@ export class ProjectService {
       templateUuid,
       // 模板没了就是悬挂：名字留空，导出那一头会拦下来
       templateName: template ? displayNameOf(template) : '',
+      // 老工程还没认成 uuid 时把那个名字带出来，界面据此说明"是哪一份没认到"
+      legacyTemplateName:
+        this.store.legacyTemplateName() || this.anchorValue?.legacyTemplateName || '',
       projectDir: this.projectDirValue,
       dprojPath: join(this.projectDirValue, ANCHOR_FILE_NAME)
     }

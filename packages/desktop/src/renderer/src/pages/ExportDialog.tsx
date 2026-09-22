@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FigureCountsDto, StyleOptionDto } from '../../../shared/project'
 import { useApp } from '../state/AppContext'
+import { errorText } from '../utils/errorText'
 
 export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.Element {
   const { session, showToast } = useApp()
@@ -79,7 +80,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
       })
       onClose()
     } catch (err) {
-      showToast({ kind: 'error', text: `导出失败` })
+      showToast({ kind: 'error', text: `导出失败：${errorText(err)}` })
     } finally {
       setBusy(false)
     }

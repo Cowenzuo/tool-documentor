@@ -57,6 +57,26 @@ export function displayNameOf(identity: TemplateIdentity): string {
   return identity.uuid.slice(0, 8)
 }
 
+/**
+ * 老版本的模板名：那时模板 JSON 里只有一个 `name` 字段，写法是「中文名(英文名)」，
+ * 例如 `438C-软件设计说明(SDD)`。老工程的锚点与库表记的就是这个字符串。
+ * 这里按旧约定拼回去，只用于把老引用认成 uuid 这一次。
+ */
+export function legacyNameOf(identity: TemplateIdentity): string {
+  const cn = identity.cn.trim()
+  const en = identity.en.trim()
+  if (cn === '') return en
+  return en === '' ? cn : `${cn}(${en})`
+}
+
+/**
+ * 名字比较用的归一：全角转半角、去掉所有空白、不分大小写。
+ * 老工程里的名字是手写进库的，空格与全角括号都可能不一样，逐字符相等太脆。
+ */
+export function normalizeTemplateName(name: string): string {
+  return name.normalize('NFKC').replace(/\s+/gu, '').toLowerCase()
+}
+
 /** 把身份写回 JSON 时用的三个字段：新建与改名共用，字段顺序固定 */
 export function identityFields(identity: TemplateIdentity): Record<string, string> {
   const fields: Record<string, string> = { uuid: identity.uuid, cn: identity.cn }
