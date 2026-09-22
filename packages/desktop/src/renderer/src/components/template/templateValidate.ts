@@ -43,11 +43,6 @@ function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : []
 }
 
-/** 结论里的位置串：根节点没有标题串，用「文档根」的说法（与主进程同一份规则） */
-function whereOf(trail: string): string {
-  return trail || '文档根'
-}
-
 /** 身份只认 uuid（与 `@documentor/templates` 的 isTemplateUuid 同一条正则） */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu
 
@@ -88,19 +83,20 @@ export function validateStructureDoc(def: unknown): TemplateIssueDto[] {
     return out
   }
 
-  checkStructureNode(root, '', 'root', out)
+  checkStructureNode(root, 'root', out)
   checkCopyGroups(root, 'root', out)
   return out
 }
 
-/** 一个节点与其内容块（对应主进程的 checkStructureNode） */
+/**
+ * 一个节点与其内容块（对应主进程的 checkStructureNode）。
+ * 结论只说事实，位置由看的人按 path 自己标：块卡片就在旁边，页脚那份索引按位置归堆。
+ */
 function checkStructureNode(
   node: Record<string, unknown>,
-  trail: string,
   path: string,
   out: TemplateIssueDto[]
 ): void {
-  const where = whereOf(trail)
   const level = node['headingLevel']
 
   if (node['title'] === undefined) {
@@ -152,14 +148,13 @@ function checkStructureNode(
   const blocks = asArray(node['contentBlocks'])
   for (let i = 0; i < blocks.length; i++) {
     const b = asObject(blocks[i])
-    const bw = `${where} › 第 ${i + 1} 块`
     const bp = `${path}.contentBlocks[${i}]`
     if (!b) {
       out.push({
         level: 'error',
         rule: 'block.type.unknown',
         path: `${bp}.type`,
-        message: `${bw} · type 未知：${text(JSON.stringify(undefined))} · 该块会被丢弃`
+        message: `type 未知：${text(JSON.stringify(undefined))} · 该块会被丢弃`
       })
       continue
     }
@@ -168,7 +163,7 @@ function checkStructureNode(
         level: 'error',
         rule: 'block.type.unknown',
         path: `${bp}.type`,
-        message: `${bw} · type 未知：${text(JSON.stringify(b['type']))} · 该块会被丢弃`
+        message: `type 未知：${text(JSON.stringify(b['type']))} · 该块会被丢弃`
       })
       continue
     }
@@ -177,7 +172,7 @@ function checkStructureNode(
         level: 'warn',
         rule: 'block.description.unread',
         path: `${bp}.description`,
-        message: `${bw} · description 写在块上不读取`
+        message: `description 写在块上不读取`
       })
     }
     // 块锁：认 keep / readonly 两档，外加已作废的 type；其它值程序按自由编辑处理并记警告
@@ -189,7 +184,7 @@ function checkStructureNode(
         rule: 'block.lock.invalid',
         path: `${bp}.lock`,
         message:
-          `${bw} · lock 取值 ${text(JSON.stringify(rawLock))} 不属于 ` +
+          `lock 取值 ${text(JSON.stringify(rawLock))} 不属于 ` +
           `${LOCK_TIERS.map((x) => `"${x}"`).join(' / ')} · 按自由编辑处理`
       })
     } else if (lock === 'type') {
@@ -197,7 +192,7 @@ function checkStructureNode(
         level: 'warn',
         rule: 'block.lock.legacy',
         path: `${bp}.lock`,
-        message: `${bw} · lock 档位 type 已作废`
+        message: `lock 档位 type 已作废`
       })
     }
     // 反向也别混：节点级字段写到块上程序不读
@@ -215,7 +210,7 @@ function checkStructureNode(
           level: 'error',
           rule: 'block.nodeField.misplaced',
           path: `${bp}.${k}`,
-          message: `${bw} · ${k} 是节点级字段 · 块上不读取`
+          message: `${k} 是节点级字段 · 块上不读取`
         })
       }
     }
@@ -224,7 +219,7 @@ function checkStructureNode(
         level: 'error',
         rule: 'block.text.content',
         path: `${bp}.content`,
-        message: `${bw} · content缺失`
+        message: `content缺失`
       })
     }
     if (
@@ -235,7 +230,7 @@ function checkStructureNode(
         level: 'error',
         rule: 'block.list.items',
         path: `${bp}.items`,
-        message: `${bw} · items缺失`
+        message: `items缺失`
       })
     }
     if (b['type'] === 'image') {
@@ -244,7 +239,7 @@ function checkStructureNode(
           level: 'error',
           rule: 'block.image.content',
           path: `${bp}.content`,
-          message: `${bw} · content缺失`
+          message: `content缺失`
         })
       }
       if (!b['caption']) {
@@ -252,7 +247,7 @@ function checkStructureNode(
           level: 'warn',
           rule: 'block.image.caption',
           path: `${bp}.caption`,
-          message: `${bw} · 图题缺失`
+          message: `图题缺失`
         })
       }
     }
@@ -262,7 +257,7 @@ function checkStructureNode(
           level: 'error',
           rule: 'block.mermaid.content',
           path: `${bp}.content`,
-          message: `${bw} · content缺失`
+          message: `content缺失`
         })
       }
       if (!b['caption']) {
@@ -270,7 +265,7 @@ function checkStructureNode(
           level: 'warn',
           rule: 'block.mermaid.caption',
           path: `${bp}.caption`,
-          message: `${bw} · 图题缺失`
+          message: `图题缺失`
         })
       }
     }
@@ -279,26 +274,24 @@ function checkStructureNode(
         level: 'error',
         rule: 'block.code.content',
         path: `${bp}.content`,
-        message: `${bw} · content缺失`
+        message: `content缺失`
       })
     }
 
-    if (b['type'] === 'table') checkTableBlock(b, bw, bp, out)
+    if (b['type'] === 'table') checkTableBlock(b, bp, out)
   }
 
   const children = asArray(node['children'])
   for (let i = 0; i < children.length; i++) {
     const child = asObject(children[i])
     if (!child) continue
-    const childTrail = `${trail}/${text(node['title'] ?? '?')}`
-    checkStructureNode(child, childTrail, `${path}.children[${i}]`, out)
+    checkStructureNode(child, `${path}.children[${i}]`, out)
   }
 }
 
 /** 表格块的形状检查（对应主进程的 checkTableBlock） */
 function checkTableBlock(
   b: Record<string, unknown>,
-  bw: string,
   bp: string,
   out: TemplateIssueDto[]
 ): void {
@@ -308,7 +301,7 @@ function checkTableBlock(
       level: 'error',
       rule: 'block.table.cols',
       path: `${bp}.cols`,
-      message: `${bw} · cols 非法：${text(JSON.stringify(b['cols']))}`
+      message: `cols 非法：${text(JSON.stringify(b['cols']))}`
     })
   }
   if (!Array.isArray(b['headers'])) {
@@ -316,14 +309,14 @@ function checkTableBlock(
       level: 'error',
       rule: 'block.table.headers',
       path: `${bp}.headers`,
-      message: `${bw} · headers 需为字符串数组`
+      message: `headers 需为字符串数组`
     })
   } else if (b['headers'].length !== cols) {
     out.push({
       level: 'error',
       rule: 'block.table.headers.length',
       path: `${bp}.headers`,
-      message: `${bw} · headers ${b['headers'].length} 列 ≠ cols ${cols}`
+      message: `headers ${b['headers'].length} 列 ≠ cols ${cols}`
     })
   }
   if (!Array.isArray(b['data'])) {
@@ -331,7 +324,7 @@ function checkTableBlock(
       level: 'error',
       rule: 'block.table.data',
       path: `${bp}.data`,
-      message: `${bw} · data 需为二维字符串数组`
+      message: `data 需为二维字符串数组`
     })
   } else {
     const data = b['data']
@@ -342,7 +335,7 @@ function checkTableBlock(
         rule: 'block.table.data.rowNotArray',
         path: `${bp}.data`,
         message:
-          `${bw} · data 有 ${badRows.length}/${data.length} 行不是数组 · 例 ` +
+          `data 有 ${badRows.length}/${data.length} 行不是数组 · 例 ` +
           `${text(JSON.stringify(badRows[0]))}`
       })
     } else {
@@ -353,7 +346,7 @@ function checkTableBlock(
           rule: 'block.table.data.rowLength',
           path: `${bp}.data`,
           message:
-            `${bw} · data 有 ${wrong.length} 行列数 ≠ cols ${cols} · 例 ` +
+            `data 有 ${wrong.length} 行列数 ≠ cols ${cols} · 例 ` +
             `${text(JSON.stringify(wrong[0])).slice(0, 60)}`
         })
       }
@@ -364,9 +357,8 @@ function checkTableBlock(
           level: 'warn',
           rule: 'block.table.rows',
           path: `${bp}.rows`,
-          message:
-            `${bw} · rows=${text(b['rows'])} ≠ 正文行数 ${data.length}，也不是含表头的 ` +
-            `${data.length + 1} · 渲染取 min(rows, data.length)`
+          // 与主进程同一份说法：只说对不上
+          message: `rows=${text(b['rows'])} ≠ 正文行数 ${data.length}（含表头 ${data.length + 1}）`
         })
       }
     }
@@ -386,9 +378,8 @@ function checkCopyGroups(node: Record<string, unknown>, path: string, out: Templ
           level: 'warn',
           rule: 'node.copyGroup.notCopyable',
           path: `${childPath}.copyable`,
-          message:
-            `节点「${text(c['title'])}」有 copyGroupId=${text(c['copyGroupId'])} 但 copyable 不是 true，` +
-            `用户复制不了它`
+          // 与主进程同一份说法：结论挂在这个节点自己身上，不重复它的名字
+          message: `copyGroupId 在，copyable 不是 true · 复制不了`
         })
       }
     }
