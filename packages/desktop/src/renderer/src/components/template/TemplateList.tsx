@@ -1,12 +1,13 @@
 /**
  * 左栏：模板目录里的模板列表。
- * 结构模板可选可改（新建/改名/删除都在这一段）；样式模板可选可看对照表
- * （样式文件本身不改，改的是结构与样式之间那张对照表）。
+ * 结构模板可选可改（新建在这一段，改名与删除在右键菜单里）；样式模板可选可看对照表，
+ * 改名与删除同样在右键菜单里——动的是样式自己（目录、stylemap 文件名与 JSON 里的字段），
+ * 对照表在右栏改。
  * 目录级问题（清单缺失、目录不存在、目录没登记等）单独一行一条地提示。
  */
 import { useState, type JSX } from 'react'
 import type { TemplateDirSnapshotDto, TemplateEntryDto } from '../../../../shared/project'
-import { ContextMenu, useContextMenu } from './ContextMenu'
+import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu'
 import { IssueLine, jsonTip } from './fields'
 import { ImportIcon, PlusIcon } from './icons'
 import type { TemplateEditorStatus, TemplateOpenKind } from './useTemplateEditor'
@@ -29,6 +30,9 @@ interface TemplateListProps {
   onPickDirectory: () => Promise<string | null>
   onRename: (input: { newId: string; name: string }) => Promise<boolean>
   onRemove: () => Promise<boolean>
+  /** 样式模板的改名与删除：与结构模板那两条同形状，落点换成样式自己 */
+  onRenameStyle: (input: { newId: string; name: string }) => Promise<boolean>
+  onRemoveStyle: () => Promise<boolean>
 }
 
 type Mode = 'none' | 'create' | 'rename' | 'remove' | 'import'
@@ -274,21 +278,37 @@ function ImportForm({
   )
 }
 
-export function TemplateList(props: TemplateListProps): JSX.Element {  const { status, dirSnapshot, openKind, openId, busy, dirty } = props
+export function TemplateList(props: TemplateListProps): JSX.Element {
+  const { status, dirSnapshot, openKind, openId, busy, dirty } = props
   const [mode, setMode] = useState<Mode>('none')
+  /** 挂着的那张改名/删除表单是给哪一类条目开的：mode 留着，切回来还是它，换了一类就不拿出来 */
+  const [formKind, setFormKind] = useState<'structure' | 'style'>('structure')
   const [renameValue, setRenameValue] = useState('')
   const [renameId, setRenameId] = useState('')
-  /** 结构模板那一行的右键菜单（改名 / 删除）：菜单开在右键的那一份上 */
+  /** 模板那一行的右键菜单（改名 / 删除）：菜单开在右键的那一份上，两类条目共用这一个控件 */
   const menu = useContextMenu<{ entry: TemplateEntryDto }>()
 
   const structures = dirSnapshot?.structures ?? []
   const styles = dirSnapshot?.styles ?? []
-  const selected = structures.find((entry) => entry.id === openId) ?? null
+
+  /** 开一张表单：连它是给哪一类条目开的记下来（表单里的值只对那一类成立） */
+  const openForm = (kind: 'structure' | 'style', next: Mode): void => {
+    setFormKind(kind)
+    setMode(next)
+  }
+
+  // 两类条目可能有同名 id（示例模板里结构与样式都叫 demo）：只认眼前开着的那一类
+  const selected =
+    openKind === 'structure' ? (structures.find((entry) => entry.id === openId) ?? null) : null
+  const openStyle =
+    openKind === 'style' ? (styles.find((entry) => entry.id === openId) ?? null) : null
   /** 改名与删除都落在"当前打开的那一份"上（服务端就是按它读写的） */
   const isOpenEntry =
     openKind === 'structure' && menu.payload !== null && menu.payload.entry.id === openId
+  const isOpenStyleEntry =
+    openKind === 'style' && menu.payload !== null && menu.payload.entry.id === openId
 
-  /** 改名表单：id 与原来不同（且合法、不撞已有 id）才动目录与文件名 */
+  /** 结构那一份的改名表单：id 与原来不同（且合法、不撞已有 id）才动目录与文件名 */
   const renameIdValue = renameId.trim()
   const idChanged = selected !== null && renameIdValue !== selected.id
   const renameIdProblem = ((): string | null => {
@@ -300,6 +320,82 @@ export function TemplateList(props: TemplateListProps): JSX.Element {  const { s
     }
     return null
   })()
+
+  /** 样式那一份用同一套判定：id 变了，目录名与 stylemap 文件名一起改 */
+  const styleIdChanged = openStyle !== null && renameIdValue !== openStyle.id
+  const styleRenameIdProblem = ((): string | null => {
+    if (openStyle === null || !styleIdChanged) return null
+    const basic = idProblem(renameIdValue)
+    if (basic !== null) return basic
+    if (styles.some((entry) => entry.id === renameIdValue)) {
+      return `这个目录里已经有 id 为「${renameIdValue}」的样式模板`
+    }
+    return null
+  })()
+  /** 删除样式时顺口提示一句谁在用它（目录快照里的 usedBy），但不拦删除 */
+  const styleUsedBy = openStyle?.usedBy ?? []
+
+  /** 结构模板那一行的菜单两项 */
+  const structureMenuItems: MenuItem[] = [
+    {
+      label: '改名',
+      // 菜单项自己是看得懂的：悬停只在灰着的时候说清为什么灰
+      title: !isOpenEntry
+        ? '改名只作用于当前打开的那一份：先点开这份模板'
+        : dirty
+          ? '先保存改动'
+          : undefined,
+      disabled: busy || dirty || !isOpenEntry,
+      run: () => {
+        setRenameValue(selected?.name || selected?.id || '')
+        setRenameId(selected?.id || '')
+        openForm('structure', 'rename')
+      }
+    },
+    {
+      label: '删除',
+      title: !isOpenEntry
+        ? '删除只作用于当前打开的那一份：先点开这份模板'
+        : dirty
+          ? '先保存改动'
+          : undefined,
+      disabled: busy || dirty || !isOpenEntry,
+      danger: true,
+      run: () => openForm('structure', 'remove')
+    }
+  ]
+
+  /** 样式模板那一行的菜单两项：与结构同一套行为，提示里点名样式模板 */
+  const styleMenuItems: MenuItem[] = [
+    {
+      label: '改名',
+      title: !isOpenStyleEntry
+        ? '改名只作用于当前打开的那一份：先点开这份样式模板'
+        : dirty
+          ? '先保存改动'
+          : undefined,
+      disabled: busy || dirty || !isOpenStyleEntry,
+      run: () => {
+        setRenameValue(openStyle?.name || openStyle?.id || '')
+        setRenameId(openStyle?.id || '')
+        openForm('style', 'rename')
+      }
+    },
+    {
+      label: '删除',
+      title: !isOpenStyleEntry
+        ? '删除只作用于当前打开的那一份：先点开这份样式模板'
+        : dirty
+          ? '先保存改动'
+          : undefined,
+      disabled: busy || dirty || !isOpenStyleEntry,
+      danger: true,
+      run: () => openForm('style', 'remove')
+    }
+  ]
+
+  /** 菜单摆哪一套，看它是开在哪一类条目上的 */
+  const menuItems = menu.payload?.entry.kind === 'style' ? styleMenuItems : structureMenuItems
 
   return (
     <section className="tpl-col tpl-col-list" aria-label="模板">
@@ -398,9 +494,9 @@ export function TemplateList(props: TemplateListProps): JSX.Element {  const { s
               </ul>
             )}
 
-            {/* 改名 / 删除表单只跟结构模板走：样式视图开着时先把它们收起来（mode 留着，
-                切回结构模板还是一样） */}
-            {mode === 'rename' && openKind === 'structure' && selected && (
+            {/* 改名 / 删除表单只跟"开着的那一份"走：切到别处先收起来（mode 留着，切回来还是它）。
+                两类条目各有一张同名的表单，值不一样，所以还要 formKind 对上才拿出来 */}
+            {mode === 'rename' && formKind === 'structure' && openKind === 'structure' && selected && (
               <div className="tpl-form">
                 <label className="tpl-field">
                   <span className="tpl-field-label" title={jsonTip('id', '目录名与文件名前缀')}>
@@ -426,7 +522,7 @@ export function TemplateList(props: TemplateListProps): JSX.Element {  const { s
                 </label>
                 <p className="tpl-note">
                   {idChanged
-                    ? `改 id · 目录与文件名一并改为 ${renameId.trim()}（改前备份）`
+                    ? `改 id · 目录与文件名一并改为 ${renameIdValue}。改前先备份`
                     : '只改名称 · 目录与文件名不变'}
                 </p>
                 <div className="tpl-form-foot">
@@ -451,7 +547,7 @@ export function TemplateList(props: TemplateListProps): JSX.Element {  const { s
               </div>
             )}
 
-            {mode === 'remove' && openKind === 'structure' && selected && (
+            {mode === 'remove' && formKind === 'structure' && openKind === 'structure' && selected && (
               <div className="tpl-form">
                 <p className="tpl-note">删除「{selected.name || selected.id}」？删除前先备份</p>
                 <div className="tpl-form-foot">
@@ -475,7 +571,8 @@ export function TemplateList(props: TemplateListProps): JSX.Element {  const { s
             )}
 
             {/* 样式模板这一段：点开看的是**对照表**（逻辑键 → 骨架样式），不是样式文件本身。
-                样式文件（stylemap 的骨架）程序一个字节都不改，所以这里没有新建/改名/删除。 */}
+                骨架里的字节程序一个字节都不改；改名与删除动的是样式自己（目录、stylemap 文件名与
+                JSON 里的字段），在下面那一行的右键菜单里。 */}
             <div
               className="tpl-section-head"
               title="样式文件由作者提供 · 此处只改对照表"
@@ -522,6 +619,25 @@ export function TemplateList(props: TemplateListProps): JSX.Element {  const { s
                       data-entry={entry.id}
                       data-kind="style"
                       onClick={() => props.onOpenStyle(entry)}
+                      onContextMenu={(event) => {
+                        event.preventDefault()
+                        // 与结构模板那一行同一套：右键不打开这份（那会牵动未保存确认），
+                        // 菜单就作用在右键的那一份上
+                        menu.openIn({ entry }, event.clientX, event.clientY)
+                      }}
+                      onKeyDown={(event) => {
+                        // 键盘也要能开这单（Windows 的习惯键：Shift+F10 或菜单键）
+                        if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) {
+                          return
+                        }
+                        event.preventDefault()
+                        const rect = event.currentTarget.getBoundingClientRect()
+                        menu.openIn(
+                          { entry },
+                          Math.round(rect.right - 8),
+                          Math.round(rect.bottom - 4)
+                        )
+                      }}
                     >
                       <span className="tpl-item-name">{entry.name || entry.id}</span>
                       {/* 与结构模板同一顺序：问题徽标跟名字，引用键放最后 */}
@@ -536,12 +652,102 @@ export function TemplateList(props: TemplateListProps): JSX.Element {  const { s
                 ))}
               </ul>
             )}
+
+            {/* 样式那一份的改名表单：与结构同一套摆法，落点是样式自己——id 变了目录名与
+                stylemap 文件名一起改，结构模板的引用不动（导出侧重链接） */}
+            {mode === 'rename' && formKind === 'style' && openKind === 'style' && openStyle && (
+              <div className="tpl-form">
+                <label className="tpl-field">
+                  <span
+                    className="tpl-field-label"
+                    title={jsonTip('id', '目录名与 stylemap 文件名前缀')}
+                  >
+                    模板 id<span className="tpl-field-hint">目录名</span>
+                  </span>
+                  <input
+                    className="tpl-input tpl-mono"
+                    value={renameId}
+                    autoFocus
+                    onChange={(event) => setRenameId(event.target.value)}
+                  />
+                </label>
+                {styleRenameIdProblem && (
+                  <p className="tpl-note tpl-note-bad">{styleRenameIdProblem}</p>
+                )}
+                <label className="tpl-field">
+                  <span className="tpl-field-label" title={jsonTip('name', 'stylemap 里的显示名')}>
+                    模板名称
+                  </span>
+                  <input
+                    className="tpl-input"
+                    value={renameValue}
+                    onChange={(event) => setRenameValue(event.target.value)}
+                  />
+                </label>
+                <p className="tpl-note">
+                  {styleIdChanged
+                    ? `改 id · 目录与文件名一并改为 ${renameIdValue}。改前先备份`
+                    : '只改名称 · 目录与文件名不变'}
+                </p>
+                <div className="tpl-form-foot">
+                  <button type="button" className="tpl-mini" onClick={() => setMode('none')}>
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    className="tpl-mini tpl-primary"
+                    disabled={
+                      busy ||
+                      renameValue.trim() === '' ||
+                      renameId.trim() === '' ||
+                      styleRenameIdProblem !== null
+                    }
+                    onClick={() => {
+                      void props
+                        .onRenameStyle({ newId: renameId.trim(), name: renameValue.trim() })
+                        .then((ok) => {
+                          if (ok) setMode('none')
+                        })
+                    }}
+                  >
+                    确定
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 删除样式：被谁引用只说一句，不拦——那几份结构模板的样式引用由导出侧重链接 */}
+            {mode === 'remove' && formKind === 'style' && openKind === 'style' && openStyle && (
+              <div className="tpl-form">
+                <p className="tpl-note">删除「{openStyle.name || openStyle.id}」？删除前先备份</p>
+                {styleUsedBy.length > 0 && (
+                  <p className="tpl-note">这些结构模板在用这份样式：{styleUsedBy.join('、')}</p>
+                )}
+                <div className="tpl-form-foot">
+                  <button type="button" className="tpl-mini" onClick={() => setMode('none')}>
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    className="tpl-mini tpl-danger"
+                    disabled={busy}
+                    onClick={() => {
+                      void props.onRemoveStyle().then((ok) => {
+                        if (ok) setMode('none')
+                      })
+                    }}
+                  >
+                    删除
+                  </button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
-      {/* 改名与删除收敛到结构模板那一行的右键菜单里：列表上不再常驻一排按钮。
-          两项都作用在**这份模板自己**身上，而服务端是按"当前打开的那一份"改的，
-          所以右键别的模板时它们灰着，提示里说清要先点开它。 */}
+      {/* 改名与删除收敛到模板那一行的右键菜单里：列表上不再常驻一排按钮。两类条目共用这个菜单，
+          摆哪一套看它开在哪一类上；两项都作用在**这份模板自己**身上，而服务端是按"当前打开的
+          那一份"改的，所以右键别的模板时它们灰着，提示里说清要先点开它。 */}
       {menu.payload && (
         <ContextMenu
           control={menu}
@@ -549,34 +755,7 @@ export function TemplateList(props: TemplateListProps): JSX.Element {  const { s
           label="模板操作"
           head={menu.payload.entry.name || menu.payload.entry.id}
           headTitle={menu.payload.entry.file}
-          items={[
-            {
-              label: '改名',
-              // 菜单项自己是看得懂的：悬停只在灰着的时候说清为什么灰
-              title: !isOpenEntry
-                ? '改名只作用于当前打开的那一份：先点开这份模板'
-                : dirty
-                  ? '先保存改动'
-                  : undefined,
-              disabled: busy || dirty || !isOpenEntry,
-              run: () => {
-                setRenameValue(selected?.name || selected?.id || '')
-                setRenameId(selected?.id || '')
-                setMode('rename')
-              }
-            },
-            {
-              label: '删除',
-              title: !isOpenEntry
-                ? '删除只作用于当前打开的那一份：先点开这份模板'
-                : dirty
-                  ? '先保存改动'
-                  : undefined,
-              disabled: busy || dirty || !isOpenEntry,
-              danger: true,
-              run: () => setMode('remove')
-            }
-          ]}
+          items={menuItems}
         />
       )}
     </section>

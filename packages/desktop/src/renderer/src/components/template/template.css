@@ -1330,21 +1330,6 @@ button.tpl-issue-where:hover {
   padding-top: var(--space-3);
 }
 
-.tpl-map-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-bottom: var(--space-3);
-}
-
-.tpl-map-meta-line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
 .tpl-map-bad {
   color: var(--warning);
 }
@@ -1358,11 +1343,11 @@ button.tpl-issue-where:hover {
 .tpl-map th,
 .tpl-map td {
   text-align: left;
-  vertical-align: top;
-  padding: 6px 8px;
+  vertical-align: middle;
+  padding: 5px 8px;
   border-bottom: 1px solid var(--border);
   font-size: var(--text-xs);
-  line-height: 1.55;
+  line-height: 1.5;
 }
 
 .tpl-map thead th {
@@ -1374,21 +1359,17 @@ button.tpl-issue-where:hover {
   font-weight: 600;
 }
 
-/* 列宽：逻辑键与映射够写一个 styleId，用途与状态分掉剩下的 */
+/* 三列：逻辑键够写一个键名，映射够放下拉，状态吃掉剩下的 */
 .tpl-map thead th:nth-child(1) {
-  width: 152px;
+  width: 148px;
+}
+
+.tpl-map thead th:nth-child(2) {
+  width: 208px;
 }
 
 .tpl-map thead th:nth-child(3) {
-  width: 196px;
-}
-
-.tpl-map thead th:nth-child(4) {
-  width: 64px;
-}
-
-.tpl-map thead th:nth-child(5) {
-  width: 34%;
+  width: auto;
 }
 
 .tpl-map-group th {

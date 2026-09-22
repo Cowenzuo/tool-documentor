@@ -395,9 +395,10 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
           <section className="tpl-style-refs">
             <header className="tpl-blocks-head">
               <h3>样式对照表</h3>
-              <span className="tpl-count">
-                {refs.length === 0 ? '这个目录里还没有样式模板' : `${refs.length} 份可选`}
-              </span>
+              {/* 几份可选数得出来，只在这一份都没有时说一句 */}
+              {refs.length === 0 && (
+                <span className="tpl-count">这个目录里还没有样式模板</span>
+              )}
             </header>
             {refs.length === 0 ? (
               <p className="tpl-empty">左栏「样式模板」导入一份，或直接放进模板目录</p>

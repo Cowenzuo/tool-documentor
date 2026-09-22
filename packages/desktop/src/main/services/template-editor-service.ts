@@ -3,8 +3,9 @@
  *
  * 边界：
  *   - 不依赖工程库/数据库，不进撤销栈（编辑模式与文档会话是两套东西）；
- *   - 结构模板可读可写；样式模板可读（stylemap 原文、骨架样式表、按结构用法算出的对照表），
- *     写回与导入在批次 3 的后续步骤里接上；
+ *   - 结构模板可读可写、可改名与删除；样式模板可读，对照表可写、可导入、可另存为专用，
+ *     也能改名与删除——改名的落点是**样式自己**（目录名、stylemap 文件名与 JSON 里的字段），
+ *     绝不碰引用它的结构模板（文件键对不上由导出侧重链接）；
  *   - 校验口径全部来自 `@documentor/templates` 的 validate：目录级用 `validateTemplateDir`，
  *     单份用 `validateStructureTemplate`，本文件不重写任何规则；
  *   - 写盘一律"先备份 → 写临时文件 → 改名覆盖"：任何一步失败都不留半截文件；
@@ -74,6 +75,8 @@ import type {
   TemplateStyleImportResult,
   TemplateStyleReadInput,
   TemplateStyleReadResult,
+  TemplateStyleRenameInput,
+  TemplateStyleRenameResult,
   TemplateStyleSaveInput,
   TemplateStyleSaveResult,
   TemplateStyleSkeletonDto,
@@ -378,7 +381,8 @@ interface ManifestStyleEntry {
 
 /**
  * 一份模板文件的最小定位信息（结构模板与样式模板共用）：
- * 备份只用到这四处，所以备份那一段不关心眼前是结构还是样式。
+ * 单文件备份只用到这四处，整目录备份再要一个 `dirPath`，
+ * 所以备份那一段不关心眼前是结构还是样式。
  */
 interface LocatedFile {
   /** 模板目录（绝对路径） */
@@ -857,13 +861,7 @@ export class TemplateEditorService {
       throw new TemplateEditorError('保存内容必须是 JSON 对象')
     }
     const located = this.locateStyle(input.dir, input.id)
-    const structureDocs = this.loadStructureDocs(located.dir)
-    const issues = validateStyleTemplate(input.doc, structureDocs.map((s) => s.doc), {
-      id: located.id,
-      stylemapFile: located.file,
-      basePath: located.dirPath,
-      manifestStyleFolder: located.manifestStyleFolder || undefined
-    })
+    const issues = this.validateStyle(located, input.doc)
     const firstError = issues.find((i) => i.level === 'error')
     if (firstError) {
       throw new TemplateEditorError(
@@ -996,7 +994,7 @@ export class TemplateEditorService {
       throw new TemplateEditorError(`结构模板目录不存在：${STRUCTURES_DIR}/${located.id}`)
     }
 
-    const backupPath = this.backupStructureDir(located)
+    const backupPath = this.backupTemplateDir(located)
     rmSync(located.dirPath, { recursive: true, force: true })
 
     if (located.manifest.status === 'ok') {
@@ -1091,7 +1089,7 @@ export class TemplateEditorService {
       throw new TemplateEditorError(`manifest 里已经登记了 id 为「${newId}」的模板，未改 id`)
     }
 
-    const backupPath = this.backupStructureDir(located, '未改名')
+    const backupPath = this.backupTemplateDir(located, '未改名')
     const newFile = structureFileName(newId)
     try {
       renameSync(located.dirPath, newDirPath)
@@ -1133,6 +1131,152 @@ export class TemplateEditorService {
         id: newId,
         file: newFile,
         fileFromManifest: false,
+        dirPath: newDirPath,
+        filePath: join(newDirPath, newFile)
+      },
+      backupPath
+    }
+  }
+
+  /**
+   * 删除样式模板：整份 `styles/<id>/`（含骨架）先备份，再删目录，最后从 manifest 移除该条。
+   * 被哪些结构模板引用只在界面上提示一句，不拦：找不到样式是导出侧要重链接的事。
+   */
+  removeStyle(input: TemplateDeleteInput): TemplateDeleteResult {
+    const located = this.locateStyle(input.dir, input.id)
+    if (!existsSync(located.dirPath)) {
+      throw new TemplateEditorError(`样式模板目录不存在：${STYLES_DIR}/${located.id}`)
+    }
+
+    const backupPath = this.backupTemplateDir(located)
+    rmSync(located.dirPath, { recursive: true, force: true })
+
+    // locateStyle 已经拦下坏清单，这里只是要 manifest.doc 的类型收窄
+    if (located.manifest.status === 'ok') {
+      const manifest = located.manifest
+      const rawEntries = Array.isArray(manifest.doc[STYLES_DIR])
+        ? (manifest.doc[STYLES_DIR] as unknown[])
+        : []
+      const kept = rawEntries.filter((raw) => !(isPlainObject(raw) && raw['id'] === located.id))
+      // 清单里本来就没有这条时不动 manifest：删除不该顺手改别的东西
+      if (kept.length !== rawEntries.length) {
+        writeManifest(located.dir, manifest, { ...manifest.doc, [STYLES_DIR]: kept })
+      }
+    }
+    return { backupPath }
+  }
+
+  /**
+   * 改样式模板：`name` 是 stylemap 里的显示名，`newId` 是 id（目录名）。
+   * - 只改 name：与结构模板一样只动 JSON，目录名与文件名不动；
+   * - 带 newId：`styles/<id>/` → `styles/<newId>/`、stylemap 改成 `<newId>-stylemap.json`、
+   *   manifest 里那条的 id 与 stylemap_file 一起改，改动前整份目录先备份。
+   *   骨架目录跟着 `styles/<id>/` 整份搬走、**名字不动**：那是作者自己起的名字，
+   *   与 id 没有约定关系（真实模板里几份样式还共用一个骨架目录名）。
+   *   结构模板按文件键引用这份对照表，改 id 会让那些引用对不上——本次不碰结构模板。
+   */
+  renameStyle(input: TemplateStyleRenameInput): TemplateStyleRenameResult {
+    const name = typeof input.name === 'string' ? input.name.trim() : ''
+    if (name === '') throw new TemplateEditorError('样式模板名不能为空')
+    const located = this.locateStyle(input.dir, input.id)
+    const newId = typeof input.newId === 'string' ? input.newId.trim() : ''
+
+    let target = located
+    let backupPath: string | null = null
+    if (newId !== '' && newId !== located.id) {
+      const moved = this.moveStyleId(located, newId)
+      target = moved.located
+      backupPath = moved.backupPath
+    }
+
+    const doc = this.readStyleDoc(target)
+    // 名称变了才写回；校验用的是**改完 name 之后**的文档（结论要反映改后的状态）
+    const renamed = doc['name'] !== name
+    if (renamed) doc['name'] = name
+    // 只有真改了 id 才动 stylemap 里的 id 字段，且只动本来就写了它的那份：
+    // 没写就不凭空加一个字段（加载器不读它），只改名字也不顺手去改它
+    const idWritten =
+      target.id !== located.id && typeof doc['id'] === 'string' && doc['id'] !== target.id
+    if (idWritten) doc['id'] = target.id
+    const issues = this.validateStyle(target, doc)
+    if (renamed || idWritten) {
+      const firstError = issues.find((i) => i.level === 'error')
+      if (firstError) {
+        throw new TemplateEditorError(
+          `样式模板校验未通过，未写入（${firstError.path}）：${firstError.message}`
+        )
+      }
+      // 注意：写文件这一步不能被上面的 ?? 短路掉——改 id 时 backupPath 已经有值，
+      // 但 JSON 该写还是要写
+      const fileBackupPath = this.writeStyleDoc(target, doc)
+      backupPath = backupPath ?? fileBackupPath
+    }
+    return { ...this.readStyle({ dir: target.dir, id: target.id }), backupPath }
+  }
+
+  /**
+   * 换 id：样式目录整份改名 + stylemap 改名成 `<newId>-stylemap.json` + manifest 登记同步，
+   * 改前整份备份。清单没写成时尽量把目录挪回去，别留下"登记指向不存在目录"的样式。
+   */
+  private moveStyleId(
+    located: LocatedStyle,
+    newId: string
+  ): { located: LocatedStyle; backupPath: string } {
+    assertSafeId(newId, '新的样式模板 id')
+    if (!existsSync(located.dirPath)) {
+      throw new TemplateEditorError(`样式模板目录不存在：${STYLES_DIR}/${located.id}`)
+    }
+    const newDirPath = join(located.dir, STYLES_DIR, newId)
+    if (existsSync(newDirPath)) {
+      throw new TemplateEditorError(`目录已存在，未改 id：${STYLES_DIR}/${newId}`)
+    }
+    if (this.declaredStyleEntries(located.manifest).some((e) => e.id === newId)) {
+      throw new TemplateEditorError(`manifest 里已经登记了 id 为「${newId}」的样式模板，未改 id`)
+    }
+
+    const backupPath = this.backupTemplateDir(located, '未改名')
+    const newFile = `${newId}-stylemap.json`
+    try {
+      // 目录整份搬（骨架在里面，跟着走），再把 stylemap 改成与 id 同名的那份
+      renameSync(located.dirPath, newDirPath)
+      if (located.file !== newFile) {
+        renameSync(join(newDirPath, located.file), join(newDirPath, newFile))
+      }
+      if (located.manifest.status === 'ok') {
+        const manifest = located.manifest
+        const rawEntries = Array.isArray(manifest.doc[STYLES_DIR])
+          ? (manifest.doc[STYLES_DIR] as unknown[])
+          : []
+        const hasEntry = rawEntries.some((raw) => isPlainObject(raw) && raw['id'] === located.id)
+        if (hasEntry) {
+          // 只换 id 与 stylemap_file 两个值：其余字段与键顺序原样保留（展开对象的键序不变）
+          const next = rawEntries.map((raw) =>
+            isPlainObject(raw) && raw['id'] === located.id
+              ? { ...raw, id: newId, stylemap_file: newFile }
+              : raw
+          )
+          writeManifest(located.dir, manifest, { ...manifest.doc, [STYLES_DIR]: next })
+        }
+      }
+    } catch (err) {
+      try {
+        if (!existsSync(located.dirPath) && existsSync(newDirPath)) {
+          renameSync(newDirPath, located.dirPath)
+        }
+      } catch {
+        // 回滚失败也不能盖掉真正的错误
+      }
+      throw err instanceof TemplateEditorError
+        ? err
+        : new TemplateEditorError(`改 id 失败：${messageOf(err)}`)
+    }
+
+    return {
+      located: {
+        ...located,
+        id: newId,
+        file: newFile,
+        fileKey: newFile.replace(/\.json$/u, ''),
         dirPath: newDirPath,
         filePath: join(newDirPath, newFile)
       },
@@ -1379,6 +1523,21 @@ export class TemplateEditorService {
     })
   }
 
+  /**
+   * 跑一份 stylemap 的规则（结论与界面上的徽标、保存前的闸门同一份）。
+   * 必需键按**引用它的结构模板**算，所以每次都要现读一遍结构；`readStyle` 那边为了算
+   * 共用影响面已经读过一遍，它继续用自己手里的那份，不走这里。
+   */
+  private validateStyle(located: LocatedStyle, doc: Record<string, unknown>): ValidationIssue[] {
+    const structureDocs = this.loadStructureDocs(located.dir)
+    return validateStyleTemplate(doc, structureDocs.map((s) => s.doc), {
+      id: located.id,
+      stylemapFile: located.file,
+      basePath: located.dirPath,
+      manifestStyleFolder: located.manifestStyleFolder || undefined
+    })
+  }
+
   /** 备份原文件并原子写回；返回备份路径（原文件不存在时是 null） */
   private writeStructure(located: LocatedStructure, doc: Record<string, unknown>): string | null {
     mkdirSync(located.dirPath, { recursive: true })
@@ -1410,8 +1569,11 @@ export class TemplateEditorService {
     return target
   }
 
-  /** 整目录备份（删除与改 id 用）：`<备份根>/<目录名>-<路径哈希>/<id>-<yyyyMMdd-HHmmss>.bak/` */
-  private backupStructureDir(located: LocatedStructure, what = '未删除'): string {
+  /**
+   * 整目录备份（删除与改 id 用，结构模板与样式模板共用）：
+   * `<备份根>/<目录名>-<路径哈希>/<id>-<yyyyMMdd-HHmmss>.bak/`
+   */
+  private backupTemplateDir(located: LocatedFile & { dirPath: string }, what = '未删除'): string {
     const folder = join(this.backupRoot(), backupFolderName(located.dir))
     mkdirSync(folder, { recursive: true })
     const target = uniquePath(join(folder, `${located.id}-${backupStamp()}.bak`))

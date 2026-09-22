@@ -243,21 +243,15 @@ export default function TemplateEditorPage(): JSX.Element {
           <RefreshIcon />
         </button>
         <span className="tpl-top-counts">
-          {/* 这里只说"这份模板有多大"；校验结算是状态栏那边的事（同一件事不说两遍） */}
-          {styleOpen ? (
+          {/* 可数的东西不印：几个键、几个节点、几块内容，在列表与树里数得出来。
+              这里只说"没打开"与"读不到骨架"这两件看不出来的事 */}
+          {styleOpen && editor.style ? (
+            editor.style.skeletonExists ? null : (
+              <span className="tpl-count tpl-note-bad">骨架没读到</span>
+            )
+          ) : open ? null : (
             <span className="tpl-count">
-              {editor.style?.rows.length ?? 0} 个逻辑键 ·{' '}
-              {editor.style?.skeletonExists
-                ? `骨架 ${editor.style.skeletonStyles.length} 条样式`
-                : '骨架没读到'}
-            </span>
-          ) : open ? (
-            <span className="tpl-count">
-              {countNodes(editor.doc)} 个节点 · {countBlocks(editor.doc)} 个内容块
-            </span>
-          ) : (
-            <span className="tpl-count">
-              {editor.status === 'ready' ? '没有打开模板' : '正在读取模板目录…'}
+              {editor.status === 'ready' ? '未打开模板' : '正在读取模板目录…'}
             </span>
           )}
         </span>
@@ -325,6 +319,8 @@ export default function TemplateEditorPage(): JSX.Element {
           onPickDirectory={() => window.documentor.dialog.selectDirectory()}
           onRename={editor.renameTemplate}
           onRemove={editor.removeTemplate}
+          onRenameStyle={editor.renameStyleEntry}
+          onRemoveStyle={editor.removeStyleEntry}
         />
         <div
           className="tpl-split"
