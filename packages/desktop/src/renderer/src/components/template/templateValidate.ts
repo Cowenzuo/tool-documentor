@@ -150,6 +150,19 @@ function checkStructureNode(
     })
   }
 
+  // 排版开关缺省是 true（可编排）；写歪了程序按缺省处理，所以报出来
+  if (node['allowLayoutEdit'] !== undefined && typeof node['allowLayoutEdit'] !== 'boolean') {
+    out.push({
+      level: 'error',
+      rule: 'node.allowLayoutEdit.invalid',
+      path: `${path}.allowLayoutEdit`,
+      message: `allowLayoutEdit需为布尔值`
+    })
+  }
+
+  /** 这一章的排版开着（缺省就是开）：块的顺序由用户定 */
+  const layoutOpen = node['allowLayoutEdit'] !== false
+
   const blocks = asArray(node['contentBlocks'])
   for (let i = 0; i < blocks.length; i++) {
     const b = asObject(blocks[i])
@@ -181,15 +194,32 @@ function checkStructureNode(
         message: `${bw} · description 写在块上不读取 · 说明应写在节点上`
       })
     }
-    // 块锁：只认 type / keep / readonly 三档，其它值程序按不锁处理并记警告
-    if (b['lock'] !== undefined && !(LOCK_TIERS as readonly string[]).includes(text(b['lock']))) {
+    // 块锁：认 keep / readonly 两档，外加已作废的 type；其它值程序按自由编辑处理并记警告
+    const rawLock = b['lock']
+    const lock = rawLock === undefined ? '' : text(rawLock)
+    if (rawLock !== undefined && !(LOCK_TIERS as readonly string[]).includes(lock)) {
       out.push({
         level: 'error',
         rule: 'block.lock.invalid',
         path: `${bp}.lock`,
         message:
-          `${bw} · lock 取值 ${text(JSON.stringify(b['lock']))} 不属于 ` +
-          `${LOCK_TIERS.map((x) => `"${x}"`).join(' / ')} · 按不锁处理`
+          `${bw} · lock 取值 ${text(JSON.stringify(rawLock))} 不属于 ` +
+          `${LOCK_TIERS.map((x) => `"${x}"`).join(' / ')} · 按自由编辑处理`
+      })
+    } else if (lock === 'type') {
+      out.push({
+        level: 'warn',
+        rule: 'block.lock.legacy',
+        path: `${bp}.lock`,
+        message: `${bw} · lock 档位 type 已作废 · 改成 keep 或去掉`
+      })
+    } else if ((lock === 'keep' || lock === 'readonly') && layoutOpen) {
+      // keep / readonly 只管内容、类型与存在；位置由节点「排版」管，开着就是用户能挪
+      out.push({
+        level: 'warn',
+        rule: 'block.lock.layout',
+        path: `${bp}.lock`,
+        message: `${bw} · 位置不锁 · 用户可以挪`
       })
     }
     // 反向也别混：节点级字段写到块上程序不读
@@ -197,6 +227,7 @@ function checkStructureNode(
       'copyable',
       'deletable',
       'allowContentBlocks',
+      'allowLayoutEdit',
       'headingLevel',
       'title',
       'children'

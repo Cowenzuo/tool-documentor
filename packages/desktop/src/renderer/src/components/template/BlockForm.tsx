@@ -28,7 +28,6 @@ import {
   blockLock,
   blockSummary,
   blockType,
-  isPinnedLock,
   rawBlockLock,
   str,
   typoField,
@@ -37,29 +36,32 @@ import {
 } from './templateDoc'
 
 const LOCK_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: '', label: '不锁' },
-  { value: 'type', label: '只锁类型' },
-  { value: 'keep', label: '锁删除与移动' },
+  { value: '', label: '自由编辑' },
+  { value: 'keep', label: '类型限制编辑' },
   { value: 'readonly', label: '只读' }
 ]
 
-/** 档位对用户意味着什么，一句话（进锁下拉的悬停）；「不锁」不写（那是绝大多数） */
+/**
+ * 档位在模板使用者那一侧意味着什么，一句话。
+ * 位置（顺序）不在档位里：那由节点级的「排版」管，所以这里只说内容、类型与存在。
+ */
 function lockHint(lock: string): string {
   switch (lock) {
     case 'type':
-      return '内容可改，类型不能改'
+      return '旧档位：类型固定但可删 · 建议改成类型限制编辑'
     case 'keep':
-      return '内容可改，不能删除、不能移动'
+      return '内容可改，类型不能换，也不能删'
     case 'readonly':
-      return '内容与类型都由模板给定'
+      return '内容与类型都由模板给定，也不能删'
     default:
-      return '用户能改内容、能删能挪'
+      return '内容、类型、增删都由用户定'
   }
 }
 
 function lockTag(lock: string): string | null {
   if (lock === 'readonly') return '只读'
-  if (lock === 'keep' || lock === 'type') return '锁定'
+  if (lock === 'keep') return '类型限制'
+  if (lock === 'type') return '旧档位'
   return null
 }
 
@@ -93,9 +95,6 @@ export interface BlockFormProps {
   onToggle: () => void
   /** 已经过滤到这个块下面的校验结论 */
   issues: TemplateIssueDto[]
-  /** 相邻块是 keep/readonly：换位会把锁住的那一块挪走，所以这一块也不能往那边挪 */
-  prevLocked: boolean
-  nextLocked: boolean
   onPatch: (patch: TemplateObject) => void
   onMove: (delta: -1 | 1) => void
   onRemove: () => void
@@ -106,7 +105,7 @@ export interface BlockFormProps {
 }
 
 export function BlockForm(props: BlockFormProps): JSX.Element {
-  const { block, index, count, open, onToggle, issues, prevLocked, nextLocked, onPatch, onMove, onRemove, onOpenMenu, onPickImage } =
+  const { block, index, count, open, onToggle, issues, onPatch, onMove, onRemove, onOpenMenu, onPickImage } =
     props
   const type = blockType(block)
   const lock = blockLock(block)
@@ -117,23 +116,9 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
   const hasError = issues.some((i) => i.level === 'error')
   const hasWarn = !hasError && issues.some((i) => i.level === 'warn')
   /**
-   * keep / readonly 的块锁住的是"必须存在 + 位置也不能变"：作者要挪要删，
-   * 得先把这一块的锁改成不锁——同一条规矩在生成出来的工程里也一样守（写入侧 + 界面）。
+   * 作者的挪与删一律放行：锁是给模板使用者设的，位置那一维由节点级的「排版」管。
+   * 卡片上只用锁标记与提示交代这一档在用户侧意味着什么。
    */
-  const locked = isPinnedLock(lock)
-  const unlockHint = `锁 ${lock} · 顺序固定，不可移动`
-  const deleteLockedWhy = `锁 ${lock} · 不可删除`
-  const moveUpTitle = locked
-    ? unlockHint
-    : prevLocked
-      ? '上一块已锁 · 不可换位'
-      : undefined
-  const moveDownTitle = locked
-    ? unlockHint
-    : nextLocked
-      ? '下一块锁着，换位会把它挪走'
-      : undefined
-
   const typeOptions = BLOCK_TYPE_NAMES.map((name) => ({
     value: name as string,
     label: `${BLOCK_TYPE_LABELS[name]}（${name}）`
@@ -205,6 +190,17 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
                 </option>
               ))}
             </select>
+            {/* 旧档位 type：类型固定但可删。新口径没有这一档，就地给一个改过去的动作 */}
+            {lock === 'type' && (
+              <button
+                type="button"
+                className="tpl-mini"
+                title="旧档位 type · 改成类型限制编辑（类型固定且不可删）"
+                onClick={() => onPatch({ lock: 'keep' })}
+              >
+                改成类型限制编辑
+              </button>
+            )}
           </>
         ) : (
           <>
@@ -228,30 +224,26 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
           <button
             type="button"
             className="tpl-icon-btn"
-            title={moveUpTitle}
             aria-label="上移这一块"
             onClick={() => onMove(-1)}
-            disabled={index === 0 || locked || prevLocked}
+            disabled={index === 0}
           >
             <MoveUpIcon />
           </button>
           <button
             type="button"
             className="tpl-icon-btn"
-            title={moveDownTitle}
             aria-label="下移这一块"
             onClick={() => onMove(1)}
-            disabled={index === count - 1 || locked || nextLocked}
+            disabled={index === count - 1}
           >
             <MoveDownIcon />
           </button>
           <button
             type="button"
             className="tpl-icon-btn tpl-danger"
-            title={locked ? deleteLockedWhy : undefined}
             aria-label="删除这一块"
             onClick={onRemove}
-            disabled={locked}
           >
             <TrashIcon />
           </button>

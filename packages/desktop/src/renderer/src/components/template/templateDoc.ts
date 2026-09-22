@@ -296,21 +296,23 @@ export function blockSummary(block: TemplateObject): string {
 }
 
 /**
- * 三个开关的生效值（与模板加载器的缺省一致，见 packages/templates/src/manager.ts）：
- * copyable / deletable 缺省 false；allowContentBlocks 缺省 true。
+ * 四个开关的生效值（与模板加载器的缺省一致，见 packages/templates/src/manager.ts）：
+ * copyable / deletable 缺省 false（漏写就是锁住）；allowContentBlocks 与 allowLayoutEdit 缺省 true。
  */
 export function nodeSwitch(
   node: TemplateObject,
-  key: 'copyable' | 'deletable' | 'allowContentBlocks'
+  key: 'copyable' | 'deletable' | 'allowContentBlocks' | 'allowLayoutEdit'
 ): boolean {
   const raw = node[key]
-  if (key === 'allowContentBlocks') return raw === undefined ? true : raw === true
+  if (key === 'allowContentBlocks' || key === 'allowLayoutEdit') {
+    return raw === undefined ? true : raw === true
+  }
   return raw === true
 }
 
 /**
- * 锁档位：'' 表示不锁（模板里没写这个键）。
- * 非法取值也按不锁返回——它会以「原值」出现在下拉里，由校验去报，
+ * 锁档位：'' 表示自由编辑（模板里没写这个键）。
+ * 非法取值也按自由编辑返回——它会以「原值」出现在下拉里，由校验去报，
  * 不让界面把读不懂的取值悄悄改掉。
  */
 export function blockLock(block: TemplateObject): string {
@@ -328,20 +330,14 @@ export function rawBlockLock(block: TemplateObject): string | null {
 }
 
 /**
- * keep / readonly 两档是"必须存在 + 位置也不能变"：不能删、顺序也不能改。
- * 模板作者在模板编辑页里同样受这条约束（要挪/要删就先把锁改成不锁）——
- * 生成出来的工程里，写入侧与界面也按同一条守。
+ * 位置这一维只由节点级的「排版」管：块档位不再说"能不能挪"。
+ * 所以模板编辑页里作者挪块、删块一律放行——锁是给模板使用者设的，不是给作者的。
  */
-export function isPinnedLock(lock: string): boolean {
-  return lock === 'keep' || lock === 'readonly'
-}
-
-/** 锁档位的人话名字（提示语里用） */
 export function lockLevelName(lock: string): string {
-  if (lock === 'keep') return '锁删除与移动'
+  if (lock === 'keep') return '类型限制编辑'
   if (lock === 'readonly') return '只读'
-  if (lock === 'type') return '只锁类型'
-  return '不锁'
+  if (lock === 'type') return 'type（旧档位）'
+  return '自由编辑'
 }
 
 /** 界面替作者维护的字段名：其余字段原样保留 */
@@ -353,6 +349,7 @@ export const NODE_FIELDS = [
   'copyable',
   'deletable',
   'allowContentBlocks',
+  'allowLayoutEdit',
   'children',
   'contentBlocks'
 ] as const
