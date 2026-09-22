@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "示例工程",
-  "template": "示例文档模板 (Demo)",
+  "template_uuid": "55954c89-81a7-47ed-85cc-410ff2ca531b",
   "db_file": "documentor.db",
   "created_at": "2026-09-03T19:08:56",
   "updated_at": "2026-09-03T19:08:56"

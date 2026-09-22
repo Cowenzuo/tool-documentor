@@ -1,7 +1,9 @@
 {
-  "name": "示例文档样式",
+  "uuid": "10a4cf0d-4439-439e-ae58-3b4c5a6bed3e",
+  "cn": "示例文档样式·备选二",
+  "en": "demo-alt-2",
   "version": "1.0",
-  "description": "示例样式映射：逻辑样式名指向 styles.xml 的 styleId，样式 Id 用通用数字命名",
+  "description": "示例文档样式：同一份骨架上的一套备选映射，用于试样式下拉与多份样式共存",
   "docxFolder": "demo-style",
   "styleMap": {
     "heading.1": "49",
@@ -18,12 +20,13 @@
     "table.caption": "48",
     "table.header": "88",
     "table.body": "95",
-    "figure.caption": "60",
     "list.unordered.1": "62",
     "list.unordered.2": "63",
     "list.unordered.3": "64",
     "list.ordered.1": "65",
     "list.ordered.2": "67",
-    "list.ordered.3": "94"
+    "list.ordered.3": "94",
+    "figure": "45",
+    "figure.caption": "60"
   }
 }

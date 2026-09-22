@@ -1,10 +1,11 @@
 {
-  "name": "示例文档模板 (Demo)",
+  "uuid": "55954c89-81a7-47ed-85cc-410ff2ca531b",
+  "cn": "示例文档模板",
+  "en": "Demo",
   "category": "示例",
   "description": "自建示例模板，仅用于开发与回归测试，不含任何外部版权内容",
   "version": "1.0",
-  "styleTemplate": "demo-stylemap",
-  "styleTemplates": ["demo-stylemap", "demo-alt-full-stylemap", "demo-alt-missing-stylemap"],
+  "defaultStyleUuid": "2b7453a9-7f78-466a-ad85-9e467d29b990",
   "root": {
     "nodeType": "root",
     "title": "示例文档",
@@ -27,7 +28,11 @@
               {
                 "type": "orderedList",
                 "lock": "keep",
-                "items": ["条目一：示例", "条目二：示例", "条目三：示例"]
+                "items": [
+                  "条目一：示例",
+                  "条目二：示例",
+                  "条目三：示例"
+                ]
               }
             ]
           },
@@ -36,7 +41,11 @@
             "title": "概述",
             "headingLevel": 2,
             "contentBlocks": [
-              { "type": "text", "lock": "readonly", "content": "这是一段示例正文，用于验证文本块的编辑与导出。" }
+              {
+                "type": "text",
+                "lock": "readonly",
+                "content": "这是一段示例正文，用于验证文本块的编辑与导出。"
+              }
             ]
           }
         ]
@@ -52,10 +61,22 @@
             "rows": 2,
             "cols": 3,
             "mergeVertical": true,
-            "headers": ["序号", "标识", "标题"],
+            "headers": [
+              "序号",
+              "标识",
+              "标题"
+            ],
             "data": [
-              ["1", "DEMO-001", "示例文档"],
-              ["2", "-", "示例参考"]
+              [
+                "1",
+                "DEMO-001",
+                "示例文档"
+              ],
+              [
+                "2",
+                "-",
+                "示例参考"
+              ]
             ]
           }
         ]
@@ -73,7 +94,10 @@
           },
           {
             "type": "unorderedList",
-            "items": ["示例需求项一", "示例需求项二"]
+            "items": [
+              "示例需求项一",
+              "示例需求项二"
+            ]
           },
           {
             "type": "code",
@@ -97,7 +121,10 @@
             "headingLevel": 4,
             "subTitleStyle": "alpha",
             "contentBlocks": [
-              { "type": "text", "content": "示例附录正文。" }
+              {
+                "type": "text",
+                "content": "示例附录正文。"
+              }
             ]
           }
         ]

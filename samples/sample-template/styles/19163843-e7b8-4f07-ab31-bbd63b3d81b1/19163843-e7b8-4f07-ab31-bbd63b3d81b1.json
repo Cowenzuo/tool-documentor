@@ -1,7 +1,9 @@
 {
-  "name": "示例文档样式·缺图题注",
+  "uuid": "19163843-e7b8-4f07-ab31-bbd63b3d81b1",
+  "cn": "示例文档样式·备选一",
+  "en": "demo-alt-1",
   "version": "1.0",
-  "description": "键集不完整的样式，缺少 figure.caption，用于验证校验剔除路径",
+  "description": "示例文档样式：同一份骨架上的一套备选映射，用于试样式下拉与多份样式共存",
   "docxFolder": "demo-style",
   "styleMap": {
     "heading.1": "49",
@@ -18,11 +20,13 @@
     "table.caption": "48",
     "table.header": "88",
     "table.body": "95",
+    "figure.caption": "60",
     "list.unordered.1": "62",
     "list.unordered.2": "63",
     "list.unordered.3": "64",
     "list.ordered.1": "65",
     "list.ordered.2": "67",
-    "list.ordered.3": "94"
+    "list.ordered.3": "94",
+    "figure": "45"
   }
 }
