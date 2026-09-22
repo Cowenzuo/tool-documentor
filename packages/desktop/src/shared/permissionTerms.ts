@@ -36,6 +36,14 @@ export const BLOCK_TIER: Record<'free' | 'keep' | 'readonly' | 'legacy', Permiss
   legacy: { name: '旧档位', tag: '旧档位', tip: '类型固定但可删' }
 }
 
+/**
+ * 内容块上的动作词：卡片头上那个入口用它，菜单标题与提示同一份。
+ * 权限词表管"能不能做"，这里管"这件事叫什么"，两处都只有这一个说法。
+ */
+export const BLOCK_ACTION = {
+  changeType: { name: '换类型', tip: '换成别的类型；这一块的内容能带的一起带过去' }
+} as const
+
 /** 块上写的 lock 值 → 档位；不写就是自由编辑 */
 export function blockTierOf(lock: string | undefined): PermissionTerm {
   if (lock === 'keep') return BLOCK_TIER.keep

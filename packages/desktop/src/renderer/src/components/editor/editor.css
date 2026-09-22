@@ -240,6 +240,72 @@
   min-width: 0;
 }
 
+/*
+ * 类型名字就是换类型的入口：点它弹出八种类型（PLAN-20）。
+ * 排版关着或块上有锁时灰着，悬停给的是写入侧同一句拒绝语。
+ */
+.block-type-btn {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 1px 6px;
+  margin-left: -6px;
+  border-radius: 4px;
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.block-type-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--accent);
+}
+
+.block-type-btn:disabled {
+  color: var(--text-3);
+}
+
+/* 换类型菜单：同结构栏那个右键菜单，position: fixed 才不被卡片的 overflow 裁掉 */
+.np-type-menu {
+  position: fixed;
+  z-index: 120;
+  width: 240px;
+  max-height: 380px;
+  overflow-y: auto;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-overlay);
+  box-shadow: var(--overlay-shadow);
+  padding: var(--space-1);
+  display: flex;
+  flex-direction: column;
+}
+
+.np-type-menu button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 6px 10px;
+  border-radius: var(--radius-control);
+  text-align: left;
+  width: 100%;
+}
+
+.np-type-menu button:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.np-type-menu button:disabled {
+  opacity: 0.55;
+}
+
+/* 换类型的确认：贴在那一块卡片下面 */
+.np-type-confirm {
+  margin-top: var(--space-1);
+}
+
 /* 模板锁标记：与类型标签同一行的次要标签，悬停给模板的规定 */
 .block-lock-tag {
   flex: none;
@@ -494,8 +560,8 @@
   color: var(--text-2);
 }
 
-/* 缩表确认：把"会丢什么"摆在按钮上方，避免静默截断 */
-.be-table-confirm {
+/* 会丢内容的确认（缩表、换类型）：把"会丢什么"摆在按钮上方，避免静默截断 */
+.be-confirm {
   margin: var(--space-1) 0 0;
   padding: var(--space-2);
   border: 1px solid var(--danger);
@@ -506,7 +572,7 @@
   color: var(--text-1);
 }
 
-.be-table-confirm-actions {
+.be-confirm-actions {
   display: flex;
   gap: var(--space-2);
   margin-top: var(--space-2);

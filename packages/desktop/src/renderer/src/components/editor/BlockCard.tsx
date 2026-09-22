@@ -3,7 +3,13 @@
  * 折叠后只留一行摘要，长章节里一屏能扫过更多块。
  */
 import type { BlockLockLevel, ContentBlock } from '@documentor/core/blocks'
-import { blockTierOf, lockRefusal, type BlockPermissions } from '../../../../shared/permissionTerms'
+import {
+  BLOCK_ACTION,
+  blockTierOf,
+  lockRefusal,
+  reshapeRefusal,
+  type BlockPermissions
+} from '../../../../shared/permissionTerms'
 import {
   CodeEditor,
   FormulaEditor,
@@ -43,6 +49,10 @@ export interface BlockCardProps {
   onMove: (index: number, direction: -1 | 1) => void
   onRemove: (index: number) => void
   onPreview?: (req: LightboxRequest) => void
+  /** 点卡片头上的类型名字：把菜单开在按钮下方（坐标由调用方按视口算） */
+  onOpenTypeMenu?: (index: number, anchor: { x: number; y: number }) => void
+  /** 菜单是否正开在这一块上 */
+  typeMenuOpen?: boolean
   showMeta?: boolean
 }
 
@@ -66,7 +76,7 @@ export function BlockCard(props: BlockCardProps): React.JSX.Element {
    *   - 改内容：编辑开着且不是只读；
    *   - 挪动：排版开着就成，块档位不管顺序；
    *   - 删除与换形状：排版开着，且块上没有锁，类型限制编辑与只读都不行。
-   * 块类型在这套编辑器里没有切换控件，卡片上只用档位标记与提示交代模板的规定。
+   * 换类型的入口在卡片头的类型名字上，置灰理由与写入侧的拒绝语同一句（见 PLAN-20）。
    */
   const moveUp = canMoveUp && perms.move
   const moveDown = canMoveDown && perms.move
@@ -75,6 +85,7 @@ export function BlockCard(props: BlockCardProps): React.JSX.Element {
   const shapeLockedWhy = perms.reshape
     ? `${blockTierOf(lock).name}：${blockTierOf(lock).tip}`
     : '模板把这一章的排版关着'
+  const typeTitle = shapeLocked ? reshapeRefusal(lock, perms) : BLOCK_ACTION.changeType.tip
   const moveUpTitle = perms.move ? '上移（Alt+↑）' : perms.whyMove
   const moveDownTitle = perms.move ? '下移（Alt+↓）' : perms.whyMove
   const removeTitle = removable
@@ -122,7 +133,22 @@ export function BlockCard(props: BlockCardProps): React.JSX.Element {
         <span className="block-type-badge" aria-hidden="true">
           {BLOCK_TYPE_BADGES[block.type]}
         </span>
-        <span className="block-type-label">{BLOCK_TYPE_LABELS[block.type]}</span>
+        <span className="block-type-label">
+          <button
+            type="button"
+            className="block-type-btn"
+            title={typeTitle}
+            aria-haspopup="menu"
+            aria-expanded={props.typeMenuOpen === true}
+            disabled={shapeLocked}
+            onClick={(event) => {
+              const rect = event.currentTarget.getBoundingClientRect()
+              props.onOpenTypeMenu?.(index, { x: rect.left, y: rect.bottom + 4 })
+            }}
+          >
+            {BLOCK_TYPE_LABELS[block.type]}
+          </button>
+        </span>
         {lock && (
           <span className="block-lock-tag" title={lockTagTitle(lock)}>
             {lockTagText(lock)}

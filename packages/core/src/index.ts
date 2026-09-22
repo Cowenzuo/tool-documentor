@@ -39,6 +39,8 @@ export type {
   BlockPropsMap
 } from './blocks'
 export { DocumentNode, DocumentTree } from './tree'
+export { convertBlock, blockLines, blockCaption } from './block-convert'
+export type { BlockConversion } from './block-convert'
 export { ProjectStore } from './store'
 export type { ProjectMeta } from './store'
 export { nextNodeId, seedIdCounter, resetIdCounterForTest } from './idgen'

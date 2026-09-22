@@ -18,6 +18,10 @@
       "import": "./src/blocks.ts",
       "require": "./dist/blocks.js"
     },
+    "./block-convert": {
+      "import": "./src/block-convert.ts",
+      "require": "./dist/block-convert.js"
+    },
     "./captions": {
       "import": "./src/captions.ts",
       "require": "./dist/captions.js"

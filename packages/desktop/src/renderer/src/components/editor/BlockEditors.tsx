@@ -339,14 +339,14 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
 
       {/* 缩表会丢内容：先确认，不静默截断 */}
       {pendingShrink && (
-        <div className="be-table-confirm" role="alertdialog" aria-label="确认缩减表格">
+        <div className="be-confirm" role="alertdialog" aria-label="确认缩减表格">
           <div>
             这次缩减会丢失
             {pendingShrink.lostRows > 0 ? ` ${pendingShrink.lostRows} 行` : ''}
             {pendingShrink.lostCols > 0 ? ` ${pendingShrink.lostCols} 列` : ''}
             {`（共 ${pendingShrink.lostCells} 个非空单元格）`}，无法撤销。
           </div>
-          <div className="be-table-confirm-actions">
+          <div className="be-confirm-actions">
             <button
               type="button"
               className="be-btn danger-text"
