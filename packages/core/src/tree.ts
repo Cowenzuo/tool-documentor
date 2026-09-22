@@ -211,7 +211,10 @@ export class DocumentNode {
   /**
    * 深拷贝整棵子树（parent=null）。
    * 与旧版一致：新 id；copyable=false、deletable=true（克隆体不可再复制、可删除）。
-   * 编辑与排版两个开关跟着来：克隆体与原件受同一套权限，块上的档位也随块复制。
+   * 编辑与排版两个开关跟着来：克隆体与原件受同一套权限。
+   *
+   * 块上的档位**不带**：模板的锁说的是"实例化出来的那个槽位必须存在"，
+   * 用户自己复制出来的这一份是他的内容，带锁会让他连自己复制的东西都删不掉。
    */
   deepClone(): DocumentNode {
     const clone = new DocumentNode(this.headingLevel)
@@ -231,7 +234,9 @@ export class DocumentNode {
       clone.addChild(child.deepClone())
     }
     for (const block of this.contentBlocks) {
-      clone.addContentBlock(cloneBlock(block))
+      const copied = cloneBlock(block)
+      delete copied.lock
+      clone.addContentBlock(copied)
     }
     return clone
   }
