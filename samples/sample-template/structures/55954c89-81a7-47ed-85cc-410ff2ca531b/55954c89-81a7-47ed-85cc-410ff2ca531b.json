@@ -34,7 +34,8 @@
                   "条目三：示例"
                 ]
               }
-            ]
+            ],
+            "allowLayoutEdit": false
           },
           {
             "nodeType": "section",
@@ -46,7 +47,8 @@
                 "lock": "readonly",
                 "content": "这是一段示例正文，用于验证文本块的编辑与导出。"
               }
-            ]
+            ],
+            "allowLayoutEdit": false
           }
         ]
       },
@@ -88,7 +90,7 @@
         "contentBlocks": [
           {
             "type": "mermaid",
-            "lock": "type",
+            "lock": "keep",
             "caption": "示例流程",
             "content": "graph TD\n  A[示例] --> B[流程]"
           },
