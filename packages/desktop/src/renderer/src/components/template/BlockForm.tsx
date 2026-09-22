@@ -1,12 +1,14 @@
 /**
  * 右栏的一张内容块卡片：收起时一行摘要（第几块、类型、锁、内容概览），展开才给字段。
  * 一张张摊开所有块的字段是"看着杂乱"的主要来源，所以按手风琴来（同时只开一张）。
- * 常驻文字只留必要的：字段标签用人话，JSON 字段名与解释走悬停提示（jsonTip）；
- * 「不锁」不写一行说明——绝大多数块都是不锁，那一行纯粹是噪音；
+ *
+ * 展开时"这一块是什么"只在卡片头上说一次：类型与锁都做成头上的控件，标签字样去掉
+ * （下拉里写着「表格」「只锁类型」，自己说明自己），锁的含义进悬停；正文区只剩内容字段。
+ * 常驻文字只留必要的：JSON 字段名与解释走悬停提示（jsonTip）；「不锁」不写一行说明；
  * 「界面不管的字段」也不逐块声明（未知键保存时原样写回是全局约定），
  * 只有"字段名只差大小写"这种程序读不到、界面上又没位置的坑才提醒一句。
  */
-import type { JSX } from 'react'
+import { type JSX } from 'react'
 import { BLOCK_TYPE_NAMES } from '@documentor/core/blocks'
 import { BLOCK_TYPE_LABELS, CODE_LANGUAGES, CODE_LANGUAGE_LABELS } from '../editor/blockTypes'
 import { ChevronDownIcon } from '../icons'
@@ -14,28 +16,21 @@ import { MoveDownIcon, MoveUpIcon, TrashIcon } from './icons'
 import type { TemplateIssueDto } from '../../../../shared/project'
 import {
   CheckField,
-  Field,
-  IssueLines,
-  LinesAreaField,
-  NumberField,
   TextAreaField,
   TextField,
+  InlineSelect,
+  IssueLines,
   jsonTip
 } from './fields'
+import ListRows from './ListRows'
+import TableGrid from './TableGrid'
 import {
-  arrayToLines,
   blockLock,
   blockSummary,
   blockType,
-  headersToText,
   isPinnedLock,
-  linesToArray,
-  num,
   rawBlockLock,
-  rowsToText,
   str,
-  textToHeaders,
-  textToRows,
   typoField,
   BLOCK_FIELDS,
   type TemplateObject
@@ -45,10 +40,10 @@ const LOCK_OPTIONS: Array<{ value: string; label: string }> = [
   { value: '', label: '不锁' },
   { value: 'type', label: '只锁类型' },
   { value: 'keep', label: '锁删除与移动' },
-  { value: 'readonly', label: '只读（连内容）' }
+  { value: 'readonly', label: '只读' }
 ]
 
-/** 档位对用户意味着什么，一句话；「不锁」不写（那是绝大多数，写出来只是噪音） */
+/** 档位对用户意味着什么，一句话（进锁下拉的悬停）；「不锁」不写（那是绝大多数） */
 function lockHint(lock: string): string {
   switch (lock) {
     case 'type':
@@ -58,7 +53,7 @@ function lockHint(lock: string): string {
     case 'readonly':
       return '内容与类型都由模板给定'
     default:
-      return ''
+      return '用户能改内容、能删能挪'
   }
 }
 
@@ -66,6 +61,27 @@ function lockTag(lock: string): string | null {
   if (lock === 'readonly') return '只读'
   if (lock === 'keep' || lock === 'type') return '锁定'
   return null
+}
+
+/** 表头格子读成字符串数组（写坏的元素按空串看，校验那边另有话说） */
+function headerCells(block: TemplateObject): string[] {
+  const raw = block['headers']
+  return Array.isArray(raw) ? raw.map((cell) => (cell === undefined || cell === null ? '' : String(cell))) : []
+}
+
+/** 数据格读成二维字符串数组；不是数组的行按空行看 */
+function dataRows(block: TemplateObject): string[][] {
+  const raw = block['data']
+  if (!Array.isArray(raw)) return []
+  return raw.map((row) =>
+    Array.isArray(row) ? row.map((cell) => (cell === undefined || cell === null ? '' : String(cell))) : []
+  )
+}
+
+/** 列表条目读成字符串数组（写坏的元素按空串看，校验那边另有话说） */
+function itemCells(block: TemplateObject): string[] {
+  const raw = block['items']
+  return Array.isArray(raw) ? raw.map((item) => (item === undefined || item === null ? '' : String(item))) : []
 }
 
 export interface BlockFormProps {
@@ -83,12 +99,14 @@ export interface BlockFormProps {
   onPatch: (patch: TemplateObject) => void
   onMove: (delta: -1 | 1) => void
   onRemove: () => void
+  /** 选一张本机图片（对话框在主进程），回来把路径填进字段 */
+  onPickImage: () => Promise<string | null>
   /** 右键卡片：上方插入 / 下方插入 / 复制这一块（挪与删是卡片上的按钮，菜单里不重复） */
   onOpenMenu: (x: number, y: number) => void
 }
 
 export function BlockForm(props: BlockFormProps): JSX.Element {
-  const { block, index, count, open, onToggle, issues, prevLocked, nextLocked, onPatch, onMove, onRemove, onOpenMenu } =
+  const { block, index, count, open, onToggle, issues, prevLocked, nextLocked, onPatch, onMove, onRemove, onOpenMenu, onPickImage } =
     props
   const type = blockType(block)
   const lock = blockLock(block)
@@ -122,19 +140,18 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
   }))
   if (type === '') {
     // 没写 type 的块：下拉里得有它自己那一项，否则控件显示成空白
-    typeOptions.unshift({ value: '', label: '（未写类型）' })
+    typeOptions.unshift({ value: '', label: '类型未写' })
   } else if (!(BLOCK_TYPE_NAMES as readonly string[]).includes(type)) {
-    typeOptions.push({ value: type, label: `${type}（不认识）` })
+    typeOptions.push({ value: type, label: `${type} · 不认识` })
   }
   const lockOptions = [...LOCK_OPTIONS]
   if (unknownLock !== null) {
-    lockOptions.push({ value: unknownLock, label: `${unknownLock}（不认识）` })
+    lockOptions.push({ value: unknownLock, label: `${unknownLock} · 不认识` })
   }
-
-  const cols = num(block['cols'], 0)
-  const headers = Array.isArray(block['headers']) ? (block['headers'] as unknown[]) : []
-  const rows = Array.isArray(block['data']) ? (block['data'] as unknown[]) : []
-  const colMismatch = type === 'table' && headers.length !== cols
+  const lockTip =
+    unknownLock !== null
+      ? `字段 lock · 取值「${unknownLock}」不认识，程序按不锁处理`
+      : jsonTip('lock', lockHint(lock))
 
   return (
     <article
@@ -154,19 +171,58 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
         >
           <ChevronDownIcon size={13} className={open ? 'open' : ''} />
         </button>
-        {/* 类型只写一遍：原来左边还有个单字角标（「表」）和「1. 表格」重复 */}
-        <button type="button" className="tpl-block-title" onClick={onToggle}>
-          {index + 1}. {typeLabel || '（未写类型）'}
-        </button>
-        {tag && <span className="tpl-tag">{tag}</span>}
-        {/* 收起时给一行摘要：不展开也知道这块是什么 */}
-        {!open && <span className="tpl-block-summary">{blockSummary(block)}</span>}
-        {/* 收起时也要能看出这块有没有问题 */}
-        {!open && (hasError || hasWarn) && (
-          <span
-            className={`tpl-dot ${hasError ? 'tpl-dot-error' : 'tpl-dot-warn'}`}
-            title={hasError ? '有错误' : '有提示'}
-          />
+        {open ? (
+          <>
+            {/* 展开时"这一块是什么"就在头上选：类型与锁各一个下拉，标签字样省掉 */}
+            <span className="tpl-block-index">{index + 1}.</span>
+            <select
+              className="tpl-select tpl-select-inline"
+              aria-label="这一块的类型"
+              title={jsonTip('type')}
+              value={type}
+              onChange={(event) => onPatch({ type: event.target.value })}
+            >
+              {typeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <select
+              className={`tpl-select tpl-select-inline${unknownLock !== null ? ' tpl-select-bad' : ''}`}
+              aria-label="这一块的锁"
+              title={lockTip}
+              value={unknownLock ?? lock}
+              onChange={(event) => {
+                const value = event.target.value
+                // 不锁就是把 lock 这个键去掉，与模板里"没写过"完全一致
+                onPatch({ lock: value === '' ? undefined : value })
+              }}
+            >
+              {lockOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </>
+        ) : (
+          <>
+            {/* 类型只写一遍：原来左边还有个单字角标（「表」）和「1. 表格」重复 */}
+            <button type="button" className="tpl-block-title" onClick={onToggle}>
+              {index + 1}. {typeLabel || '类型未写'}
+            </button>
+            {tag && <span className="tpl-tag">{tag}</span>}
+            {/* 收起时给一行摘要：不展开也知道这块是什么 */}
+            <span className="tpl-block-summary">{blockSummary(block)}</span>
+            {/* 收起时也要能看出这块有没有问题 */}
+            {(hasError || hasWarn) && (
+              <span
+                className={`tpl-dot ${hasError ? 'tpl-dot-error' : 'tpl-dot-warn'}`}
+                title={hasError ? '有错误' : '有提示'}
+              />
+            )}
+          </>
         )}
         <div className="tpl-block-actions">
           <button
@@ -202,198 +258,148 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
         </div>
       </header>
       {open && (
-      <div className="tpl-block-body">
-        <div className="tpl-grid-2">
-          <Field label="类型" tip={jsonTip('type')}>
-            <select
-              className="tpl-select"
-              value={type}
-              onChange={(event) => onPatch({ type: event.target.value })}
-            >
-              {typeOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field
-            label="锁"
-            tip={jsonTip('lock', '取值：type / keep / readonly')}
-          >
-            <select
-              className="tpl-select"
-              value={unknownLock ?? lock}
-              onChange={(event) => {
-                const value = event.target.value
-                // 不锁就是把 lock 这个键去掉，与模板里"没写过"完全一致
-                onPatch({ lock: value === '' ? undefined : value })
-              }}
-            >
-              {lockOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </div>
-        {(unknownLock !== null || lock !== '') && (
-          <p className={`tpl-note${unknownLock !== null ? ' tpl-note-bad' : ''}`}>
-            {unknownLock !== null
-              ? `lock 取值「${unknownLock}」不认识，程序按不锁处理`
-              : lockHint(lock)}
-          </p>
-        )}
-
-        {type === 'text' && (
-          <TextAreaField
-            label="正文"
-            tip={jsonTip('content')}
-            rows={4}
-            value={str(block['content'])}
-            onChange={(value) => onPatch({ content: value })}
-          />
-        )}
-
-        {(type === 'orderedList' || type === 'unorderedList') && (
-          <LinesAreaField
-            label="列表项"
-            tip={jsonTip('items')}
-            hint="一行一条"
-            value={arrayToLines(Array.isArray(block['items']) ? (block['items'] as unknown[]) : [])}
-            rows={5}
-            onChange={(value) => onPatch({ items: linesToArray(value) })}
-          />
-        )}
-
-        {type === 'table' && (
-          <>
-            <TextField
-              label="表名"
-              tip={jsonTip('caption')}
-              value={str(block['caption'])}
-              onChange={(value) => onPatch({ caption: value })}
+        <div className="tpl-block-body">
+          {type === 'text' && (
+            <TextAreaField
+              label="正文"
+              tip={jsonTip('content')}
+              rows={4}
+              value={str(block['content'])}
+              onChange={(value) => onPatch({ content: value })}
             />
-            <div className="tpl-grid-3">
-              <NumberField
-                label="列数"
-                tip={jsonTip('cols')}
-                value={cols}
-                onChange={(value) => onPatch({ cols: value })}
+          )}
+
+          {(type === 'orderedList' || type === 'unorderedList') && (
+            <ListRows
+              ordered={type === 'orderedList'}
+              items={itemCells(block)}
+              onChange={(items) => onPatch({ items })}
+            />
+          )}
+
+          {type === 'table' && (
+            <>
+              <TextField
+                label="表名"
+                tip={jsonTip('caption')}
+                value={str(block['caption'])}
+                extra={
+                  <CheckField
+                    label="纵向合并"
+                    tip={jsonTip('mergeVertical', '同列相邻同值合并 · 表头与空串除外')}
+                    checked={block['mergeVertical'] === true}
+                    onChange={(checked) => onPatch({ mergeVertical: checked ? true : undefined })}
+                  />
+                }
+                onChange={(value) => onPatch({ caption: value })}
               />
-              <NumberField
-                label="行数"
-                tip={jsonTip('rows')}
-                value={num(block['rows'], 0)}
-                onChange={(value) => onPatch({ rows: value })}
+              {/* 表头与数据一起改：列数就是表头的格数，行数就是数据行数，两个都按网格写回 */}
+              <TableGrid
+                headers={headerCells(block)}
+                data={dataRows(block)}
+                onChange={(next) =>
+                  onPatch({
+                    headers: next.headers,
+                    data: next.data,
+                    cols: next.headers.length,
+                    rows: next.data.length
+                  })
+                }
               />
-              <Field label="数据行数" tip={jsonTip('data')}>
-                <span className="tpl-readonly">{rows.length} 行</span>
-              </Field>
-            </div>
-            {colMismatch && (
-              <button
-                type="button"
-                className="tpl-mini tpl-inline-action"
-                onClick={() => onPatch({ cols: headers.length })}
-              >
-                按表头把列数改成 {headers.length}
-              </button>
-            )}
-            <TextField
-              label="表头"
-              tip={jsonTip('headers')}
-              hint="用 | 分隔"
-              value={headersToText(headers)}
-              placeholder="序号 | 名称 | 说明"
-              onChange={(value) => onPatch({ headers: textToHeaders(value) })}
-            />
-            <LinesAreaField
-              label="数据"
-              tip={jsonTip('data')}
-              hint="每行一条，单元格用 | 分隔"
-              rows={5}
-              value={rowsToText(rows)}
-              onChange={(value) => onPatch({ data: textToRows(value) })}
-            />
-            <CheckField
-              label="纵向合并"
-              tip={jsonTip('mergeVertical', '同列相邻同值合并 · 表头与空串除外')}
-              checked={block['mergeVertical'] === true}
-              onChange={(checked) =>
-                onPatch({ mergeVertical: checked ? true : undefined })
-              }
-            />
-          </>
-        )}
+            </>
+          )}
 
-        {type === 'code' && (
-          <>
-            <TextField
-              label="语言"
-              tip={jsonTip(
-                'language',
-                `常用 ${CODE_LANGUAGES.map((code) => CODE_LANGUAGE_LABELS[code] ?? code).join('、')}`
-              )}
-              mono
-              value={str(block['language'])}
-              placeholder={CODE_LANGUAGES[0]}
-              onChange={(value) => onPatch({ language: value })}
-            />
+          {type === 'code' && (
             <TextAreaField
               label="代码"
               tip={jsonTip('content')}
               mono
-              rows={5}
-              value={str(block['content'])}
-              onChange={(value) => onPatch({ content: value })}
-            />
-          </>
-        )}
-
-        {type === 'mermaid' && (
-          <>
-            <TextField
-              label="图题"
-              tip={jsonTip('caption')}
-              value={str(block['caption'])}
-              onChange={(value) => onPatch({ caption: value })}
-            />
-            <TextAreaField
-              label="Mermaid 源码"
-              tip={jsonTip('content')}
-              mono
               rows={6}
+              extra={
+                <InlineSelect
+                  label="代码语言"
+                  tip={jsonTip(
+                    'language',
+                    `常用 ${CODE_LANGUAGES.map((code) => CODE_LANGUAGE_LABELS[code] ?? code).join('、')}`
+                  )}
+                  value={str(block['language'])}
+                  options={[
+                    ...CODE_LANGUAGES.map((code) => ({
+                      value: code,
+                      label: CODE_LANGUAGE_LABELS[code] ?? code
+                    })),
+                    // 模板里写的是别的语言名：留着它自己那一项，别让下拉把它顶掉
+                    ...(str(block['language']) !== '' &&
+                    !(CODE_LANGUAGES as readonly string[]).includes(str(block['language']))
+                      ? [{ value: str(block['language']), label: str(block['language']) }]
+                      : [])
+                  ]}
+                  onChange={(value) => onPatch({ language: value })}
+                />
+              }
               value={str(block['content'])}
               onChange={(value) => onPatch({ content: value })}
             />
-          </>
-        )}
+          )}
 
-        {type === 'image' && (
-          <>
-            <TextField
-              label="图片路径"
-              tip={jsonTip('content', '工程内相对路径')}
-              mono
-              hint="可留空"
-              value={str(block['content'])}
-              onChange={(value) => onPatch({ content: value })}
-            />
-            <TextField
-              label="图题"
-              tip={jsonTip('caption')}
-              value={str(block['caption'])}
-              onChange={(value) => onPatch({ caption: value })}
-            />
-          </>
-        )}
+          {type === 'mermaid' && (
+            <>
+              <TextField
+                label="图题"
+                tip={jsonTip('caption')}
+                value={str(block['caption'])}
+                onChange={(value) => onPatch({ caption: value })}
+              />
+              <TextAreaField
+                label="Mermaid 源码"
+                tip={jsonTip('content')}
+                mono
+                rows={6}
+                value={str(block['content'])}
+                onChange={(value) => onPatch({ content: value })}
+              />
+            </>
+          )}
 
-        {type === 'formula' && (
-          <TextAreaField
-            label="公式"
-            tip={jsonTip('content')}
+          {type === 'image' && (
+            <>
+              {/* 题注在前、内容在后：与流程图（图题 + 源码）和表格（表名 + 网格）同一个次序 */}
+              <TextField
+                label="图题"
+                tip={jsonTip('caption')}
+                value={str(block['caption'])}
+                onChange={(value) => onPatch({ caption: value })}
+              />
+              {/* 路径旁边就是选图片的按钮：本机挑一张，路径直接填进来，不用手抄 */}
+              <div className="tpl-row">
+                <TextField
+                  label="图片路径"
+                  tip={jsonTip('content', '工程内相对路径')}
+                  mono
+                  hint="可留空"
+                  value={str(block['content'])}
+                  onChange={(value) => onPatch({ content: value })}
+                />
+                <button
+                  type="button"
+                  className="tpl-mini"
+                  title="从本机选一张图片，路径填进这个字段"
+                  onClick={() => {
+                    void onPickImage().then((picked) => {
+                      if (picked !== null && picked !== '') onPatch({ content: picked })
+                    })
+                  }}
+                >
+                  选图片…
+                </button>
+              </div>
+            </>
+          )}
+
+          {type === 'formula' && (
+            <TextAreaField
+              label="公式"
+              tip={jsonTip('content')}
             mono
             rows={3}
             value={str(block['content'])}

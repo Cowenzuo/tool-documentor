@@ -551,6 +551,24 @@ body.is-splitting-row {
   padding: 0 10px;
 }
 
+/*
+ * 搭在标签行右端的小下拉（代码块的"语言"、卡片头的"类型/锁"）：
+ * 没有自己的标签行，所以矮一点、窄一点，跟旁边的标签同一行的重量。
+ */
+.tpl-select-inline {
+  height: 22px;
+  max-width: 190px;
+  padding: 0 6px;
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}
+
+/* 下拉里的值程序不认识（例如 lock 写坏了）：标出来，话说在悬停里 */
+.tpl-select-bad {
+  border-color: color-mix(in srgb, var(--warning) 60%, var(--border));
+  color: var(--warning);
+}
+
 .tpl-textarea {
   padding: 5px 10px;
   line-height: 1.6;
@@ -562,10 +580,6 @@ body.is-splitting-row {
 .tpl-textarea:focus {
   outline: none;
   border-color: var(--accent);
-}
-
-.tpl-number {
-  max-width: 120px;
 }
 
 .tpl-mono {
@@ -582,16 +596,11 @@ body.is-splitting-row {
   cursor: pointer;
 }
 
-.tpl-readonly {
-  font-size: var(--text-sm);
-  color: var(--text-2);
-  padding: 5px 0;
-}
-
 /* 右栏变宽了，字段最小宽度跟着抬一点：不然一行会摊出五六列窄输入框 */
 .tpl-grid-2 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  /* 最小列宽压到 140px：图片路径与图题这类短字段在窄栏里也能真并排，不各占一行 */
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 0 var(--space-3);
 }
 
@@ -1098,10 +1107,18 @@ body.is-splitting-row {
 .tpl-block-head {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-2);
   padding: 4px var(--space-2);
   border-bottom: 1px solid var(--border);
   min-width: 0;
+}
+
+/* 展开时卡片头里是"第几块 + 类型 + 锁"：序号与两个下拉排一行，窄了就整组折行 */
+.tpl-block-index {
+  flex: none;
+  font-size: var(--text-xs);
+  color: var(--text-3);
 }
 
 .tpl-block:not(.is-open) .tpl-block-head {
@@ -1174,6 +1191,130 @@ body.is-splitting-row {
 
 .tpl-block-body {
   padding: var(--space-2) var(--space-3);
+}
+
+/* ===== 表格网格 ===== */
+
+.tpl-tg-scroll {
+  overflow-x: auto;
+}
+
+.tpl-tg-grid {
+  display: grid;
+  gap: 2px;
+  align-items: stretch;
+  min-width: 0;
+}
+
+/* 一格：输入框铺满格子，短内容不撑、长内容自己滚 */
+.tpl-tg-cell {
+  min-width: 0;
+  width: 100%;
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-panel);
+  color: var(--text-1);
+  font-size: var(--text-sm);
+}
+
+.tpl-tg-cell:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* 表头那一行：与数据行同一套格子，底色重一档 */
+.tpl-tg-cell.is-head {
+  background: var(--bg-raised);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+/* 表头没有这一列（数据行比表头宽）：标出来，别让人以为写对了 */
+.tpl-tg-cell.is-extra {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--warning) 60%, var(--border));
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}
+
+/* 每行右端的"删这一行"与表头右端的"加一列"占同一列 */
+.tpl-tg-del,
+.tpl-tg-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-control);
+  color: var(--text-3);
+}
+
+.tpl-tg-del:hover,
+.tpl-tg-add:hover {
+  background: var(--bg-hover);
+  color: var(--text-1);
+}
+
+.tpl-tg-del:hover {
+  color: var(--danger);
+}
+
+.tpl-tg-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.tpl-tg-foot .tpl-count {
+  margin-left: auto;
+}
+
+/* ===== 列表条目 ===== */
+
+.tpl-list-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tpl-list-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* 标记列：有序列表是 1. 2. 3.，无序列表是 •，宽度按最长的那种留 */
+.tpl-list-mark {
+  flex: none;
+  min-width: 20px;
+  text-align: right;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 换位按钮平时收着：指针进这一行（或键盘落到行里）才显形，不跟输入框抢宽度 */
+.tpl-list-move {
+  flex: none;
+  display: inline-flex;
+  gap: 2px;
+  opacity: 0;
+}
+
+.tpl-list-row:hover .tpl-list-move,
+.tpl-list-row:focus-within .tpl-list-move {
+  opacity: 1;
+}
+
+.tpl-list-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 
 .tpl-tag {
