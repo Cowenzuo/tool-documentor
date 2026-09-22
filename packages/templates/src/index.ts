@@ -66,6 +66,17 @@ export {
 } from './identity'
 export type { TemplateIdentity } from './identity'
 /**
+ * 模板目录扫描（PLAN-12）：目录名是 uuid 才认，清单不再存在。
+ * 先与新口径并存，等加载器切过来之后再删清单那一套。
+ */
+export { TEMPLATE_SUBDIR, scanTemplateDir } from './discover'
+export type {
+  DiscoveredTemplate,
+  LegacyTemplateDir,
+  TemplateKind,
+  TemplateScan
+} from './discover'
+/**
  * 样式规则（不碰 fs 的那一半）：编辑模式从 `@documentor/templates/style-rules`
  * 直接拿，渲染层实时跑与主进程**同一份**判定。
  */
