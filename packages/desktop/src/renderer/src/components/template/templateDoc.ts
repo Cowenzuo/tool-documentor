@@ -262,11 +262,11 @@ export function blockSummary(block: TemplateObject): string {
   const content = str(block['content'])
   switch (type) {
     case 'text':
-      return cut(content) || '（空段落）'
+      return cut(content) || '正文未写'
     case 'orderedList':
     case 'unorderedList': {
       const items = Array.isArray(block['items']) ? (block['items'] as unknown[]) : []
-      if (items.length === 0) return '（空列表）'
+      if (items.length === 0) return '列表项未写'
       return `${items.length} 条 · ${cut(str(items[0]))}`
     }
     case 'table': {
@@ -280,18 +280,18 @@ export function blockSummary(block: TemplateObject): string {
       return caption ? `${caption} · ${size}` : size
     }
     case 'image':
-      return caption || cut(content) || '（没给图片路径）'
+      return caption || cut(content) || '图片资源未设置'
     case 'mermaid':
-      return caption ? `${caption} · ${cut(content, 40)}` : cut(content) || '（空图）'
+      return caption ? `${caption} · ${cut(content, 40)}` : cut(content) || '源码未写'
     case 'code': {
       const lang = str(block['language']).trim()
       const head = cut(content, 50)
-      return head ? `${lang ? `${lang} · ` : ''}${head}` : lang || '（空代码）'
+      return head ? `${lang ? `${lang} · ` : ''}${head}` : lang || '代码未写'
     }
     case 'formula':
-      return cut(content) || '（空公式）'
+      return cut(content) || '公式未写'
     default:
-      return type === '' ? '（未写类型）' : `${type}（界面不认的类型）`
+      return type === '' ? '类型未写' : `${type} · 界面不认的类型`
   }
 }
 

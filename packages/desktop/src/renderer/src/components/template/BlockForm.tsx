@@ -138,13 +138,13 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
   }))
   if (type === '') {
     // 没写 type 的块：下拉里得有它自己那一项，否则控件显示成空白
-    typeOptions.unshift({ value: '', label: '（未写类型）' })
+    typeOptions.unshift({ value: '', label: '类型未写' })
   } else if (!(BLOCK_TYPE_NAMES as readonly string[]).includes(type)) {
-    typeOptions.push({ value: type, label: `${type}（不认识）` })
+    typeOptions.push({ value: type, label: `${type} · 不认识` })
   }
   const lockOptions = [...LOCK_OPTIONS]
   if (unknownLock !== null) {
-    lockOptions.push({ value: unknownLock, label: `${unknownLock}（不认识）` })
+    lockOptions.push({ value: unknownLock, label: `${unknownLock} · 不认识` })
   }
   const lockTip =
     unknownLock !== null
@@ -208,7 +208,7 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
           <>
             {/* 类型只写一遍：原来左边还有个单字角标（「表」）和「1. 表格」重复 */}
             <button type="button" className="tpl-block-title" onClick={onToggle}>
-              {index + 1}. {typeLabel || '（未写类型）'}
+              {index + 1}. {typeLabel || '类型未写'}
             </button>
             {tag && <span className="tpl-tag">{tag}</span>}
             {/* 收起时给一行摘要：不展开也知道这块是什么 */}
