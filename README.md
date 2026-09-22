@@ -80,7 +80,7 @@ pnpm check:styles      # 样式模板编辑：读、写回、导入、改名、�
 pnpm check:open        # 工程打开：老格式工程的引用认出 uuid、保存补列
 pnpm check:ui          # 模板编辑界面
 pnpm check:open:ui     # 工程打开界面
-pnpm check:terms:ui    # 权限标签与置灰
+pnpm check:terms:ui    # 权限标签、置灰与换类型入口
 ```
 
 > **单测、E2E 探针、核对脚本、开发工具都在本机 `localscripts/`，不入库**。`.gitignore`
@@ -139,12 +139,14 @@ release/
 
 - **打包**：`pnpm package` 出 NSIS 安装包，`pnpm package:dir` 出免安装目录。
   两者都复用本地 Electron（`electronDist`），不必联网下载。
-- **当前版本**：代码与 `release/` 里的成品同为 `0.1.2-alpha1`（免安装目录 `win-unpacked/` 与安装包，2026-09-22 打，
+- **当前版本**：`release/` 里的成品是 `0.1.2-alpha1`（免安装目录 `win-unpacked/` 与安装包，2026-09-22 打，
   对应提交 `2e4c5c2`）；另保留着 `0.1.1-alpha1`、`0.1.0-beta1`、`0.1.0-alpha3`、`0.1.0-alpha1`
   四个更早的安装包（重新打包由用户明确要求时才做）。
   这一个 `0.1.2-alpha1` 是**同版本号重打**的：先前那一版（对应 `f95bc8d`）的读语句里还有
   `node.copy_group_id`，而这一列已随复制组字段退役从工程库里删掉（PLAN-19），老包打不开那些工程；
   内部版本不对外，重打比加回一个空转的列划算。
+  **成品之后主干上又落了新东西**（例如 PLAN-20 的用户侧换类型），那些还没打包，
+  要用新功能就跑开发版或者让维护者重新打包。
   开发新功能期间请继续用发布版改数据，别用 `pnpm dev`——
   理由与分界见工程工作区 `../tool-documentor-projs/README.md` 第 0 节。
 - **分发边界**：发行包不含 `mmd2vsdx`。它的产物内嵌官方 Visio 母版 XML，属 Microsoft 许可内容，

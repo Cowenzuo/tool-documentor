@@ -4,7 +4,9 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ContentBlock } from '@documentor/core/blocks'
-import { NODE_PERMISSION, blockPermissions } from '../../../../shared/permissionTerms'
+import { BLOCK_TYPE_NAMES, type BlockTypeName } from '@documentor/core/blocks'
+import { convertBlock, type BlockConversion } from '@documentor/core/block-convert'
+import { BLOCK_ACTION, NODE_PERMISSION, blockPermissions } from '../../../../shared/permissionTerms'
 import { useApp, useSelectedNode } from '../../state/AppContext'
 import { BlockCard } from './BlockCard'
 import type { LightboxRequest } from './BlockEditors'
@@ -91,6 +93,12 @@ export default function NodePage(): React.JSX.Element {
   const [lightbox, setLightbox] = useState<LightboxRequest | null>(null)
   /** 添加菜单的开合位置：null 关闭，'end' 末尾，数字表示插到该下标之前 */
   const [addOpen, setAddOpen] = useState<'end' | number | null>(null)
+  /** 换类型菜单：开在哪一块上、按视口坐标摆在哪 */
+  const [typeMenu, setTypeMenu] = useState<{ index: number; x: number; y: number } | null>(null)
+  /** 会丢字的那几路：先问一句，确认了才换 */
+  const [pendingConvert, setPendingConvert] = useState<
+    { index: number; type: BlockTypeName; conversion: BlockConversion } | null
+  >(null)
   /** 防抖缓冲里还有没进工程数据的改动：界面上要看得见，别让人以为已经写好了 */
   const [editing, setEditing] = useState(false)
   /** 折叠的块：按节点记，切走再回来还认得（块本身没有稳定 id，只能记下标） */
@@ -100,6 +108,8 @@ export default function NodePage(): React.JSX.Element {
   const pendingRef = useRef(new Map<number, ContentBlock>())
   const timersRef = useRef(new Map<number, number>())
   const nodeIdRef = useRef<string | null>(null)
+  /** 换类型菜单的 DOM 引用：点外面关、开完按视口收边 */
+  const typeMenuRef = useRef<HTMLDivElement | null>(null)
   /** 上一次与 store 对账过的块序列；用于识别"store 侧发生了结构性变化" */
   const storeSignatureRef = useRef('')
   const descValueRef = useRef(desc)
@@ -280,9 +290,89 @@ export default function NodePage(): React.JSX.Element {
     [updateContentBlock]
   )
 
-  const handleAdd = useCallback(
-    async (type: (typeof BLOCK_ADD_ORDER)[number], atIndex?: number) => {
+  /**
+   * 真正把换类型写下去。
+   *
+   * 先 `flushPending`：这一块可能还有 600ms 防抖里的挂起编辑，那一份是**旧类型**的块，
+   * 不先写完就换，定时器到点会把类型改动静默改回去（加块、删块、移动三处同理）。
+   * 两次写入共用同一个合并键，撤销时算一步（PLAN-20 第 4 件）。
+   */
+  const applyConversion = useCallback(
+    async (index: number, conversion: BlockConversion) => {
       const nodeId = nodeIdRef.current
+      setPendingConvert(null)
+      if (!nodeId) return
+      await flushPending()
+      await updateContentBlock(nodeId, index, conversion.block)
+    },
+    [flushPending, updateContentBlock]
+  )
+
+  /** 换类型：按 core 那份搬运规则算出新块；有字会丢的先问一句 */
+  const handleChangeType = useCallback(
+    async (index: number, type: BlockTypeName) => {
+      setTypeMenu(null)
+      const current = blocks[index]
+      if (!current || current.type === type) return
+      const conversion = convertBlock(current, type)
+      if (conversion.losesText) {
+        setPendingConvert({ index, type, conversion })
+        return
+      }
+      await applyConversion(index, conversion)
+    },
+    [blocks, applyConversion]
+  )
+
+  // 换类型菜单：点外面、按 Esc 关；开完按视口收边，别把菜单摆到窗口外
+  useEffect(() => {
+    if (!typeMenu) return
+    const close = (event: MouseEvent): void => {
+      const target = event.target as Node
+      if (typeMenuRef.current && !typeMenuRef.current.contains(target)) setTypeMenu(null)
+    }
+    const key = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setTypeMenu(null)
+    }
+    window.addEventListener('mousedown', close)
+    window.addEventListener('keydown', key)
+    return () => {
+      window.removeEventListener('mousedown', close)
+      window.removeEventListener('keydown', key)
+    }
+  }, [typeMenu])
+
+  useLayoutEffect(() => {
+    const el = typeMenuRef.current
+    if (!typeMenu || !el) return
+    const rect = el.getBoundingClientRect()
+    const overflowX = rect.right - window.innerWidth + 8
+    const overflowY = rect.bottom - window.innerHeight + 8
+    if (overflowX > 0 || overflowY > 0) {
+      setTypeMenu((prev) =>
+        prev
+          ? { ...prev, x: prev.x - Math.max(0, overflowX), y: prev.y - Math.max(0, overflowY) }
+          : prev
+      )
+    }
+  }, [typeMenu])
+
+  /** 菜单里的上下键：在当前类型那一项上跳过（它是灰的） */
+  const onTypeMenuKeyDown = useCallback((event: React.KeyboardEvent): void => {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+    event.preventDefault()
+    const items = [
+      ...(typeMenuRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])
+    ]
+    if (items.length === 0) return
+    const at = items.findIndex((el) => el === document.activeElement)
+    const delta = event.key === 'ArrowDown' ? 1 : -1
+    const next = at < 0 ? (delta > 0 ? 0 : items.length - 1) : (at + delta + items.length) % items.length
+    items[next]?.focus()
+  }, [])
+
+  const handleAdd = useCallback(
+    async (type: (typeof BLOCK_ADD_ORDER)[number], atIndex?: number) => {      const nodeId = nodeIdRef.current
       if (!nodeId) return
       await flushPending()
       structureOpRef.current = {
@@ -479,7 +569,34 @@ export default function NodePage(): React.JSX.Element {
                     onMove={(i, d) => void handleMove(i, d)}
                     onRemove={(i) => void handleRemove(i)}
                     onPreview={(req) => setLightbox(req)}
+                    onOpenTypeMenu={(i, anchor) => setTypeMenu({ index: i, x: anchor.x, y: anchor.y })}
+                    typeMenuOpen={typeMenu?.index === index}
                   />
+                  {/* 换类型会丢字的那几路：先把"丢什么"摆在按钮上方，确认了才换 */}
+                  {pendingConvert?.index === index && (
+                    <div
+                      className="be-confirm np-type-confirm"
+                      role="alertdialog"
+                      aria-label={`确认${BLOCK_ACTION.changeType.name}`}
+                    >
+                      <div>
+                        换成{BLOCK_TYPE_LABELS[pendingConvert.type]}会丢掉
+                        {pendingConvert.conversion.dropped.join('、')}，确定吗？
+                      </div>
+                      <div className="be-confirm-actions">
+                        <button
+                          type="button"
+                          className="be-btn danger-text"
+                          onClick={() => void applyConversion(pendingConvert.index, pendingConvert.conversion)}
+                        >
+                          换成{BLOCK_TYPE_LABELS[pendingConvert.type]}
+                        </button>
+                        <button type="button" className="be-btn" onClick={() => setPendingConvert(null)}>
+                          取消
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
               {perms.add && (
@@ -507,6 +624,37 @@ export default function NodePage(): React.JSX.Element {
         </article>
       </div>
       {lightbox && <Lightbox request={lightbox} onClose={() => setLightbox(null)} />}
+      {/*
+        换类型菜单按视口坐标摆（卡片自己 overflow: hidden，菜单摆在里面会被裁掉），
+        与结构栏那个右键菜单同一个做法。当前类型那一项灰着，让人看得出自己现在是什么。
+      */}
+      {typeMenu && (
+        <div
+          ref={typeMenuRef}
+          className="np-type-menu"
+          role="menu"
+          aria-label={BLOCK_ACTION.changeType.name}
+          style={{ left: typeMenu.x, top: typeMenu.y }}
+          onKeyDown={onTypeMenuKeyDown}
+        >
+          {BLOCK_TYPE_NAMES.map((type) => {
+            const current = blocks[typeMenu.index]?.type === type
+            return (
+              <button
+                key={type}
+                type="button"
+                role="menuitem"
+                disabled={current}
+                title={current ? '已经是这个类型' : describeBlockType(type)}
+                onClick={() => void handleChangeType(typeMenu.index, type)}
+              >
+                <span className="np-add-label">{BLOCK_TYPE_LABELS[type]}</span>
+                <span className="np-add-desc">{current ? '当前类型' : describeBlockType(type)}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
     </main>
   )
 }
