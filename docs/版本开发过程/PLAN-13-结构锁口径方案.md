@@ -69,19 +69,19 @@
 | 规则 | 级别 | 说什么 |
 | --- | --- | --- |
 | `node.allowLayoutEdit.invalid` | error | `allowLayoutEdit需为布尔值` |
-| `block.lock.legacy` | warn | `lock 档位 type 已作废 · 改成 keep 或去掉` |
-| `block.lock.layout` | warn | `keep` / `readonly` 的块，所在节点排版开着：`位置不锁 · 用户可以挪` |
+| `block.lock.legacy` | warn | `lock 档位 type 已作废` |
 | `block.lock.invalid` | error | 取值不属于认得的那几个（现在按自由编辑处理，文案跟着改） |
 | `block.nodeField.misplaced` | error | 节点级字段清单加上 `allowLayoutEdit` |
 
-`block.lock.layout` 这条就是旧模板的过目通道：作者按提示决定哪些章节该关掉「排版」。
+只报"值被程序忽略了"这一类作者看不出来的事实。像"keep 块的位置不锁、用户可以挪"这种，
+说的是作者自己选的默认形态，属于唠叨，不报。
 
 ## 5 迁移
 
 - 值域不动，**不批量改库**；
 - 旧 `type` 逐处由作者定（改 `keep` 或去掉）；
 - 位置意图：`keep` 原来含"位置不能动"。批量给这些节点写 `allowLayoutEdit: false` 会把整章也变成不能加删块，
-  比今天更严，所以不批量写，改由 `block.lock.layout` 提示，作者在界面上按节点决定；
+  比今天更严，所以不批量写，由作者在界面上按节点决定（不另给提示：开着排版就是用户可以挪，这是默认形态，不是毛病）；
 - 样例模板里的 `type` 与 `allowLayoutEdit` 直接改（自建样例，随本文一起落）。
 
 ## 6 这一轮不做

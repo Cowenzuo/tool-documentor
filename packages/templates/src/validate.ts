@@ -155,9 +155,13 @@ function readTextOrNull(path: string): string | null {
   }
 }
 
-/** 与旧版同法：trail 为空串时显示 (root) */
+/**
+ * 结论里的位置串：节点标题一层层拼出来的。
+ * 根节点自己没有标题串，用文档根的说法（与编辑器里那颗「文档根」徽标同一口径），
+ * 不写 `(root)` 那种英文括号注记。
+ */
 function whereOf(trail: string): string {
-  return trail || '(root)'
+  return trail || '文档根'
 }
 
 // ================= 骨架索引 =================
@@ -376,9 +380,6 @@ function checkStructureNode(
     })
   }
 
-  /** 这一章的排版开着（缺省就是开）：块的顺序由用户定 */
-  const layoutOpen = node['allowLayoutEdit'] !== false
-
   // 内容块
   const blocks = asArray(node['contentBlocks'])
   for (let i = 0; i < blocks.length; i++) {
@@ -429,15 +430,7 @@ function checkStructureNode(
         level: 'warn',
         rule: 'block.lock.legacy',
         path: `${bp}.lock`,
-        message: `${bw} · lock 档位 type 已作废 · 改成 keep 或去掉`
-      })
-    } else if ((lock === 'keep' || lock === 'readonly') && layoutOpen) {
-      // keep / readonly 只管内容、类型与存在；位置由节点「排版」管，开着就是用户能挪
-      out.push({
-        level: 'warn',
-        rule: 'block.lock.layout',
-        path: `${bp}.lock`,
-        message: `${bw} · 位置不锁 · 用户可以挪`
+        message: `${bw} · lock 档位 type 已作废`
       })
     }
     // 反向也别混：节点级字段写到块上程序不读

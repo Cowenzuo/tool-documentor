@@ -43,8 +43,9 @@ function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : []
 }
 
+/** 结论里的位置串：根节点没有标题串，用「文档根」的说法（与主进程同一份规则） */
 function whereOf(trail: string): string {
-  return trail || '(root)'
+  return trail || '文档根'
 }
 
 /** 身份只认 uuid（与 `@documentor/templates` 的 isTemplateUuid 同一条正则） */
@@ -160,9 +161,6 @@ function checkStructureNode(
     })
   }
 
-  /** 这一章的排版开着（缺省就是开）：块的顺序由用户定 */
-  const layoutOpen = node['allowLayoutEdit'] !== false
-
   const blocks = asArray(node['contentBlocks'])
   for (let i = 0; i < blocks.length; i++) {
     const b = asObject(blocks[i])
@@ -211,15 +209,7 @@ function checkStructureNode(
         level: 'warn',
         rule: 'block.lock.legacy',
         path: `${bp}.lock`,
-        message: `${bw} · lock 档位 type 已作废 · 改成 keep 或去掉`
-      })
-    } else if ((lock === 'keep' || lock === 'readonly') && layoutOpen) {
-      // keep / readonly 只管内容、类型与存在；位置由节点「排版」管，开着就是用户能挪
-      out.push({
-        level: 'warn',
-        rule: 'block.lock.layout',
-        path: `${bp}.lock`,
-        message: `${bw} · 位置不锁 · 用户可以挪`
+        message: `${bw} · lock 档位 type 已作废`
       })
     }
     // 反向也别混：节点级字段写到块上程序不读
