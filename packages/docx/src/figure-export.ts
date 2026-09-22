@@ -129,7 +129,7 @@ export async function attachFiguresToDocx(
     } catch (err) {
       // 单一路径降级：图表嵌入服务不可用 → 交付文本版（不中断导出）
       stats.unavailable = true
-      warnings.push('图表嵌入服务不可用，图表以文本形式导出')
+      warnings.push('图以文本形式导出，双击编辑暂不可用')
       const finalPath =
         options.outputPath && options.outputPath !== docxPath ? options.outputPath : docxPath
       if (finalPath !== docxPath) copyFileSync(docxPath, finalPath)
@@ -211,7 +211,7 @@ export async function attachFiguresToDocx(
     )
     if (stats.failed.length > 0) {
       warnings.push(
-        `${stats.failed.length} 张图未能嵌入，已按文本导出：` +
+        `${stats.failed.length} 张图以文本形式导出：` +
         stats.failed.map((f) => `「${f.caption}」`).join('、')
       )
     }

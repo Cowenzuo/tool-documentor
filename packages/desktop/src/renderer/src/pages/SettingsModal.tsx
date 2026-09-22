@@ -1,6 +1,8 @@
 /**
  * 设置对话框：主题、默认工程目录、模板目录列表（增删/浏览；保存后主进程即时重载模板）。
  * 每个模板目录就地显示加载结果——配错一层目录时，这里要说清为什么没加载到。
+ * 「模板目录」一节只管配置：增删目录、看每个目录加载到什么。
+ * 模板编辑的入口不在这里——它在欢迎页（与新建/打开工程并排），那里不打开工程也能进。
  */
 import { useEffect, useState } from 'react'
 import type { AppConfigDto, TemplateLoadReport } from '../../../shared/project'
@@ -77,7 +79,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
       showToast({ kind: 'info', text: '设置已保存' })
       onClose()
     } catch (err) {
-      showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
+      showToast({ kind: 'error', text: '设置保存失败' })
     } finally {
       setSaving(false)
     }

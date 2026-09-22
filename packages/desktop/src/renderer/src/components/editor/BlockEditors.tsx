@@ -177,7 +177,7 @@ export function ImageEditor(props: EditorBaseProps<ImageBlock>): React.JSX.Eleme
 export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Element {
   const { block, onChange, readOnly } = props
   const gridRef = useRef<HTMLDivElement | null>(null)
-  /** 整块只读：单元格呈现给定内容，尺寸、合并与补齐都不给入口 */
+  /** 整块只读：单元格呈现给定内容，尺寸与合并开关都不给入口 */
   const locked = readOnly === true
   /** 缩表会丢内容时，先挂起等用户确认（不做静默截断） */
   const [pendingShrink, setPendingShrink] = useState<{
@@ -354,7 +354,7 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
       <div className="be-table-merge-bar">
         <label
           className="be-table-merge"
-          title="同一列中连续且内容相同的单元格会合并成一个，表头不参与，空单元格不合并"
+          title="同列相邻同值合并"
         >
           <input
             type="checkbox"
@@ -477,7 +477,7 @@ export function FormulaEditor(props: EditorBaseProps<FormulaBlock>): React.JSX.E
         )
         setError(null)
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err))
+        setError('读取失败')
         setHtml(null)
       }
     }, 500)
@@ -549,7 +549,7 @@ export function CodeEditor(props: EditorBaseProps<CodeBlock>): React.JSX.Element
           onChange={(e) => onChange({ ...block, language: e.target.value })}
           aria-label="代码语言"
           disabled={readOnly === true}
-          title={readOnly === true ? '模板规定该代码块为定稿，语言也不能改' : undefined}
+          title={readOnly === true ? '模板定稿' : undefined}
         >
           {CODE_LANGUAGES.map((lang) => (
             <option key={lang} value={lang}>
@@ -633,7 +633,7 @@ export function MermaidEditor(props: EditorBaseProps<MermaidBlock>): React.JSX.E
         void writeMermaidPngCache(svg, block.code)
       } catch (err) {
         setPreview(null)
-        setError(err instanceof Error ? err.message : String(err))
+        setError('读取失败')
       }
     }, 700)
     return () => window.clearTimeout(timerRef.current)

@@ -85,13 +85,13 @@ export function PreviewPage(): React.JSX.Element {
         if (r.images.missing.length > 0) {
           const head = r.images.missing.slice(0, 3).join('、')
           const more = r.images.missing.length > 3 ? ` 等 ${r.images.missing.length} 张` : ''
-          list.push(`有图片找不到文件：${head}${more}`)
+          list.push(`这些图片找不到文件：${head}${more}`)
         }
         if (r.mermaid.total > 0 && !r.mermaid.converterAvailable) {
-          list.push(`${r.mermaid.total} 幅流程图将按文本导出，图不会出现在正式文档里`)
+          list.push(`${r.mermaid.total} 幅流程图以文本形式导出，图不出现在正式文档里`)
         }
         if (r.tables.overLimit > 0) {
-          list.push(`${r.tables.overLimit} 个表格超出界面上限，导出照常，编辑时建议拆表`)
+          list.push(`${r.tables.overLimit} 个表格超出界面上限，导出照常，建议拆表`)
         }
         setIssues(list)
       })
@@ -134,7 +134,7 @@ export function PreviewPage(): React.JSX.Element {
   if (nodes.length === 0) {
     return (
       <main className="node-page node-page-empty">
-        <div className="np-hint">从左侧结构树选择章节查看排版</div>
+        <div className="np-hint">未选中章节</div>
       </main>
     )
   }
@@ -164,7 +164,7 @@ export function PreviewPage(): React.JSX.Element {
             >
               {item.title && (
                 <div className={headingClassOf(item)}>
-                  {item.isSubTitle && <span className="pv-subtitle-mark">子标题 · </span>}
+                  {item.isSubTitle && <span className="pv-subtitle-mark">列表子标题 · </span>}
                   {item.title}
                 </div>
               )}
@@ -357,7 +357,7 @@ function MermaidPreview({
         if (!disposed) setSvg(s)
       })
       .catch((err: unknown) => {
-        if (!disposed) setError(err instanceof Error ? err.message : String(err))
+        if (!disposed) setError('读取失败')
       })
     return () => {
       disposed = true

@@ -54,7 +54,6 @@ function reconcileKeys(prev: string[], incomingLength: number, op: StructureOp |
 function isPinnedLock(lock: ContentBlock['lock']): boolean {
   return lock === 'keep' || lock === 'readonly'
 }
-
 /** 添加内容的下拉菜单：末尾「＋ 添加内容」与块间插入共用同一份 */
 function AddBlockMenu({
   onPick
@@ -345,12 +344,15 @@ export default function NodePage(): React.JSX.Element {
   if (!node) {
     return (
       <main className="node-page node-page-empty">
-        <div className="np-hint">从左侧结构树选择章节开始编辑</div>
+        <div className="np-hint">未选中章节</div>
       </main>
     )
   }
 
   const canEditBlocks = node.allowContentBlocks
+  /** 在第 index 项之前插入会把它（及后面每一块）往后挤：里面有锁定块就不给插 */
+  const insertBlockedAt = (index: number): boolean =>
+    blocks.slice(index).some((block) => isPinnedLock(block.lock))
 
   return (
     <main className="node-page">
@@ -372,7 +374,7 @@ export default function NodePage(): React.JSX.Element {
               }}
             />
             {editing && (
-              <span className="np-dirty" title="停顿一下就会自动进入工程数据">
+              <span className="np-dirty" title="待写入">
                 编辑中…
               </span>
             )}
@@ -380,7 +382,7 @@ export default function NodePage(): React.JSX.Element {
               {node.headingLevel === 0 ? (
                 <span className="np-badge">文档根</span>
               ) : node.isSubTitle ? (
-                <span className="np-badge np-badge-sub">子标题</span>
+                <span className="np-badge np-badge-sub">列表子标题</span>
               ) : (
                 <span className="np-badge">标题级别 {node.headingLevel}</span>
               )}
@@ -394,7 +396,7 @@ export default function NodePage(): React.JSX.Element {
               {!node.copyable && !node.deletable && !canEditBlocks && (
                 <span
                   className="np-chip"
-                  title="模板限定了该章节：不可复制、不可删除，也不能添加内容"
+                  title="模板限定"
                 >
                   只读
                 </span>
@@ -431,12 +433,18 @@ export default function NodePage(): React.JSX.Element {
                 <div className="np-block-slot" key={blockKeys[index] ?? `${node.id}:${index}`}>
                   {canEditBlocks && (
                     <div className="np-insert">
+                      {/* 插在锁定块前面等于把它往后挤：keep/readonly 的位置也不能变 */}
                       <button
                         type="button"
                         className="np-insert-btn"
-                        title="在此上方插入内容"
+                        title={
+                          insertBlockedAt(index)
+                            ? `这里往下有模板锁定的内容，位置不能变：新内容只能排在它后面`
+                            : '在此上方插入内容'
+                        }
                         aria-label={`在第 ${index + 1} 项上方插入内容`}
                         aria-expanded={addOpen === index}
+                        disabled={insertBlockedAt(index)}
                         onClick={() => setAddOpen((v) => (v === index ? null : index))}
                       >
                         ＋ 在此插入

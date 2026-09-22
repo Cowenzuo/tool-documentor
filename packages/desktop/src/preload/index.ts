@@ -22,6 +22,16 @@ import type {
   NodeDescriptionInput,
   NodeTitleInput,
   SavePathDialogOptions,
+  TemplateCreateInput,
+  TemplateDeleteInput,
+  TemplateReadInput,
+  TemplateRenameInput,
+  TemplateSaveInput,
+  TemplateStyleForkInput,
+  TemplateStyleImportInput,
+  TemplateStyleReadInput,
+  TemplateStyleSaveInput,
+  TemplateTrialInput,
   UiStateKeyInput
 } from '../shared/project'
 
@@ -108,6 +118,8 @@ const api: DesktopApi = {
       >,
     selectImage: () =>
       invoke(ProjectIpc.DialogSelectImage) as ReturnType<DesktopApi['dialog']['selectImage']>,
+    selectDocx: () =>
+      invoke(ProjectIpc.DialogSelectDocx) as ReturnType<DesktopApi['dialog']['selectDocx']>,
     savePath: (options: SavePathDialogOptions) =>
       invoke(ProjectIpc.DialogSavePath, options) as ReturnType<DesktopApi['dialog']['savePath']>
   },
@@ -138,6 +150,48 @@ const api: DesktopApi = {
       >,
     diagnose: () =>
       invoke(ProjectIpc.TemplatesDiagnose) as ReturnType<DesktopApi['templates']['diagnose']>
+  },
+  templateEditor: {
+    snapshot: () =>
+      invoke(ProjectIpc.TemplateSnapshot) as ReturnType<
+        DesktopApi['templateEditor']['snapshot']
+      >,
+    read: (input: TemplateReadInput) =>
+      invoke(ProjectIpc.TemplateRead, input) as ReturnType<DesktopApi['templateEditor']['read']>,
+    readStyle: (input: TemplateStyleReadInput) =>
+      invoke(ProjectIpc.TemplateReadStyle, input) as ReturnType<
+        DesktopApi['templateEditor']['readStyle']
+      >,
+    saveStyle: (input: TemplateStyleSaveInput) =>
+      invoke(ProjectIpc.TemplateSaveStyle, input) as ReturnType<
+        DesktopApi['templateEditor']['saveStyle']
+      >,
+    importStyle: (input: TemplateStyleImportInput) =>
+      invoke(ProjectIpc.TemplateImportStyle, input) as ReturnType<
+        DesktopApi['templateEditor']['importStyle']
+      >,
+    forkStyle: (input: TemplateStyleForkInput) =>
+      invoke(ProjectIpc.TemplateForkStyle, input) as ReturnType<
+        DesktopApi['templateEditor']['forkStyle']
+      >,
+    save: (input: TemplateSaveInput) =>
+      invoke(ProjectIpc.TemplateSave, input) as ReturnType<DesktopApi['templateEditor']['save']>,
+    create: (input: TemplateCreateInput) =>
+      invoke(ProjectIpc.TemplateCreate, input) as ReturnType<
+        DesktopApi['templateEditor']['create']
+      >,
+    remove: (input: TemplateDeleteInput) =>
+      invoke(ProjectIpc.TemplateDelete, input) as ReturnType<
+        DesktopApi['templateEditor']['remove']
+      >,
+    rename: (input: TemplateRenameInput) =>
+      invoke(ProjectIpc.TemplateRename, input) as ReturnType<
+        DesktopApi['templateEditor']['rename']
+      >,
+    trialRun: (input: TemplateTrialInput) =>
+      invoke(ProjectIpc.TemplateTrialRun, input) as ReturnType<
+        DesktopApi['templateEditor']['trialRun']
+      >
   }
 }
 

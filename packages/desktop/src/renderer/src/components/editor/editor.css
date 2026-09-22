@@ -450,7 +450,7 @@
   padding: 3px 6px;
 }
 
-/* 合并开关与「补齐合并」同一行：补齐是显式动作，不跟着复选框走 */
+/* 合并开关这一行：勾选即生效，没有第二个动作 */
 .be-table-merge-bar {
   display: flex;
   align-items: center;
@@ -701,6 +701,19 @@
   border-color: var(--accent);
   color: var(--accent);
   background: var(--accent-soft);
+}
+
+/* 锁定的内容在上面：这里不给插，按不了就得看得出来 */
+.np-insert-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.np-insert:hover .np-insert-btn:disabled {
+  opacity: 0.45;
+  border-color: var(--border-strong);
+  color: var(--text-3);
+  background: var(--bg-raised);
 }
 
 /* 插入菜单从按钮下方展开（末尾那个仍向上弹，见 .np-add-menu） */

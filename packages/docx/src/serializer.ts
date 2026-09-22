@@ -85,7 +85,7 @@ export function serializeWithWarnings(
   /** 各标题层级当前编号（下标=层级，1 起） */
   const counters: number[] = []
   /**
-   * 当前路径上实际存在的标题层级（升序，1 起）。副标题不入栈——它不占标题编号链，
+   * 当前路径上实际存在的标题层级（升序，1 起）。列表子标题不入栈——它不占标题编号链，
    * 所以栈顶 = 题注能挂靠的最近一个普通标题层级；缺层也不入栈，章节号按它拼就不会补 0。
    */
   const headingPath: number[] = []
@@ -109,7 +109,7 @@ export function serializeWithWarnings(
   /**
    * 章节号 = 当前生效的标题层级编号，按层级顺序用 '.' 拼（栈里没有的层级不占位、不留分隔符）。
    * 为什么这么拼：章节号要跟着标题走，所以只拼"这一层真出现过"的编号——缺层（标题 1 直挂标题 3）
-   * 不补 0；副标题不占编号链（只有普通标题进栈），它下面的题注挂到最近一个普通标题；
+   * 不补 0；列表子标题不占编号链（只有层级标题进栈），它下面的题注挂到最近一个层级标题；
    * 一个可挂靠的标题都没有时返回 null（见 emitCaption）。结果只由当前路径与计数器决定，重复算逐字相同。
    */
   const chapterNumberOf = (): { level: number; text: string } | null => {
@@ -159,7 +159,7 @@ export function serializeWithWarnings(
       // 章节号显式留空，writer 便不写那个固定的连字符，也就不会出现「表-1」这种残号。
       if (!warnedNoChapter) {
         warnedNoChapter = true
-        warnings.push('部分题注所在位置没有可用的标题层级，已按不带章节号的题注导出')
+        warnings.push('部分题注取不到章节号，已按不带章节号导出')
       }
       out.push({
         opType: 'InsertCaption',
@@ -358,8 +358,8 @@ function warnTableShape(node: DocumentNode, block: TableBlock, warnings: string[
   const label = caption.length > 0 ? `表格“${caption}”` : `“${node.title}”下的表格`
   // 后果按 writer.renderTable 的口径说：列数取表头、cols 与各行的最大值，短行补空格子
   warnings.push(
-    `${label}的形状与列数 ${block.cols} 对不上：${text}。` +
-      `导出按表头与最宽的一行为准写表，短行补空格子`
+    `${label}与设定的列数 ${block.cols} 不一致：${text}；` +
+      `导出按表头与最宽的一行为准，短行补空格子`
   )
 }
 
@@ -376,7 +376,7 @@ function tableIssueText(issue: TableShapeIssue, block: TableBlock): string {
     return `表头 ${block.headers.length} 列与列数 ${block.cols} 不一致`
   }
   if (issue.where === 'rows') {
-    return `行数写的是 ${block.rows}，比正文的 ${block.data.length} 行少`
+    return `设定了 ${block.rows} 行，正文只有 ${block.data.length} 行`
   }
   const hit = /^data\[(\d+)\]$/.exec(issue.where)
   if (hit) {

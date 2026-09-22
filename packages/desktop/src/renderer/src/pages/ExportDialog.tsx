@@ -61,18 +61,18 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
       if (f && f.total > 0) {
         if (f.unavailable) {
           // 转换服务整体不可用：total 张全都没嵌进去，不能让人以为正文里有图
-          figureText = f.total === 1 ? '（mmd-visio 已按文本导出）' : `（${f.total} 张图已按文本导出）`
+          figureText = f.total === 1 ? '（图以文本形式导出）' : `（${f.total} 张图以文本形式导出）`
         } else if (failCount === f.total) {
-          figureText = f.total === 1 ? '（mmd-visio 已按文本导出）' : `（${f.total} 张图已按文本导出）`
+          figureText = f.total === 1 ? '（图以文本形式导出）' : `（${f.total} 张图以文本形式导出）`
         } else if (failCount > 0) {
-          figureText = `（含 ${f.embedded} 张图，另有 ${failCount} 张失败）`
+          figureText = `（含 ${f.embedded} 张图，另有 ${failCount} 张以文本形式导出）`
         } else if (f.embedded > 0) {
           figureText = `（含 ${f.embedded} 张图）`
         }
       }
       const failText =
         failCount > 0
-          ? `；未能嵌入：${f!.failed
+          ? `；以文本形式导出：${f!.failed
               .slice(0, 3)
               .map((x) => `${x.caption}`)
               .join('、')}`
@@ -83,7 +83,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
       })
       onClose()
     } catch (err) {
-      showToast({ kind: 'error', text: `导出失败：${err instanceof Error ? err.message : String(err)}` })
+      showToast({ kind: 'error', text: `导出失败` })
     } finally {
       setBusy(false)
     }
@@ -132,11 +132,11 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
                     key={c.fileKey}
                     value={c.fileKey}
                     disabled={!c.available}
-                    title={c.available ? c.name : `不可用：${c.missingKeys.join('、')}`}
+                    title={c.available ? c.name : '不适用于这份文档的结构'}
                   >
                     {c.name} · v{c.version || '1.0'}
                     {c.isDefault ? '（默认）' : ''}
-                    {c.available ? '' : `（不可用：缺 ${c.missingKeys.join('、')}）`}
+                    {c.available ? '' : '（不适用）'}
                   </option>
                 ))}
               </select>
@@ -144,10 +144,8 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
             {!anyAvailable && (
               <p className="settings-hint export-style-desc">
                 {candidates.length > 0
-                  ? `样式与结构不匹配，缺少：${candidates
-                      .map((c) => c.missingKeys.join('、'))
-                      .join('；')}`
-                  : '结构模板未声明样式模板，请检查其 styleTemplates。'}
+                  ? '样式与这份文档的结构不匹配，换一份样式再导出。'
+                  : '结构模板没有声明样式模板。'}
               </p>
             )}
           </section>
@@ -156,16 +154,16 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
             <h3>图表嵌入</h3>
             {figures && (figures.images > 0 || figures.mermaid > 0) ? (
               <p className="settings-hint export-style-desc">
-                文档含 {figures.images} 张图片、{figures.mermaid} 幅 mmd-visio。
+                将一并嵌入 {figures.images + figures.mermaid} 张图
                 {figures.mermaid > 0 && !figures.mermaidAvailable && (
                   <span style={{ color: 'var(--danger)' }}>
                     {' '}
-                    转换组件不可用，mmd-visio 将按文本导出。
+                    · 其中 {figures.mermaid} 张以文本形式导出，双击编辑暂不可用
                   </span>
                 )}
               </p>
             ) : (
-              <p className="settings-hint export-style-desc">文档中没有图片或 mmd-visio。</p>
+              <p className="settings-hint export-style-desc">没有图片</p>
             )}
           </section>
 
@@ -173,8 +171,8 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
             <h3>表格</h3>
             <p className="settings-hint export-style-desc">
               {figures && figures.tables > 0
-                ? `文档含 ${figures.tables} 个表格，导出为 Word 原生表格（不需要嵌入，不依赖外部组件）。`
-                : '文档中没有表格。'}
+                ? `${figures.tables} 个表格按 Word 原生表格导出`
+                : '没有表格'}
             </p>
           </section>
 

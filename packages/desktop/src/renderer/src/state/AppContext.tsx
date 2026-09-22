@@ -85,6 +85,13 @@ interface AppContextValue {
   closeSettings: () => void
   openExport: () => void
   closeExport: () => void
+  /**
+   * 模板编辑页（PLAN-11 批次 2）：整页独立于文档会话——不打开工程、不进撤销栈，
+   * 页面自己的状态在 useTemplateEditor 里，这里只管它在不在最前面。
+   */
+  templateEditorOpen: boolean
+  openTemplateEditor: () => void
+  closeTemplateEditor: () => void
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -116,6 +123,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
   const [historyState, setHistoryState] = useState<HistoryStateDto>(EMPTY_HISTORY)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
+  const [templateEditorOpen, setTemplateEditorOpen] = useState(false)
   const toastTimer = useRef<number | undefined>(undefined)
   const flushesRef = useRef(new Set<() => void>())
 
@@ -183,7 +191,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         setSelectedId(saved && ids.includes(saved) ? saved : null)
         return true
       } catch (err) {
-        showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
+        showToast({ kind: 'error', text: '操作失败' })
         return false
       } finally {
         setBusy(false)
@@ -201,7 +209,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         setSelectedId(null)
         return true
       } catch (err) {
-        showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
+        showToast({ kind: 'error', text: '操作失败' })
         return false
       } finally {
         setBusy(false)
@@ -218,7 +226,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
     } catch (err) {
       showToast({
         kind: 'error',
-        text: `保存失败，未关闭工程：${err instanceof Error ? err.message : String(err)}`
+        text: '保存失败，未关闭工程'
       })
       return false
     }
@@ -236,7 +244,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
       showToast({ kind: 'info', text: `已保存 ${result.savedAt.slice(11, 19)}` })
       return true
     } catch (err) {
-      showToast({ kind: 'error', text: `保存失败：${err instanceof Error ? err.message : String(err)}` })
+      showToast({ kind: 'error', text: '保存失败' })
       return false
     }
   }, [flushAll, showToast])
@@ -278,7 +286,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         updateRoot((root) => updateNode(root, nodeId, { title }))
         refreshHistory()
       } catch (err) {
-        showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
+        showToast({ kind: 'error', text: '操作失败' })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -293,7 +301,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         updateRoot((root) => updateNode(root, nodeId, { description }))
         refreshHistory()
       } catch (err) {
-        showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
+        showToast({ kind: 'error', text: '操作失败' })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -313,7 +321,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         })
         refreshHistory()
       } catch (err) {
-        showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
+        showToast({ kind: 'error', text: '操作失败' })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -329,7 +337,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         setSelectedId((current) => (current === nodeId ? null : current))
         refreshHistory()
       } catch (err) {
-        showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
+        showToast({ kind: 'error', text: '操作失败' })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -345,7 +353,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         updateRoot((root) => addBlockOp(root, nodeId, block, index))
         refreshHistory()
       } catch (err) {
-        showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
+        showToast({ kind: 'error', text: '操作失败' })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -360,7 +368,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         updateRoot((root) => removeBlockAt(root, nodeId, index))
         refreshHistory()
       } catch (err) {
-        showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
+        showToast({ kind: 'error', text: '操作失败' })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -376,7 +384,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         updateRoot((root) => moveBlockIn(root, nodeId, from, to))
         refreshHistory()
       } catch (err) {
-        showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
+        showToast({ kind: 'error', text: '操作失败' })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -391,7 +399,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         updateRoot((root) => updateBlockOp(root, nodeId, index, block))
         refreshHistory()
       } catch (err) {
-        showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
+        showToast({ kind: 'error', text: '操作失败' })
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -456,9 +464,10 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
     [runHistory]
   )
 
-  // Ctrl+S 全局保存
+  // Ctrl+S 全局保存（模板编辑页打开时让位：那页保存的是模板文件，不是工程）
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
+      if (templateEditorOpen) return
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
         event.preventDefault()
         void saveProject()
@@ -466,7 +475,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [saveProject])
+  }, [saveProject, templateEditorOpen])
 
   /**
    * Ctrl+Z 撤销，Ctrl+Shift+Z / Ctrl+Y 重做。
@@ -482,13 +491,13 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
       const isUndo = key === 'z' && !event.shiftKey
       const isRedo = (key === 'z' && event.shiftKey) || (key === 'y' && !event.shiftKey)
       if (!isUndo && !isRedo) return
-      if (!session || settingsOpen || exportOpen) return
+      if (!session || settingsOpen || exportOpen || templateEditorOpen) return
       event.preventDefault()
       void (isUndo ? undo() : redo())
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [exportOpen, redo, session, settingsOpen, undo])
+  }, [exportOpen, redo, session, settingsOpen, templateEditorOpen, undo])
 
   const value = useMemo<AppContextValue>(
     () => ({
@@ -521,7 +530,10 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
       openSettings: () => setSettingsOpen(true),
       closeSettings: () => setSettingsOpen(false),
       openExport: () => setExportOpen(true),
-      closeExport: () => setExportOpen(false)
+      closeExport: () => setExportOpen(false),
+      templateEditorOpen,
+      openTemplateEditor: () => setTemplateEditorOpen(true),
+      closeTemplateEditor: () => setTemplateEditorOpen(false)
     }),
     [
       session,
@@ -549,7 +561,8 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
       registerFlushAll,
       flushAll,
       settingsOpen,
-      exportOpen
+      exportOpen,
+      templateEditorOpen
     ]
   )
 

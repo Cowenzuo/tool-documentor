@@ -33,7 +33,7 @@ export function CreateProjectWizard({
       return '还没有配置模板目录。请到 设置 → 模板目录 添加包含 manifest.json 的目录。'
     }
     const broken = configured.filter((d) => d.loadFailed)
-    if (broken.length === 0) return '模板目录里没有可用的结构模板。'
+    if (broken.length === 0) return '无可用结构模板'
     return broken
       .map((d) => {
         const why = !d.exists
@@ -141,7 +141,7 @@ export function CreateProjectWizard({
               ))}
               {visible.length === 0 && (
                 <div className="w-empty">
-                  {structures.length === 0 ? emptyHint : '该分类下暂无模板（可在设置中切换分类或添加模板目录）'}
+                  {structures.length === 0 ? emptyHint : '该分类下无模板'}
                 </div>
               )}
             </div>

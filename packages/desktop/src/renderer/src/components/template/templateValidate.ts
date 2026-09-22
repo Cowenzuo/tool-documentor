@@ -1,0 +1,434 @@
+/**
+ * 即时校验（渲染层）：结构模板的节点树与内容块规则，判定条件与文案逐条对齐
+ * `packages/templates/src/validate.ts` 的 `validateStructureTemplate`，
+ * 让人改动后立刻看到结论，而不是等到保存被主进程打回。
+ *
+ * 为什么是镜像而不是直接 import 那个包：它在模块顶层 import 了 `node:fs`
+ * （读骨架用），出口 index 还会带出 `manager.ts` → `@documentor/core`（库里带原生模块）。
+ * 渲染层打进浏览器包时，node 内置模块会被替换成只有 default 的 shim，具名导入当场报错。
+ * 所以这里只镜像**单份模板能判的规则**（文件级字段、节点开关、内容块字段、表格形状、
+ * 锁取值、复制组），目录与 manifest 级别的规则仍只由主进程报。
+ *
+ * 保存仍以主进程的校验为准：这里只决定按钮亮不亮、以及问题列表长什么样。
+ */
+import type { TemplateIssueDto } from '../../../../shared/project'
+
+export interface StructureValidateOptions {
+  /** 模板 id（目录名）；缺省取结构 JSON 的 name */
+  id?: string
+  /** manifest 里登记的文件名；给了才拼得出 structures/<id>/<file> 这种文件级措辞 */
+  file?: string
+}
+
+/** 认识的内容块类型（与 @documentor/core 的 BLOCK_TYPE_NAMES 同值同序） */
+const KNOWN_BLOCK_TYPES = [
+  'text',
+  'image',
+  'table',
+  'formula',
+  'code',
+  'mermaid',
+  'orderedList',
+  'unorderedList'
+] as const
+
+/** 块锁三档；顺序参与文案，不要调整 */
+const LOCK_TIERS = ['type', 'keep', 'readonly'] as const
+
+/** 与模板校验同法：任意 JSON 值按 JS 插值语义转成文案（undefined → "undefined"） */
+function text(value: unknown): string {
+  return String(value)
+}
+
+function asObject(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null
+}
+
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : []
+}
+
+function whereOf(trail: string): string {
+  return trail || '(root)'
+}
+
+/**
+ * 校验一份结构模板 JSON 原文（`{ name, root }`）。
+ * `path` 与主进程同一套写法：`root.children[2].contentBlocks[0].lock`。
+ */
+export function validateStructureDoc(
+  def: unknown,
+  opts: StructureValidateOptions = {}
+): TemplateIssueDto[] {
+  const out: TemplateIssueDto[] = []
+  const doc = asObject(def) ?? {}
+  const id = opts.id !== undefined && opts.id !== '' ? opts.id : text(doc['name'] ?? '') || '(未命名)'
+  const fileLabel = opts.file
+    ? `structures/${id}/${opts.file}`
+    : `structures/${id}`
+
+  if (!doc['name']) {
+    out.push({
+      level: 'error',
+      rule: 'structure.name.missing',
+      path: 'name',
+      message: `顶层name缺失`
+    })
+  }
+  const root = asObject(doc['root'])
+  if (!root) {
+    out.push({
+      level: 'error',
+      rule: 'structure.root.missing',
+      path: 'root',
+      message: `顶层root缺失`
+    })
+    return out
+  }
+  if (!doc['styleTemplate'] && !Array.isArray(doc['styleTemplates'])) {
+    out.push({
+      level: 'warn',
+      rule: 'structure.styleTemplate.absent',
+      path: 'styleTemplate',
+      message: `对照表未声明`
+    })
+  }
+
+  checkStructureNode(root, '', 'root', id, out)
+  checkCopyGroups(root, 'root', out)
+  return out
+}
+
+/** 一个节点与其内容块（对应主进程的 checkStructureNode） */
+function checkStructureNode(
+  node: Record<string, unknown>,
+  trail: string,
+  path: string,
+  id: string,
+  out: TemplateIssueDto[]
+): void {
+  const where = whereOf(trail)
+  const level = node['headingLevel']
+
+  if (node['title'] === undefined) {
+    out.push({
+      level: 'warn',
+      rule: 'node.title.missing',
+      path: `${path}.title`,
+      message: `title缺失`
+    })
+  }
+  // lock 是块级字段：写在节点上不生效，节点级仍用 copyable / deletable / allowContentBlocks
+  if ('lock' in node) {
+    out.push({
+      level: 'error',
+      rule: 'node.lock.misplaced',
+      path: `${path}.lock`,
+      message: `lock位置错误`
+    })
+  }
+  if (level !== undefined && (!Number.isInteger(level) || (level as number) < 0)) {
+    out.push({
+      level: 'error',
+      rule: 'node.headingLevel.invalid',
+      path: `${path}.headingLevel`,
+      message: `headingLevel非法`
+    })
+  }
+  if ((level as number) > 9) {
+    out.push({
+      level: 'warn',
+      rule: 'node.headingLevel.deep',
+      path: `${path}.headingLevel`,
+      message: `headingLevel超深`
+    })
+  }
+
+  // copyable/deletable 缺省是 false，漏写会锁死节点
+  if (
+    node['copyable'] === undefined &&
+    node['deletable'] === undefined &&
+    node['nodeType'] !== 'root'
+  ) {
+    out.push({
+      level: 'warn',
+      rule: 'node.switches.absent',
+      path,
+      message: `copyable / deletable未写`
+    })
+  }
+
+  const blocks = asArray(node['contentBlocks'])
+  for (let i = 0; i < blocks.length; i++) {
+    const b = asObject(blocks[i])
+    const bw = `${where} › 第 ${i + 1} 块`
+    const bp = `${path}.contentBlocks[${i}]`
+    if (!b) {
+      out.push({
+        level: 'error',
+        rule: 'block.type.unknown',
+        path: `${bp}.type`,
+        message: `${bw} · type 未知：${text(JSON.stringify(undefined))} · 该块会被丢弃`
+      })
+      continue
+    }
+    if (!(KNOWN_BLOCK_TYPES as readonly string[]).includes(text(b['type']))) {
+      out.push({
+        level: 'error',
+        rule: 'block.type.unknown',
+        path: `${bp}.type`,
+        message: `${bw} · type 未知：${text(JSON.stringify(b['type']))} · 该块会被丢弃`
+      })
+      continue
+    }
+    if (b['description'] !== undefined) {
+      out.push({
+        level: 'warn',
+        rule: 'block.description.unread',
+        path: `${bp}.description`,
+        message: `${bw} · description 写在块上不读取 · 说明应写在节点上`
+      })
+    }
+    // 块锁：只认 type / keep / readonly 三档，其它值程序按不锁处理并记警告
+    if (b['lock'] !== undefined && !(LOCK_TIERS as readonly string[]).includes(text(b['lock']))) {
+      out.push({
+        level: 'error',
+        rule: 'block.lock.invalid',
+        path: `${bp}.lock`,
+        message:
+          `${bw} · lock 取值 ${text(JSON.stringify(b['lock']))} 不属于 ` +
+          `${LOCK_TIERS.map((x) => `"${x}"`).join(' / ')} · 按不锁处理`
+      })
+    }
+    // 反向也别混：节点级字段写到块上程序不读
+    for (const k of [
+      'copyable',
+      'deletable',
+      'allowContentBlocks',
+      'headingLevel',
+      'title',
+      'children'
+    ]) {
+      if (k in b) {
+        out.push({
+          level: 'error',
+          rule: 'block.nodeField.misplaced',
+          path: `${bp}.${k}`,
+          message: `${bw} · ${k} 是节点级字段 · 块上不读取`
+        })
+      }
+    }
+    if (b['type'] === 'text' && typeof b['content'] !== 'string') {
+      out.push({
+        level: 'error',
+        rule: 'block.text.content',
+        path: `${bp}.content`,
+        message: `${bw} · content缺失`
+      })
+    }
+    if (
+      (b['type'] === 'orderedList' || b['type'] === 'unorderedList') &&
+      !Array.isArray(b['items'])
+    ) {
+      out.push({
+        level: 'error',
+        rule: 'block.list.items',
+        path: `${bp}.items`,
+        message: `${bw} · items缺失`
+      })
+    }
+    if (b['type'] === 'image') {
+      if (typeof b['content'] !== 'string') {
+        out.push({
+          level: 'error',
+          rule: 'block.image.content',
+          path: `${bp}.content`,
+          message: `${bw} · content缺失`
+        })
+      }
+      if (!b['caption']) {
+        out.push({
+          level: 'warn',
+          rule: 'block.image.caption',
+          path: `${bp}.caption`,
+          message: `${bw} · 无 caption · 导出无图题`
+        })
+      }
+    }
+    if (b['type'] === 'mermaid') {
+      if (!b['content']) {
+        out.push({
+          level: 'error',
+          rule: 'block.mermaid.content',
+          path: `${bp}.content`,
+          message: `${bw} · content缺失`
+        })
+      }
+      if (!b['caption']) {
+        out.push({
+          level: 'warn',
+          rule: 'block.mermaid.caption',
+          path: `${bp}.caption`,
+          message: `${bw} · 无 caption · 导出无图题`
+        })
+      }
+    }
+    if (b['type'] === 'code' && typeof b['content'] !== 'string') {
+      out.push({
+        level: 'error',
+        rule: 'block.code.content',
+        path: `${bp}.content`,
+        message: `${bw} · code 缺 content`
+      })
+    }
+
+    if (b['type'] === 'table') checkTableBlock(b, bw, bp, out)
+  }
+
+  const children = asArray(node['children'])
+  for (let i = 0; i < children.length; i++) {
+    const child = asObject(children[i])
+    if (!child) continue
+    const childTrail = `${trail}/${text(node['title'] ?? '?')}`
+    checkStructureNode(child, childTrail, `${path}.children[${i}]`, id, out)
+  }
+}
+
+/** 表格块的形状检查（对应主进程的 checkTableBlock） */
+function checkTableBlock(
+  b: Record<string, unknown>,
+  bw: string,
+  bp: string,
+  out: TemplateIssueDto[]
+): void {
+  const cols = Number(b['cols'])
+  if (!Number.isInteger(cols) || cols <= 0) {
+    out.push({
+      level: 'error',
+      rule: 'block.table.cols',
+      path: `${bp}.cols`,
+      message: `${bw} · cols 非法：${text(JSON.stringify(b['cols']))}`
+    })
+  }
+  if (!Array.isArray(b['headers'])) {
+    out.push({
+      level: 'error',
+      rule: 'block.table.headers',
+      path: `${bp}.headers`,
+      message: `${bw} · headers 需为字符串数组`
+    })
+  } else if (b['headers'].length !== cols) {
+    out.push({
+      level: 'error',
+      rule: 'block.table.headers.length',
+      path: `${bp}.headers`,
+      message: `${bw} · headers ${b['headers'].length} 列 ≠ cols ${cols}`
+    })
+  }
+  if (!Array.isArray(b['data'])) {
+    out.push({
+      level: 'error',
+      rule: 'block.table.data',
+      path: `${bp}.data`,
+      message: `${bw} · data 需为二维字符串数组`
+    })
+  } else {
+    const data = b['data']
+    const badRows = data.filter((r) => !Array.isArray(r))
+    if (badRows.length > 0) {
+      out.push({
+        level: 'error',
+        rule: 'block.table.data.rowNotArray',
+        path: `${bp}.data`,
+        message:
+          `${bw} · data 有 ${badRows.length}/${data.length} 行不是数组 · 例 ` +
+          `${text(JSON.stringify(badRows[0]))}`
+      })
+    } else {
+      const wrong = data.filter((r) => (r as unknown[]).length !== cols)
+      if (wrong.length > 0) {
+        out.push({
+          level: 'error',
+          rule: 'block.table.data.rowLength',
+          path: `${bp}.data`,
+          message:
+            `${bw} · data 有 ${wrong.length} 行列数 ≠ cols ${cols} · 例 ` +
+            `${text(JSON.stringify(wrong[0])).slice(0, 60)}`
+        })
+      }
+      // 两种口径都接受：rows = 正文行数，或 rows = 正文行数 + 1（把表头算进去）
+      const declared = Number(b['rows'])
+      if (declared !== data.length && declared !== data.length + 1) {
+        out.push({
+          level: 'warn',
+          rule: 'block.table.rows',
+          path: `${bp}.rows`,
+          message:
+            `${bw} · rows=${text(b['rows'])} ≠ 正文行数 ${data.length}，也不是含表头的 ` +
+            `${data.length + 1} · 渲染取 min(rows, data.length)`
+        })
+      }
+    }
+  }
+  if (b['mergeVertical'] === true && Array.isArray(b['data'])) {
+    // 与主进程同一口径：mergeVertical 现在会被读进工程（PLAN-06），不再报"程序不读"。
+    // 只留"开了开关但 data 全空"这条真的会导致合并不上来的提示。
+    const data = b['data']
+    const flat = data.flat()
+    const filled = flat.filter((c) => typeof c === 'string' && c.trim() !== '').length
+    if (filled === 0) {
+      out.push({
+        level: 'warn',
+        rule: 'block.table.mergeVertical.empty',
+        path: `${bp}.data`,
+        message: `${bw} · data 全为空 · 合并不生效`
+      })
+    }
+  }
+}
+
+/** 复制组检查：只判"有 copyGroupId 但 copyable 不是 true" */
+function checkCopyGroups(node: Record<string, unknown>, path: string, out: TemplateIssueDto[]): void {
+  const children = asArray(node['children'])
+  for (let i = 0; i < children.length; i++) {
+    const c = asObject(children[i])
+    if (!c) continue
+    const childPath = `${path}.children[${i}]`
+    if (c['copyGroupId']) {
+      if (c['copyable'] !== true) {
+        out.push({
+          level: 'warn',
+          rule: 'node.copyGroup.notCopyable',
+          path: `${childPath}.copyable`,
+          message:
+            `节点「${text(c['title'])}」有 copyGroupId=${text(c['copyGroupId'])} 但 copyable 不是 true，` +
+            `用户复制不了它`
+        })
+      }
+    }
+    checkCopyGroups(c, childPath, out)
+  }
+}
+
+/** error / warn 计数：顶部与列表徽标都用它 */
+export function countIssues(issues: readonly TemplateIssueDto[]): { errors: number; warnings: number } {
+  let errors = 0
+  let warnings = 0
+  for (const issue of issues) {
+    if (issue.level === 'error') errors += 1
+    else warnings += 1
+  }
+  return { errors, warnings }
+}
+
+/** 这条结论落在不在某个位置下面（节点用它的 JSON 路径，块用 `${节点路径}.contentBlocks[i]`） */
+export function issuesUnder(
+  issues: readonly TemplateIssueDto[],
+  path: string
+): TemplateIssueDto[] {
+  return issues.filter(
+    (issue) => issue.path === path || issue.path.startsWith(`${path}.`)
+  )
+}

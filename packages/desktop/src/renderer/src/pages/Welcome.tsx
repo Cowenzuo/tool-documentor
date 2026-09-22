@@ -17,7 +17,7 @@ interface RecentItem {
 }
 
 export default function Welcome(): JSX.Element {
-  const { openProjectByPath, busy } = useApp()
+  const { openProjectByPath, busy, openTemplateEditor } = useApp()
   const [wizardOpen, setWizardOpen] = useState(false)
   const [recents, setRecents] = useState<RecentItem[]>([])
   const [version, setVersion] = useState('')
@@ -70,6 +70,17 @@ export default function Welcome(): JSX.Element {
                 onClick={() => void openFile()}
               >
                 打开工程…
+              </button>
+              {/* 模板编辑与工程无关（不打开工程、不进撤销栈），所以就在主页面这一排里，
+                  不用先新建/打开一个工程再绕进设置 */}
+              <button
+                type="button"
+                className="btn-secondary btn-xl"
+                disabled={busy}
+                title="编辑本机模板目录"
+                onClick={openTemplateEditor}
+              >
+                模板编辑
               </button>
             </div>
           </aside>

@@ -56,7 +56,7 @@ function RevealFolderButton(): React.JSX.Element | null {
       onClick={() => {
         // 成功不弹提示：资源管理器已经打开了，再报一次是噪音；失败必须说出来
         void window.documentor.project.revealFolder().catch((err: unknown) => {
-          showToast({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
+          showToast({ kind: 'error', text: '操作失败' })
         })
       }}
       title="在文件管理器里打开工程目录"

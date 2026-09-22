@@ -110,7 +110,7 @@ export async function embedVsdxIntoDocx(
   }
   if (holderIdx.length !== figures.length) {
     warnings.push(
-      `图与插入位置数量不一致：文档中 ${holderIdx.length} 处，待嵌入 ${figures.length} 张，按 ${Math.min(holderIdx.length, figures.length)} 张处理`
+      `图与插入位置的数量对不上：文档里 ${holderIdx.length} 处、图 ${figures.length} 张，按 ${Math.min(holderIdx.length, figures.length)} 张处理`
     )
   }
 
@@ -135,7 +135,7 @@ export async function embedVsdxIntoDocx(
     const fig = figures[k]
     if (!fig || !fig.vsdx) continue // 转换失败的槽位：保留占位文本
     if (seen.has(fig.name)) {
-      warnings.push(`「${fig.name}」文件名重复，已跳过嵌入`)
+      warnings.push(`「${fig.name}」重名，这一张跳过`)
       continue
     }
     seen.add(fig.name)

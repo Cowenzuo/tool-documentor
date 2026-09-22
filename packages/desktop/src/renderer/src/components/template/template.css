@@ -1,0 +1,1661 @@
+/*
+ * 模板编辑页样式（PLAN-11 批次 2）。
+ * 只用既有 token（颜色/间距/圆角/字号），不引新颜色；
+ * 类名统一 tpl- 前缀、自带控件样式，这一页不依赖 editor.css——
+ * 它是独立页，将来单独成窗口或单独入口时样式不会跟着编辑器一起消失。
+ * 三栏都允许收缩（min-width: 0 + overflow），窄窗口下不溢出。
+ */
+
+/* ===== 页壳 ===== */
+.tpl-page {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-app);
+  /* 控件高度只认这一个值：图标按钮、输入框、下拉、小文字按钮都跟它一样高，
+     一行里就不会出现"按钮比旁边的框矮一截"。文字行也按这个高度对齐。 */
+  --tpl-ctl-h: 28px;
+}
+
+.tpl-top {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+
+/* 只给读屏看的文字：这一页不借 editor.css 的 .sr-only，自己留一份 */
+.tpl-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.tpl-dir {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  /* 目录路径通常 40+ 字符：标题栏里的富余宽度优先给这一块，路径不许只露半截 */
+  flex: 4 1 360px;
+  max-width: min(72vw, 920px);
+}
+
+.tpl-dir-select {
+  /* .tpl-select 的 width: 100% 在 flex 行里算不出"内容想要多宽"，
+     这里改成按富余空间分：有地方就铺开，窗口窄了才收 */
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.tpl-top-counts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* 标题栏里的状态小字同样不许被挤成两行（中文会逐字折行，光看溢出看不出来） */
+.tpl-top .tpl-count {
+  flex: none;
+  white-space: nowrap;
+}
+
+.tpl-top-gap {
+  flex: 1 1 0;
+}
+
+/* 「模板目录」四个字顶上原来那个「模板编辑」标题的位置，所以用它那套标题样式：
+   16px / 650 字重 / 主文字色。下拉跟在后面，仍占标题栏的富余宽度。 */
+.tpl-dir-label {
+  flex: none;
+  white-space: nowrap;
+  font-size: var(--text-lg);
+  font-weight: 650;
+  color: var(--text-1);
+}
+
+/* 草稿状态灯：红=有错误（挡住保存）、琥珀=有未保存的改动、绿=与文件一致。
+   文字只留最短一句，完整理由在悬停提示里；它排在「保存 / 退出」两个按钮的左侧。 */
+.tpl-draft {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  cursor: help;
+}
+
+.tpl-draft-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+.tpl-draft.is-dirty {
+  color: var(--text-2);
+}
+
+.tpl-draft.is-dirty .tpl-draft-dot {
+  background: var(--warning);
+}
+
+.tpl-draft.is-blocked {
+  color: var(--danger);
+}
+
+.tpl-draft.is-blocked .tpl-draft-dot {
+  background: var(--danger);
+}
+
+/* ===== 状态栏里的消息 ===== */
+/* 操作回执在状态栏里的一条：一句话 + 可选的详情按钮 + 关掉。
+   一行放不下就省略号收尾（长内容走浮层，见 .tpl-pop）——状态栏高度是固定的。 */
+.tpl-status {
+  flex: 0 1 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: 100%;
+  font-size: var(--text-xs);
+  color: var(--text-1);
+}
+
+.tpl-status-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tpl-status-error {
+  color: var(--danger);
+}
+
+.tpl-status-warn {
+  color: var(--warning);
+}
+
+/* 「有未保存的改动」这种要你先点一下的：在状态栏里挑出来（底色 + 内边距），
+   不然它混在普通回执里容易被当成"又一条提示"划过去 */
+.tpl-status-alert {
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+}
+
+/* ===== 三栏 =====
+   左（模板列表）与中（节点树）都是窄栏，右边那栏表单/内容块占主要面积：
+   模板与节点都是"选一个"，真正要填的是右侧的字段与内容块。
+   宽度由页面按 localStorage 记的值写进 grid-template-columns（可拖，见 .tpl-split），
+   所以这里不写死列宽，只兜底一个默认值。 */
+.tpl-body {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 244px 5px 292px 5px minmax(0, 1fr);
+  /* 单行也要夹住：auto 行按内容撑高的话，内容长的那一栏（对照表 22 行、长表单）
+     会把三栏连同整页一起顶高，页脚跟着跑出窗口。夹成 minmax(0, 1fr) 后，
+     高的只有栏内部那份自己的滚动条 */
+  grid-template-rows: minmax(0, 1fr);
+}
+
+/* 三栏之间的拖拽分隔条：宽度必须与页面里的 HANDLE 常量一致 */
+.tpl-split {
+  cursor: col-resize;
+  background: transparent;
+  border-left: 1px solid var(--border);
+  transition: background-color var(--duration-fast) ease;
+}
+
+.tpl-split:hover,
+.tpl-split:focus-visible,
+body.is-splitting .tpl-split {
+  background: var(--accent-soft-strong);
+  outline: none;
+}
+
+/* 拖动期间整页一个光标：跟主编辑器的分隔条同一套 body 类 */
+body.is-splitting {
+  cursor: col-resize;
+  user-select: none;
+}
+
+.tpl-col {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tpl-col-list {
+  background: var(--bg-panel);
+}
+
+.tpl-col-tree {
+  background: var(--bg-app);
+}
+
+.tpl-col-insp {
+  background: var(--bg-app);
+}
+
+.tpl-col-head {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  /* 栏头里可能挤着标题 + 一排图标按钮（节点树那一栏）：间距小一点，
+     默认列宽下能排成一行；真放不下时整组换行，不横向溢出 */
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  min-width: 0;
+}
+
+.tpl-col-head h2 {
+  margin: 0;
+  /* 行盒与按钮同高：栏头里的字和图标按钮在同一条基线上 */
+  line-height: var(--tpl-ctl-h);
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-1);
+  flex: none;
+}
+
+/* 栏头里的 JSON 路径：占住整行剩余宽度，一行显示；真放不下才省略（鼠标停上去看全） */
+.tpl-col-head .tpl-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.tpl-col-tools {
+  margin-left: auto;
+  display: flex;
+  gap: var(--space-1);
+  flex: none;
+}
+
+.tpl-col-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-2) var(--space-3) var(--space-6);
+}
+
+.tpl-empty {
+  margin: var(--space-3) 0;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+.tpl-count {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+.tpl-note {
+  margin: var(--space-1) 0 var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  line-height: 1.6;
+}
+
+.tpl-note-bad {
+  color: var(--danger);
+}
+
+/* ===== 左栏：模板列表 ===== */
+.tpl-section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 var(--space-2);
+}
+
+.tpl-section-head h3 {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.tpl-section-head .tpl-mini {
+  margin-left: auto;
+}
+
+/* 这一段的动作（新建）靠到行的右端：左边是标题，右边是"对整段做什么" */
+.tpl-section-head .tpl-icon-btn {
+  margin-left: auto;
+}
+
+.tpl-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tpl-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 5px 8px;
+  border-radius: var(--radius-control);
+  text-align: left;
+  min-width: 0;
+  color: var(--text-1);
+}
+
+.tpl-item:hover {
+  background: var(--bg-hover);
+}
+
+.tpl-item.is-selected {
+  background: var(--accent-soft);
+}
+
+.tpl-item-name {
+  /* 名字按内容宽：徽标要跟在名字后面（问题徽标属于这一份模板），
+     尾部的 id 用 margin-left: auto 贴右边 */
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+}
+
+.tpl-item.is-selected .tpl-item-name {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.tpl-item-id {
+  flex: none;
+  margin-left: auto;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.tpl-badges {
+  flex: none;
+  display: flex;
+  gap: 4px;
+}
+
+/* 左栏模板项上的问题计数徽标：按内容宽（一两位数都要装得下） */
+.tpl-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  background: var(--bg-active);
+  color: var(--text-2);
+}
+
+.tpl-badge-error {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+}
+
+.tpl-badge-warn {
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning);
+}
+
+.tpl-dir-issues {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  margin-bottom: var(--space-2);
+  border-radius: var(--radius-control);
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+}
+
+/* ===== 表单与控件 ===== */
+.tpl-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  margin: var(--space-1) 0 var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-card);
+  background: var(--bg-raised);
+}
+
+.tpl-form-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+/* 表单节奏：标签只留人话（JSON 键在悬停提示里），所以标签行短、字段之间可以贴紧些 */
+.tpl-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: var(--space-2);
+  min-width: 0;
+}
+
+.tpl-field-label {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  cursor: help;
+}
+
+.tpl-field-hint {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.tpl-input,
+.tpl-select,
+.tpl-textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-input);
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  font-family: inherit;
+}
+
+/* 单行控件与图标按钮同高（见 .tpl-page 的 --tpl-ctl-h），多行文本域自己按行数长 */
+.tpl-input,
+.tpl-select {
+  height: var(--tpl-ctl-h);
+  padding: 0 10px;
+}
+
+.tpl-textarea {
+  padding: 5px 10px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.tpl-input:focus,
+.tpl-select:focus,
+.tpl-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.tpl-number {
+  max-width: 120px;
+}
+
+.tpl-mono {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.tpl-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.tpl-readonly {
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  padding: 5px 0;
+}
+
+/* 右栏变宽了，字段最小宽度跟着抬一点：不然一行会摊出五六列窄输入框 */
+.tpl-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0 var(--space-3);
+}
+
+.tpl-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0 var(--space-3);
+}
+
+.tpl-mini {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  height: var(--tpl-ctl-h);
+  padding: 0 12px;
+  font-size: var(--text-xs);
+  color: var(--text-1);
+  background: transparent;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+/* 小按钮一律走图标：无边框小方块，悬停才出底色，含义靠 title 与 aria-label。
+   高度与同一行的输入框、下拉、小文字按钮一致（--tpl-ctl-h），宽度也就跟高度走。 */
+.tpl-icon-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tpl-ctl-h);
+  height: var(--tpl-ctl-h);
+  border-radius: var(--radius-control);
+  color: var(--text-2);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.tpl-icon-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-1);
+}
+
+.tpl-icon-btn.tpl-danger:hover:not(:disabled) {
+  background: var(--danger);
+  color: #fff;
+}
+
+.tpl-icon-btn:disabled {
+  opacity: 0.3;
+}
+
+.tpl-mini:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.tpl-mini:disabled {
+  opacity: 0.45;
+}
+
+.tpl-mini.tpl-primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--on-accent);
+}
+
+.tpl-mini.tpl-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.tpl-mini.tpl-danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.tpl-mini.tpl-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.tpl-inline-action {
+  align-self: flex-start;
+  margin-bottom: var(--space-2);
+}
+
+/* 夹在一句说明中间的按钮（例如「改成 2 级」）：跟着句子走，别另起一行 */
+.tpl-note .tpl-inline-action {
+  margin: 0 0 0 var(--space-2);
+}
+
+/* 一行放几个字段：标题 / 类型（三个开关也排在这一行的标签线上）；窄了自动换行 */
+.tpl-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.tpl-row > .tpl-field {
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+/* 第一行：标题占大份，类型够用就行 */
+.tpl-row > .tpl-field:first-child {
+  flex: 1 1 220px;
+}
+
+.tpl-row > .tpl-field + .tpl-field {
+  flex: 0 1 132px;
+}
+
+/* 标签那一行：标签字样 + 搭在它右边的零碎（节点那三个开关）。
+   零碎只吃标签行里的空处，不参与字段宽度分配——输入框与下拉都不会被挤窄。 */
+.tpl-field-label-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+/* 三个开关（复制/裁剪/编辑）：紧跟在「标题」字样右侧，与标签同一行、同一个字号 */
+.tpl-switches {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  min-width: 0;
+  font-size: var(--text-xs);
+}
+
+.tpl-switches .tpl-switch {
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+/* ===== 中栏：节点树 ===== */
+.tpl-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: var(--radius-control);
+  min-width: 0;
+  cursor: default;
+}
+
+.tpl-tree-row:hover {
+  background: var(--bg-hover);
+}
+
+.tpl-tree-row.is-selected {
+  background: var(--accent-soft);
+}
+
+.tpl-tree-row.is-root {
+  font-weight: 650;
+}
+
+.tpl-tree-row.is-selected .tpl-tree-title {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.tpl-tree-caret {
+  flex: none;
+  width: 16px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: var(--text-3);
+}
+
+.tpl-tree-caret:hover {
+  background: var(--bg-active);
+  color: var(--text-1);
+}
+
+.tpl-tree-caret svg {
+  transition: transform var(--duration-fast) ease;
+}
+
+.tpl-tree-caret svg.open {
+  transform: rotate(0deg);
+}
+
+.tpl-tree-caret svg:not(.open) {
+  transform: rotate(-90deg);
+}
+
+/* 页内右键菜单（节点树 / 模板列表共用）：与主编辑器的章节菜单同一套语言——
+   菜单头写清这单冲着谁，按不了的项目在悬停提示里说明原因 */
+.tpl-tree-menu,
+.tpl-list-menu,
+.tpl-block-menu {
+  position: fixed;
+  z-index: 120;
+  min-width: 152px;
+  max-width: 260px;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-1);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-overlay);
+  box-shadow: var(--overlay-shadow);
+}
+
+.tpl-tree-menu-head,
+.tpl-list-menu-head,
+.tpl-block-menu-head {
+  padding: 6px 12px;
+  margin-bottom: var(--space-1);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tpl-tree-menu button,
+.tpl-list-menu button,
+.tpl-block-menu button {
+  width: 100%;
+  text-align: left;
+  padding: 7px 12px;
+  border-radius: var(--radius-control);
+  font-size: var(--text-sm);
+  color: var(--text-1);
+}
+
+.tpl-tree-menu button:hover:not(:disabled),
+.tpl-list-menu button:hover:not(:disabled),
+.tpl-block-menu button:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.tpl-tree-menu button.danger,
+.tpl-list-menu button.danger,
+.tpl-block-menu button.danger {
+  color: var(--danger);
+}
+
+.tpl-tree-menu button:disabled,
+.tpl-list-menu button:disabled,
+.tpl-block-menu button:disabled {
+  color: var(--text-3);
+  cursor: not-allowed;
+}
+
+/* 层级标记：与常规文档编辑的结构栏同一套尺码与配色——
+   根=品牌色块、常规标题=素色数字、副标题=带色圆圈数字（同级里第几项） */
+.tpl-tree-badge {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: var(--bg-active);
+  color: var(--text-2);
+  font-size: 10.5px;
+  font-weight: 650;
+}
+
+/* 层级标题：素色数字，数字本身就是层级 */
+.tpl-tree-badge-level {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 副标题：带色圆圈数字，颜色按层级区分，与层级标题的素色数字一眼分得开 */
+.tpl-tree-badge-list {
+  background: color-mix(in srgb, var(--lv-1) 16%, transparent);
+  color: var(--lv-1);
+  font-size: 12px;
+}
+
+.tpl-tree-badge-list.lv2 {
+  background: color-mix(in srgb, var(--lv-2) 16%, transparent);
+  color: var(--lv-2);
+}
+
+.tpl-tree-badge-list.lv3 {
+  background: color-mix(in srgb, var(--lv-3) 16%, transparent);
+  color: var(--lv-3);
+}
+
+.tpl-tree-badge-list.lv4 {
+  background: color-mix(in srgb, var(--lv-4) 16%, transparent);
+  color: var(--lv-4);
+}
+
+.tpl-tree-badge-list.lv5 {
+  background: color-mix(in srgb, var(--lv-5) 16%, transparent);
+  color: var(--lv-5);
+}
+
+.tpl-tree-badge-root {
+  background: var(--gradient-brand);
+  color: #fff;
+}
+.tpl-tree-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  color: var(--text-1);
+}
+
+.tpl-tree-type {
+  flex: none;
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10.5px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--bg-active);
+  color: var(--text-2);
+}
+
+.tpl-tree-count {
+  flex: none;
+  font-size: 10.5px;
+  color: var(--text-3);
+}
+
+.tpl-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.tpl-dot-error {
+  background: var(--danger);
+}
+
+.tpl-dot-warn {
+  background: var(--warning);
+}
+
+/* ===== 右栏：节点表单与内容块 ===== */
+.tpl-blocks {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.tpl-blocks-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.tpl-blocks-head h3 {
+  margin: 0;
+  line-height: var(--tpl-ctl-h);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+/* 块间的缝：悬停或开着菜单时才显形——平时不占视线，鼠标扫过去就知道这里能插 */
+.tpl-block-slot {
+  display: flex;
+  flex-direction: column;
+}
+
+.tpl-insert {
+  position: relative;
+  height: 10px;
+  margin-bottom: -5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.tpl-insert-btn {
+  opacity: 0;
+  height: 20px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-raised);
+  color: var(--text-2);
+  font-size: var(--text-xs);
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.tpl-insert:hover .tpl-insert-btn,
+.tpl-insert.is-open .tpl-insert-btn,
+.tpl-insert-btn:focus-visible {
+  opacity: 1;
+}
+
+.tpl-insert-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* 末尾追加：虚线框 */
+.tpl-add {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding: var(--space-2) 0;
+}
+
+.tpl-add-btn {
+  border: 1px dashed var(--border-strong);
+  color: var(--text-2);
+  border-radius: var(--radius-control);
+  padding: 7px 18px;
+  font-size: var(--text-sm);
+  transition: all var(--duration-fast) ease;
+}
+
+.tpl-add-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* 类型菜单：人话名字 + 一句说明；从缝里往下弹，从末尾那个框往上弹 */
+.tpl-add-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 300px;
+  max-height: 320px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-1);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-overlay);
+  box-shadow: var(--overlay-shadow);
+  z-index: 80;
+}
+
+.tpl-insert .tpl-add-menu {
+  top: 100%;
+  bottom: auto;
+}
+
+.tpl-add-menu button {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: var(--radius-control);
+  text-align: left;
+}
+
+.tpl-add-menu button:hover {
+  background: var(--bg-hover);
+}
+
+.tpl-add-label {
+  flex: none;
+  font-size: var(--text-sm);
+  color: var(--text-1);
+}
+
+.tpl-add-desc {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+.tpl-block {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--bg-panel);
+  margin-bottom: var(--space-2);
+}
+
+.tpl-block.is-open {
+  border-color: var(--border-strong);
+}
+
+.tpl-block.has-error {
+  border-color: color-mix(in srgb, var(--danger) 60%, var(--border));
+}
+
+.tpl-block-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px var(--space-2);
+  border-bottom: 1px solid var(--border);
+  min-width: 0;
+}
+
+.tpl-block:not(.is-open) .tpl-block-head {
+  border-bottom: none;
+}
+
+/* 展开箭头：与中栏节点树的收放一个语言 */
+.tpl-block-toggle {
+  flex: none;
+  width: 16px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: var(--text-3);
+}
+
+.tpl-block-toggle:hover {
+  background: var(--bg-active);
+  color: var(--text-1);
+}
+
+.tpl-block-toggle svg {
+  transition: transform var(--duration-fast) ease;
+}
+
+.tpl-block-toggle svg.open {
+  transform: rotate(0deg);
+}
+
+.tpl-block-toggle svg:not(.open) {
+  transform: rotate(-90deg);
+}
+
+.tpl-block-title {
+  flex: none;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.tpl-block.is-open .tpl-block-title {
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+/* 收起时的一行摘要：占满剩余宽度，不换行 */
+.tpl-block-summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+.tpl-block-actions {
+  flex: none;
+  /* 卡片动作贴右：展开的卡片没有摘要撑着，不加这句按钮会挤在标题后面 */
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+
+.tpl-block-body {
+  padding: var(--space-2) var(--space-3);
+}
+
+.tpl-tag {
+  flex: none;
+  font-size: 10.5px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* ===== 校验结论 ===== */
+.tpl-issue-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: var(--space-2);
+}
+
+.tpl-issue {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.6;
+}
+
+.tpl-issue-text {
+  margin-right: 6px;
+}
+
+/* 结论的位置：人话的标题串（示例文档 › 需求 · 第 2 块）。
+   页脚那份总清单里点一下就跳到那个节点，所以做成按钮的样子（虚线下划线，悬停变色） */
+.tpl-issue-where {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+button.tpl-issue-where {
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+button.tpl-issue-where:hover {
+  color: var(--text-1);
+}
+
+/* 右栏栏头里的位置：占住剩余宽度，一行显示；JSON 路径挂在悬停提示里 */
+.tpl-where {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  cursor: help;
+}
+
+/* 级别：程序算的（新建节点时按父节点 +1），只显示不可填，也没必要标"不一致" */
+.tpl-level {
+  flex: none;
+  font-size: var(--text-xs);
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--bg-active);
+  color: var(--text-2);
+  cursor: help;
+}
+
+.tpl-issue-error {
+  color: var(--danger);
+}
+
+.tpl-issue-warn {
+  color: var(--warning);
+}
+
+.tpl-path {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+  word-break: break-all;
+}
+
+/* ===== 页脚（状态栏）：固定一行高 =====
+   一条操作回执 / 一次确认 + 校验小结 + 保存按钮。
+   再长也不许把这一条撑起来：备份位置、报错原文、问题索引都走浮层（见 .tpl-pop），
+   撑起来就会把三栏挤矮一截，看着像页面在抖。
+   **这里不能写 overflow: hidden**：浮层是从这一条往上弹的（bottom: 100% + 6px），
+   被裁掉就等于弹窗看不见——长内容各自收（.tpl-status-text 省略号、浮层自己滚动），
+   不靠父元素裁。 */
+.tpl-foot {
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  height: calc(var(--tpl-ctl-h) + var(--space-4) + 1px);
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+
+/* 校验小结靠右：左边是"刚刚发生了什么"，右边是"现在有没有问题" */
+.tpl-foot-issues {
+  position: relative;
+  flex: 0 1 auto;
+  margin-left: auto;
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}
+
+/* 状态栏里的浮层：挂在触发它的那个小结/回执上方，不参与排版 */
+.tpl-pop-host {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.tpl-pop-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+  color: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+
+.tpl-pop-trigger:hover {
+  color: var(--text-1);
+}
+
+.tpl-pop-caret {
+  color: var(--text-3);
+}
+
+.tpl-pop {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  max-width: min(560px, 70vw);
+  max-height: 40vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-overlay);
+  box-shadow: var(--overlay-shadow);
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}
+
+.tpl-pop-wide {
+  right: 0;
+  left: auto;
+}
+
+.tpl-pop-text {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+  white-space: pre;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.tpl-pop.is-error .tpl-pop-text {
+  color: var(--danger);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.tpl-pop-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+
+.tpl-pop-where {
+  color: var(--text-1);
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.tpl-pop-where.is-plain {
+  color: var(--text-3);
+  text-decoration: none;
+}
+
+.tpl-pop-msg {
+  flex: 1 1 100%;
+  color: var(--text-3);
+  line-height: 1.6;
+}
+
+/* ===== 窄窗口：列宽由页面按容器宽度按比例收（见 TemplateEditorPage 的 layout），
+   这里只管窄窗口下另一些该收的东西 ===== */
+/* ===== 样式对照表（打开样式模板时占中栏 + 右栏两栏的位置）=====
+   一行五列：逻辑键 / 用途 / 当前映射 / 必需 / 状态与回退。
+   行宽信息量大，所以自带一个小表头（sticky），滚动时列名不跟着跑。 */
+.tpl-col-map {
+  background: var(--bg-app);
+  /* 中栏与右栏两栏的位置都归它：树与节点表单在样式视图里不出现 */
+  grid-column: 3 / -1;
+}
+
+.tpl-col-hint {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+.tpl-map-body {
+  padding-top: var(--space-3);
+}
+
+.tpl-map-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: var(--space-3);
+}
+
+.tpl-map-meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.tpl-map-bad {
+  color: var(--warning);
+}
+
+.tpl-map {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.tpl-map th,
+.tpl-map td {
+  text-align: left;
+  vertical-align: top;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-xs);
+  line-height: 1.55;
+}
+
+.tpl-map thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-panel);
+  color: var(--text-3);
+  font-weight: 600;
+}
+
+/* 列宽：逻辑键与映射够写一个 styleId，用途与状态分掉剩下的 */
+.tpl-map thead th:nth-child(1) {
+  width: 152px;
+}
+
+.tpl-map thead th:nth-child(3) {
+  width: 196px;
+}
+
+.tpl-map thead th:nth-child(4) {
+  width: 64px;
+}
+
+.tpl-map thead th:nth-child(5) {
+  width: 34%;
+}
+
+.tpl-map-group th {
+  padding-top: var(--space-3);
+  background: var(--bg-active);
+  color: var(--text-2);
+  font-weight: 650;
+}
+
+.tpl-map-key .tpl-count,
+.tpl-map-target .tpl-count {
+  margin-left: 6px;
+}
+
+/* 有问题的行整行淡红/淡黄：扫一眼就知道该看哪几行 */
+.tpl-map-row.is-error {
+  background: color-mix(in srgb, var(--danger) 6%, transparent);
+}
+
+.tpl-map-row.is-warn {
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
+}
+
+.tpl-map-state {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--bg-active);
+  color: var(--text-2);
+  font-size: 10.5px;
+  font-weight: 650;
+}
+
+.tpl-map-state.is-error {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+}
+
+.tpl-map-state.is-warn {
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning);
+}
+
+.tpl-map-why {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-3);
+}
+
+.tpl-map-row.is-error .tpl-map-why {
+  color: var(--danger);
+}
+
+/* 引用关系（根节点那一节）：每行一份可选样式，左边"可用"、右边"默认" */
+.tpl-style-refs {
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+}
+
+.tpl-ref-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.tpl-ref-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.tpl-ref-list .tpl-switch {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.tpl-ref-default {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.tpl-ref-list .tpl-inline-action {
+  margin-left: auto;
+}
+
+/* 导入自备样式：两个"选源"的按钮并排，下面一行显示选了哪个 */
+.tpl-import-pick {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: 2px;
+}
+
+.tpl-import-pick .tpl-mini {
+  flex: 1 1 auto;
+}
+
+.tpl-import-source {
+  /* 路径可能很长：一行显示，放不下在悬停里看全 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tpl-import-path {
+  margin-top: 2px;
+}
+
+/* 题注编号那一段（对照表底下）：三种方式按题注分别选；field 模式再给章节样式名 */
+.tpl-caption {
+  margin-top: var(--space-4);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+}
+
+.tpl-caption h3 {
+  margin: 0 0 var(--space-2);
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+
+.tpl-caption-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.tpl-caption-field {
+  margin: 0;
+  flex: 0 1 220px;
+}
+
+.tpl-caption-names {
+  margin-top: var(--space-2);
+}
+
+.tpl-caption-names-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tpl-caption-names-head .tpl-mini {
+  margin-left: auto;
+}
+
+.tpl-caption-name-list {
+  list-style: none;
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.tpl-caption-name-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tpl-caption-name-list .tpl-count {
+  flex: none;
+  width: 64px;
+}
+
+.tpl-caption-name-list .tpl-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 表里那一个映射下拉：占满这一列，窄了也不挤 */
+.tpl-map-select {
+  min-width: 0;
+}
+
+/* 骨架里有、没人用的样式：默认收着（它是"顺手看看"，不是每天要看的东西） */
+.tpl-map-unused {
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+.tpl-map-unused summary {
+  cursor: pointer;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+.tpl-map-unused-list {
+  list-style: none;
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+}
+
+.tpl-map-issues {
+  margin-top: var(--space-4);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+}
+
+.tpl-map-issues h3 {
+  margin: 0 0 var(--space-1);
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+
+.tpl-map-issue-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.tpl-map-issue {
+  display: flex;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--text-2);
+}
+
+.tpl-map-issue.is-error {
+  color: var(--danger);
+}
+
+.tpl-map-issue.is-warn {
+  color: var(--warning);
+}
+
+.tpl-map-issue-where {
+  flex: none;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3);
+}
+
+@media (max-width: 1180px) {
+  .tpl-col-body {
+    padding: var(--space-2) var(--space-2) var(--space-6);
+  }
+}
+
+@media (max-width: 940px) {
+  .tpl-item-id {
+    display: none;
+  }
+}

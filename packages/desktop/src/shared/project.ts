@@ -166,6 +166,308 @@ export interface TemplateLoadReport {
   loadedAny: boolean
 }
 
+// ---------- 模板编辑（PLAN-11）----------
+
+/** 一条校验结论：level 决定阻断与否，rule 是规则 id，path 指到具体节点或字段 */
+export interface TemplateIssueDto {
+  level: 'error' | 'warn'
+  rule: string
+  path: string
+  message: string
+}
+
+/** 列表里的一份模板 */
+export interface TemplateEntryDto {
+  kind: 'structure' | 'style'
+  /** 目录里的模板 id（目录名），读写都按它定位 */
+  id: string
+  /** 模板 JSON 里的 name，给人看的 */
+  name: string
+  /** manifest 里登记的文件名 */
+  file: string
+  errors: number
+  warnings: number
+  issues: TemplateIssueDto[]
+  /**
+   * 样式条目：哪些结构模板引用了它（写的是文件键）。
+   * 结构条目上没有这一项；界面靠它显示"这份对照表被谁共用"。
+   */
+  usedBy?: string[]
+}
+
+/** 一个模板目录的现状 */
+export interface TemplateDirSnapshotDto {
+  dir: string
+  exists: boolean
+  /** 目录级问题：manifest 缺失或解析失败、目录不存在、有目录没登记等 */
+  issues: TemplateIssueDto[]
+  structures: TemplateEntryDto[]
+  styles: TemplateEntryDto[]
+}
+
+/** 打开编辑模式时的全貌 */
+export interface TemplateEditorSnapshotDto {
+  /** 应用设置里在用的模板目录，编辑模式默认打开它；没配就是 null */
+  defaultDir: string | null
+  dirs: TemplateDirSnapshotDto[]
+}
+
+export interface TemplateReadInput {
+  dir: string
+  id: string
+}
+
+/** 读一份结构模板：doc 是解析后的原文，界面按字段编辑，没认得的字段原样保留 */
+export interface TemplateReadResult {
+  dir: string
+  id: string
+  file: string
+  doc: Record<string, unknown>
+  issues: TemplateIssueDto[]
+}
+
+export interface TemplateSaveInput {
+  dir: string
+  id: string
+  doc: Record<string, unknown>
+}
+
+export interface TemplateSaveResult {
+  savedAt: string
+  /** 写前备份的路径；首次保存没有可备份的原文件时为 null */
+  backupPath: string | null
+  issues: TemplateIssueDto[]
+}
+
+export interface TemplateCreateInput {
+  dir: string
+  /** 目录名，也是模板 id；必须是合法目录名且不重复 */
+  id: string
+  /** 结构模板 JSON 的 name */
+  name: string
+  /** 默认配对哪份样式模板（stylemap 的 fileKey），可空 */
+  styleTemplate?: string
+}
+
+export interface TemplateDeleteInput {
+  dir: string
+  id: string
+}
+
+export interface TemplateDeleteResult {
+  /** 删除前整份目录备份到哪了 */
+  backupPath: string
+}
+
+export interface TemplateRenameInput {
+  dir: string
+  /** 改之前的 id（目录名） */
+  id: string
+  /**
+   * 新 id：目录名、`<id>-structure.json` 文件名与 manifest 里那条登记一起改。
+   * 不带或与原值相同就只改 name。工程侧不存 id，所以改 id 不影响已建工程；
+   * 但 name 是工程锚点认模板的依据，改 name 会让老工程配不上模板。
+   */
+  newId?: string
+  /** 结构模板 JSON 里的 name（显示名） */
+  name: string
+}
+
+export interface TemplateRenameResult extends TemplateReadResult {
+  /** 改动前的备份：改 id 时是整份目录，只改 name 时是单个文件；都没有则为 null */
+  backupPath: string | null
+}
+
+// ---------- 试跑（PLAN-11 批次 4）----------
+
+export interface TemplateTrialInput {
+  dir: string
+  id: string
+}
+
+/**
+ * 试跑结果：拿这份结构模板 + 它默认的样式对照表，真的导出一份 .docx 出来。
+ * **样式告警必须为零**才算通过（结构里用到的每个样式键都在骨架里找到了对应样式）。
+ */
+export interface TemplateTrialResult {
+  /** 产物落哪了（应用数据目录下的 template-trials/，可以直接用 Word 打开） */
+  outputPath: string
+  /** 实例化出来多少节点 */
+  nodes: number
+  /** 用的哪份样式对照表（文件键），没配就是空串 */
+  styleFileKey: string
+  /** 导出链路的全部告警 */
+  warnings: string[]
+  /** 其中"样式未生效"那一类（判据看它） */
+  styleWarnings: string[]
+}
+
+// ---------- 样式对照表（PLAN-11 批次 3）----------
+
+/** 骨架里的一条样式：对照表下拉的选项（来源 `word/styles.xml`） */
+export interface SkeletonStyleDto {
+  /** `w:styleId`，styleMap 的值引用的就是它 */
+  styleId: string
+  /** `w:name`，Word 界面上的样式名（如「标题 1」）；没写是空串 */
+  name: string
+  /** paragraph 段落 / character 字符 / table / numbering；没写是空串 */
+  type: string
+  isDefault: boolean
+  basedOn?: string
+  /** 字号（磅，由 `w:sz` 的半磅换算） */
+  fontSizePt?: number
+  /** 样式自带多级列表编号（题注 auto 模式的号来自它） */
+  numbered?: boolean
+}
+
+/** 对照表的一行：一个逻辑键 */
+export interface StyleMapRowDto {
+  key: string
+  /** 分区（标题 / 列表子标题 / 正文 / 表格 / 图片 / 列表 / 其他），界面按它分组 */
+  group: string
+  /** 用途：这一行管哪些内容的样式 */
+  usage: string
+  /** 程序读不读这个键；false = 配了不生效（列表的第 2/3 档） */
+  read: boolean
+  /** 当前指向的 styleId（空串 = 没配这一行） */
+  styleId: string
+  /** 需要它的结构模板名（去重）；空数组 = 这份对照表里没人需要它 */
+  requiredBy: string[]
+  required: boolean
+  /** ok 正常 / missing 必需但没配 / dangling 指向的样式不在骨架里 / inert 配了不生效 / unset 没配 / unchecked 骨架没读到没核对 */
+  status: 'ok' | 'missing' | 'dangling' | 'inert' | 'unset' | 'unchecked'
+  /** 一句话结论（直接展示） */
+  message: string
+  /** 没配时程序回退用哪个逻辑键；null = 按 Word 默认样式输出 */
+  fallback: string | null
+}
+
+export interface TemplateStyleReadInput {
+  dir: string
+  id: string
+}
+
+/**
+ * 骨架的事实（目录在不在、缺哪些部件、有哪些 styleId、起始编号）。
+ * 编辑模式拿它在本地跑**同一套**样式规则（`@documentor/templates/style-rules`），
+ * 所以这里给的是事实，不是结论。
+ */
+export interface TemplateStyleSkeletonDto {
+  /** 骨架文件夹名（stylemap 的 docxFolder） */
+  folder: string
+  exists: boolean
+  /** 缺哪些必需部件（顺序固定） */
+  missingParts: string[]
+  styleIds: string[]
+  headingStarts?: number[]
+}
+
+/** 引用这份对照表的结构模板：共用影响面 + 它对样式的诉求（判"必需键"用） */
+export interface TemplateStyleUserDto {
+  id: string
+  name: string
+  /** 是不是这份结构的默认样式（结构 JSON 的 styleTemplate 就写它） */
+  isDefault: boolean
+  /** 这份结构实际用到的逻辑样式键（`requiredStyleKeys` 的结果） */
+  requiredKeys: string[]
+  /** 结构里的题注（判"题注文字里自己写了号"用） */
+  captions: Array<{ kind: 'table' | 'figure'; text: string }>
+}
+
+/**
+ * 读一份样式模板：stylemap 原文（界面按字段改，没认得的字段原样保留）、
+ * 骨架里的样式表（下拉的选项）、按**引用它的结构模板**算出的对照表，
+ * 以及这份对照表被哪些结构模板共用（改它之前要知道影响面）。
+ */
+export interface TemplateStyleReadResult {
+  dir: string
+  id: string
+  /** manifest 登记的 stylemap 文件名 */
+  file: string
+  /** 结构模板引用它时写的 key：stylemap 文件名去掉 `.json` */
+  fileKey: string
+  doc: Record<string, unknown>
+  /** 骨架目录绝对路径（`docxFolder` 拼出来的；不看它存不存在） */
+  skeletonPath: string
+  skeletonExists: boolean
+  /** 骨架的事实（本地跑规则用） */
+  skeleton: TemplateStyleSkeletonDto
+  /** manifest 里的 style_folder（判"与 stylemap 的 docxFolder 不一致"用） */
+  manifestStyleFolder: string
+  /** 骨架里的样式表；读不到是空表 */
+  skeletonStyles: SkeletonStyleDto[]
+  /** 骨架里有、这份对照表没人用的 styleId（顺便看看有没有漏配） */
+  unusedStyleIds: string[]
+  /** 对照表：认得的逻辑键全在，外加文件里多出来的键 */
+  rows: StyleMapRowDto[]
+  /** 哪些结构模板引用这份对照表（含它们的诉求） */
+  usedBy: TemplateStyleUserDto[]
+  issues: TemplateIssueDto[]
+}
+
+export interface TemplateStyleSaveInput {
+  dir: string
+  id: string
+  doc: Record<string, unknown>
+}
+
+export interface TemplateStyleSaveResult {
+  savedAt: string
+  /** 写前备份的路径；首次保存没有可备份的原文件时为 null */
+  backupPath: string | null
+  issues: TemplateIssueDto[]
+}
+
+/**
+ * 导入一份自备样式（PLAN-11 批次 3 步骤 4）：
+ * 源是 `.docx` 文件或**已经解包**的骨架目录，两条路走同一套部件检查。
+ */
+export interface TemplateStyleImportInput {
+  dir: string
+  /** 新样式模板 id（目录名），不能与已有的重复 */
+  id: string
+  /** stylemap 里的 name（给人看的） */
+  name: string
+  /** `.docx` 文件绝对路径，或骨架目录绝对路径 */
+  source: string
+  /** 骨架文件夹名（相对 `styles/<id>`），缺省 `<id>-style` */
+  styleFolder?: string
+}
+
+/** 导入结果：读回来的那份 + 草稿填了哪些、还差哪些 */
+export interface TemplateStyleImportResult {
+  style: TemplateStyleReadResult
+  draft: {
+    /** 按样式名认出来、已经填上的键 */
+    filled: string[]
+    /** 没认出来、留空待填的键 */
+    empty: string[]
+  }
+}
+
+/**
+ * 把一份共用的对照表**另存为某份结构模板专用**（PLAN-11 批次 3 步骤 5）：
+ * 骨架与映射整份复制到新目录，结构模板的引用指过去——改一处不再影响别人。
+ */
+export interface TemplateStyleForkInput {
+  dir: string
+  /** 源样式模板 id */
+  sourceId: string
+  /** 新样式模板 id（目录名），不能与已有的重复 */
+  newId: string
+  /** 新样式模板的 name（界面按「源名（结构名专用）」拼好传来） */
+  name: string
+  /** 顺手把哪份结构模板的引用改到新样式上（不传就只另存，先不动引用） */
+  structureId?: string
+}
+
+export interface TemplateStyleForkResult {
+  /** 新样式（已经读回来，界面可以直接打开） */
+  style: TemplateStyleReadResult
+  /** 改了引用的那份结构模板（没改引用时是 null） */
+  structure: { id: string; fileKey: string } | null
+}
+
 export interface UiStateSave {
   key: string
   value: string
@@ -215,6 +517,8 @@ export const ProjectIpc = {
   DialogSelectDproj: 'dialog:select-dproj',
   DialogSelectDirectory: 'dialog:select-directory',
   DialogSelectImage: 'dialog:select-image',
+  /** 选一个 .docx（导入自备样式用） */
+  DialogSelectDocx: 'dialog:select-docx',
 
   SettingsGet: 'settings:get',
   SettingsSet: 'settings:set',
@@ -224,6 +528,28 @@ export const ProjectIpc = {
   TemplatesStyleCandidates: 'templates:style-candidates',
   /** 模板加载总览：配了哪些目录、各自加载到几套、没加载到的原因 */
   TemplatesDiagnose: 'templates:diagnose',
+  /** 模板编辑：打开时的全貌（目录、模板、问题徽标） */
+  TemplateSnapshot: 'template:snapshot',
+  /** 模板编辑：读一份结构模板原文 */
+  TemplateRead: 'template:read',
+  /** 模板编辑：读一份样式模板（stylemap 原文 + 骨架样式表 + 对照表） */
+  TemplateReadStyle: 'template:read-style',
+  /** 模板编辑：写回样式模板的对照表（原子写 + .bak），写入前必须零 error */
+  TemplateSaveStyle: 'template:save-style',
+  /** 模板编辑：导入自备样式（.docx 解包或骨架目录 + 部件检查 + 映射草稿） */
+  TemplateImportStyle: 'template:import-style',
+  /** 模板编辑：把共用的对照表另存为某份结构模板专用（复制骨架与映射，并改引用） */
+  TemplateForkStyle: 'template:fork-style',
+  /** 模板编辑：试跑——用这份模板真导出一份 .docx，看样式告警是不是零 */
+  TemplateTrialRun: 'template:trial-run',
+  /** 模板编辑：写回结构模板（原子写 + .bak），写入前必须零 error */
+  TemplateSave: 'template:save',
+  /** 模板编辑：新建结构模板并同步 manifest */
+  TemplateCreate: 'template:create',
+  /** 模板编辑：删除结构模板（整份目录先备份） */
+  TemplateDelete: 'template:delete',
+  /** 模板编辑：改结构模板的名字 */
+  TemplateRename: 'template:rename',
   /** 导出 DOCX */
   ExportDocx: 'export:docx',
   /** 导出前的图表与表格统计 */
@@ -337,6 +663,25 @@ export interface DesktopBlockApi {
   writeBytes(input: FileWriteBytesInput): Promise<string>
 }
 
+/**
+ * 模板编辑（PLAN-11）：只动模板目录里的 JSON，不碰工程库、不进撤销栈。
+ * 结构模板可读可写；样式模板可读，对照表（styleMap 与 captionNumbering）可写（批次 3）。
+ */
+export interface DesktopTemplateEditorApi {
+  snapshot(): Promise<TemplateEditorSnapshotDto>
+  read(input: TemplateReadInput): Promise<TemplateReadResult>
+  readStyle(input: TemplateStyleReadInput): Promise<TemplateStyleReadResult>
+  saveStyle(input: TemplateStyleSaveInput): Promise<TemplateStyleSaveResult>
+  importStyle(input: TemplateStyleImportInput): Promise<TemplateStyleImportResult>
+  forkStyle(input: TemplateStyleForkInput): Promise<TemplateStyleForkResult>
+  save(input: TemplateSaveInput): Promise<TemplateSaveResult>
+  create(input: TemplateCreateInput): Promise<TemplateReadResult>
+  /** 试跑：用这份模板导出一份 .docx，返回导出告警（样式告警必须为零） */
+  trialRun(input: TemplateTrialInput): Promise<TemplateTrialResult>
+  remove(input: TemplateDeleteInput): Promise<TemplateDeleteResult>
+  rename(input: TemplateRenameInput): Promise<TemplateRenameResult>
+}
+
 export interface DesktopUiStateApi {
   save(key: string, value: string): Promise<void>
   load(key: string): Promise<string>
@@ -346,6 +691,8 @@ export interface DesktopDialogApi {
   selectDproj(): Promise<string | null>
   selectDirectory(): Promise<string | null>
   selectImage(): Promise<string | null>
+  /** 选一个 .docx（导入自备样式用） */
+  selectDocx(): Promise<string | null>
   savePath(options: SavePathDialogOptions): Promise<string | null>
 }
 
