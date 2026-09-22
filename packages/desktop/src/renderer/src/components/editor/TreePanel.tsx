@@ -3,7 +3,6 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { NodeDto } from '../../../../shared/project'
-import { hasPinnedBlock, PINNED_BLOCK_REFUSAL } from '../../../../shared/permissionTerms'
 import { useApp } from '../../state/AppContext'
 import { ChevronDownIcon, ChevronUpIcon, LevelsIcon } from '../icons'
 import './tree.css'
@@ -276,9 +275,7 @@ export default function TreePanel(): React.JSX.Element {
   // 右键菜单：打开时聚焦第一个可用项，越界就往回收，禁用项说明为什么不能点
   // 节点级的删叫「裁剪」，与模板编辑器那个开关、标题下那枚标签同一个词
   const canCopy = !!menuNode && menuNode.headingLevel > 0 && menuNode.copyable
-  /** 子树里有模板规定必须存在的块时整章裁不掉：裁了会把它们一起带走 */
-  const menuPinned = !!menuNode && hasPinnedBlock(menuNode)
-  const canDelete = !!menuNode && menuNode.headingLevel > 0 && menuNode.deletable && !menuPinned
+  const canDelete = !!menuNode && menuNode.headingLevel > 0 && menuNode.deletable
   const copyDeniedReason = !menuNode
     ? ''
     : menuNode.headingLevel === 0
@@ -288,9 +285,7 @@ export default function TreePanel(): React.JSX.Element {
     ? ''
     : menuNode.headingLevel === 0
       ? '根节点不能裁剪'
-      : menuPinned
-        ? PINNED_BLOCK_REFUSAL
-        : '模板未开放裁剪'
+      : '模板未开放裁剪'
 
   const onMenuKeyDown = (event: React.KeyboardEvent): void => {
     const items = [...(menuRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])]

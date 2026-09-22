@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ContentBlock } from '@documentor/core/blocks'
-import { NODE_PERMISSION, blockPermissions, hasPinnedBlock } from '../../../../shared/permissionTerms'
+import { NODE_PERMISSION, blockPermissions } from '../../../../shared/permissionTerms'
 import { useApp, useSelectedNode } from '../../state/AppContext'
 import { BlockCard } from './BlockCard'
 import type { LightboxRequest } from './BlockEditors'
@@ -391,14 +391,7 @@ export default function NodePage(): React.JSX.Element {
                 </span>
               )}
               {node.deletable && (
-                <span
-                  className="np-chip np-chip-ok"
-                  title={
-                    hasPinnedBlock(node)
-                      ? `${NODE_PERMISSION.deletable.tip} · 这一章里有必须存在的内容，整章裁不掉`
-                      : NODE_PERMISSION.deletable.tip
-                  }
-                >
+                <span className="np-chip np-chip-ok" title={NODE_PERMISSION.deletable.tip}>
                   {NODE_PERMISSION.deletable.name}
                 </span>
               )}
