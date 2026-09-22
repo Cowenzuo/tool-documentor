@@ -17,6 +17,8 @@ export class DocumentNode {
   copyable = false
   deletable = false
   allowContentBlocks = true
+  /** 排版：块集合、顺序、类型能不能动；关掉后只能改各块的内容（PLAN-13 第 1.1 节） */
+  allowLayoutEdit = true
   isSubTitle = false
   /** 编号风格: 'numeric' | 'alpha' | 'alphabetic'（其它视为 numeric） */
   subTitleStyle = 'numeric'
@@ -209,6 +211,7 @@ export class DocumentNode {
   /**
    * 深拷贝整棵子树（parent=null）。
    * 与旧版一致：新 id；copyable=false、deletable=true（克隆体不可再复制、可删除）。
+   * 编辑与排版两个开关跟着来：克隆体与原件受同一套权限，块上的档位也随块复制。
    */
   deepClone(): DocumentNode {
     const clone = new DocumentNode(this.headingLevel)
@@ -217,6 +220,7 @@ export class DocumentNode {
     clone.copyable = false
     clone.deletable = true
     clone.allowContentBlocks = this.allowContentBlocks
+    clone.allowLayoutEdit = this.allowLayoutEdit
     clone.isSubTitle = this.isSubTitle
     clone.subTitleStyle = this.subTitleStyle
     clone.subTitleAutoNumber = this.subTitleAutoNumber
@@ -244,6 +248,7 @@ export class DocumentNode {
     copy.copyable = this.copyable
     copy.deletable = this.deletable
     copy.allowContentBlocks = this.allowContentBlocks
+    copy.allowLayoutEdit = this.allowLayoutEdit
     copy.isSubTitle = this.isSubTitle
     copy.subTitleStyle = this.subTitleStyle
     copy.subTitleAutoNumber = this.subTitleAutoNumber
@@ -269,6 +274,7 @@ export class DocumentNode {
     this.copyable = snapshot.copyable
     this.deletable = snapshot.deletable
     this.allowContentBlocks = snapshot.allowContentBlocks
+    this.allowLayoutEdit = snapshot.allowLayoutEdit
     this.isSubTitle = snapshot.isSubTitle
     this.subTitleStyle = snapshot.subTitleStyle
     this.subTitleAutoNumber = snapshot.subTitleAutoNumber

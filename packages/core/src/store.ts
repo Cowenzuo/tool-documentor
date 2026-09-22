@@ -170,6 +170,7 @@ export class ProjectStore {
         'copyable INTEGER NOT NULL DEFAULT 0,' +
         'deletable INTEGER NOT NULL DEFAULT 0,' +
         'allow_content_blocks INTEGER NOT NULL DEFAULT 1,' +
+        'allow_layout_edit INTEGER NOT NULL DEFAULT 1,' +
         "copy_group_id TEXT DEFAULT ''," +
         "allowed_child_levels TEXT DEFAULT ''," +
         'FOREIGN KEY (parent_id) REFERENCES node(id) ON DELETE CASCADE)'
@@ -197,15 +198,25 @@ export class ProjectStore {
     const root = tree.root
     db.exec('BEGIN')
     try {
+      this.ensureNodeColumns()
       db.exec('DELETE FROM content_block')
       db.exec('DELETE FROM node')
 
-      // 根节点：列取默认值（heading 0 / node_type 'root'），但描述与内容块是真的用户数据，
-      // 必须一起落库。历史上这两项被丢掉，界面从树面板根节点行走到它们时保存即失。
+      // 根节点：heading 取 0、node_type 写 'root'，其余列都是真的用户数据（描述、内容块与四个权限开关），
+      // 必须一起落库。历史上描述与内容块被丢掉，界面从树面板根节点行走到它们时保存即失。
       db.prepare(
-        "INSERT INTO node (id, parent_id, sort_order, heading_level, title, description, node_type) " +
-          "VALUES (?, NULL, 0, 0, ?, ?, 'root')"
-      ).run(root.id, root.title, root.description)
+        "INSERT INTO node (id, parent_id, sort_order, heading_level, title, description, node_type, " +
+          'copyable, deletable, allow_content_blocks, allow_layout_edit) ' +
+          "VALUES (?, NULL, 0, 0, ?, ?, 'root', ?, ?, ?, ?)"
+      ).run(
+        root.id,
+        root.title,
+        root.description,
+        root.copyable ? 1 : 0,
+        root.deletable ? 1 : 0,
+        root.allowContentBlocks ? 1 : 0,
+        root.allowLayoutEdit ? 1 : 0
+      )
 
       this.saveBlocks(root)
 
@@ -245,14 +256,31 @@ export class ProjectStore {
 
   /** project 表的列名。表不存在或读不动时返回空数组，由调用方报"工程数据异常" */
   private projectColumns(): string[] {
+    return this.tableColumns('project')
+  }
+
+  /** node 表的列名。老库没有 `allow_layout_edit`，读写两侧都按它判断 */
+  private nodeColumns(): string[] {
+    return this.tableColumns('node')
+  }
+
+  private tableColumns(table: string): string[] {
     const db = this.requireDb()
     try {
       return db
-        .prepare('PRAGMA table_info(project)')
+        .prepare(`PRAGMA table_info(${table})`)
         .all()
         .map((row) => str(row['name']))
     } catch {
       return []
+    }
+  }
+
+  /** 老库补列：写入侧要用到的列，保存时保证都在（保存本来就在写库，迁移随第一次保存发生） */
+  private ensureNodeColumns(): void {
+    const db = this.requireDb()
+    if (!this.nodeColumns().includes('allow_layout_edit')) {
+      db.exec('ALTER TABLE node ADD COLUMN allow_layout_edit INTEGER NOT NULL DEFAULT 1')
     }
   }
 
@@ -278,8 +306,9 @@ export class ProjectStore {
     db.prepare(
       'INSERT INTO node (id, parent_id, sort_order, heading_level, title, description, ' +
         'node_type, is_sub_title, sub_title_style, sub_title_auto_number, ' +
-        'copyable, deletable, allow_content_blocks, copy_group_id, allowed_child_levels) ' +
-        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'copyable, deletable, allow_content_blocks, allow_layout_edit, copy_group_id, ' +
+        'allowed_child_levels) ' +
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).run(
       node.id,
       parentId,
@@ -294,6 +323,7 @@ export class ProjectStore {
       node.copyable ? 1 : 0,
       node.deletable ? 1 : 0,
       node.allowContentBlocks ? 1 : 0,
+      node.allowLayoutEdit ? 1 : 0,
       node.copyGroupId,
       node.allowedChildLevels.join(',')
     )
@@ -351,12 +381,21 @@ export class ProjectStore {
     }
   }
 
+  /**
+   * 读一个节点。列名按实际存在的问一遍：老库没有 `allow_layout_edit` 这一列，
+   * 直接 SELECT 会让老工程整个打不开（与 project 表那次同一个坑），缺的列读成缺省值。
+   */
   private loadNode(nodeId: string): DocumentNode | null {
     const db = this.requireDb()
+    const columns = this.nodeColumns()
+    const col = (name: string, fallback: string): string =>
+      columns.includes(name) ? name : `${fallback} AS ${name}`
     const row = db
       .prepare(
-        'SELECT heading_level, title, description, is_sub_title, sub_title_style, ' +
+        'SELECT ' +
+          'heading_level, title, description, is_sub_title, sub_title_style, ' +
           'sub_title_auto_number, copyable, deletable, allow_content_blocks, ' +
+          `${col('allow_layout_edit', '1')}, ` +
           'copy_group_id, allowed_child_levels FROM node WHERE id = ?'
       )
       .get(nodeId)
@@ -371,6 +410,7 @@ export class ProjectStore {
     node.copyable = bool(row['copyable'])
     node.deletable = bool(row['deletable'])
     node.allowContentBlocks = bool(row['allow_content_blocks'])
+    node.allowLayoutEdit = bool(row['allow_layout_edit'])
     node.copyGroupId = str(row['copy_group_id'])
     const levels = str(row['allowed_child_levels'])
     if (levels) {

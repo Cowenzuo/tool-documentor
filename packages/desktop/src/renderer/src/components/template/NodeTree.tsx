@@ -279,8 +279,8 @@ export function NodeTree(props: NodeTreeProps): JSX.Element {
           run: () => props.onMove(menuPath, 1)
         },
         {
-          label: '删除节点',
-          title: menuIsRoot ? '根节点不可删除' : undefined,
+          label: '裁剪节点',
+          title: menuIsRoot ? '根节点不能裁剪' : undefined,
           disabled: menuIsRoot,
           danger: true,
           run: () => props.onRemove(menuPath)

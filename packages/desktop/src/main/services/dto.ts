@@ -13,6 +13,7 @@ export function toNodeDto(node: DocumentNode): NodeDto {
     copyable: node.copyable,
     deletable: node.deletable,
     allowContentBlocks: node.allowContentBlocks,
+    allowLayoutEdit: node.allowLayoutEdit,
     isSubTitle: node.isSubTitle,
     subTitleStyle: node.subTitleStyle,
     subTitleAutoNumber: node.subTitleAutoNumber,

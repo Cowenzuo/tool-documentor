@@ -40,6 +40,13 @@ interface EditorBaseProps<T extends ContentBlock> {
   onPreview?: (req: LightboxRequest) => void
   /** 模板锁 `readonly`：内容由模板给定，编辑器只呈现不接收改动 */
   readOnly?: boolean
+  /**
+   * 形状锁住：块档位不是自由编辑，或这一章的排版关着。
+   * 只影响"形状"入口（表格的表头、行数、列数与合并），内容字段照常可改。
+   */
+  shapeLocked?: boolean
+  /** 形状锁住的原因，挂在被禁用的入口上 */
+  shapeLockedWhy?: string
 }
 
 // ---------------- 文本 ----------------
@@ -179,6 +186,12 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
   const gridRef = useRef<HTMLDivElement | null>(null)
   /** 整块只读：单元格呈现给定内容，尺寸与合并开关都不给入口 */
   const locked = readOnly === true
+  /**
+   * 形状锁：块档位不是自由编辑，或这一章的排版关着 —— 表头、行数列数与合并开关不给入口。
+   * 单元格内容照常可改（只读那一档在上面已经把内容也锁了）。
+   */
+  const shapeLocked = locked || props.shapeLocked === true
+  const shapeWhy = locked ? '模板规定该表格为只读' : (props.shapeLockedWhy ?? '')
   /** 缩表会丢内容时，先挂起等用户确认（不做静默截断） */
   const [pendingShrink, setPendingShrink] = useState<{
     rows: number
@@ -297,8 +310,8 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
               min={0}
               value={realRows}
               onChange={(e) => requestSize(Number(e.target.value) || 0, realCols)}
-              disabled={locked}
-              title={locked ? '模板规定该表格为只读，行数不能改' : undefined}
+              disabled={shapeLocked}
+              title={shapeLocked ? `${shapeWhy}，行数不能改` : undefined}
             />
           </label>
           <label>
@@ -308,8 +321,8 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
               min={1}
               value={realCols}
               onChange={(e) => requestSize(realRows, Number(e.target.value) || 1)}
-              disabled={locked}
-              title={locked ? '模板规定该表格为只读，列数不能改' : undefined}
+              disabled={shapeLocked}
+              title={shapeLocked ? `${shapeWhy}，列数不能改` : undefined}
             />
           </label>
         </div>
@@ -354,12 +367,12 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
       <div className="be-table-merge-bar">
         <label
           className="be-table-merge"
-          title="同列相邻同值合并"
+          title={shapeLocked ? `${shapeWhy}，合并不了` : '同列相邻同值合并'}
         >
           <input
             type="checkbox"
             checked={block.mergeVertical === true}
-            disabled={locked}
+            disabled={shapeLocked}
             onChange={(e) =>
               onChange(
                 e.target.checked
@@ -387,7 +400,7 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
               className="be-table-header"
               value={block.headers[c] ?? ''}
               placeholder={`列${c + 1}`}
-              readOnly={locked}
+              readOnly={shapeLocked}
               onChange={(e) => setHeader(c, e.target.value)}
               onKeyDown={(e) => {
                 const next =
