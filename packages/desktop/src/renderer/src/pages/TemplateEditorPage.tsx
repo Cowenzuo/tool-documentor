@@ -540,25 +540,27 @@ function IssueIndex({
         <span className="tpl-pop tpl-pop-wide" role="region" aria-label="问题在哪">
           {groups.map((group) => (
             <span className="tpl-pop-row" key={group.where ?? '(doc)'}>
-              {group.path && onJump ? (
-                <button
-                  type="button"
-                  className="tpl-pop-where"
-                  title="跳到该节点"
-                  onClick={() => onJump(group.path as NodePath)}
-                >
-                  {group.where}
-                </button>
-              ) : (
-                <span className="tpl-pop-where is-plain">{group.where ?? '整份模板'}</span>
-              )}
+              {/* 没有位置的（整份模板级的结论）不写位置标签：这一行开头就是条数 */}
+              {group.where !== null &&
+                (group.path && onJump ? (
+                  <button
+                    type="button"
+                    className="tpl-pop-where"
+                    title="跳到该节点"
+                    onClick={() => onJump(group.path as NodePath)}
+                  >
+                    {group.where}
+                  </button>
+                ) : (
+                  <span className="tpl-pop-where is-plain">{group.where}</span>
+                ))}
               {group.errors > 0 && (
                 <span className="tpl-badge tpl-badge-error">{group.errors} 个错误</span>
               )}
               {group.warnings > 0 && (
                 <span className="tpl-badge tpl-badge-warn">{group.warnings} 处提示</span>
               )}
-              {/* 位置说不清的（整份模板级的结论）与样式侧的结论只有这儿能说，带上原话 */}
+              {/* 位置说不清的与样式侧的结论只有这儿能说，带上原话 */}
               {group.messages.map((message) => (
                 <span className="tpl-pop-msg" key={message}>
                   {message}
