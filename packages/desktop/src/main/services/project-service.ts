@@ -710,7 +710,8 @@ function mimeOf(ext: string): string {
 }
 
 /**
- * 模板锁里"必须存在"的两档：不能删、不能挪。`type` 档只锁类型，删除与移动照常。
+ * 模板锁里"必须存在"的两档：不能删。旧档位 `type` 与自由块照常删。
+ * 位置不在这里判：那由节点级的「排版」管（见 `blockPermissions` 的 `move`）。
  */
 function isBlockPinned(lock: ContentBlock['lock']): lock is 'keep' | 'readonly' {
   return lock === 'keep' || lock === 'readonly'

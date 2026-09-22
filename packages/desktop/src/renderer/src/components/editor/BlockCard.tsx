@@ -1,5 +1,5 @@
 /**
- * 内容块卡片：类型徽标 + 锁标记 + 折叠开关 + 操作按钮（悬停浮现）+ 编辑器体。
+ * 内容块卡片：类型徽标 + 档位标记 + 折叠开关 + 操作按钮（悬停浮现）+ 编辑器体。
  * 折叠后只留一行摘要，长章节里一屏能扫过更多块。
  */
 import type { BlockLockLevel, ContentBlock } from '@documentor/core/blocks'

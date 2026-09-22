@@ -49,10 +49,13 @@ export function blockTypeName(index: number | string): BlockTypeName {
 
 /**
  * 模板锁档位（模板节点定义的 contentBlocks[].lock 带过来，随块进工程数据）：
- * - `type` 只锁类型：内容可改，类型不能改，可删可挪；
- * - `keep` 类型锁住且必须存在：内容可改，不能改类型、不能删、不能挪；
- * - `readonly` 整块只读：内容也由模板给定。
+ * - `type` 旧档位，已作废：类型不能改，可删可挪；
+ * - `keep` 类型限制编辑：内容可改，不能改类型、不能删；
+ * - `readonly` 只读：内容也由模板给定，不能删。
  * 不写就是不锁，与没有这个字段的老数据完全一致。
+ *
+ * 位置（顺序）不在档位里：那由节点级的「排版」管，见
+ * `packages/desktop/src/shared/permissionTerms.ts` 的取交与 PLAN-16 第 2 节。
  */
 export const BLOCK_LOCK_LEVELS = ['type', 'keep', 'readonly'] as const
 

@@ -40,9 +40,10 @@ export const KNOWN_BLOCK_TYPES = [
 ] as const
 
 /**
- * 块锁三档（PLAN-09 内容块锁定方案）。**顺序参与文案**：
+ * 块锁取值（PLAN-09 起的三档，外加 PLAN-13 作废的 `type`）。**顺序参与文案**：
  * 非法取值时按 `"type" / "keep" / "readonly"` 列出，不要调整。
  * 与 `@documentor/core` 的 `BLOCK_LOCK_LEVELS` 同值同序。
+ * 档位管的是块自己（内容、类型、在不在），位置由节点级「排版」管，见 PLAN-16 第 2 节。
  */
 export const LOCK_TIERS: readonly BlockLockLevel[] = ['type', 'keep', 'readonly']
 
@@ -320,7 +321,8 @@ function checkStructureNode(
       message: `title缺失`
     })
   }
-  // lock 是块级字段：写在节点上不生效，节点级仍用 copyable / deletable / allowContentBlocks
+  // lock 是块级字段：写在节点上不生效，节点级用那四个开关
+  // （copyable / deletable / allowContentBlocks / allowLayoutEdit）
   if ('lock' in node) {
     out.push({
       level: 'error',

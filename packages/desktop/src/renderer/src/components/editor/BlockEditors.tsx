@@ -553,8 +553,8 @@ export function CodeEditor(props: EditorBaseProps<CodeBlock>): React.JSX.Element
     <div className="be-code">
       <div className="be-code-tools">
         {/*
-          语言选择不算"块类型"：只锁类型时照常可改；整块只读时语言也是模板定的那一份，
-          一并关掉。
+          语言选择不算"块类型"（形状那一关不管它）：类型限制编辑那一档照常可改；
+          只读那一档语言也由模板给定，一并关掉。
         */}
         <select
           className="be-select"

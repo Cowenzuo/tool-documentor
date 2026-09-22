@@ -237,9 +237,9 @@ export class DocumentNode {
   }
 
   /**
-   * 结构快照：与 deepClone 的区别是**保真**——保留 id、copyable、deletable 等全部状态字段，
-   * parent 置空。撤销与重做拿它存档，所以不能借用 deepClone 那套"克隆体"语义
-   * （deepClone 会给新 id、并把复制与删除权限改成克隆体的默认值）。
+   * 结构快照：与 deepClone 的区别是**保真**——id 与 parent 原样留着（deepClone 会发新 id、
+   * 挂到别的父节点下），其余状态字段两边都是照抄。
+   * 撤销与重做拿它存档，所以 id 必须留着：写回时靠 id 找回落点。
    */
   snapshot(): DocumentNode {
     const copy = new DocumentNode(this.headingLevel, this.id)
