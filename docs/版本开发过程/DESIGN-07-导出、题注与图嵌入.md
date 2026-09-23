@@ -212,7 +212,7 @@ VSDX 字节本身进包之前要包一层 **OLE 复合容器**（CFB）。容器
 | 位置 | 职责 |
 | --- | --- |
 | `packages/desktop` 主进程 `services/mmd-service.ts` | 探测、按需点火、逐张请求、失败分类与停手闸门。**不持有服务的生命周期**：不记 pid、不 kill、App 退出不关它 |
-| `packages/desktop` 主进程 `services/node-locate.ts` | 找一个能跑服务端的 Node（≥22.2）：设置里手填 → PATH → 常见安装位置 → nvm → 应用自带的 Node |
+| `packages/desktop` 主进程 `services/node-locate.ts` | 找一个能跑服务端的 Node（≥22.2）：设置里手填 → PATH → 常见安装位置 → nvm → **应用自带的 Node**（最后这条实测可用，见下面的锚定表） |
 | `packages/docx` `figure-export.ts` | 只编排：收集图块、逐张调用**注入的** `convert`、嵌入、写盘。**不再知道 mmd2vsdx 存在** |
 
 依赖方向没变（`desktop → 其余四个`，库不得依赖 desktop），所以 HTTP 客户端与点火都在主进程，
@@ -291,7 +291,7 @@ GET /health → 通了就用
 | 契约版本 | `1`（`/health` 的 `contractVersion`） |
 | 监听 | 只绑 `127.0.0.1`，默认端口 `12138`（契约的一部分） |
 | 上限 | 输入 256KB、产物 8MB、队列 32、单请求超时 15s |
-| 运行时前置 | Node ≥22.2；Chromium 由 Playwright 提供（`npx playwright install chromium`，同一 Windows 用户下全机共用） |
+| 运行时前置 | Node ≥22.2；Chromium 由 Playwright 提供（`npx playwright install chromium`，同一 Windows 用户下全机共用）。**没装系统 Node 也有兜底**：运行环境自发现的最后一条是应用自带的那个 —— Electron 44 带的是 Node 24.18.1，实测能跑起服务与 Chromium 并完成真实转换（2026-09-23） |
 | 本机实测（2026-09-23） | 软件详细设计工程 **258 张图 → 258 个 OLE 对象，10.7 秒**；152 张图片的工程 2.3 秒 |
 
 ### 上游改动时核对哪几处
