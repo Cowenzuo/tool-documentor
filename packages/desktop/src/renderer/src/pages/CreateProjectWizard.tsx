@@ -87,7 +87,7 @@ export function CreateProjectWizard({
                   type="button"
                   className="be-btn"
                   onClick={() => {
-                    void window.documentor.dialog.selectDirectory().then((dir) => {
+                    void window.documentor.dialog.selectDirectory(workspaceDir).then((dir) => {
                       if (dir) setWorkspaceDir(dir)
                     })
                   }}

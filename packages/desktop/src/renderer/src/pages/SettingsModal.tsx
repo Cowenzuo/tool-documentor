@@ -244,7 +244,7 @@ function MmdSection({
               className="be-btn"
               onClick={() =>
                 void (async () => {
-                  const exe = await window.documentor.dialog.selectExecutable()
+                  const exe = await window.documentor.dialog.selectExecutable(mmd.node_path)
                   if (exe) patchConnection({ node_path: exe })
                 })()
               }
@@ -270,7 +270,7 @@ function MmdSection({
               className="be-btn"
               onClick={() =>
                 void (async () => {
-                  const dir = await window.documentor.dialog.selectDirectory()
+                  const dir = await window.documentor.dialog.selectDirectory(mmd.dir)
                   if (dir) patchConnection({ dir })
                 })()
               }
@@ -361,8 +361,9 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
     void refreshReport()
   }, [])
 
-  const browseDir = async (onPick: (path: string) => void): Promise<void> => {
-    const dir = await window.documentor.dialog.selectDirectory()
+  /** 挑目录：把现值当起始位置传过去，省得用户从 C 盘一路点回来 */
+  const browseDir = async (current: string, onPick: (path: string) => void): Promise<void> => {
+    const dir = await window.documentor.dialog.selectDirectory(current)
     if (dir) onPick(dir)
   }
 
@@ -415,7 +416,11 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
                 <button
                   type="button"
                   className="be-btn"
-                  onClick={() => void browseDir((d) => setCfg({ ...cfg, default_project_dir: d }))}
+                  onClick={() =>
+                    void browseDir(cfg.default_project_dir, (d) =>
+                      setCfg({ ...cfg, default_project_dir: d })
+                    )
+                  }
                 >
                   浏览…
                 </button>
@@ -454,7 +459,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
                         <button
                           type="button"
                           className="be-btn"
-                          onClick={() => void browseDir((d) => {
+                          onClick={() => void browseDir(dir, (d) => {
                             const next = [...cfg.template_dirs]
                             next[i] = d
                             setCfg({ ...cfg, template_dirs: next })
