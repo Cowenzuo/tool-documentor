@@ -7,7 +7,7 @@
  * 只探测、按需点火（启动后立刻撒手），没有「停止服务」。
  * 模板编辑的入口不在这里——它在欢迎页（与新建/打开工程并排），那里不打开工程也能进。
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { AppConfigDto, MmdStatusDto, TemplateLoadReport } from '../../../shared/project'
 import { useApp } from '../state/AppContext'
 import { useTheme, type ThemePreference } from '../theme/ThemeProvider'
@@ -75,24 +75,47 @@ function MmdSection({
   const [busy, setBusy] = useState<'test' | 'start' | null>(null)
   /** 端口用文本存：允许用户敲到一半（清空、删一位），合法的中间态才写回配置 */
   const [portText, setPortText] = useState(String(mmd.port))
+  const refreshTimer = useRef<number | null>(null)
+  /** 最新一份配置：防抖回调落地时闭包里的 cfg 已经过期，写回要拿它算 */
+  const latest = useRef(cfg)
+  useEffect(() => {
+    latest.current = cfg
+  })
 
-  const patch = (part: Partial<AppConfigDto['mmd2vsdx']>): void =>
-    onChange({ ...cfg, mmd2vsdx: { ...mmd, ...part } })
-
-  /** 改了连哪儿，上一次的探测结论就作废——不然"已在运行"会骗人 */
-  const patchConnection = (part: Partial<AppConfigDto['mmd2vsdx']>): void => {
-    patch(part)
-    setStatus(null)
+  const patch = (part: Partial<AppConfigDto['mmd2vsdx']>): void => {
+    const prev = latest.current
+    onChange({ ...prev, mmd2vsdx: { ...prev.mmd2vsdx, ...part } })
   }
 
-  /**
-   * 探一次并把结论摆出来。**自动查到的运行环境填回输入框**：让用户看得见用的是哪一个。
-   * 只在还没手填过（字段为空）时才回填，免得把用户自己挑的覆盖掉。
-   */
+  /** 把探到的运行环境填回去：只在还没手填过（字段为空）时填，免得覆盖用户自己挑的 */
+  const fillNodePath = (next: MmdStatusDto): void => {
+    if (!next.node) return
+    const prev = latest.current
+    if (prev.mmd2vsdx.node_path.trim() !== '') return
+    onChange({ ...prev, mmd2vsdx: { ...prev.mmd2vsdx, node_path: next.node.path } })
+  }
+
+  /** 探一次并把结论摆出来（标题右边的版本、目录那颗灯、服务通不通都从这儿来） */
   const refresh = async (config: AppConfigDto['mmd2vsdx']): Promise<void> => {
     const next = await window.documentor.mmd.status(config)
     setStatus(next)
-    if (config.node_path.trim() === '' && next.node) patch({ node_path: next.node.path })
+    fillNodePath(next)
+  }
+
+  /**
+   * 改了字段**自动重探一次**（防抖）：现状本来就该自己跟上，不能指望用户去点「测试连接」。
+   * 先把结论清掉，免得旧结论留在界面上骗人。
+   */
+  const patchConnection = (part: Partial<AppConfigDto['mmd2vsdx']>): void => {
+    const prev = latest.current
+    const next = { ...prev.mmd2vsdx, ...part }
+    onChange({ ...prev, mmd2vsdx: next })
+    setStatus(null)
+    if (refreshTimer.current !== null) window.clearTimeout(refreshTimer.current)
+    refreshTimer.current = window.setTimeout(() => {
+      refreshTimer.current = null
+      void refresh(next).catch(() => undefined)
+    }, 350)
   }
 
   // 进设置就探一次：现状（运行环境、目录、服务通不通）不该等用户点了才出现
@@ -101,10 +124,13 @@ function MmdSection({
       .status(mmd)
       .then((next) => {
         setStatus(next)
-        if (mmd.node_path.trim() === '' && next.node) patch({ node_path: next.node.path })
+        fillNodePath(next)
       })
       .catch(() => undefined)
-    // 只在挂载时来一次；之后由两颗按钮与字段变更驱动
+    return () => {
+      if (refreshTimer.current !== null) window.clearTimeout(refreshTimer.current)
+    }
+    // 只在挂载时来一次；之后由字段变更与两颗按钮驱动
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -143,7 +169,6 @@ function MmdSection({
     if (/^\d+$/.test(value.trim()) && n > 0 && n <= 65535) patchConnection({ port: n })
     else setStatus(null)
   }
-
   /** 标题右边那块：当前运行环境查到的是哪个版本；没有就说"未找到"，原因进悬停 */
   const nodeState = ((): { text: string; bad: boolean; why: string } | null => {
     if (!status) return null
@@ -155,11 +180,11 @@ function MmdSection({
     return { text: '未找到', bad: true, why: '没找到可用的运行环境（需要 22.2 以上）' }
   })()
 
-  const dirLine = ((): { text: string; bad: boolean } | null => {
+  const dirState = ((): { bad: boolean; why: string } | null => {
     if (!status || mmd.dir.trim() === '') return null
     return status.dir_ok
-      ? { text: '已找到服务程序', bad: false }
-      : { text: '这个目录里没有服务程序', bad: true }
+      ? { bad: false, why: '这个目录里有服务程序' }
+      : { bad: true, why: '这个目录里没有服务程序' }
   })()
   const serviceLine = ((): { text: string; bad: boolean } | null => {
     if (!status) return null
@@ -172,6 +197,12 @@ function MmdSection({
   const line = (value: { text: string; bad: boolean } | null): React.JSX.Element | null =>
     value === null ? null : (
       <p className={`settings-status${value.bad ? ' bad' : ''}`}>{value.text}</p>
+    )
+
+  /** 就地状态灯：绿=就位、红=有问题。理由进悬停，不占版面、不另开一行 */
+  const light = (value: { bad: boolean; why: string } | null): React.JSX.Element | null =>
+    value === null ? null : (
+      <i className={`settings-light${value.bad ? ' bad' : ''}`} title={value.why} />
     )
 
   /** 已经确认在跑就别再让人点「启动服务」；没探过则允许点，主进程那边会先探再决定 */
@@ -222,31 +253,31 @@ function MmdSection({
           </div>
         </label>
 
-        <div>
-          <label className="w-field">
-            <span>服务程序目录</span>
-            <div className="w-row">
-              <input
-                value={mmd.dir}
-                placeholder="如 D:\tools\mmd2vsdx"
-                onChange={(e) => patchConnection({ dir: e.target.value })}
-              />
-              <button
-                type="button"
-                className="be-btn"
-                onClick={() =>
-                  void (async () => {
-                    const dir = await window.documentor.dialog.selectDirectory()
-                    if (dir) patchConnection({ dir })
-                  })()
-                }
-              >
-                浏览…
-              </button>
-            </div>
-          </label>
-          {line(dirLine)}
-        </div>
+        <label className="w-field">
+          <span>
+            服务程序目录
+            {light(dirState)}
+          </span>
+          <div className="w-row">
+            <input
+              value={mmd.dir}
+              placeholder="如 D:\tools\mmd2vsdx"
+              onChange={(e) => patchConnection({ dir: e.target.value })}
+            />
+            <button
+              type="button"
+              className="be-btn"
+              onClick={() =>
+                void (async () => {
+                  const dir = await window.documentor.dialog.selectDirectory()
+                  if (dir) patchConnection({ dir })
+                })()
+              }
+            >
+              浏览…
+            </button>
+          </div>
+        </label>
 
         <div>
           {/* 地址、端口、「默认拉起」同一行 */}

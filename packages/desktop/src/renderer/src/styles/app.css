@@ -118,6 +118,21 @@
   color: var(--danger);
 }
 
+/* 就地状态灯：绿=就位、红=有问题。理由进悬停——一行字说"已找到"纯属占地方 */
+.settings-light {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  vertical-align: baseline;
+}
+
+.settings-light.bad {
+  background: var(--danger);
+}
+
 .settings-fields {
   display: flex;
   flex-direction: column;
