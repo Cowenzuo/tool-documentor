@@ -280,23 +280,31 @@ function MmdSection({
               <span>默认拉起</span>
             </label>
           </div>
-          {line(serviceLine)}
         </div>
       </div>
 
-      <div className="w-row settings-mmd-actions">
-        <button type="button" className="be-btn" disabled={busy !== null} onClick={() => void test()}>
-          {busy === 'test' ? '正在连接…' : '测试连接'}
-        </button>
-        <button
-          type="button"
-          className="be-btn"
-          disabled={busy !== null || !mmd.auto_start || running}
-          title={startWhy}
-          onClick={() => void start()}
-        >
-          {busy === 'start' ? '正在启动…' : '启动服务'}
-        </button>
+      {/* 服务现状落在「测试连接」左边：它本来就是那一下的结果 */}
+      <div className="settings-mmd-actions">
+        {line(serviceLine)}
+        <div className="w-row">
+          <button
+            type="button"
+            className="be-btn"
+            disabled={busy !== null}
+            onClick={() => void test()}
+          >
+            {busy === 'test' ? '正在连接…' : '测试连接'}
+          </button>
+          <button
+            type="button"
+            className="be-btn"
+            disabled={busy !== null || !mmd.auto_start || running}
+            title={startWhy}
+            onClick={() => void start()}
+          >
+            {busy === 'start' ? '正在启动…' : '启动服务'}
+          </button>
+        </div>
       </div>
     </section>
   )

@@ -145,6 +145,22 @@
   padding-bottom: 8px;
 }
 
+/* 服务现状与两颗按钮同一行：状态贴左，按钮靠右 */
+.settings-mmd-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.settings-mmd-actions .settings-status {
+  margin: 0;
+}
+
+.settings-mmd-actions .w-row {
+  margin-left: auto;
+}
+
 .settings-foot-actions {
   display: flex;
   gap: var(--space-2);
