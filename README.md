@@ -131,7 +131,7 @@ pnpm check:mmd:ui      # 设置里的「转换服务」一节
 |---|---|
 | 模板目录 | 由用户提供，目录里是 `structures/<uuid>/` 与 `styles/<uuid>/`；软件不内置模板 |
 | 图转换 | Mermaid 转 Visio 对象嵌入，靠本机一个**常驻转换服务**（`mmd2vsdx`，形态是本地 HTTP 服务）。它是运行期外部件：软件只探测与按需点火，**不接管它的生命周期**；发行包不含它（版权边界见 `docs/版本开发过程/DESIGN-07-导出、题注与图嵌入.md`）。服务不在或没配好时导出照常成功，图以文本形式呈现 |
-| 图转换的运行时前置 | 服务那一侧要 Node ≥22.2、Chromium（`npx playwright install chromium`，同一 Windows 用户下全机共用）；软件这一侧在 设置 →「转换服务」里配：Node、服务程序目录、服务地址、要不要自动启动 |
+| 图转换的运行时前置 | 服务那一侧要 Node ≥22.2、Chromium（`npx playwright install chromium`，同一 Windows 用户下全机共用）；软件这一侧在 设置 →「转换服务」里配：运行环境、服务程序目录、地址与端口、要不要默认拉起。这些字段都可手填（各带一个「浏览…」），也能在设置里点「启动服务」把它拉起来 |
 | 与服务的接口 | 我方用两个路由：`GET /health` 弱确认、`POST /convert` 送 mermaid 原文拿 `.vsdx` 字节。契约的唯一事实源是上游 `docs/接口协议.md`，我方怎么用见 `docs/版本开发过程/DESIGN-07-导出、题注与图嵌入.md` 第 6 节 |
 
 ## 打包与安全

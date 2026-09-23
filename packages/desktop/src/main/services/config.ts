@@ -2,8 +2,8 @@
  * 应用配置（对齐旧版 config.json 字段语义；位置 = Electron userData）。
  * { version, default_project_dir, template_dirs, mmd2vsdx }
  *
- * `mmd2vsdx` 一节是图转换服务（本机常驻 HTTP 服务）的配置：Node 跑哪、目录在哪、
- * 服务地址、要不要自动点火。上游不在发行包里（合规边界），所以这三样都得用户给，
+ * `mmd2vsdx` 一节是图转换服务（本机常驻 HTTP 服务）的配置：运行环境跑哪、目录在哪、
+ * 地址与端口、要不要默认拉起。上游不在发行包里（合规边界），所以这几样都得用户给，
  * 缺省值只是"最可能对"的起点，详见 DESIGN-07。
  */
 import { app } from 'electron'

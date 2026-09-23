@@ -45,11 +45,11 @@ function ThemeSection(): React.JSX.Element {
 /**
  * 图转换服务（mmd2vsdx）一节。
  *
- * 排法照设置页的既有口径：**一行配置 + 紧跟一条就地状态**（范本是「模板目录」那节），
- * 长解释一律进悬停提示，不占版面。三处自己的样子：
- *   - **进设置就自动探一次**，不用先点「测试连接」才看得到现状；
- *   - 运行环境查到什么**显示在标题右边**（只写版本号），字段本身是可手填的路径 + 浏览；
- *   - 地址、端口、「默认拉起」同处一行。
+ * 排法照设置页的既有口径：**状态就地给，不另开一行**——能一颗灯说清的就别写一行字。
+ * 三处自己的样子：
+ *   - **进设置就自动探一次，改了字段也自动重探**（防抖），不用先点「测试连接」；
+ *   - 运行环境查到什么**显示在「运行环境」四个字右边**（一颗灯 + 版本号），字段本身可手填；
+ *   - 地址、端口、「默认拉起」同处一行，服务现状落在「测试连接」左边。
  *
  * 四条边界：
  *   1. **没有"要不要转"这一档**：流程图转成可编辑对象是固有能力，有图就走这条路，
@@ -95,7 +95,7 @@ function MmdSection({
     onChange({ ...prev, mmd2vsdx: { ...prev.mmd2vsdx, node_path: next.node.path } })
   }
 
-  /** 探一次并把结论摆出来（标题右边的版本、目录那颗灯、服务通不通都从这儿来） */
+  /** 探一次并把结论摆出来（运行环境那颗灯与版本、目录那颗灯、服务通不通都从这儿来） */
   const refresh = async (config: AppConfigDto['mmd2vsdx']): Promise<void> => {
     const next = await window.documentor.mmd.status(config)
     setStatus(next)
@@ -169,7 +169,7 @@ function MmdSection({
     if (/^\d+$/.test(value.trim()) && n > 0 && n <= 65535) patchConnection({ port: n })
     else setStatus(null)
   }
-  /** 标题右边那块：当前运行环境查到的是哪个版本；没有就说"未找到"，原因进悬停 */
+  /** 「运行环境」那行右边那块：查到的是哪个版本；没有就说"未找到"，理由进悬停 */
   const nodeState = ((): { text: string; bad: boolean; why: string } | null => {
     if (!status) return null
     if (status.node) return { text: status.node.version ?? '', bad: false, why: status.node.path }

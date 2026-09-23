@@ -36,25 +36,25 @@ import type {
 /** 上游契约版本；对不上就明确报错，不静默降级（上游文档明确要求） */
 export const MMD_CONTRACT_VERSION = 1
 /** 弱确认超时：探测不该让界面等 */
-export const MMD_PROBE_TIMEOUT_MS = 500
+const MMD_PROBE_TIMEOUT_MS = 500
 /** 没读到 /health 时的兜底单请求超时（读到以后用 timeoutMs + 余量） */
-export const MMD_CONVERT_TIMEOUT_MS = 20_000
+const MMD_CONVERT_TIMEOUT_MS = 20_000
 /** 服务端超时之外留的余量：让服务端先回 504，我方别抢跑 */
-export const MMD_CONVERT_TIMEOUT_SLACK_MS = 5000
+const MMD_CONVERT_TIMEOUT_SLACK_MS = 5000
 /** 连续多少张超时就整体停手 */
-export const MMD_TIMEOUT_STREAK_LIMIT = 3
+const MMD_TIMEOUT_STREAK_LIMIT = 3
 /** 点火后等就绪的上限 */
-export const MMD_START_WAIT_MS = 20_000
-export const MMD_START_POLL_MS = 250
+const MMD_START_WAIT_MS = 20_000
+const MMD_START_POLL_MS = 250
 /** 可重试类失败的重试退避 */
-export const MMD_RETRY_DELAY_MS = 1000
-/** 服务端入口（相对 mmd2vsdx 目录） */
-export const MMD_SERVER_ENTRY = join('bin', 'mmd2vsdx-server.mjs')
+const MMD_RETRY_DELAY_MS = 1000
+/** 服务端入口（相对服务程序目录） */
+const MMD_SERVER_ENTRY = join('bin', 'mmd2vsdx-server.mjs')
 
 export type MmdServiceConfig = MmdServiceConfigDto
 
-export const DEFAULT_MMD_HOST = '127.0.0.1'
-export const DEFAULT_MMD_PORT = 12138
+const DEFAULT_MMD_HOST = '127.0.0.1'
+const DEFAULT_MMD_PORT = 12138
 
 export const DEFAULT_MMD_CONFIG: MmdServiceConfig = {
   node_path: '',
@@ -96,8 +96,8 @@ export type MmdProbeResult =
 
 export type MmdProbeFailureKind = 'unreachable' | 'contract-mismatch' | 'bad-response'
 
-/** 单张失败 / 整体不可用 / 我方请求写错 */
-export type MmdFailureKind = 'single' | 'unavailable' | 'request-bug'
+/** 单张失败（继续下一张） / 服务整体不可用（停手，整篇文本版） */
+export type MmdFailureKind = 'single' | 'unavailable'
 
 export interface MmdConvertSuccess {
   ok: true
@@ -327,7 +327,7 @@ export class MmdService {
         ok: false,
         started: false,
         reason: first.reason,
-        detail: `${first.detail ?? ''}（按设置不自动启动）`.trim()
+        detail: `${first.detail ?? ''}（没打开「默认拉起」）`.trim()
       }
     }
 

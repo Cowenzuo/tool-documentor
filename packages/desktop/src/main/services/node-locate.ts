@@ -19,9 +19,10 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 /** 上游 package.json 的 engines 要求 */
-export const MIN_NODE_MAJOR = 22
-export const MIN_NODE_MINOR = 2
-export const MIN_NODE_TEXT = `${MIN_NODE_MAJOR}.${MIN_NODE_MINOR}`
+const MIN_NODE_MAJOR = 22
+const MIN_NODE_MINOR = 2
+/** 给人看的下限字样（错误信息里用） */
+const MIN_NODE_TEXT = `${MIN_NODE_MAJOR}.${MIN_NODE_MINOR}`
 
 export interface NodeCandidate {
   /** 可执行文件绝对路径 */
@@ -138,7 +139,7 @@ export function nodeCandidates(options: LocateOptions = {}): NodeCandidate[] {
 }
 
 /** 跑一次 `--version`；跑不起来返回 null（超时、不是 Node、权限不足都归这一档） */
-export function defaultNodeVersionOf(candidate: NodeCandidate): Promise<string | null> {
+function defaultNodeVersionOf(candidate: NodeCandidate): Promise<string | null> {
   return new Promise((resolve) => {
     const env = candidate.electronAsNode
       ? { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
@@ -180,7 +181,7 @@ export async function probeNode(
   return { ...candidate, version, ok: true }
 }
 
-export interface LocateResult {
+interface LocateResult {
   /** 选中的那个（没有就是 null） */
   picked: NodeProbe | null
   /** 全部候选的探查结果，按顺序；设置页与诊断用它解释"为什么没找到" */
