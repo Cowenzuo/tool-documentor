@@ -265,19 +265,9 @@
   color: var(--text-3);
 }
 
+/* 外观（描边、圆角、底色、内边距、聚焦）见 styles/app.css 里那条统一规则，这里只管宽度 */
 .w-field input {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-control);
-  background: var(--bg-input);
-  color: var(--text-1);
-  font-size: var(--text-sm);
-  padding: 7px 10px;
   width: 100%;
-}
-
-.w-field input:focus {
-  outline: none;
-  border-color: var(--accent);
 }
 
 .w-row {
