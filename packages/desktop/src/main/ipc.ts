@@ -241,6 +241,20 @@ export function registerProjectIpc(service: ProjectService, mmd: MmdService): vo
     return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]!
   })
 
+  // 运行环境可执行文件：不想用 PATH 上那个时手挑一个（Windows 给 exe 过滤，别的平台不过滤）
+  handle<void, string | null>(ProjectIpc.DialogSelectExecutable, async () => {
+    const win = windowOf()
+    if (!win) return null
+    const result = await dialog.showOpenDialog(win, {
+      title: '选择运行环境',
+      ...(process.platform === 'win32'
+        ? { filters: [{ name: '可执行文件', extensions: ['exe'] }] }
+        : {}),
+      properties: ['openFile']
+    })
+    return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]!
+  })
+
   handle<{ defaultPath: string }, string | null>(ProjectIpc.DialogSavePath, async (input) => {
     const win = windowOf()
     if (!win) return null

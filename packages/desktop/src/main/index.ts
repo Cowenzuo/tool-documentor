@@ -235,6 +235,9 @@ app.whenReady().then(() => {
   })
   projectService = new ProjectService(manager, mmd)
   registerProjectIpc(projectService, mmd)
+  // 启动就探一次：设置页一打开就有现状，导出对话框也能立刻回答"能不能嵌图"。
+  // **只探不动手**——服务不在也不会被拉起来，那要用户点「启动服务」或打开「默认拉起」。
+  void mmd.probe().catch(() => undefined)
   registerIpc()
   createMainWindow()
 

@@ -45,9 +45,11 @@ function ThemeSection(): React.JSX.Element {
 /**
  * 图转换服务（mmd2vsdx）一节。
  *
- * 排法照设置页的既有口径：**一行配置 + 紧跟一条就地状态**（范本是「模板目录」那节，
- * 一行只出一条，最多三条就折叠）。这里三个字段不同质，所以带标签（用向导那套 `.w-field`），
- * 长解释一律进悬停提示，不占版面。
+ * 排法照设置页的既有口径：**一行配置 + 紧跟一条就地状态**（范本是「模板目录」那节），
+ * 长解释一律进悬停提示，不占版面。三处自己的样子：
+ *   - **进设置就自动探一次**，不用先点「测试连接」才看得到现状；
+ *   - 运行环境查到什么**显示在标题右边**（只写版本号），字段本身是可手填的路径 + 浏览；
+ *   - 地址、端口、「默认拉起」同处一行。
  *
  * 四条边界：
  *   1. **没有"要不要转"这一档**：流程图转成可编辑对象是固有能力，有图就走这条路，
@@ -84,14 +86,27 @@ function MmdSection({
   }
 
   /**
-   * 探一次并把结论摆出来。**自动查到的运行环境填回输入框**：让用户看得见用的是哪一个，
-   * 而不是只在状态行里显示个版本号。
+   * 探一次并把结论摆出来。**自动查到的运行环境填回输入框**：让用户看得见用的是哪一个。
+   * 只在还没手填过（字段为空）时才回填，免得把用户自己挑的覆盖掉。
    */
   const refresh = async (config: AppConfigDto['mmd2vsdx']): Promise<void> => {
     const next = await window.documentor.mmd.status(config)
     setStatus(next)
     if (config.node_path.trim() === '' && next.node) patch({ node_path: next.node.path })
   }
+
+  // 进设置就探一次：现状（运行环境、目录、服务通不通）不该等用户点了才出现
+  useEffect(() => {
+    void window.documentor.mmd
+      .status(mmd)
+      .then((next) => {
+        setStatus(next)
+        if (mmd.node_path.trim() === '' && next.node) patch({ node_path: next.node.path })
+      })
+      .catch(() => undefined)
+    // 只在挂载时来一次；之后由两颗按钮与字段变更驱动
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const test = async (): Promise<void> => {
     setBusy('test')
@@ -129,16 +144,17 @@ function MmdSection({
     else setStatus(null)
   }
 
-  // 一行一条：查到了什么、缺什么，就地一句话
-  const nodeLine = ((): { text: string; bad: boolean } | null => {
+  /** 标题右边那块：当前运行环境查到的是哪个版本；没有就说"未找到"，原因进悬停 */
+  const nodeState = ((): { text: string; bad: boolean; why: string } | null => {
     if (!status) return null
-    if (status.node) return { text: `运行环境 ${status.node.version}`, bad: false }
+    if (status.node) return { text: status.node.version ?? '', bad: false, why: status.node.path }
     if (mmd.node_path.trim() !== '') {
-      const why = status.node_candidates[0]?.reason
-      return { text: why ? `这个运行环境用不了：${why}` : '这个运行环境用不了', bad: true }
+      const why = status.node_candidates[0]?.reason ?? ''
+      return { text: '不可用', bad: true, why }
     }
-    return { text: '没找到可用的运行环境（需要 22.2 以上）', bad: true }
+    return { text: '未找到', bad: true, why: '没找到可用的运行环境（需要 22.2 以上）' }
   })()
+
   const dirLine = ((): { text: string; bad: boolean } | null => {
     if (!status || mmd.dir.trim() === '') return null
     return status.dir_ok
@@ -164,26 +180,47 @@ function MmdSection({
     ? '转换服务已经在运行'
     : mmd.auto_start
       ? ''
-      : '没打开「没在运行时自动启动」'
+      : '没打开「默认拉起」'
 
   return (
     <section className="settings-group">
-      <h3>转换服务</h3>
+      <h3>
+        转换服务
+        {nodeState && (
+          <span
+            className={`settings-note${nodeState.bad ? ' bad' : ''}`}
+            title={nodeState.why === '' ? undefined : nodeState.why}
+          >
+            {nodeState.text}
+          </span>
+        )}
+      </h3>
 
       {/* 没有"要不要转"这一档：转成可编辑对象是固有能力，有图就走，服务不在就自动按文本导出。
           这里配的只是"去哪找它"。 */}
       <div className="settings-fields">
-        <div>
-          <label className="w-field">
-            <span>运行环境</span>
+        <label className="w-field">
+          <span>运行环境</span>
+          <div className="w-row">
             <input
               value={mmd.node_path}
               placeholder="留空自动查找"
               onChange={(e) => patchConnection({ node_path: e.target.value })}
             />
-          </label>
-          {line(nodeLine)}
-        </div>
+            <button
+              type="button"
+              className="be-btn"
+              onClick={() =>
+                void (async () => {
+                  const exe = await window.documentor.dialog.selectExecutable()
+                  if (exe) patchConnection({ node_path: exe })
+                })()
+              }
+            >
+              浏览…
+            </button>
+          </div>
+        </label>
 
         <div>
           <label className="w-field">
@@ -212,8 +249,9 @@ function MmdSection({
         </div>
 
         <div>
-          <div className="w-row settings-host-port">
-            <label className="w-field">
+          {/* 地址、端口、「默认拉起」同一行 */}
+          <div className="w-row settings-endpoint">
+            <label className="w-field settings-host">
               <span>地址</span>
               <input
                 value={mmd.host}
@@ -230,40 +268,35 @@ function MmdSection({
                 onChange={(e) => onPort(e.target.value)}
               />
             </label>
+            <label
+              className="settings-check settings-auto-start"
+              title="没在运行时替你把它拉起来；启动后不归本软件管，也不会随本软件关闭"
+            >
+              <input
+                type="checkbox"
+                checked={mmd.auto_start}
+                onChange={(e) => patch({ auto_start: e.target.checked })}
+              />
+              <span>默认拉起</span>
+            </label>
           </div>
           {line(serviceLine)}
         </div>
       </div>
 
-      {/* 开关与动作同一行：左边是唯一能关的那件事，右边是两颗按钮 */}
-      <div className="settings-mmd-foot">
-        <label className="settings-check" title="启动后不归本软件管，也不会随本软件关闭">
-          <input
-            type="checkbox"
-            checked={mmd.auto_start}
-            onChange={(e) => patch({ auto_start: e.target.checked })}
-          />
-          <span>没在运行时自动启动</span>
-        </label>
-        <div className="w-row">
-          <button
-            type="button"
-            className="be-btn"
-            disabled={busy !== null}
-            onClick={() => void test()}
-          >
-            {busy === 'test' ? '正在连接…' : '测试连接'}
-          </button>
-          <button
-            type="button"
-            className="be-btn"
-            disabled={busy !== null || !mmd.auto_start || running}
-            title={startWhy}
-            onClick={() => void start()}
-          >
-            {busy === 'start' ? '正在启动…' : '启动服务'}
-          </button>
-        </div>
+      <div className="w-row settings-mmd-actions">
+        <button type="button" className="be-btn" disabled={busy !== null} onClick={() => void test()}>
+          {busy === 'test' ? '正在连接…' : '测试连接'}
+        </button>
+        <button
+          type="button"
+          className="be-btn"
+          disabled={busy !== null || !mmd.auto_start || running}
+          title={startWhy}
+          onClick={() => void start()}
+        >
+          {busy === 'start' ? '正在启动…' : '启动服务'}
+        </button>
       </div>
     </section>
   )

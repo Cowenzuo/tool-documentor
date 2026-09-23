@@ -121,6 +121,10 @@ const api: DesktopApi = {
       invoke(ProjectIpc.DialogSelectImage) as ReturnType<DesktopApi['dialog']['selectImage']>,
     selectDocx: () =>
       invoke(ProjectIpc.DialogSelectDocx) as ReturnType<DesktopApi['dialog']['selectDocx']>,
+    selectExecutable: () =>
+      invoke(ProjectIpc.DialogSelectExecutable) as ReturnType<
+        DesktopApi['dialog']['selectExecutable']
+      >,
     savePath: (options: SavePathDialogOptions) =>
       invoke(ProjectIpc.DialogSavePath, options) as ReturnType<DesktopApi['dialog']['savePath']>
   },

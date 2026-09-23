@@ -634,6 +634,8 @@ export const ProjectIpc = {
   ExportFigureCounts: 'export:figure-counts',
   /** 另存对话框（导出路径） */
   DialogSavePath: 'dialog:save-path',
+  /** 选一个可执行文件（图转换服务的运行环境） */
+  DialogSelectExecutable: 'dialog:select-executable',
   /** 图转换服务（mmd2vsdx）：现状探测 */
   MmdStatus: 'mmd:status',
   /** 图转换服务：点火（启动服务），不接管它的生命周期 */
@@ -781,6 +783,8 @@ export interface DesktopDialogApi {
   selectImage(): Promise<string | null>
   /** 选一个 .docx（导入自备样式用） */
   selectDocx(): Promise<string | null>
+  /** 选一个可执行文件（图转换服务的运行环境；不想用 PATH 上那个时手挑一个） */
+  selectExecutable(): Promise<string | null>
   savePath(options: SavePathDialogOptions): Promise<string | null>
 }
 
