@@ -106,31 +106,29 @@
   white-space: nowrap;
 }
 
-/* 分区标题右侧的现况小字（例：转换服务当前用的运行环境版本）。失败时走危险色 */
-.settings-group h3 .settings-note {
-  margin-left: auto;
-  font-size: var(--text-xs);
-  font-weight: 400;
-  color: var(--text-3);
+/* 就地状态灯：绿=就位、红=有问题；后面可跟一小段字（版本号之类）。
+   理由进悬停——一行字说"已找到"纯属占地方，所以这里连一行都不占。 */
+.settings-light-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 6px;
 }
 
-.settings-group h3 .settings-note.bad {
-  color: var(--danger);
-}
-
-/* 就地状态灯：绿=就位、红=有问题。理由进悬停——一行字说"已找到"纯属占地方 */
 .settings-light {
-  display: inline-block;
+  flex: 0 0 auto;
   width: 7px;
   height: 7px;
-  margin-left: 6px;
   border-radius: 50%;
   background: var(--success);
-  vertical-align: baseline;
 }
 
 .settings-light.bad {
   background: var(--danger);
+}
+
+.settings-light-text {
+  font-style: normal;
 }
 
 .settings-fields {

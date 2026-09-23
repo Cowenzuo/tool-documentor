@@ -180,11 +180,11 @@ function MmdSection({
     return { text: '未找到', bad: true, why: '没找到可用的运行环境（需要 22.2 以上）' }
   })()
 
-  const dirState = ((): { bad: boolean; why: string } | null => {
+  const dirState = ((): { text: string; bad: boolean; why: string } | null => {
     if (!status || mmd.dir.trim() === '') return null
     return status.dir_ok
-      ? { bad: false, why: '这个目录里有服务程序' }
-      : { bad: true, why: '这个目录里没有服务程序' }
+      ? { text: '', bad: false, why: '这个目录里有服务程序' }
+      : { text: '', bad: true, why: '这个目录里没有服务程序' }
   })()
   const serviceLine = ((): { text: string; bad: boolean } | null => {
     if (!status) return null
@@ -199,10 +199,18 @@ function MmdSection({
       <p className={`settings-status${value.bad ? ' bad' : ''}`}>{value.text}</p>
     )
 
-  /** 就地状态灯：绿=就位、红=有问题。理由进悬停，不占版面、不另开一行 */
-  const light = (value: { bad: boolean; why: string } | null): React.JSX.Element | null =>
+  /**
+   * 就地状态灯：绿=就位、红=有问题，后面可以跟一小段字（版本号之类）。
+   * 理由一律进悬停——一行字说"已找到"纯属占地方。
+   */
+  const light = (
+    value: { text: string; bad: boolean; why: string } | null
+  ): React.JSX.Element | null =>
     value === null ? null : (
-      <i className={`settings-light${value.bad ? ' bad' : ''}`} title={value.why} />
+      <span className="settings-light-wrap" title={value.why}>
+        <i className={`settings-light${value.bad ? ' bad' : ''}`} />
+        {value.text !== '' && <em className="settings-light-text">{value.text}</em>}
+      </span>
     )
 
   /** 已经确认在跑就别再让人点「启动服务」；没探过则允许点，主进程那边会先探再决定 */
@@ -215,23 +223,16 @@ function MmdSection({
 
   return (
     <section className="settings-group">
-      <h3>
-        转换服务
-        {nodeState && (
-          <span
-            className={`settings-note${nodeState.bad ? ' bad' : ''}`}
-            title={nodeState.why === '' ? undefined : nodeState.why}
-          >
-            {nodeState.text}
-          </span>
-        )}
-      </h3>
+      <h3>转换服务</h3>
 
       {/* 没有"要不要转"这一档：转成可编辑对象是固有能力，有图就走，服务不在就自动按文本导出。
           这里配的只是"去哪找它"。 */}
       <div className="settings-fields">
         <label className="w-field">
-          <span>运行环境</span>
+          <span>
+            运行环境
+            {light(nodeState)}
+          </span>
           <div className="w-row">
             <input
               value={mmd.node_path}
