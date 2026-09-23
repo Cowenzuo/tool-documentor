@@ -194,16 +194,24 @@ export class MmdService {
 
   // ---------- 探测 ----------
 
+  /** 现读配置；`override` 是设置页"拿表单现值试一下"的临时覆盖，**不落盘、不进缓存** */
+  private cfg(override?: MmdServiceConfig): MmdServiceConfig {
+    return override ?? this.deps.getConfig()
+  }
+
   /** 弱确认：200 且契约版本对得上 */
-  async probe(): Promise<MmdProbeResult> {
-    const cfg = this.deps.getConfig()
+  async probe(override?: MmdServiceConfig): Promise<MmdProbeResult> {
+    const cfg = this.cfg(override)
     if (!cfg.enabled) {
       return { ok: false, kind: 'disabled', reason: '图转换已关闭' }
     }
     const result = await this.probeOnce(cfg.endpoint)
-    this.lastProbe = result
-    this.lastProbeAt = Date.now()
-    if (result.ok) this.lastHealth = result.health
+    // 覆盖探测是"试一下"，结果不能污染导出用的缓存
+    if (!override) {
+      this.lastProbe = result
+      this.lastProbeAt = Date.now()
+      if (result.ok) this.lastHealth = result.health
+    }
     return result
   }
 
@@ -229,23 +237,24 @@ export class MmdService {
       return { ok: false, kind: 'unreachable', reason: '转换服务没在运行', detail: messageOf(err) }
     }
     if (!res.ok) {
-      return { ok: false, kind: 'unreachable', reason: `转换服务异常（HTTP ${res.status}）` }
+      // 状态码进日志（`detail`），界面上只说"没正常响应"
+      return { ok: false, kind: 'unreachable', reason: '转换服务没有正常响应', detail: `HTTP ${res.status}` }
     }
     let body: unknown
     try {
       body = await res.json()
     } catch (err) {
-      return { ok: false, kind: 'bad-response', reason: '转换服务回的不是预期的健康信息', detail: messageOf(err) }
+      return { ok: false, kind: 'bad-response', reason: '转换服务没有正常响应', detail: messageOf(err) }
     }
     const health = parseHealth(body)
     if (!health) {
-      return { ok: false, kind: 'bad-response', reason: '转换服务的健康信息读不出来' }
+      return { ok: false, kind: 'bad-response', reason: '转换服务没有正常响应', detail: '健康信息读不出来' }
     }
     if (health.contractVersion !== MMD_CONTRACT_VERSION) {
       return {
         ok: false,
         kind: 'contract-mismatch',
-        reason: `转换服务的接口版本是 ${health.contractVersion}，本软件要求 ${MMD_CONTRACT_VERSION}`,
+        reason: `转换服务的版本与本软件不匹配（它 ${health.contractVersion}，本软件要 ${MMD_CONTRACT_VERSION}）`,
         detail: `服务版本 ${health.serviceVersion}`
       }
     }
@@ -255,14 +264,14 @@ export class MmdService {
   // ---------- 点火 ----------
 
   /** 组装点火命令；设置页也用它显示"将要执行什么" */
-  async buildStartPlan(): Promise<MmdStartPlan> {
-    const cfg = this.deps.getConfig()
+  async buildStartPlan(override?: MmdServiceConfig): Promise<MmdStartPlan> {
+    const cfg = this.cfg(override)
     const parsed = parseEndpoint(cfg.endpoint)
     if (!parsed) {
-      return { ok: false, reason: 'bad-endpoint', detail: `服务地址读不出来：${cfg.endpoint}` }
+      return { ok: false, reason: 'bad-endpoint', detail: '服务地址只能是本机回环地址，形如 http://127.0.0.1:12138' }
     }
     if (cfg.dir === '') {
-      return { ok: false, reason: 'no-dir', detail: '还没有指定转换服务的目录' }
+      return { ok: false, reason: 'no-dir', detail: '还没有指定服务程序目录' }
     }
     const located = this.deps.locate
       ? await this.deps.locate(cfg.node_path)
@@ -276,8 +285,8 @@ export class MmdService {
         reason: 'no-node',
         detail:
           cfg.node_path !== ''
-            ? `指定的 Node 用不了：${located.all[0]?.reason ?? '未知原因'}`
-            : '没找到可用的 Node（需要 22.2 以上）'
+            ? `指定的运行环境用不了：${located.all[0]?.reason ?? '原因不明'}`
+            : '没找到可用的运行环境（需要 22.2 以上）'
       }
     }
     const nodePath = located.picked.path
@@ -298,15 +307,15 @@ export class MmdService {
    * 探测 → 不通就点火 → 轮询到就绪。**永不持有句柄**：点完火就撒手，
    * 不记 pid、不管它以后怎么退出（App 退出也不关它）。
    */
-  async ensureRunning(): Promise<MmdStartResultDto> {
-    const first = await this.probe()
+  async ensureRunning(override?: MmdServiceConfig): Promise<MmdStartResultDto> {
+    const first = await this.probe(override)
     if (first.ok) {
       return { ok: true, started: false, reason: '转换服务已在运行', health: first.health }
     }
     if (first.kind === 'disabled') {
       return { ok: false, started: false, reason: first.reason }
     }
-    const cfg = this.deps.getConfig()
+    const cfg = this.cfg(override)
     if (!cfg.auto_start) {
       return {
         ok: false,
@@ -316,7 +325,7 @@ export class MmdService {
       }
     }
 
-    const plan = await this.buildStartPlan()
+    const plan = await this.buildStartPlan(override)
     if (!plan.ok) return { ok: false, started: false, reason: plan.detail, detail: plan.reason }
 
     const logFile = this.deps.logFile?.() ?? null
@@ -352,20 +361,22 @@ export class MmdService {
     }
   }
 
-  /** 退出码的含义是上游契约的一部分（接口协议 §2） */
+  /**
+   * 退出码的含义是上游契约的一部分（接口协议 §2）。
+   * 说法面向人：退出码只进日志，界面上说的是"哪里不对、下一步做什么"。
+   */
   private explainExit(
     code: number,
     logFile: string | null,
     plan: Extract<MmdStartPlan, { ok: true }>
   ): MmdStartResultDto {
-    const tail = logFile ? readLogTail(logFile, 12) : ''
     if (code === 0) {
       // 已有本家且契约兼容的实例：它让位了，探测本应能通——交给调用方再探一次
       return {
         ok: false,
         started: false,
-        reason: '端口上已经有另一个转换服务在跑',
-        detail: '请点「测试连接」看它是否可用',
+        reason: '这个端口上已经有一个转换服务在跑',
+        detail: '点「测试连接」看它能不能用',
         exit_code: 0
       }
     }
@@ -374,14 +385,17 @@ export class MmdService {
         ok: false,
         started: false,
         reason: `端口 ${plan.port} 被别的程序占用了`,
-        detail: '换一个端口再试（服务地址里的端口要和启动端口一致）',
+        detail: '换一个端口再试，服务地址也要跟着改',
         exit_code: 3
       }
     }
+    // 起不来时日志尾巴就是原因，截一行进回执（原件在日志里）
+    const tail = logFile ? readLogTail(logFile, 1) : ''
+    this.log(`[mmd] 转换服务启动失败，退出码 ${code}${logFile ? `，日志 ${logFile}` : ''}`)
     return {
       ok: false,
       started: false,
-      reason: `转换服务启动失败（退出码 ${code}）`,
+      reason: '转换服务没能启动',
       detail: tail === '' ? undefined : tail,
       exit_code: code
     }
@@ -563,9 +577,12 @@ export class MmdService {
 
   // ---------- 设置页看的状态 ----------
 
-  /** 设置页一次拿全：目录在不在、Node 找到哪个、探测通不通 */
-  async status(): Promise<MmdStatusDto> {
-    const cfg = this.deps.getConfig()
+  /**
+   * 设置页一次拿全：目录在不在、Node 找到哪个、探测通不通。
+   * `override` 是表单现值：设置页改完还没点「保存设置」时，测的应当是眼前这一份，不是盘上那份。
+   */
+  async status(override?: MmdServiceConfig): Promise<MmdStatusDto> {
+    const cfg = this.cfg(override)
     const serverEntry = cfg.dir === '' ? '' : join(cfg.dir, MMD_SERVER_ENTRY)
     let dirOk = false
     if (serverEntry !== '') {
@@ -578,7 +595,7 @@ export class MmdService {
     const located = this.deps.locate
       ? await this.deps.locate(cfg.node_path)
       : await locateNode({ explicit: cfg.node_path, electronPath: this.deps.electronPath })
-    const probe = await this.probe()
+    const probe = await this.probe(override)
     return {
       enabled: cfg.enabled,
       endpoint: cfg.endpoint,

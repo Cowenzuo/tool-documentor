@@ -153,7 +153,8 @@ export function defaultNodeVersionOf(candidate: NodeCandidate): Promise<string |
           return
         }
         const m = /v?\d+\.\d+\.\d+/.exec(String(stdout))
-        resolve(m ? m[0] : null)
+        // 去掉 `v` 前缀：界面上写「运行环境 22.23.1」比「v22.23.1」顺眼
+        resolve(m ? m[0].replace(/^v/, '') : null)
       }
     )
   })
@@ -171,7 +172,7 @@ export async function probeNode(
   }
   const version = await versionOf(candidate)
   if (version === null) {
-    return { ...candidate, version: null, ok: false, reason: '跑不起来，可能不是 Node 或者权限不足' }
+    return { ...candidate, version: null, ok: false, reason: '跑不起来，可能不是可执行文件或者权限不足' }
   }
   if (!satisfiesMinNode(version)) {
     return { ...candidate, version, ok: false, reason: `版本 ${version} 低于要求的 ${MIN_NODE_TEXT}` }

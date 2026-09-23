@@ -45,11 +45,17 @@ function ThemeSection(): React.JSX.Element {
 /**
  * 图转换服务（mmd2vsdx）一节。
  *
- * 三件事得说清楚：
- *   1. 它是个**外部件**（不在发行包里，版权边界），所以 Node、目录、地址三样都得用户给；
- *   2. 「测试连接」与「启动服务」都会**先把这一节落盘**再动作——主进程读的是 config.json，
- *      不先存就等于在测旧值，那种"改了没反应"最难查；
- *   3. 只有「启动服务」，没有「停止服务」：服务不归我们管，上游也没提供关机接口。
+ * 排法照设置页的既有口径：**一行配置 + 紧跟一条就地状态**（范本是「模板目录」那节，
+ * 一行只出一条，最多三条就折叠）。这里三个字段不同质，所以带标签（用向导那套 `.w-field`），
+ * 长解释一律进悬停提示，不占版面。
+ *
+ * 三条边界：
+ *   1. 它是**外部件**（不进发行包），运行环境、目录、地址都得用户给，缺哪样就地一句话说清；
+ *   2. 「测试连接」「启动服务」拿的是**表单现值、不写盘**——没点「保存设置」就等于没配，
+ *      所以「取消」仍然是取消；
+ *   3. 只有「启动服务」，没有「停止服务」：服务不归本软件管，上游也没提供关机接口。
+ *
+ * 文案：每条最多一句；驱动给的原始异常（`fetch failed` 这类）不上界面，进日志。
  */
 function MmdSection({
   cfg,
@@ -66,15 +72,10 @@ function MmdSection({
   const patch = (part: Partial<AppConfigDto['mmd2vsdx']>): void =>
     onChange({ ...cfg, mmd2vsdx: { ...mmd, ...part } })
 
-  const persist = async (): Promise<void> => {
-    await window.documentor.settings.set({ mmd2vsdx: mmd })
-  }
-
   const test = async (): Promise<void> => {
     setBusy('test')
     try {
-      await persist()
-      setStatus(await window.documentor.mmd.status())
+      setStatus(await window.documentor.mmd.status(mmd))
     } catch (err) {
       showToast({ kind: 'error', text: `连接失败：${errorText(err)}` })
     } finally {
@@ -85,11 +86,10 @@ function MmdSection({
   const start = async (): Promise<void> => {
     setBusy('start')
     try {
-      await persist()
-      const result = await window.documentor.mmd.start()
+      const result = await window.documentor.mmd.start(mmd)
       const text = result.detail ? `${result.reason}：${result.detail}` : result.reason
       showToast({ kind: result.ok ? 'info' : 'error', text })
-      setStatus(await window.documentor.mmd.status())
+      setStatus(await window.documentor.mmd.status(mmd))
     } catch (err) {
       showToast({ kind: 'error', text: `启动失败：${errorText(err)}` })
     } finally {
@@ -97,116 +97,132 @@ function MmdSection({
     }
   }
 
-  const firstNodeReason = status?.node_candidates[0]?.reason
+  // 一行一条：查到了什么、缺什么，就地一句话。关掉这一节就不显示状态（省得一片红）
+  const shown = mmd.enabled ? status : null
+  const nodeLine = ((): { text: string; bad: boolean } | null => {
+    if (!shown) return null
+    if (shown.node) return { text: `运行环境 ${shown.node.version}`, bad: false }
+    if (mmd.node_path.trim() !== '') {
+      const why = shown.node_candidates[0]?.reason
+      return { text: why ? `这个运行环境用不了：${why}` : '这个运行环境用不了', bad: true }
+    }
+    return { text: '没找到可用的运行环境（需要 22.2 以上）', bad: true }
+  })()
+  const dirLine = ((): { text: string; bad: boolean } | null => {
+    if (!shown || mmd.dir.trim() === '') return null
+    return shown.dir_ok
+      ? { text: '已找到服务程序', bad: false }
+      : { text: '这个目录里没有服务程序', bad: true }
+  })()
+  const serviceLine = ((): { text: string; bad: boolean } | null => {
+    if (!shown) return null
+    if (shown.probe.ok && shown.probe.health) {
+      return { text: `服务可用 · ${shown.probe.health.serviceVersion}`, bad: false }
+    }
+    return { text: shown.probe.reason, bad: true }
+  })()
+
+  const line = (value: { text: string; bad: boolean } | null): React.JSX.Element | null =>
+    value === null ? null : (
+      <p className={`settings-status${value.bad ? ' bad' : ''}`}>{value.text}</p>
+    )
 
   return (
     <section className="settings-group">
       <h3>转换服务</h3>
-      <p className="settings-hint">
-        流程图导出成可双击编辑的 Visio 对象，靠本机一个常驻服务完成；它不随本软件分发，
-        要单独准备（Node、服务程序目录、首次还要装一次浏览器内核）。
-      </p>
-      <label className="settings-check">
-        <input
-          type="checkbox"
-          checked={mmd.enabled}
-          onChange={(e) => patch({ enabled: e.target.checked })}
-        />
-        <span>导出时把流程图转成可编辑对象</span>
-      </label>
 
-      <div className="settings-dirs">
+      {/* 两个开关并排在最前：它们决定下面三个字段算不算数 */}
+      <div className="settings-toggles">
+        <label className="settings-check" title="不勾就不做转换，流程图按文本导出">
+          <input
+            type="checkbox"
+            checked={mmd.enabled}
+            onChange={(e) => patch({ enabled: e.target.checked })}
+          />
+          <span>导出时把流程图转成可编辑对象</span>
+        </label>
+        <label className="settings-check" title="启动后不归本软件管，也不会随本软件关闭">
+          <input
+            type="checkbox"
+            checked={mmd.auto_start}
+            onChange={(e) => patch({ auto_start: e.target.checked })}
+          />
+          <span>没在运行时自动启动</span>
+        </label>
+      </div>
+
+      <div className="settings-fields">
         <div>
-          <div className="w-row">
+          <label className="w-field">
+            <span>运行环境</span>
             <input
               value={mmd.node_path}
-              placeholder="Node 可执行文件（留空自动查找）"
+              placeholder="留空自动查找"
               onChange={(e) => patch({ node_path: e.target.value })}
             />
-          </div>
-          {status &&
-            (status.node ? (
-              <p className="settings-status">
-                Node {status.node.version}（{status.node.source}）
-                {status.node.electron_as_node ? '，用的是软件自带的' : ''}
-              </p>
-            ) : (
-              <p className="settings-status bad">
-                没找到可用的 Node{firstNodeReason ? `：${firstNodeReason}` : '（需要 22.2 以上）'}
-              </p>
-            ))}
+          </label>
+          {line(nodeLine)}
         </div>
 
         <div>
-          <div className="w-row">
-            <input
-              value={mmd.dir}
-              placeholder="服务程序目录（含 bin 那一层）"
-              onChange={(e) => patch({ dir: e.target.value })}
-            />
-            <button
-              type="button"
-              className="be-btn"
-              onClick={() =>
-                void (async () => {
-                  const dir = await window.documentor.dialog.selectDirectory()
-                  if (dir) patch({ dir })
-                })()
-              }
-            >
-              浏览…
-            </button>
-          </div>
-          {status && !status.dir_ok && (
-            <p className="settings-status bad">
-              这个目录里没找到服务程序（应当在 bin 子目录下）
-            </p>
-          )}
+          <label className="w-field">
+            <span>服务程序目录</span>
+            <div className="w-row">
+              <input
+                value={mmd.dir}
+                placeholder="服务程序所在的那一层目录"
+                onChange={(e) => patch({ dir: e.target.value })}
+              />
+              <button
+                type="button"
+                className="be-btn"
+                onClick={() =>
+                  void (async () => {
+                    const dir = await window.documentor.dialog.selectDirectory()
+                    if (dir) patch({ dir })
+                  })()
+                }
+              >
+                浏览…
+              </button>
+            </div>
+          </label>
+          {line(dirLine)}
         </div>
 
-        <div className="w-row">
-          <input
-            value={mmd.endpoint}
-            placeholder="服务地址"
-            onChange={(e) => patch({ endpoint: e.target.value })}
-          />
+        <div>
+          <label className="w-field">
+            <span>服务地址</span>
+            <input
+              value={mmd.endpoint}
+              placeholder="http://127.0.0.1:12138"
+              onChange={(e) => patch({ endpoint: e.target.value })}
+            />
+          </label>
+          {line(serviceLine)}
         </div>
       </div>
 
-      <label className="settings-check">
-        <input
-          type="checkbox"
-          checked={mmd.auto_start}
-          onChange={(e) => patch({ auto_start: e.target.checked })}
-        />
-        <span>没在运行时就启动它（启动后不归本软件管，也不会随本软件关闭）</span>
-      </label>
-
       <div className="w-row settings-mmd-actions">
-        <button type="button" className="be-btn" disabled={busy !== null} onClick={() => void test()}>
+        <button
+          type="button"
+          className="be-btn"
+          disabled={busy !== null || !mmd.enabled}
+          title={mmd.enabled ? '' : '图转换已关闭'}
+          onClick={() => void test()}
+        >
           {busy === 'test' ? '正在连接…' : '测试连接'}
         </button>
         <button
           type="button"
           className="be-btn"
-          disabled={busy !== null || !mmd.auto_start}
+          disabled={busy !== null || !mmd.enabled || !mmd.auto_start}
+          title={mmd.auto_start ? '' : '没打开「没在运行时自动启动」'}
           onClick={() => void start()}
         >
           {busy === 'start' ? '正在启动…' : '启动服务'}
         </button>
       </div>
-      {status && (
-        <p className={`settings-status${status.probe.ok ? '' : ' bad'}`}>
-          {status.probe.ok && status.probe.health
-            ? `服务可用：版本 ${status.probe.health.serviceVersion}，` +
-              `接口版本 ${status.probe.health.contractVersion}，` +
-              `渲染器 ${status.probe.health.chromium}`
-            : status.probe.reason}
-        </p>
-      )}
-      {status && !status.probe.ok && status.probe.detail && (
-        <p className="settings-status">{status.probe.detail}</p>
-      )}
     </section>
   )
 }

@@ -850,10 +850,14 @@ export interface DesktopExportApi {
 
 /** 图转换服务：只探测与点火，不管它以后怎么退出 */
 export interface DesktopMmdApi {
-  /** 现探一次：目录在不在、Node 找到哪个、服务通不通 */
-  status(): Promise<MmdStatusDto>
-  /** 探测不到就按设置点火，再轮询到就绪 */
-  start(): Promise<MmdStartResultDto>
+  /**
+   * 现探一次：目录在不在、Node 找到哪个、服务通不通。
+   * 给了 `config` 就按它探（设置页的表单现值），**不读也不写磁盘**——
+   * 设置页改完还没点「保存设置」时，测的应当是眼前这一份。
+   */
+  status(config?: MmdServiceConfigDto): Promise<MmdStatusDto>
+  /** 探测不到就按配置点火，再轮询到就绪（`config` 同上，只是"试一下"，不落盘） */
+  start(config?: MmdServiceConfigDto): Promise<MmdStartResultDto>
 }
 
 export interface SavePathDialogOptions {

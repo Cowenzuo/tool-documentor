@@ -131,8 +131,8 @@ const api: DesktopApi = {
       invoke(ProjectIpc.ExportFigureCounts) as ReturnType<DesktopApi['export']['figureCounts']>
   },
   mmd: {
-    status: () => invoke(ProjectIpc.MmdStatus) as ReturnType<DesktopApi['mmd']['status']>,
-    start: () => invoke(ProjectIpc.MmdStart) as ReturnType<DesktopApi['mmd']['start']>
+    status: (config) => invoke(ProjectIpc.MmdStatus, config) as ReturnType<DesktopApi['mmd']['status']>,
+    start: (config) => invoke(ProjectIpc.MmdStart, config) as ReturnType<DesktopApi['mmd']['start']>
   },
   files: {
     readAsDataUrl: (relPath: string) =>

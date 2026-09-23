@@ -19,6 +19,7 @@ import type {
   HistoryStateDto,
   HistoryJumpInput,
   ImageImportInput,
+  MmdServiceConfigDto,
   NodeCopyInput,
   NodeDeleteInput,
   NodeDescriptionInput,
@@ -283,9 +284,14 @@ export function registerProjectIpc(service: ProjectService, mmd: MmdService): vo
 
   // ---------- 图转换服务（mmd2vsdx）----------
   // 只探测与点火；服务的退出、升级、停服都不归我们管（上游没有 /shutdown）。
-  handle<void, Awaited<ReturnType<MmdService['status']>>>(ProjectIpc.MmdStatus, () => mmd.status())
-  handle<void, Awaited<ReturnType<MmdService['ensureRunning']>>>(ProjectIpc.MmdStart, () =>
-    mmd.ensureRunning()
+  // 入参是设置页的表单现值：改完还没点「保存设置」时，测的应当是眼前那一份，不落盘。
+  handle<MmdServiceConfigDto | undefined, Awaited<ReturnType<MmdService['status']>>>(
+    ProjectIpc.MmdStatus,
+    (override) => mmd.status(override ? normalizeMmdConfig(override) : undefined)
+  )
+  handle<MmdServiceConfigDto | undefined, Awaited<ReturnType<MmdService['ensureRunning']>>>(
+    ProjectIpc.MmdStart,
+    (override) => mmd.ensureRunning(override ? normalizeMmdConfig(override) : undefined)
   )
 
   handle<void, StructureTemplateDto[]>(ProjectIpc.TemplatesListStructures, () =>
