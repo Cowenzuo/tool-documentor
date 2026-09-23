@@ -93,16 +93,9 @@
   align-self: flex-start;
 }
 
-/* 「转换服务」一节的开关组与字段组。
-   排法照「模板目录」那节的「一行配置 + 紧跟一条就地状态」，只是这里三个字段不同质，
+/* 「转换服务」一节的开关与字段。
+   排法照「模板目录」那节的「一行配置 + 紧跟一条就地状态」，只是这里字段不同质，
    所以带标签（借向导那套 .w-field），状态行紧贴自己那一行。 */
-.settings-toggles {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-4);
-  margin-bottom: var(--space-3);
-}
-
 .settings-check {
   display: flex;
   align-items: center;
@@ -118,7 +111,27 @@
   gap: var(--space-3);
 }
 
-.settings-mmd-actions {
+/* 地址与端口同一行：端口给固定窄列，地址吃掉剩下的 */
+.settings-host-port {
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.settings-host-port .w-field:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-port {
+  flex: 0 0 104px;
+}
+
+/* 开关与动作同一行：开关在左，按钮在右 */
+.settings-mmd-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
   margin-top: var(--space-3);
 }
 

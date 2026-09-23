@@ -53,26 +53,39 @@ export const MMD_SERVER_ENTRY = join('bin', 'mmd2vsdx-server.mjs')
 
 export type MmdServiceConfig = MmdServiceConfigDto
 
+export const DEFAULT_MMD_HOST = '127.0.0.1'
+export const DEFAULT_MMD_PORT = 12138
+
 export const DEFAULT_MMD_CONFIG: MmdServiceConfig = {
   node_path: '',
   dir: '',
-  endpoint: 'http://127.0.0.1:12138',
+  host: DEFAULT_MMD_HOST,
+  port: DEFAULT_MMD_PORT,
   auto_start: true
 }
 
 /**
  * 读配置时把脏值收敛回可用形状（config.json 是用户可编辑的）。
- * 老版本写过的 `enabled` 一并丢掉：转不转不是用户档位，是固有能力 + 自动降级。
+ * 老版本写过的 `enabled` 与 `endpoint` 一并丢掉：转不转不是用户档位（是固有能力 + 自动降级），
+ * 地址也已经拆成 host 与 port 两个字段。
  */
 export function normalizeMmdConfig(raw: unknown): MmdServiceConfig {
   const r = (raw ?? {}) as Partial<MmdServiceConfig>
-  const endpoint = String(r.endpoint ?? '').trim()
+  const host = String(r.host ?? '').trim()
+  const port = Number(r.port)
   return {
     node_path: String(r.node_path ?? '').trim(),
     dir: String(r.dir ?? '').trim(),
-    endpoint: endpoint === '' ? DEFAULT_MMD_CONFIG.endpoint : endpoint,
+    host: host === '' ? DEFAULT_MMD_HOST : host,
+    port: Number.isInteger(port) && port > 0 && port <= 65535 ? port : DEFAULT_MMD_PORT,
     auto_start: r.auto_start !== false
   }
+}
+
+/** 主机 + 端口 → 请求用的地址 */
+export function endpointOf(cfg: Pick<MmdServiceConfig, 'host' | 'port'>): string {
+  const host = cfg.host.includes(':') ? `[${cfg.host}]` : cfg.host
+  return `http://${host}:${cfg.port}`
 }
 
 // ================= 探测结果 =================
@@ -202,7 +215,7 @@ export class MmdService {
 
   /** 弱确认：200 且契约版本对得上 */
   async probe(override?: MmdServiceConfig): Promise<MmdProbeResult> {
-    const result = await this.probeOnce(this.cfg(override).endpoint)
+    const result = await this.probeOnce(endpointOf(this.cfg(override)))
     // 覆盖探测是"试一下"，结果不能污染导出用的缓存
     if (!override) {
       this.lastProbe = result
@@ -263,9 +276,8 @@ export class MmdService {
   /** 组装点火命令；设置页也用它显示"将要执行什么" */
   async buildStartPlan(override?: MmdServiceConfig): Promise<MmdStartPlan> {
     const cfg = this.cfg(override)
-    const parsed = parseEndpoint(cfg.endpoint)
-    if (!parsed) {
-      return { ok: false, reason: 'bad-endpoint', detail: '服务地址只能是本机回环地址，形如 http://127.0.0.1:12138' }
+    if (!isLoopbackHost(cfg.host)) {
+      return { ok: false, reason: 'bad-endpoint', detail: '地址只能是本机回环地址（127.0.0.1 或 localhost）' }
     }
     if (cfg.dir === '') {
       return { ok: false, reason: 'no-dir', detail: '还没有指定服务程序目录' }
@@ -288,15 +300,15 @@ export class MmdService {
     }
     const nodePath = located.picked.path
     const entry = join(cfg.dir, MMD_SERVER_ENTRY)
-    const args = [entry, '--port', String(parsed.port)]
+    const args = [entry, '--port', String(cfg.port)]
     return {
       ok: true,
       nodePath,
       electronAsNode: located.picked.electronAsNode === true,
       args,
       cwd: cfg.dir,
-      port: parsed.port,
-      command: `"${nodePath}" "${entry}" --port ${parsed.port}`
+      port: cfg.port,
+      command: `"${nodePath}" "${entry}" --port ${cfg.port}`
     }
   }
 
@@ -455,7 +467,7 @@ export class MmdService {
     let revived = this.reviveAttempted
     const cfg = this.deps.getConfig()
     for (let attempt = 0; attempt < 4; attempt++) {
-      const result = await this.postConvert(cfg.endpoint, text)
+      const result = await this.postConvert(endpointOf(cfg), text)
       if (result.ok) {
         this.timeoutStreak = 0
         this.reviveAttempted = false
@@ -588,7 +600,8 @@ export class MmdService {
       : await locateNode({ explicit: cfg.node_path, electronPath: this.deps.electronPath })
     const probe = await this.probe(override)
     return {
-      endpoint: cfg.endpoint,
+      host: cfg.host,
+      port: cfg.port,
       dir: cfg.dir,
       dir_ok: dirOk,
       server_entry: serverEntry,
@@ -624,19 +637,13 @@ export function urlOf(endpoint: string, route: string): string {
   return `${endpoint.trim().replace(/\/+$/, '')}${route}`
 }
 
-/** 解析服务地址；只认回环（上游只绑 127.0.0.1） */
-export function parseEndpoint(endpoint: string): { host: string; port: number } | null {
-  try {
-    const url = new URL(endpoint.trim())
-    const host = url.hostname.replace(/^\[|\]$/g, '')
-    const loopback = host === '127.0.0.1' || host === 'localhost' || host === '::1'
-    if (!loopback) return null
-    const port = url.port === '' ? 80 : Number(url.port)
-    if (!Number.isInteger(port) || port <= 0 || port > 65535) return null
-    return { host, port }
-  } catch {
-    return null
-  }
+/**
+ * 主机名是不是本机回环。上游只绑 `127.0.0.1`，所以别的地址一律不发请求、也不点火——
+ * 早报错比连半天超时清楚。
+ */
+export function isLoopbackHost(host: string): boolean {
+  const h = host.trim().replace(/^\[|\]$/g, '').toLowerCase()
+  return h === '127.0.0.1' || h === 'localhost' || h === '::1'
 }
 
 function parseHealth(body: unknown): MmdHealthDto | null {

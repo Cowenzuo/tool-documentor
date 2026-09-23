@@ -71,14 +71,32 @@ function MmdSection({
   const mmd = cfg.mmd2vsdx
   const [status, setStatus] = useState<MmdStatusDto | null>(null)
   const [busy, setBusy] = useState<'test' | 'start' | null>(null)
+  /** 端口用文本存：允许用户敲到一半（清空、删一位），合法的中间态才写回配置 */
+  const [portText, setPortText] = useState(String(mmd.port))
 
   const patch = (part: Partial<AppConfigDto['mmd2vsdx']>): void =>
     onChange({ ...cfg, mmd2vsdx: { ...mmd, ...part } })
 
+  /** 改了连哪儿，上一次的探测结论就作废——不然"已在运行"会骗人 */
+  const patchConnection = (part: Partial<AppConfigDto['mmd2vsdx']>): void => {
+    patch(part)
+    setStatus(null)
+  }
+
+  /**
+   * 探一次并把结论摆出来。**自动查到的运行环境填回输入框**：让用户看得见用的是哪一个，
+   * 而不是只在状态行里显示个版本号。
+   */
+  const refresh = async (config: AppConfigDto['mmd2vsdx']): Promise<void> => {
+    const next = await window.documentor.mmd.status(config)
+    setStatus(next)
+    if (config.node_path.trim() === '' && next.node) patch({ node_path: next.node.path })
+  }
+
   const test = async (): Promise<void> => {
     setBusy('test')
     try {
-      setStatus(await window.documentor.mmd.status(mmd))
+      await refresh(mmd)
     } catch (err) {
       showToast({ kind: 'error', text: `连接失败：${errorText(err)}` })
     } finally {
@@ -86,18 +104,29 @@ function MmdSection({
     }
   }
 
+  /**
+   * 启动前**先确认在不在跑**：真的没在跑才点火（这一步在主进程里也是这么做的，
+   * 界面这边只是把结论说出来，并且已经在跑时不让点）。
+   */
   const start = async (): Promise<void> => {
     setBusy('start')
     try {
       const result = await window.documentor.mmd.start(mmd)
       const text = result.detail ? `${result.reason}：${result.detail}` : result.reason
       showToast({ kind: result.ok ? 'info' : 'error', text })
-      setStatus(await window.documentor.mmd.status(mmd))
+      await refresh(mmd)
     } catch (err) {
       showToast({ kind: 'error', text: `启动失败：${errorText(err)}` })
     } finally {
       setBusy(null)
     }
+  }
+
+  const onPort = (value: string): void => {
+    setPortText(value)
+    const n = Number(value.trim())
+    if (/^\d+$/.test(value.trim()) && n > 0 && n <= 65535) patchConnection({ port: n })
+    else setStatus(null)
   }
 
   // 一行一条：查到了什么、缺什么，就地一句话
@@ -129,6 +158,14 @@ function MmdSection({
       <p className={`settings-status${value.bad ? ' bad' : ''}`}>{value.text}</p>
     )
 
+  /** 已经确认在跑就别再让人点「启动服务」；没探过则允许点，主进程那边会先探再决定 */
+  const running = status?.probe.ok === true
+  const startWhy = running
+    ? '转换服务已经在运行'
+    : mmd.auto_start
+      ? ''
+      : '没打开「没在运行时自动启动」'
+
   return (
     <section className="settings-group">
       <h3>转换服务</h3>
@@ -142,7 +179,7 @@ function MmdSection({
             <input
               value={mmd.node_path}
               placeholder="留空自动查找"
-              onChange={(e) => patch({ node_path: e.target.value })}
+              onChange={(e) => patchConnection({ node_path: e.target.value })}
             />
           </label>
           {line(nodeLine)}
@@ -155,7 +192,7 @@ function MmdSection({
               <input
                 value={mmd.dir}
                 placeholder="如 D:\tools\mmd2vsdx"
-                onChange={(e) => patch({ dir: e.target.value })}
+                onChange={(e) => patchConnection({ dir: e.target.value })}
               />
               <button
                 type="button"
@@ -163,7 +200,7 @@ function MmdSection({
                 onClick={() =>
                   void (async () => {
                     const dir = await window.documentor.dialog.selectDirectory()
-                    if (dir) patch({ dir })
+                    if (dir) patchConnection({ dir })
                   })()
                 }
               >
@@ -175,19 +212,31 @@ function MmdSection({
         </div>
 
         <div>
-          <label className="w-field">
-            <span>服务地址</span>
-            <input
-              value={mmd.endpoint}
-              placeholder="http://127.0.0.1:12138"
-              onChange={(e) => patch({ endpoint: e.target.value })}
-            />
-          </label>
+          <div className="w-row settings-host-port">
+            <label className="w-field">
+              <span>地址</span>
+              <input
+                value={mmd.host}
+                placeholder="127.0.0.1"
+                onChange={(e) => patchConnection({ host: e.target.value })}
+              />
+            </label>
+            <label className="w-field settings-port">
+              <span>端口</span>
+              <input
+                value={portText}
+                inputMode="numeric"
+                placeholder="12138"
+                onChange={(e) => onPort(e.target.value)}
+              />
+            </label>
+          </div>
           {line(serviceLine)}
         </div>
       </div>
 
-      <div className="settings-toggles">
+      {/* 开关与动作同一行：左边是唯一能关的那件事，右边是两颗按钮 */}
+      <div className="settings-mmd-foot">
         <label className="settings-check" title="启动后不归本软件管，也不会随本软件关闭">
           <input
             type="checkbox"
@@ -196,26 +245,25 @@ function MmdSection({
           />
           <span>没在运行时自动启动</span>
         </label>
-      </div>
-
-      <div className="w-row settings-mmd-actions">
-        <button
-          type="button"
-          className="be-btn"
-          disabled={busy !== null}
-          onClick={() => void test()}
-        >
-          {busy === 'test' ? '正在连接…' : '测试连接'}
-        </button>
-        <button
-          type="button"
-          className="be-btn"
-          disabled={busy !== null || !mmd.auto_start}
-          title={mmd.auto_start ? '' : '没打开「没在运行时自动启动」'}
-          onClick={() => void start()}
-        >
-          {busy === 'start' ? '正在启动…' : '启动服务'}
-        </button>
+        <div className="w-row">
+          <button
+            type="button"
+            className="be-btn"
+            disabled={busy !== null}
+            onClick={() => void test()}
+          >
+            {busy === 'test' ? '正在连接…' : '测试连接'}
+          </button>
+          <button
+            type="button"
+            className="be-btn"
+            disabled={busy !== null || !mmd.auto_start || running}
+            title={startWhy}
+            onClick={() => void start()}
+          >
+            {busy === 'start' ? '正在启动…' : '启动服务'}
+          </button>
+        </div>
       </div>
     </section>
   )

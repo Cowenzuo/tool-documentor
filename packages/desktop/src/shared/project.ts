@@ -155,12 +155,14 @@ export interface StyleOptionDto {
  * 这里配的只是"去哪找它"。
  */
 export interface MmdServiceConfigDto {
-  /** 运行环境可执行文件；空 = 自发现 */
+  /** 运行环境可执行文件；空 = 自动查找（查到就填回来，见设置页） */
   node_path: string
   /** 服务程序目录（含服务端入口）；空 = 开发期找兄弟目录 */
   dir: string
-  /** 服务地址；起点火时从这里取端口，避免两处配置不一致 */
-  endpoint: string
+  /** 服务所在主机；只认本机回环地址 */
+  host: string
+  /** 服务端口；点火时也用它，避免两处配置不一致 */
+  port: number
   /** 探测不到时是否允许点火 */
   auto_start: boolean
 }
@@ -193,7 +195,8 @@ export interface MmdNodeProbeDto {
 
 /** 设置页一次拿全的转换服务现状 */
 export interface MmdStatusDto {
-  endpoint: string
+  host: string
+  port: number
   dir: string
   /** 目录下确实有 bin/mmd2vsdx-server.mjs */
   dir_ok: boolean
