@@ -59,6 +59,7 @@ import {
 } from './services/config'
 import { ProjectServiceError } from './services/project-service'
 import type { ProjectService } from './services/project-service'
+import { dialogStartDir } from './services/dialog-path'
 import { TemplateEditorService } from './services/template-editor-service'
 import { normalizeMmdConfig } from './services/mmd-service'
 import type { MmdService } from './services/mmd-service'
@@ -81,6 +82,18 @@ function windowOf(): BrowserWindow | null {
 }
 
 export function registerProjectIpc(service: ProjectService, mmd: MmdService): void {
+  /**
+   * 浏览对话框从哪儿开：**必须给一个起始位置**，不给会落到进程工作目录（打包后就是 C 盘）。
+   * 优先级与理由见 services/dialog-path.ts。
+   */
+  const startDirOf = (given?: string): string | undefined =>
+    dialogStartDir({
+      given,
+      projectDir: service.projectDir,
+      defaultProjectDir: loadAppSettings().default_project_dir,
+      documentsDir: app.getPath('documents')
+    })
+
   // 模板编辑（DESIGN-03）：只动模板目录里的 JSON，与工程库无关，所以单独一个服务。
   // 依赖从设置与 Electron 取：模板目录列表每次现读（设置里改完不用重启），
   // 备份不写：模板目录通常受版本控制，可恢复性归 git（服务里明确不写 .bak、不留备份目录）。
@@ -196,32 +209,35 @@ export function registerProjectIpc(service: ProjectService, mmd: MmdService): vo
   )
 
   // ---------- 对话框 ----------
-  handle<void, string | null>(ProjectIpc.DialogSelectDproj, async () => {
+  handle<string | undefined, string | null>(ProjectIpc.DialogSelectDproj, async (given) => {
     const win = windowOf()
     if (!win) return null
     const result = await dialog.showOpenDialog(win, {
       title: '打开工程',
+      defaultPath: startDirOf(given),
       filters: [{ name: 'Documentor 工程', extensions: ['dproj'] }],
       properties: ['openFile']
     })
     return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]!
   })
 
-  handle<void, string | null>(ProjectIpc.DialogSelectDirectory, async () => {
+  handle<string | undefined, string | null>(ProjectIpc.DialogSelectDirectory, async (given) => {
     const win = windowOf()
     if (!win) return null
     const result = await dialog.showOpenDialog(win, {
       title: '选择目录',
+      defaultPath: startDirOf(given),
       properties: ['openDirectory', 'createDirectory']
     })
     return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]!
   })
 
-  handle<void, string | null>(ProjectIpc.DialogSelectImage, async () => {
+  handle<string | undefined, string | null>(ProjectIpc.DialogSelectImage, async (given) => {
     const win = windowOf()
     if (!win) return null
     const result = await dialog.showOpenDialog(win, {
       title: '选择图片',
+      defaultPath: startDirOf(given),
       filters: [
         { name: '图片', extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'emf'] }
       ],
@@ -230,11 +246,12 @@ export function registerProjectIpc(service: ProjectService, mmd: MmdService): vo
     return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]!
   })
 
-  handle<void, string | null>(ProjectIpc.DialogSelectDocx, async () => {
+  handle<string | undefined, string | null>(ProjectIpc.DialogSelectDocx, async (given) => {
     const win = windowOf()
     if (!win) return null
     const result = await dialog.showOpenDialog(win, {
       title: '选择样式文件（.docx）',
+      defaultPath: startDirOf(given),
       filters: [{ name: 'Word 文档', extensions: ['docx'] }],
       properties: ['openFile']
     })
@@ -242,11 +259,12 @@ export function registerProjectIpc(service: ProjectService, mmd: MmdService): vo
   })
 
   // 运行环境可执行文件：不想用 PATH 上那个时手挑一个（Windows 给 exe 过滤，别的平台不过滤）
-  handle<void, string | null>(ProjectIpc.DialogSelectExecutable, async () => {
+  handle<string | undefined, string | null>(ProjectIpc.DialogSelectExecutable, async (given) => {
     const win = windowOf()
     if (!win) return null
     const result = await dialog.showOpenDialog(win, {
       title: '选择运行环境',
+      defaultPath: startDirOf(given),
       ...(process.platform === 'win32'
         ? { filters: [{ name: '可执行文件', extensions: ['exe'] }] }
         : {}),
@@ -260,7 +278,8 @@ export function registerProjectIpc(service: ProjectService, mmd: MmdService): vo
     if (!win) return null
     const result = await dialog.showSaveDialog(win, {
       title: '导出 DOCX',
-      defaultPath: input.defaultPath,
+      // 渲染层给的是一份带文件名的完整路径（工程目录/名字.docx）；它要是空的就退回起始目录链
+      defaultPath: input.defaultPath.trim() !== '' ? input.defaultPath : startDirOf(),
       filters: [
         { name: 'Word 文档', extensions: ['docx'] },
         { name: 'Markdown（预留）', extensions: ['md'] }

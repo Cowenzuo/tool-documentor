@@ -777,14 +777,21 @@ export interface DesktopUiStateApi {
   load(key: string): Promise<string>
 }
 
+/**
+ * 打开/浏览类对话框。
+ *
+ * `defaultPath` 是**对话框从哪儿开**：传当前值（设置里已填的目录、块上已选的图片路径）最省事，
+ * 留空则按「当前工程目录 → 设置里的默认工程目录 → 系统文档目录」退。
+ * 一个都不给的话会落到进程工作目录（打包后就是 C 盘），所以主进程侧兜了这条链。
+ */
 export interface DesktopDialogApi {
-  selectDproj(): Promise<string | null>
-  selectDirectory(): Promise<string | null>
-  selectImage(): Promise<string | null>
+  selectDproj(defaultPath?: string): Promise<string | null>
+  selectDirectory(defaultPath?: string): Promise<string | null>
+  selectImage(defaultPath?: string): Promise<string | null>
   /** 选一个 .docx（导入自备样式用） */
-  selectDocx(): Promise<string | null>
+  selectDocx(defaultPath?: string): Promise<string | null>
   /** 选一个可执行文件（图转换服务的运行环境；不想用 PATH 上那个时手挑一个） */
-  selectExecutable(): Promise<string | null>
+  selectExecutable(defaultPath?: string): Promise<string | null>
   savePath(options: SavePathDialogOptions): Promise<string | null>
 }
 

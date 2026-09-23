@@ -111,18 +111,24 @@ const api: DesktopApi = {
       invoke(ProjectIpc.UiStateLoad, { key } as UiStateKeyInput) as Promise<string>
   },
   dialog: {
-    selectDproj: () =>
-      invoke(ProjectIpc.DialogSelectDproj) as ReturnType<DesktopApi['dialog']['selectDproj']>,
-    selectDirectory: () =>
-      invoke(ProjectIpc.DialogSelectDirectory) as ReturnType<
+    selectDproj: (defaultPath?: string) =>
+      invoke(ProjectIpc.DialogSelectDproj, defaultPath) as ReturnType<
+        DesktopApi['dialog']['selectDproj']
+      >,
+    selectDirectory: (defaultPath?: string) =>
+      invoke(ProjectIpc.DialogSelectDirectory, defaultPath) as ReturnType<
         DesktopApi['dialog']['selectDirectory']
       >,
-    selectImage: () =>
-      invoke(ProjectIpc.DialogSelectImage) as ReturnType<DesktopApi['dialog']['selectImage']>,
-    selectDocx: () =>
-      invoke(ProjectIpc.DialogSelectDocx) as ReturnType<DesktopApi['dialog']['selectDocx']>,
-    selectExecutable: () =>
-      invoke(ProjectIpc.DialogSelectExecutable) as ReturnType<
+    selectImage: (defaultPath?: string) =>
+      invoke(ProjectIpc.DialogSelectImage, defaultPath) as ReturnType<
+        DesktopApi['dialog']['selectImage']
+      >,
+    selectDocx: (defaultPath?: string) =>
+      invoke(ProjectIpc.DialogSelectDocx, defaultPath) as ReturnType<
+        DesktopApi['dialog']['selectDocx']
+      >,
+    selectExecutable: (defaultPath?: string) =>
+      invoke(ProjectIpc.DialogSelectExecutable, defaultPath) as ReturnType<
         DesktopApi['dialog']['selectExecutable']
       >,
     savePath: (options: SavePathDialogOptions) =>
