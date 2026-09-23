@@ -49,11 +49,14 @@ function ThemeSection(): React.JSX.Element {
  * 一行只出一条，最多三条就折叠）。这里三个字段不同质，所以带标签（用向导那套 `.w-field`），
  * 长解释一律进悬停提示，不占版面。
  *
- * 三条边界：
- *   1. 它是**外部件**（不进发行包），运行环境、目录、地址都得用户给，缺哪样就地一句话说清；
- *   2. 「测试连接」「启动服务」拿的是**表单现值、不写盘**——没点「保存设置」就等于没配，
+ * 四条边界：
+ *   1. **没有"要不要转"这一档**：流程图转成可编辑对象是固有能力，有图就走这条路，
+ *      服务不可用就自动按文本导出并如实告知（DESIGN-07 第 1 节那条口径）。
+ *      这一节配的只是"去哪找它"，所以没有开关；
+ *   2. 它是**外部件**（不进发行包），运行环境、目录、地址都得用户给，缺哪样就地一句话说清；
+ *   3. 「测试连接」「启动服务」拿的是**表单现值、不写盘**——没点「保存设置」就等于没配，
  *      所以「取消」仍然是取消；
- *   3. 只有「启动服务」，没有「停止服务」：服务不归本软件管，上游也没提供关机接口。
+ *   4. 只有「启动服务」，没有「停止服务」：服务不归本软件管，上游也没提供关机接口。
  *
  * 文案：每条最多一句；驱动给的原始异常（`fetch failed` 这类）不上界面，进日志。
  */
@@ -97,29 +100,28 @@ function MmdSection({
     }
   }
 
-  // 一行一条：查到了什么、缺什么，就地一句话。关掉这一节就不显示状态（省得一片红）
-  const shown = mmd.enabled ? status : null
+  // 一行一条：查到了什么、缺什么，就地一句话
   const nodeLine = ((): { text: string; bad: boolean } | null => {
-    if (!shown) return null
-    if (shown.node) return { text: `运行环境 ${shown.node.version}`, bad: false }
+    if (!status) return null
+    if (status.node) return { text: `运行环境 ${status.node.version}`, bad: false }
     if (mmd.node_path.trim() !== '') {
-      const why = shown.node_candidates[0]?.reason
+      const why = status.node_candidates[0]?.reason
       return { text: why ? `这个运行环境用不了：${why}` : '这个运行环境用不了', bad: true }
     }
     return { text: '没找到可用的运行环境（需要 22.2 以上）', bad: true }
   })()
   const dirLine = ((): { text: string; bad: boolean } | null => {
-    if (!shown || mmd.dir.trim() === '') return null
-    return shown.dir_ok
+    if (!status || mmd.dir.trim() === '') return null
+    return status.dir_ok
       ? { text: '已找到服务程序', bad: false }
       : { text: '这个目录里没有服务程序', bad: true }
   })()
   const serviceLine = ((): { text: string; bad: boolean } | null => {
-    if (!shown) return null
-    if (shown.probe.ok && shown.probe.health) {
-      return { text: `服务可用 · ${shown.probe.health.serviceVersion}`, bad: false }
+    if (!status) return null
+    if (status.probe.ok && status.probe.health) {
+      return { text: `服务可用 · ${status.probe.health.serviceVersion}`, bad: false }
     }
-    return { text: shown.probe.reason, bad: true }
+    return { text: status.probe.reason, bad: true }
   })()
 
   const line = (value: { text: string; bad: boolean } | null): React.JSX.Element | null =>
@@ -131,26 +133,8 @@ function MmdSection({
     <section className="settings-group">
       <h3>转换服务</h3>
 
-      {/* 两个开关并排在最前：它们决定下面三个字段算不算数 */}
-      <div className="settings-toggles">
-        <label className="settings-check" title="不勾就不做转换，流程图按文本导出">
-          <input
-            type="checkbox"
-            checked={mmd.enabled}
-            onChange={(e) => patch({ enabled: e.target.checked })}
-          />
-          <span>导出时把流程图转成可编辑对象</span>
-        </label>
-        <label className="settings-check" title="启动后不归本软件管，也不会随本软件关闭">
-          <input
-            type="checkbox"
-            checked={mmd.auto_start}
-            onChange={(e) => patch({ auto_start: e.target.checked })}
-          />
-          <span>没在运行时自动启动</span>
-        </label>
-      </div>
-
+      {/* 没有"要不要转"这一档：转成可编辑对象是固有能力，有图就走，服务不在就自动按文本导出。
+          这里配的只是"去哪找它"。 */}
       <div className="settings-fields">
         <div>
           <label className="w-field">
@@ -170,7 +154,7 @@ function MmdSection({
             <div className="w-row">
               <input
                 value={mmd.dir}
-                placeholder="服务程序所在的那一层目录"
+                placeholder="如 D:\tools\mmd2vsdx"
                 onChange={(e) => patch({ dir: e.target.value })}
               />
               <button
@@ -203,12 +187,22 @@ function MmdSection({
         </div>
       </div>
 
+      <div className="settings-toggles">
+        <label className="settings-check" title="启动后不归本软件管，也不会随本软件关闭">
+          <input
+            type="checkbox"
+            checked={mmd.auto_start}
+            onChange={(e) => patch({ auto_start: e.target.checked })}
+          />
+          <span>没在运行时自动启动</span>
+        </label>
+      </div>
+
       <div className="w-row settings-mmd-actions">
         <button
           type="button"
           className="be-btn"
-          disabled={busy !== null || !mmd.enabled}
-          title={mmd.enabled ? '' : '图转换已关闭'}
+          disabled={busy !== null}
           onClick={() => void test()}
         >
           {busy === 'test' ? '正在连接…' : '测试连接'}
@@ -216,7 +210,7 @@ function MmdSection({
         <button
           type="button"
           className="be-btn"
-          disabled={busy !== null || !mmd.enabled || !mmd.auto_start}
+          disabled={busy !== null || !mmd.auto_start}
           title={mmd.auto_start ? '' : '没打开「没在运行时自动启动」'}
           onClick={() => void start()}
         >

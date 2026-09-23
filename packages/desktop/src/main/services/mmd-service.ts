@@ -54,19 +54,20 @@ export const MMD_SERVER_ENTRY = join('bin', 'mmd2vsdx-server.mjs')
 export type MmdServiceConfig = MmdServiceConfigDto
 
 export const DEFAULT_MMD_CONFIG: MmdServiceConfig = {
-  enabled: true,
   node_path: '',
   dir: '',
   endpoint: 'http://127.0.0.1:12138',
   auto_start: true
 }
 
-/** 读配置时把脏值收敛回可用形状（config.json 是用户可编辑的） */
+/**
+ * 读配置时把脏值收敛回可用形状（config.json 是用户可编辑的）。
+ * 老版本写过的 `enabled` 一并丢掉：转不转不是用户档位，是固有能力 + 自动降级。
+ */
 export function normalizeMmdConfig(raw: unknown): MmdServiceConfig {
   const r = (raw ?? {}) as Partial<MmdServiceConfig>
   const endpoint = String(r.endpoint ?? '').trim()
   return {
-    enabled: r.enabled !== false,
     node_path: String(r.node_path ?? '').trim(),
     dir: String(r.dir ?? '').trim(),
     endpoint: endpoint === '' ? DEFAULT_MMD_CONFIG.endpoint : endpoint,
@@ -80,7 +81,7 @@ export type MmdProbeResult =
   | { ok: true; health: MmdHealthDto }
   | { ok: false; kind: MmdProbeFailureKind; reason: string; detail?: string }
 
-export type MmdProbeFailureKind = 'disabled' | 'unreachable' | 'contract-mismatch' | 'bad-response'
+export type MmdProbeFailureKind = 'unreachable' | 'contract-mismatch' | 'bad-response'
 
 /** 单张失败 / 整体不可用 / 我方请求写错 */
 export type MmdFailureKind = 'single' | 'unavailable' | 'request-bug'
@@ -201,11 +202,7 @@ export class MmdService {
 
   /** 弱确认：200 且契约版本对得上 */
   async probe(override?: MmdServiceConfig): Promise<MmdProbeResult> {
-    const cfg = this.cfg(override)
-    if (!cfg.enabled) {
-      return { ok: false, kind: 'disabled', reason: '图转换已关闭' }
-    }
-    const result = await this.probeOnce(cfg.endpoint)
+    const result = await this.probeOnce(this.cfg(override).endpoint)
     // 覆盖探测是"试一下"，结果不能污染导出用的缓存
     if (!override) {
       this.lastProbe = result
@@ -311,9 +308,6 @@ export class MmdService {
     const first = await this.probe(override)
     if (first.ok) {
       return { ok: true, started: false, reason: '转换服务已在运行', health: first.health }
-    }
-    if (first.kind === 'disabled') {
-      return { ok: false, started: false, reason: first.reason }
     }
     const cfg = this.cfg(override)
     if (!cfg.auto_start) {
@@ -448,10 +442,6 @@ export class MmdService {
    * docx 库只认 `unavailable`，不认 HTTP 状态码与上游错误码。
    */
   async convert(text: string): Promise<MmdConvertResult> {
-    const cfg = this.deps.getConfig()
-    if (!cfg.enabled) {
-      return { ok: false, kind: 'unavailable', code: 'disabled', message: '图转换已关闭' }
-    }
     if (this.timeoutStreak >= MMD_TIMEOUT_STREAK_LIMIT) {
       return {
         ok: false,
@@ -463,6 +453,7 @@ export class MmdService {
 
     let retried = 0
     let revived = this.reviveAttempted
+    const cfg = this.deps.getConfig()
     for (let attempt = 0; attempt < 4; attempt++) {
       const result = await this.postConvert(cfg.endpoint, text)
       if (result.ok) {
@@ -597,7 +588,6 @@ export class MmdService {
       : await locateNode({ explicit: cfg.node_path, electronPath: this.deps.electronPath })
     const probe = await this.probe(override)
     return {
-      enabled: cfg.enabled,
       endpoint: cfg.endpoint,
       dir: cfg.dir,
       dir_ok: dirOk,

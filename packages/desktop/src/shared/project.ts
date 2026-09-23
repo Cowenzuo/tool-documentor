@@ -147,13 +147,17 @@ export interface StyleOptionDto {
 // 上游形态见其 docs/接口协议.md：POST /convert 送 mermaid 原文、响应体就是 .vsdx 字节，
 // GET /health 做弱确认。我方不持有它的生命周期，只探测、按需点火、逐张请求。
 
-/** 应用设置里「转换服务」一节的落地形状（写进 config.json） */
+/**
+ * 应用设置里「转换服务」一节的落地形状（写进 config.json）。
+ *
+ * **没有"要不要转"这一档**：流程图转成可编辑对象是固有能力，有图就走这条路、
+ * 服务不可用就自动降级成文本并如实告知（DESIGN-07 第 1 节那条口径）。
+ * 这里配的只是"去哪找它"。
+ */
 export interface MmdServiceConfigDto {
-  /** 关掉 = 一律文本导出，不发任何请求 */
-  enabled: boolean
-  /** Node 可执行文件；空 = 自发现 */
+  /** 运行环境可执行文件；空 = 自发现 */
   node_path: string
-  /** mmd2vsdx 目录（含 bin/mmd2vsdx-server.mjs）；空 = 开发期找兄弟目录 */
+  /** 服务程序目录（含服务端入口）；空 = 开发期找兄弟目录 */
   dir: string
   /** 服务地址；起点火时从这里取端口，避免两处配置不一致 */
   endpoint: string
@@ -189,7 +193,6 @@ export interface MmdNodeProbeDto {
 
 /** 设置页一次拿全的转换服务现状 */
 export interface MmdStatusDto {
-  enabled: boolean
   endpoint: string
   dir: string
   /** 目录下确实有 bin/mmd2vsdx-server.mjs */
