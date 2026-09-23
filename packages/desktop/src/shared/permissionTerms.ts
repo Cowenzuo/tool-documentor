@@ -71,8 +71,8 @@ export interface NodePermissionInput {
  * 块档位不否决章节级动作 —— 作者要护住整章，把「裁剪」关掉就是（缺省就是关的）。
  *
  * 界面与写入侧用的是同一个函数、同一批说法，所以置灰提示与拒绝语不会各说各话。
- * 说法一律面向人：「模板限定了这一章：…」。不在文案里描述开关状态，
- * 也不出现「内容块」这种内部说法（见 产品文案口径.md）。
+ * 说法一律是被禁那件事的短语（`禁止编辑内容`、`禁止增加内容`…）：不写成句子、
+ * 不描述开关状态、也不出现「内容块」这种内部说法（见 产品文案口径.md）。
  */
 export interface BlockPermissions {
   editContent: boolean
@@ -93,27 +93,23 @@ export function blockPermissions(node: NodePermissionInput): BlockPermissions {
   const editing = node.allowContentBlocks
   const layout = node.allowLayoutEdit
   /**
-   * 总闸挡住一件事时的说法：**先说模板的限定，再说这件事做不了**。
+   * 被挡住的说明一律是**短语「禁止…」**，不写成句子。
    *
-   * 不描述"模板里哪个开关没放开"——那是机制（开关在模板里，用户看不见也改不了），
-   * 用户要知道的是"这一章还能做什么"。所以两种情形各一句：
-   *   - 编辑关 → `不能…`（整章都不能动）；
-   *   - 编辑开、只关排版 → `只能改内容`（说清还能做什么，被挡的那件事自明）。
-   * 编辑与排版之分因此仍在，只是换成了用户视角的说法。
+   * 说明挂在被禁的那个控件上（按钮的悬停、输入框的 title），上下文已经说明了
+   * "这件事是什么、在哪里"，所以只差一个结论：这件事被禁了。
+   * 不写"模板里哪个开关处于什么状态"——那是机制，用户看不见也改不了。
    */
-  const limit = '模板限定了这一章：'
-  const gate = (what: string): string => (editing ? `${limit}只能改内容` : `${limit}不能${what}`)
   return {
     editContent: editing,
     reshape: editing && layout,
     add: editing && layout,
     remove: editing && layout,
     move: editing && layout,
-    whyEditContent: `${limit}不能改内容`,
-    whyAdd: gate('加内容'),
-    whyRemove: gate('删内容'),
-    whyMove: gate('移动内容'),
-    whyShape: editing ? `${limit}类型与表头不能改` : `${limit}不能改内容`
+    whyEditContent: '禁止编辑内容',
+    whyAdd: '禁止增加内容',
+    whyRemove: '禁止删除内容',
+    whyMove: '禁止移动内容',
+    whyShape: '禁止修改类型与表头'
   }
 }
 

@@ -517,7 +517,7 @@ export default function NodePage(): React.JSX.Element {
               {!node.copyable && !node.deletable && !node.allowContentBlocks && !node.allowLayoutEdit && (
                 <span
                   className="np-chip"
-                  title="模板限定了这一章：复制、裁剪、编辑、排版都不允许，标题与编制说明照常可改"
+                  title="禁止复制、裁剪、编辑、排版；标题与编制说明照常可改"
                 >
                   内容只读
                 </span>
