@@ -143,12 +143,88 @@ export interface StyleOptionDto {
   isDefault: boolean
 }
 
+// ---------- 图转换服务（mmd2vsdx，本机常驻 HTTP 服务）----------
+// 上游形态见其 docs/接口协议.md：POST /convert 送 mermaid 原文、响应体就是 .vsdx 字节，
+// GET /health 做弱确认。我方不持有它的生命周期，只探测、按需点火、逐张请求。
+
+/** 应用设置里「转换服务」一节的落地形状（写进 config.json） */
+export interface MmdServiceConfigDto {
+  /** 关掉 = 一律文本导出，不发任何请求 */
+  enabled: boolean
+  /** Node 可执行文件；空 = 自发现 */
+  node_path: string
+  /** mmd2vsdx 目录（含 bin/mmd2vsdx-server.mjs）；空 = 开发期找兄弟目录 */
+  dir: string
+  /** 服务地址；起点火时从这里取端口，避免两处配置不一致 */
+  endpoint: string
+  /** 探测不到时是否允许点火 */
+  auto_start: boolean
+}
+
+/** GET /health 的回执（只带我方用得到的字段） */
+export interface MmdHealthDto {
+  serviceVersion: string
+  contractVersion: number
+  /** cold / warming / ready */
+  chromium: string
+  queue: number
+  maxQueue: number
+  inFlight: number
+  timeoutMs: number
+  uptimeMs: number
+  pid: number
+}
+
+/** 一个 Node 候选的探查结果（设置页显示"为什么没选上"） */
+export interface MmdNodeProbeDto {
+  path: string
+  /** 来自哪条规则：PATH / Program Files / 设置里指定的 / 应用自带的 Node */
+  source: string
+  version: string | null
+  ok: boolean
+  reason?: string
+  /** 是 Electron 自带的 Node，起服务要带 ELECTRON_RUN_AS_NODE=1 */
+  electron_as_node?: boolean
+}
+
+/** 设置页一次拿全的转换服务现状 */
+export interface MmdStatusDto {
+  enabled: boolean
+  endpoint: string
+  dir: string
+  /** 目录下确实有 bin/mmd2vsdx-server.mjs */
+  dir_ok: boolean
+  server_entry: string
+  /** 选中的 Node；没找到是 null */
+  node: MmdNodeProbeDto | null
+  node_candidates: MmdNodeProbeDto[]
+  probe: {
+    ok: boolean
+    kind: string
+    reason: string
+    detail?: string
+    health?: MmdHealthDto
+  }
+}
+
+/** 点火（启动服务）的回执 */
+export interface MmdStartResultDto {
+  ok: boolean
+  /** 这次是不是真的拉起了新进程（已在运行 = false） */
+  started: boolean
+  reason: string
+  detail?: string
+  health?: MmdHealthDto
+  exit_code?: number
+}
+
 /** 应用配置（userData/config.json） */
 export interface AppConfigDto {
   version: number
   default_project_dir: string
   template_dirs: string[]
   recents: string[]
+  mmd2vsdx: MmdServiceConfigDto
 }
 
 /** 单个模板目录的加载结果（供设置界面与新建向导显示「为什么没加载到」） */
@@ -551,7 +627,11 @@ export const ProjectIpc = {
   /** 导出前的图表与表格统计 */
   ExportFigureCounts: 'export:figure-counts',
   /** 另存对话框（导出路径） */
-  DialogSavePath: 'dialog:save-path'
+  DialogSavePath: 'dialog:save-path',
+  /** 图转换服务（mmd2vsdx）：现状探测 */
+  MmdStatus: 'mmd:status',
+  /** 图转换服务：点火（启动服务），不接管它的生命周期 */
+  MmdStart: 'mmd:start'
 } as const
 
 // ---------- 工具：消息 payload 类型 ----------
@@ -717,8 +797,6 @@ export interface DesktopTemplatesApi {
   diagnose(): Promise<TemplateLoadReport>
 }
 
-export type FigureEmbedMode = 'embed' | 'embed-preview'
-
 export interface ExportFigureStats {
   /** 文档中 Mermaid 图块总数 */
   total: number
@@ -726,8 +804,6 @@ export interface ExportFigureStats {
   converted: number
   /** 嵌入 docx 的对象数 */
   embedded: number
-  /** 预览图（EMF/PNG）生成数 */
-  previewCount: number
   /** 失败明细（题注 + 原因） */
   failed: Array<{ caption: string; reason: string }>
   /** 转换服务整体不可用（此时 failed 为空，但 total 张全都没嵌入） */
@@ -750,7 +826,7 @@ export interface FigureCountsDto {
   images: number
   /** mermaid 块数（mmd-visio）：需经上游转成 Visio 对象 */
   mermaid: number
-  /** 上游 mmd2vsdx 门面是否可用；false 时 mmd-visio 会降级为文本导出 */
+  /** 图转换服务是否可用（弱确认：/health 通且契约版本对得上）；false 时会降级为文本导出 */
   mermaidAvailable: boolean
   /** table 块数：导出为原生 Word 表格 */
   tables: number
@@ -770,6 +846,14 @@ export interface DesktopExportApi {
   docx(input: ExportDocxInput): Promise<ExportDocxResult>
   /** 导出前的图表统计（未打开工程时全 0） */
   figureCounts(): Promise<FigureCountsDto>
+}
+
+/** 图转换服务：只探测与点火，不管它以后怎么退出 */
+export interface DesktopMmdApi {
+  /** 现探一次：目录在不在、Node 找到哪个、服务通不通 */
+  status(): Promise<MmdStatusDto>
+  /** 探测不到就按设置点火，再轮询到就绪 */
+  start(): Promise<MmdStartResultDto>
 }
 
 export interface SavePathDialogOptions {

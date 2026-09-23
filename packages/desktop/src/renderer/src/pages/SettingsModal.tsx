@@ -1,11 +1,14 @@
 /**
- * 设置对话框：主题、默认工程目录、模板目录列表（增删/浏览；保存后主进程即时重载模板）。
+ * 设置对话框：主题、默认工程目录、模板目录列表（增删/浏览；保存后主进程即时重载模板）、
+ * 图转换服务（mmd2vsdx）。
  * 每个模板目录就地显示加载结果——配错一层目录时，这里要说清为什么没加载到。
  * 「模板目录」一节只管配置：增删目录、看每个目录加载到什么。
+ * 「转换服务」一节只管配置与连通性：它是个外部件，本软件**不接管它的生命周期**——
+ * 只探测、按需点火（启动后立刻撒手），没有「停止服务」。
  * 模板编辑的入口不在这里——它在欢迎页（与新建/打开工程并排），那里不打开工程也能进。
  */
 import { useEffect, useState } from 'react'
-import type { AppConfigDto, TemplateLoadReport } from '../../../shared/project'
+import type { AppConfigDto, MmdStatusDto, TemplateLoadReport } from '../../../shared/project'
 import { useApp } from '../state/AppContext'
 import { useTheme, type ThemePreference } from '../theme/ThemeProvider'
 import { errorText } from '../utils/errorText'
@@ -35,6 +38,175 @@ function ThemeSection(): React.JSX.Element {
           </button>
         ))}
       </div>
+    </section>
+  )
+}
+
+/**
+ * 图转换服务（mmd2vsdx）一节。
+ *
+ * 三件事得说清楚：
+ *   1. 它是个**外部件**（不在发行包里，版权边界），所以 Node、目录、地址三样都得用户给；
+ *   2. 「测试连接」与「启动服务」都会**先把这一节落盘**再动作——主进程读的是 config.json，
+ *      不先存就等于在测旧值，那种"改了没反应"最难查；
+ *   3. 只有「启动服务」，没有「停止服务」：服务不归我们管，上游也没提供关机接口。
+ */
+function MmdSection({
+  cfg,
+  onChange
+}: {
+  cfg: AppConfigDto
+  onChange: (next: AppConfigDto) => void
+}): React.JSX.Element {
+  const { showToast } = useApp()
+  const mmd = cfg.mmd2vsdx
+  const [status, setStatus] = useState<MmdStatusDto | null>(null)
+  const [busy, setBusy] = useState<'test' | 'start' | null>(null)
+
+  const patch = (part: Partial<AppConfigDto['mmd2vsdx']>): void =>
+    onChange({ ...cfg, mmd2vsdx: { ...mmd, ...part } })
+
+  const persist = async (): Promise<void> => {
+    await window.documentor.settings.set({ mmd2vsdx: mmd })
+  }
+
+  const test = async (): Promise<void> => {
+    setBusy('test')
+    try {
+      await persist()
+      setStatus(await window.documentor.mmd.status())
+    } catch (err) {
+      showToast({ kind: 'error', text: `连接失败：${errorText(err)}` })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const start = async (): Promise<void> => {
+    setBusy('start')
+    try {
+      await persist()
+      const result = await window.documentor.mmd.start()
+      const text = result.detail ? `${result.reason}：${result.detail}` : result.reason
+      showToast({ kind: result.ok ? 'info' : 'error', text })
+      setStatus(await window.documentor.mmd.status())
+    } catch (err) {
+      showToast({ kind: 'error', text: `启动失败：${errorText(err)}` })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const firstNodeReason = status?.node_candidates[0]?.reason
+
+  return (
+    <section className="settings-group">
+      <h3>转换服务</h3>
+      <p className="settings-hint">
+        流程图导出成可双击编辑的 Visio 对象，靠本机一个常驻服务完成；它不随本软件分发，
+        要单独准备（Node、服务程序目录、首次还要装一次浏览器内核）。
+      </p>
+      <label className="settings-check">
+        <input
+          type="checkbox"
+          checked={mmd.enabled}
+          onChange={(e) => patch({ enabled: e.target.checked })}
+        />
+        <span>导出时把流程图转成可编辑对象</span>
+      </label>
+
+      <div className="settings-dirs">
+        <div>
+          <div className="w-row">
+            <input
+              value={mmd.node_path}
+              placeholder="Node 可执行文件（留空自动查找）"
+              onChange={(e) => patch({ node_path: e.target.value })}
+            />
+          </div>
+          {status &&
+            (status.node ? (
+              <p className="settings-status">
+                Node {status.node.version}（{status.node.source}）
+                {status.node.electron_as_node ? '，用的是软件自带的' : ''}
+              </p>
+            ) : (
+              <p className="settings-status bad">
+                没找到可用的 Node{firstNodeReason ? `：${firstNodeReason}` : '（需要 22.2 以上）'}
+              </p>
+            ))}
+        </div>
+
+        <div>
+          <div className="w-row">
+            <input
+              value={mmd.dir}
+              placeholder="服务程序目录（含 bin 那一层）"
+              onChange={(e) => patch({ dir: e.target.value })}
+            />
+            <button
+              type="button"
+              className="be-btn"
+              onClick={() =>
+                void (async () => {
+                  const dir = await window.documentor.dialog.selectDirectory()
+                  if (dir) patch({ dir })
+                })()
+              }
+            >
+              浏览…
+            </button>
+          </div>
+          {status && !status.dir_ok && (
+            <p className="settings-status bad">
+              这个目录里没找到服务程序（应当在 bin 子目录下）
+            </p>
+          )}
+        </div>
+
+        <div className="w-row">
+          <input
+            value={mmd.endpoint}
+            placeholder="服务地址"
+            onChange={(e) => patch({ endpoint: e.target.value })}
+          />
+        </div>
+      </div>
+
+      <label className="settings-check">
+        <input
+          type="checkbox"
+          checked={mmd.auto_start}
+          onChange={(e) => patch({ auto_start: e.target.checked })}
+        />
+        <span>没在运行时就启动它（启动后不归本软件管，也不会随本软件关闭）</span>
+      </label>
+
+      <div className="w-row settings-mmd-actions">
+        <button type="button" className="be-btn" disabled={busy !== null} onClick={() => void test()}>
+          {busy === 'test' ? '正在连接…' : '测试连接'}
+        </button>
+        <button
+          type="button"
+          className="be-btn"
+          disabled={busy !== null || !mmd.auto_start}
+          onClick={() => void start()}
+        >
+          {busy === 'start' ? '正在启动…' : '启动服务'}
+        </button>
+      </div>
+      {status && (
+        <p className={`settings-status${status.probe.ok ? '' : ' bad'}`}>
+          {status.probe.ok && status.probe.health
+            ? `服务可用：版本 ${status.probe.health.serviceVersion}，` +
+              `接口版本 ${status.probe.health.contractVersion}，` +
+              `渲染器 ${status.probe.health.chromium}`
+            : status.probe.reason}
+        </p>
+      )}
+      {status && !status.probe.ok && status.probe.detail && (
+        <p className="settings-status">{status.probe.detail}</p>
+      )}
     </section>
   )
 }
@@ -73,7 +245,8 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
     try {
       await window.documentor.settings.set({
         default_project_dir: cfg.default_project_dir,
-        template_dirs: cfg.template_dirs
+        template_dirs: cfg.template_dirs,
+        mmd2vsdx: cfg.mmd2vsdx
       })
       // 保存后主进程已重载模板，立刻刷新加载结果
       await refreshReport()
@@ -203,6 +376,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
                 <p className="settings-status bad">没有加载到任何模板，新建工程向导会是空的</p>
               )}
             </section>
+            <MmdSection cfg={cfg} onChange={setCfg} />
           </div>
         )}
         <footer className="wizard-foot">

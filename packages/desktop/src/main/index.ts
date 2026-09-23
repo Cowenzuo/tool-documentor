@@ -3,6 +3,8 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { IPC } from '../shared/contract'
 import { registerProjectIpc } from './ipc'
+import { loadAppSettings } from './services/config'
+import { MmdService } from './services/mmd-service'
 import { ProjectService } from './services/project-service'
 import { buildTemplateManager } from './services/template-host'
 
@@ -223,8 +225,16 @@ app.whenReady().then(() => {
   session.defaultSession.setPermissionCheckHandler(() => false)
 
   const { manager } = buildTemplateManager()
-  projectService = new ProjectService(manager)
-  registerProjectIpc(projectService)
+  // 图转换服务（mmd2vsdx，本机常驻 HTTP 服务）：配置每次现读，**不持有它的生命周期**——
+  // 不记 pid、退出时不关它（上游没有 /shutdown），只在需要时探测与点火。
+  const mmd = new MmdService({
+    getConfig: () => loadAppSettings().mmd2vsdx,
+    electronPath: process.execPath,
+    logFile: () => join(app.getPath('userData'), 'mmd2vsdx-server.log'),
+    log: (line) => console.log(line)
+  })
+  projectService = new ProjectService(manager, mmd)
+  registerProjectIpc(projectService, mmd)
   registerIpc()
   createMainWindow()
 

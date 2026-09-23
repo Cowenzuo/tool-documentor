@@ -12,7 +12,7 @@
 | --- | --- | --- | --- |
 | 改完一处 | 每次改完自己动的那块 | `pnpm typecheck` 加一份对应的 `pnpm check:*` | 几秒到一两分钟 |
 | 提交/合并 | 收口这个任务 | `pnpm verify` | 分钟级 |
-| 发布 | 要出可分发的成品 | `pnpm verify`、`pnpm verify:upstream`、`pnpm verify:package` | 分钟级加打包时间 |
+| 发布 | 要出可分发的成品 | `pnpm verify`、`pnpm verify:package`、`pnpm check:mmd` | 分钟级加打包时间 |
 
 一条贯穿三层的原则：**产品能力不得落在脚本里**。模板校验与必需键推导、锁的判定与写入拒绝、
 模板加载、序列化与 OOXML 打包全在 `packages/` 内实现，只靠类型检查、构建与打包产物就能验证。
@@ -40,8 +40,9 @@
 
 - 用 `src` 的那几份（`pnpm test:local`、`check:locks`、`check:terms`、`check:structure`、
   `check:styles`、`check:open`）不要求先构建，它们要么读源码，要么自己把服务编成 CJS 再 require；
-- 起真实 Electron 的四份（`check:ui`、`check:open:ui`、`check:terms:ui`、`check:undo`）
-  **必须先 `pnpm build`**，它们跑的是 `packages/desktop/out/` 里的产物，没有产物直接报错退出。
+- 起真实 Electron 的五份（`check:ui`、`check:open:ui`、`check:terms:ui`、`check:undo`、
+  `check:mmd:ui`）**必须先 `pnpm build`**，它们跑的是 `packages/desktop/out/` 里的产物，
+  没有产物直接报错退出。`check:mmd` 不起界面，但要有本机转换服务（没跑时它自己拉起）。
 
 `ensure-libs.cjs` 解决的是另一件事：开发版启动时按源码指纹决定要不要重建库，指纹一致就跳过，
 省约 4 秒。它的判据是三层：源码文件清单加修改时间与大小的指纹、逐文件「产物是否存在」、
@@ -50,7 +51,7 @@
 `pnpm build:libs:mark` 刷新；而直接跑 `pnpm build:libs`（`pnpm build` 用的是它）**不会**刷新指纹，
 之后开发版启动会因指纹不符白重编一次，安全但多余，要跟上指纹就在那之后跑一次 `--mark`。
 
-### 九份能力自检各看住什么
+### 十一份能力自检各看住什么
 
 一个能力范畴一份自检，改哪块跑哪块；哪一份红了就说明哪个能力有问题，不把各份拧成一个全量大套件。
 
@@ -63,7 +64,10 @@
 - `pnpm check:open:ui`：工程打开界面，点「最近打开」进老工程、看状态栏、物理点保存后读回库与锚点；
 - `pnpm check:terms:ui`：权限标签、置灰与换类型入口；
 - `pnpm check:undo`：撤销，改形状这一步退得回去、保存前后都退得回去，刚打完字就按 `Ctrl+Z`
-  也撤得掉。
+  也撤得掉；
+- `pnpm check:mmd`：图转换服务的真实链路（起服务、真转换、确定性、错误码），
+  服务自己拉起、跑完停掉；
+- `pnpm check:mmd:ui`：设置 →「转换服务」一节，字段、测试连接、以及"先落盘再测"这条顺序。
 
 几处必须守住的口径：自检**走产品自己的服务**，断言的是行为不是规则表，照抄一份规则到脚本里
 规则改了脚本还是绿的；期望值必须取自契约本身，文案类断言只在「文案本身就是契约」的地方允许，
@@ -73,13 +77,15 @@
 
 ### 单测
 
-`pnpm test:local` 跑 `localscripts/tests/` 下的单测，覆盖四个库包的 `src`。
-带真实上游转换的那条契约测试缺省跳过，要跑得显式给环境变量 `DOC_REAL_MMD=1`，且需要本机
-Chromium。**单测不在 `pnpm verify` 里**，它是本机单独跑的一条口径，两条不要混。
+`pnpm test:local` 跑 `localscripts/tests/` 下的单测，覆盖四个库包的 `src` 与主进程里的
+转换服务客户端（`tests/desktop/`）。
+带真实转换的那条契约测试缺省跳过，要跑得显式给环境变量 `DOC_REAL_MMD=1`；它需要本机
+Chromium 与转换服务目录，**服务没在跑时测试自己会拉起、跑完停掉**，不用先手工开服务。
+**单测不在 `pnpm verify` 里**，它是本机单独跑的一条口径，两条不要混。
 
 ### 界面自检怎么起
 
-四份界面自检共用一个驱动 `localscripts/e2e/run.cjs`：它起真实 Electron，让探针在主进程里
+五份界面自检共用一个驱动 `localscripts/e2e/run.cjs`：它起真实 Electron，让探针在主进程里
 用 `executeJavaScript` 驱动渲染层 DOM，用 `fs` 与 `node:sqlite` 直接看磁盘上的锚点与库，
 物理点击用 `sendInputEvent` 走命中判定（按钮不存在或灰着就点不动）。
 
@@ -96,24 +102,26 @@ Chromium。**单测不在 `pnpm verify` 里**，它是本机单独跑的一条�
 ### `pnpm verify`
 
 ```
-pnpm typecheck && pnpm build && node scripts/check-upstream.cjs
+pnpm typecheck && pnpm build
 ```
 
-三项依次跑：全仓 TS strict 检查、构建（先四个库再桌面壳）、最后上游契约检查。
+两项依次跑：全仓 TS strict 检查、构建（先四个库再桌面壳）。
 它**不跑测试**，也不依赖 `localscripts/`。
 
-上游检查放在**最后一项且不阻断**是有意的：上游接口漂移是已知会红的预期状态，把它放在首位用
-`&&` 串联，会把类型检查与构建一起短路掉，回归整体漏网。所以默认模式发现漂移只打印、退出码
-仍为 0。
+> 这里原来还有第三项 `node scripts/check-upstream.cjs`（静态查上游门面导出），2026-09-23 连同
+> `pnpm verify:upstream` 一起撤了：上游改成常驻 HTTP 服务之后，`import 'mmd2vsdx'` 那条路根本
+> 不存在了，静态查门面已经没有对象。上游连通性改由 `pnpm check:mmd` 在运行期探测。
 
-### `pnpm verify:upstream`
+### `pnpm check:mmd`
 
-`node scripts/check-upstream.cjs --strict`，同样的检查，漂移以退出码 1 拦住。**发布前跑这个。**
+真服务的**运行期**检查（本机脚本，不入库）：`/health` 的契约版本是否等于 `1`、
+`POST /convert` 是否真回 VSDX 字节、同一输入两次转换的 `sha256` 是否一致、坏图是否回
+`400 parse_error`、以及响应头里有没有 `X-Mmd2Vsdx-Version`。服务没在跑时脚本自己拉起，
+**跑完停掉（连它拉起的 Chromium 一起）**。
 
-它做的是静态检查：解析 `mmd2vsdx` 的 `package.json`，看包名、入口（`exports["."]` 或 `main`）、
-是否声明类型（`types` 或 `exports["."].types`），再读入口文件文本判断有没有导出门面
-`convertText` 与 `shutdown`（或旧形态的 `application` 对象承载两者）。它不 import 上游，
-所以是毫秒级的。真实转换行为不在门禁里：那要 Chromium 与本机上游目录，手工跑本机 CLI 核对。
+它不在 `pnpm verify` 里：需要 Node、Chromium 与本机服务目录，是"这台机器上才成立"的前置，
+与门禁的"clone 下来就能跑"不是一回事。发布前手工跑一次。
+界面那一侧另有一条 `pnpm check:mmd:ui`，看设置 →「转换服务」一节的字段、测试连接与配置落盘。
 
 ### `node scripts/verify-package.cjs`
 
@@ -162,7 +170,7 @@ XML 写对了不等于 Word 认。同一份 XML，Word 解析后的结论和肉�
 ## 5 本机自检资产不入库意味着什么
 
 `localscripts/` 整个目录被 `.gitignore` 忽略：clone 下来没有它，也不接受提交。
-九份能力自检、四份库包单测、E2E 夹具与探针、Word 核对脚本、无界面导出对照与样例工程生成器
+十一份能力自检、四份库包单测、E2E 夹具与探针、Word 核对脚本、无界面导出对照与样例工程生成器
 都在里面。
 
 这在设计上是可接受的：它们是纯本机辅助，删掉不影响程序功能、构建产物与验收结论。
@@ -174,8 +182,8 @@ XML 写对了不等于 Word 认。同一份 XML，Word 解析后的结论和肉�
 
 | 关系 | 结论 |
 | --- | --- |
-| `scripts/` 随仓库走 | clone 就有：一键启动、按需构建库、上游契约检查、产物校验 |
-| `localscripts/` 不入库 | clone 没有：九份自检、单测、E2E 与 Word 核对、开发工具 |
+| `scripts/` 随仓库走 | clone 就有：一键启动、按需构建库、产物校验 |
+| `localscripts/` 不入库 | clone 没有：十一份自检、单测、E2E 与 Word 核对、开发工具 |
 | 谁依赖谁 | 脚本可以引用产品代码，产品代码不得引用脚本 |
 | 删掉会怎样 | 三个门禁命令不受影响；本机自检与单测全部消失，且无法从仓库恢复 |
 

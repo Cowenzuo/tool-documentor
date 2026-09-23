@@ -41,7 +41,7 @@
 | --- | --- | --- |
 | `@documentor/core` | 文档树与内容块模型（8 种块）、SQLite 工程存储、锚点读写、实例 JSON、表格合并与上限、撤销栈、id 与时间工具 | 无 |
 | `@documentor/templates` | 模板身份与目录扫描、引用解析、加载与实例化、逻辑样式键与模板校验 | `core` |
-| `@documentor/docx` | 序列化（树 → 写入指令）、OOXML 打包（指令 → docx）、图与对象的嵌入编排 | `core`、`templates`、`postprocess`、`jszip`、`mmd2vsdx`（`link:` 到仓库外） |
+| `@documentor/docx` | 序列化（树 → 写入指令）、OOXML 打包（指令 → docx）、图与对象的嵌入编排 | `core`、`templates`、`postprocess`、`jszip` |
 | `@documentor/postprocess` | OLE/CFB 复合容器、VSDX 装配、对象段替换 | `jszip` |
 | `@documentor/desktop` | Electron 壳与界面：main 持工程与导出管线、preload 做类型化桥、renderer 是 React 界面 | 上面四个 + React/Electron/编辑器依赖 |
 
@@ -68,7 +68,7 @@
 | | `manager.ts`、`types.ts` | 加载与实例化、结构/样式模板的类型 |
 | | `validate.ts`、`style-rules.ts`、`style-keys.ts`、`style-match.ts` | 校验、样式键元数据、导入时的映射草稿 |
 | `docx` | `serializer.ts`、`instructions.ts`、`writer.ts` | 树 → 写入指令、指令 → OOXML 部件 → 打包 |
-| | `figure-export.ts`、`mmd2vsdx.d.ts` | 图与对象的嵌入编排、上游门面的类型声明 |
+| | `figure-export.ts` | 图与对象的嵌入编排；转换函数由调用方注入，本包不认识 mmd2vsdx |
 | `postprocess` | `cfb.ts`、`ole-streams.ts`、`vsdx.ts`、`embed.ts` | OLE 复合容器读写、流、VSDX 装配、对象段替换 |
 
 `desktop` 的分法见上一节与 [DESIGN-02-界面结构.md](DESIGN-02-界面结构.md)：
@@ -182,8 +182,7 @@ pnpm build          # build:libs（core→templates→postprocess→docx，tsc �
                     #   + desktop 的 electron-vite build
 pnpm package:dir    # build 后 electron-builder --dir → release/win-unpacked/
 pnpm package        # build 后 electron-builder --win → release/Documentor-<版本>-setup.exe
-pnpm verify         # typecheck + build + 上游契约检查（报告模式，不阻断）
-pnpm verify:upstream # 上游契约检查的严格模式，漂移即退出码 1
+pnpm verify         # typecheck + build
 ```
 
 **库包双条件导出**是这里最容易踩的一处：四个库的 `exports` 把 `import` 指向 `src/*.ts`、
@@ -205,8 +204,8 @@ Electron 主进程运行期走后者（读 `tsc` 产物）。所以**单测全�
 `packages/desktop` 下执行，写裸相对路径会落到 `packages/desktop/release`。
 同理不要从仓库根以外的目录直接调 electron-builder。
 
-**打包与安全的几条现状**：发行包用 asar，`files` 里显式排除 `mmd2vsdx`
-（版权边界见 [DESIGN-07-导出、题注与图嵌入.md](DESIGN-07-导出、题注与图嵌入.md)）；
+**打包与安全的几条现状**：发行包用 asar，`files` 里保留排除 `mmd2vsdx` 那一条作保险
+（它其实已经不在依赖树里了，见 [DESIGN-07-导出、题注与图嵌入.md](DESIGN-07-导出、题注与图嵌入.md) 第 6 节）；
 生产 CSP 在构建期注入 `<meta>`，防闪烁那段内联脚本按 **sha256 哈希**放行而不是
 `'unsafe-inline'`，且算哈希前要把换行归一成 LF（Chromium 比对前自己会归一，
 按 CRLF 算出来的哈希永远对不上，那段脚本会被拦掉）；应用图标取
@@ -244,7 +243,8 @@ node scripts/start-documentor.cjs --dev    # 开发版：先按指纹构建库�
   程序的功能、构建产物与验收结论都不受影响；
 - **脚本可以引用产品代码，产品代码不得引用脚本**。`build`、`typecheck`、`verify`
   三条链不依赖 `localscripts/`；
-- **模板与上游 mmd2vsdx 都不进发行包**，这是合规红线，不是可选项；
+- **模板与上游 mmd2vsdx 都不进发行包**，这是合规红线，不是可选项
+  （上游现在更是压根不在依赖树里：它是本机的常驻服务）；
 - **`release/` 里的成品不随开发提交重建**。它是用户当前在用的软件，
   重新打包是用户明确要求的动作；
 - **注释以中文为主，内部诊断日志带模块前缀**（`[templates]`、`[renderer:csp]`、

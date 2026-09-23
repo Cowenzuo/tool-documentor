@@ -41,9 +41,6 @@ importers:
       mermaid:
         specifier: ^11.17.2
         version: 11.17.2
-      mmd2vsdx:
-        specifier: link:../../../tool-mmd2vsdx
-        version: link:../../../tool-mmd2vsdx
       prismjs:
         specifier: ^1.30.0
         version: 1.30.0
@@ -99,9 +96,6 @@ importers:
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
-      mmd2vsdx:
-        specifier: link:../../../tool-mmd2vsdx
-        version: link:../../../tool-mmd2vsdx
     devDependencies:
       '@types/node':
         specifier: ^22.20.1

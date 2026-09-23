@@ -3,9 +3,9 @@
  *
  * 分层（上游 mmd2vsdx 产出 VSDX 字节，本包只做 docx/VSDX 装配）：
  *   - makeVisioOle / buildCompoundFile / parseCompoundFile：OLE CF 容器（无第三方依赖）；
- *   - embedVsdxIntoDocx:占位段 → w:object(OLE+预览) 嵌入,rels/Content_Types 闭合。
- * 注：预览图 = 上游转换的附带物（mmd2vsdx 工程产出，同源同风格）；本包/本工程
- *     不再生成预览（旧版 Visio COM/EMF 渲染已移除，避免任何 Word/Visio 实例依赖）。
+ *   - embedVsdxIntoDocx:占位段 → w:object(OLE，预览可选) 嵌入,rels/Content_Types 闭合。
+ * 注：预览图由调用方决定给不给。本工程不给——上游不自产预览，Word 里显示对象图标，
+ *     这是约定的交付口径（见 DESIGN-07 第 5 节）；本包只是"给了就嵌进去"，不产图也不找图。
  */
 export {
   buildCompoundFile,

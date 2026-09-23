@@ -93,6 +93,21 @@
   align-self: flex-start;
 }
 
+/* 「转换服务」一节的复选框行：一行一句，说明跟在勾选框后面 */
+.settings-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.settings-mmd-actions {
+  margin-top: var(--space-2);
+}
+
 .settings-foot-actions {
   display: flex;
   gap: var(--space-2);
