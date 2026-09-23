@@ -84,7 +84,7 @@ export function BlockCard(props: BlockCardProps): React.JSX.Element {
   const shapeLocked = !perms.reshape || lock !== undefined
   const shapeLockedWhy = perms.reshape
     ? `${blockTierOf(lock).name}：${blockTierOf(lock).tip}`
-    : '模板把这一章的排版关着'
+    : perms.whyShape
   const typeTitle = shapeLocked ? reshapeRefusal(lock, perms) : BLOCK_ACTION.changeType.tip
   const moveUpTitle = perms.move ? '上移（Alt+↑）' : perms.whyMove
   const moveDownTitle = perms.move ? '下移（Alt+↓）' : perms.whyMove
@@ -217,7 +217,7 @@ function BlockBody(props: BlockCardProps & { change: (b: ContentBlock) => void }
   const shapeLocked = !props.perms.reshape || block.lock !== undefined
   const shapeLockedWhy = props.perms.reshape
     ? `${blockTierOf(block.lock).name}：${blockTierOf(block.lock).tip}`
-    : '模板把这一章的排版关着'
+    : props.perms.whyShape
   switch (block.type) {
     case 'text':
       return <TextEditor block={block} onChange={change} readOnly={readOnly} />

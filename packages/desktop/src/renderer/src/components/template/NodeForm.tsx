@@ -300,7 +300,7 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
                   label={NODE_PERMISSION.allowContentBlocks.name}
                   tip={jsonTip(
                     'allowContentBlocks',
-                    '缺省 true · 内容块总闸：关掉整章内容块只读，一个字段都不能改'
+                    '缺省 true · 总闸：关掉后整章内容只读，用户一个字段都改不了'
                   )}
                   checked={nodeSwitch(node, 'allowContentBlocks')}
                   onChange={(checked) => props.onPatch({ allowContentBlocks: checked })}

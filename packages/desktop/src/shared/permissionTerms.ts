@@ -62,7 +62,7 @@ export interface NodePermissionInput {
  * 编辑 × 排版 取交之后，这一章的块能做什么（DESIGN-06那张表）。
  *
  * 三条轴的分工：
- *   - 编辑关 → 内容块一律不动；
+ *   - 编辑关 → 内容一律不动；
  *   - 排版关 → 集合、顺序、类型都不能动，只剩改各块的内容；
  *   - 块档位 → 在写入侧再叠一层：只读连内容也不能改，类型限制编辑能改内容、不能删也不能换形状。
  *     位置不归块档位管：那是排版的事。
@@ -71,6 +71,8 @@ export interface NodePermissionInput {
  * 块档位不否决章节级动作 —— 作者要护住整章，把「裁剪」关掉就是（缺省就是关的）。
  *
  * 界面与写入侧用的是同一个函数、同一批说法，所以置灰提示与拒绝语不会各说各话。
+ * 说法一律面向人：「模板限定了这一章：…」。不在文案里描述开关状态，
+ * 也不出现「内容块」这种内部说法（见 产品文案口径.md）。
  */
 export interface BlockPermissions {
   editContent: boolean
@@ -83,30 +85,41 @@ export interface BlockPermissions {
   whyAdd: string
   whyRemove: string
   whyMove: string
+  /** 换类型／改表头被总闸挡住时的说法（`reshapeRefusal` 的第一档） */
+  whyShape: string
 }
 
 export function blockPermissions(node: NodePermissionInput): BlockPermissions {
   const editing = node.allowContentBlocks
   const layout = node.allowLayoutEdit
-  // 拒绝语先说挡在最前面的那一条：编辑关着就说编辑，编辑开着还拦得住就是排版
-  const which = (what: string): string =>
-    editing ? `模板把这一章的排版关着，不能${what}` : `模板把这一章的编辑关着，不能${what}`
+  /**
+   * 总闸挡住一件事时的说法：**先说模板的限定，再说这件事做不了**。
+   *
+   * 不描述"模板里哪个开关没放开"——那是机制（开关在模板里，用户看不见也改不了），
+   * 用户要知道的是"这一章还能做什么"。所以两种情形各一句：
+   *   - 编辑关 → `不能…`（整章都不能动）；
+   *   - 编辑开、只关排版 → `只能改内容`（说清还能做什么，被挡的那件事自明）。
+   * 编辑与排版之分因此仍在，只是换成了用户视角的说法。
+   */
+  const limit = '模板限定了这一章：'
+  const gate = (what: string): string => (editing ? `${limit}只能改内容` : `${limit}不能${what}`)
   return {
     editContent: editing,
     reshape: editing && layout,
     add: editing && layout,
     remove: editing && layout,
     move: editing && layout,
-    whyEditContent: '模板把这一章的编辑关着，内容块不能改',
-    whyAdd: which('加内容'),
-    whyRemove: which('删内容'),
-    whyMove: which('移动内容')
+    whyEditContent: `${limit}不能改内容`,
+    whyAdd: gate('加内容'),
+    whyRemove: gate('删内容'),
+    whyMove: gate('移动内容'),
+    whyShape: editing ? `${limit}类型与表头不能改` : `${limit}不能改内容`
   }
 }
 
-/** 换类型与换表头被拒时的说法：先看排版，再看块档位 */
+/** 换类型与换表头被拒时的说法：先看总闸，再看块档位 */
 export function reshapeRefusal(lock: string | undefined, perms: BlockPermissions): string {
-  if (!perms.reshape) return '模板把这一章的排版关着，类型与表头不能改'
+  if (!perms.reshape) return perms.whyShape
   if (lock === 'readonly') return '模板规定该内容为只读，类型不能改'
   return '模板规定的类型不能改，内容可以照常编辑'
 }
