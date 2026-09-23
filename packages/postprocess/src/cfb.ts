@@ -109,7 +109,7 @@ export function buildCompoundFile(
   if (nFat > CFB_DIFAT_ENTRIES) {
     throw new Error(
       `嵌入对象过大：需要 ${nFat} 个 FAT 扇区，超过 CFB 头部 DIFAT 槽上限 ${CFB_DIFAT_ENTRIES} 个` +
-      '（约 7 MB 的嵌入对象）；当前写入器不生成 DIFAT 链，无法写入该对象'
+      '约 7 MB 嵌入对象；当前写入器不支持 DIFAT 链，无法写入该对象'
     )
   }
   const totalSecs = totalRegular + miniFatSectors + nFat + dirSectors
@@ -334,7 +334,7 @@ export function parseCompoundFile(data: Uint8Array): Record<string, Uint8Array> 
   }
 
   const root = entries.find((e) => e.type === 5)
-  if (!root) throw new Error('图表文件解析失败：缺少 Root Entry')
+  if (!root) throw new Error('图表文件解析失败：Root Entry 缺失')
   const miniFatParts: Uint8Array[] = []
   for (const s of chain(firstMiniFat)) {
     if (s >= fatSectors.length * (sectorSize / 4)) break

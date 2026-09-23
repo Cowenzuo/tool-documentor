@@ -22,10 +22,10 @@ export interface PermissionTerm {
 
 /** 节点级：模板作者给用户的四个开关，按 DESIGN-06的顺序 */
 export const NODE_PERMISSION = {
-  copyable: { name: '复制', tip: '模板允许复制这一章及其子章节' },
-  deletable: { name: '裁剪', tip: '模板允许裁掉这一章' },
-  allowContentBlocks: { name: '编辑', tip: '模板允许编辑这一章的内容块' },
-  allowLayoutEdit: { name: '排版', tip: '模板允许改这一章的块集合、顺序与类型' }
+  copyable: { name: '复制', tip: '模板允许复制本章及其子章节' },
+  deletable: { name: '裁剪', tip: '模板允许裁掉本章' },
+  allowContentBlocks: { name: '编辑', tip: '模板允许编辑本章内容块' },
+  allowLayoutEdit: { name: '排版', tip: '模板允许改本章块集合、顺序与类型' }
 } as const
 
 /** 内容块级：三档加一个作废的旧档位 */
@@ -41,7 +41,7 @@ export const BLOCK_TIER: Record<'free' | 'keep' | 'readonly' | 'legacy', Permiss
  * 权限词表管"能不能做"，这里管"这件事叫什么"，两处都只有这一个说法。
  */
 export const BLOCK_ACTION = {
-  changeType: { name: '换类型', tip: '换成别的类型；这一块的内容能带的一起带过去' }
+  changeType: { name: '换类型', tip: '换成其他类型；可带内容一并带过去' }
 } as const
 
 /** 块上写的 lock 值 → 档位；不写就是自由编辑 */
@@ -117,7 +117,7 @@ export function blockPermissions(node: NodePermissionInput): BlockPermissions {
 export function reshapeRefusal(lock: string | undefined, perms: BlockPermissions): string {
   if (!perms.reshape) return perms.whyShape
   if (lock === 'readonly') return '模板规定该内容为只读，类型不能改'
-  return '模板规定的类型不能改，内容可以照常编辑'
+  return '模板规定类型不能改，内容可以照常编辑'
 }
 
 /**

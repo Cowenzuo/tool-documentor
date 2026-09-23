@@ -107,7 +107,7 @@ function CreateForm({
         <input
           className="tpl-input"
           value={cn}
-          placeholder="给作者看的名字"
+          placeholder="作者可见名称"
           autoFocus
           onChange={(event) => setCn(event.target.value)}
         />
@@ -194,7 +194,7 @@ function ImportForm({
         <input
           className="tpl-input"
           value={cn}
-          placeholder="给作者看的名字"
+          placeholder="作者可见名称"
           autoFocus
           onChange={(event) => setCn(event.target.value)}
         />
@@ -242,7 +242,7 @@ function ImportForm({
         </div>
         <p className="tpl-note tpl-import-source" title={source}>
           {source === ''
-            ? '未选 · 两种都支持，缺必需部件会被拒'
+            ? '未选择 · 两种都支持，必需部件缺失会被拒绝'
             : `${sourceIsDocx ? 'Word 文档' : '已解包目录'}：${source}`}
         </p>
         {/* 选完之后路径落在这里，也可以直接粘一个进来（改起来不用重新走对话框） */}
@@ -325,8 +325,8 @@ function RenameForm({
       </label>
       <p className="tpl-note">
         {kind === 'structure'
-          ? '改名只写这一个 JSON · 目录与文件名不动'
-          : '改名只写这一个 JSON · 引用它默认为样式的结构模板不受影响'}
+          ? '改名只写该 JSON · 目录与文件名不动'
+          : '改名只写该 JSON · 结构模板引用它作默认样式，不受影响'}
       </p>
       <div className="tpl-form-foot">
         <button type="button" className="tpl-mini" onClick={onCancel} disabled={busy}>
@@ -432,7 +432,7 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
       label: '改名',
       // 菜单项自己是看得懂的：悬停只在灰着的时候说清为什么灰
       title: !isOpenEntry
-        ? '改名只作用于当前打开的那一份：先点开这份模板'
+        ? '只改当前打开模板：先点开这份模板'
         : dirty
           ? '先保存改动'
           : undefined,
@@ -446,7 +446,7 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
     {
       label: '删除',
       title: !isOpenEntry
-        ? '删除只作用于当前打开的那一份：先点开这份模板'
+        ? '只删当前打开模板：先点开这份模板'
         : dirty
           ? '先保存改动'
           : undefined,
@@ -461,7 +461,7 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
     {
       label: '改名',
       title: !isOpenStyleEntry
-        ? '改名只作用于当前打开的那一份：先点开这份样式模板'
+        ? '只改当前打开样式模板：先点开这份样式模板'
         : dirty
           ? '先保存改动'
           : undefined,
@@ -475,7 +475,7 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
     {
       label: '删除',
       title: !isOpenStyleEntry
-        ? '删除只作用于当前打开的那一份：先点开这份样式模板'
+        ? '只删当前打开样式模板：先点开这份样式模板'
         : dirty
           ? '先保存改动'
           : undefined,
@@ -497,10 +497,10 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
         {!dirSnapshot ? (
           <>
             <p className="tpl-empty">
-              {status === 'ready' ? '还没有配置模板目录' : '正在读取模板目录…'}
+              {status === 'ready' ? '未配置模板目录' : '正在读取模板目录…'}
             </p>
             {status === 'failed' && (
-              <p className="tpl-note tpl-note-bad">读不到模板目录，可以点上面的「重新加载」</p>
+              <p className="tpl-note tpl-note-bad">无法读取模板目录，可以点上方「重新加载」</p>
             )}
           </>
         ) : (
@@ -562,7 +562,7 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
                   )}
 
                 {structures.length === 0 ? (
-                  <p className="tpl-empty">这个目录里还没有结构模板</p>
+                  <p className="tpl-empty">该目录里无结构模板</p>
                 ) : (
                   <ul className="tpl-items">
                     {structures.map((entry) => (
@@ -679,7 +679,7 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
               {/* 样式模板这一段：点开看的是**对照表**（逻辑键 → 骨架样式），不是样式文件本身。
                   骨架里的字节程序一个字节都不改；改名与删除动的是样式自己，在下面那一行的右键菜单里。 */}
               <div className="tpl-pane">
-                <div className="tpl-section-head" title="样式文件由作者提供 · 此处只改对照表">
+                <div className="tpl-section-head" title="样式文件由作者提供 · 界面只改对照表">
                   <h3>样式模板</h3>
                   {/* 导入：把自备的样式文件铺进模板目录，并按样式名生成映射草稿 */}
                   <button
@@ -709,7 +709,7 @@ export function TemplateList(props: TemplateListProps): JSX.Element {
                     />
                   )}
                   {styles.length === 0 ? (
-                    <p className="tpl-empty">这个目录里还没有样式模板</p>
+                    <p className="tpl-empty">该目录里无样式模板</p>
                   ) : (
                     <ul className="tpl-items">
                       {styles.map((entry) => (

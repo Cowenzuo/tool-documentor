@@ -107,7 +107,7 @@ export function TableGrid({ headers, data, onChange }: TableGridProps): JSX.Elem
             { label: '在左边插一列', run: () => addColumn(menu.payload!.index) },
             { label: '在右边插一列', run: () => addColumn(menu.payload!.index + 1) },
             {
-              label: '删除这一列',
+              label: '删除该列',
               danger: true,
               title: '整列从表头与每一行里去掉',
               run: () => removeColumn(menu.payload!.index)
@@ -117,7 +117,7 @@ export function TableGrid({ headers, data, onChange }: TableGridProps): JSX.Elem
             { label: '在上面插一行', run: () => addRow(menu.payload!.index) },
             { label: '在下面插一行', run: () => addRow(menu.payload!.index + 1) },
             {
-              label: '删除这一行',
+              label: '删除该行',
               danger: true,
               run: () => removeRow(menu.payload!.index)
             }
@@ -147,7 +147,7 @@ export function TableGrid({ headers, data, onChange }: TableGridProps): JSX.Elem
             <span
               key={`x${c}`}
               className="tpl-tg-cell is-extra"
-              title="表头没有这一列 · 校验会报，右键可以删掉它"
+              title="表头无该列 · 校验会报错，右键可以删除"
             >
               多 {headers.length + c + 1}
             </span>
@@ -188,7 +188,7 @@ export function TableGrid({ headers, data, onChange }: TableGridProps): JSX.Elem
           ＋ 一行
         </button>
         <span className="tpl-count">
-          {headers.length} 列{data.length === 0 ? ' · 没有数据行' : ''}
+          {headers.length} 列{data.length === 0 ? ' · 无数据行' : ''}
         </span>
       </div>
 
@@ -234,9 +234,9 @@ function RowCells({
           aria-label={`第 ${rowIndex + 1} 行第 ${c + 1} 列`}
           title={
             short
-              ? `这行 ${row.length} 格 · 表头 ${headCount} 格`
+              ? `该行 ${row.length} 格 · 表头 ${headCount} 格`
               : c >= headCount
-                ? '表头没有这一列 · 校验会报，右键可以删掉它'
+                ? '表头无该列 · 校验会报错，右键可以删除'
                 : undefined
           }
           onChange={(event) => onCell(rowIndex, c, event.target.value)}

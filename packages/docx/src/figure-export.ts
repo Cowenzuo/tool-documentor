@@ -88,7 +88,7 @@ interface Slot {
 }
 
 /** 整体不可用时的统一提示（文案口径见 产品文案口径.md 第 7 条：不说依赖名与安装指引） */
-const UNAVAILABLE_WARNING = '图以文本形式导出，双击编辑暂不可用'
+const UNAVAILABLE_WARNING = '图以文本形式导出，双击编辑不可用'
 
 /**
  * 把已生成（占位式）的 docx 升级为 Visio OLE 嵌入版。

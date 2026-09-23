@@ -30,7 +30,7 @@ export function CreateProjectWizard({
   const emptyHint = useMemo((): string => {
     const configured = report?.dirs.filter((d) => d.dir.trim()) ?? []
     if (configured.length === 0) {
-      return '还没有配置模板目录。请到 设置 → 模板目录 添加模板目录。'
+      return '未配置模板目录。请到 设置 → 模板目录 添加目录。'
     }
     const broken = configured.filter((d) => d.loadFailed)
     if (broken.length === 0) return '无可用结构模板'
@@ -101,7 +101,7 @@ export function CreateProjectWizard({
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="如：示例工程（将创建同名文件夹）"
+                placeholder="如：示例工程 · 将创建同名文件夹"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') void submit()
                 }}

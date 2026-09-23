@@ -257,13 +257,13 @@ export function NodeTree(props: NodeTreeProps): JSX.Element {
         },
         {
           label: '复制节点',
-          title: menuIsRoot ? '根节点不可复制' : undefined,
+          title: menuIsRoot ? '根节点不能复制' : undefined,
           disabled: menuIsRoot,
           run: () => props.onDuplicate(menuPath)
         },
         {
           label: '上移',
-          title: menuIsRoot ? '根节点不可移动' : menuIndex > 0 ? undefined : '已是第一个',
+          title: menuIsRoot ? '根节点不能移动' : menuIndex > 0 ? undefined : '已是第一个',
           disabled: menuIsRoot || menuIndex === 0,
           run: () => props.onMove(menuPath, -1)
         },
@@ -271,7 +271,7 @@ export function NodeTree(props: NodeTreeProps): JSX.Element {
           label: '下移',
           title:
             menuIsRoot
-              ? '根节点不可移动'
+              ? '根节点不能移动'
               : menuIndex < menuSiblingCount - 1
                 ? undefined
                 : '已是最后一个',
@@ -324,7 +324,7 @@ export function NodeTree(props: NodeTreeProps): JSX.Element {
       <div className="tpl-col-body" ref={scrollRef} role="tree" aria-label="节点">
         {!root ? (
           <p className="tpl-empty">
-            {status === 'ready' ? '还没有打开结构模板' : '正在读取模板目录…'}
+            {status === 'ready' ? '未打开结构模板' : '正在读取模板目录…'}
           </p>
         ) : (
           <Row

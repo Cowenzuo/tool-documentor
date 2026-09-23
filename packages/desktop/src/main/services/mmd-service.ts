@@ -244,27 +244,27 @@ export class MmdService {
         signal: AbortSignal.timeout(this.deps.probeTimeoutMs ?? MMD_PROBE_TIMEOUT_MS)
       })
     } catch (err) {
-      return { ok: false, kind: 'unreachable', reason: '转换服务没在运行', detail: messageOf(err) }
+      return { ok: false, kind: 'unreachable', reason: '转换服务未运行', detail: messageOf(err) }
     }
     if (!res.ok) {
       // 状态码进日志（`detail`），界面上只说"没正常响应"
-      return { ok: false, kind: 'unreachable', reason: '转换服务没有正常响应', detail: `HTTP ${res.status}` }
+      return { ok: false, kind: 'unreachable', reason: '转换服务响应错误', detail: `HTTP ${res.status}` }
     }
     let body: unknown
     try {
       body = await res.json()
     } catch (err) {
-      return { ok: false, kind: 'bad-response', reason: '转换服务没有正常响应', detail: messageOf(err) }
+      return { ok: false, kind: 'bad-response', reason: '转换服务响应错误', detail: messageOf(err) }
     }
     const health = parseHealth(body)
     if (!health) {
-      return { ok: false, kind: 'bad-response', reason: '转换服务没有正常响应', detail: '健康信息读不出来' }
+      return { ok: false, kind: 'bad-response', reason: '转换服务响应错误', detail: '健康信息读取失败' }
     }
     if (health.contractVersion !== MMD_CONTRACT_VERSION) {
       return {
         ok: false,
         kind: 'contract-mismatch',
-        reason: `转换服务的版本与本软件不匹配（它 ${health.contractVersion}，本软件要 ${MMD_CONTRACT_VERSION}）`,
+        reason: `转换服务版本不匹配 · 服务 ${health.contractVersion}，本软件要求 ${MMD_CONTRACT_VERSION}`,
         detail: `服务版本 ${health.serviceVersion}`
       }
     }
@@ -277,10 +277,10 @@ export class MmdService {
   async buildStartPlan(override?: MmdServiceConfig): Promise<MmdStartPlan> {
     const cfg = this.cfg(override)
     if (!isLoopbackHost(cfg.host)) {
-      return { ok: false, reason: 'bad-endpoint', detail: '地址只能是本机回环地址（127.0.0.1 或 localhost）' }
+      return { ok: false, reason: 'bad-endpoint', detail: '地址必须为本机回环地址 · 127.0.0.1 或 localhost' }
     }
     if (cfg.dir === '') {
-      return { ok: false, reason: 'no-dir', detail: '还没有指定服务程序目录' }
+      return { ok: false, reason: 'no-dir', detail: '未指定服务程序目录' }
     }
     const located = this.deps.locate
       ? await this.deps.locate(cfg.node_path)
@@ -294,8 +294,8 @@ export class MmdService {
         reason: 'no-node',
         detail:
           cfg.node_path !== ''
-            ? `指定的运行环境用不了：${located.all[0]?.reason ?? '原因不明'}`
-            : '没找到可用的运行环境（需要 22.2 以上）'
+            ? `运行环境不可用：${located.all[0]?.reason ?? '未记录原因'}`
+            : '未找到运行环境 · 需 22.2 以上'
       }
     }
     const nodePath = located.picked.path
@@ -327,7 +327,7 @@ export class MmdService {
         ok: false,
         started: false,
         reason: first.reason,
-        detail: `${first.detail ?? ''}（没打开「默认拉起」）`.trim()
+        detail: `${first.detail ?? ''} · 未启用「默认拉起」`.trim()
       }
     }
 
@@ -362,7 +362,7 @@ export class MmdService {
     return {
       ok: false,
       started: true,
-      reason: '转换服务启动了，但一直没就绪',
+      reason: '转换服务已启动，但始终未就绪',
       detail: last && !last.ok ? last.reason : undefined
     }
   }
@@ -381,8 +381,8 @@ export class MmdService {
       return {
         ok: false,
         started: false,
-        reason: '这个端口上已经有一个转换服务在跑',
-        detail: '点「测试连接」看它能不能用',
+        reason: '该端口已有转换服务在运行',
+        detail: '点「测试连接」确认是否可用',
         exit_code: 0
       }
     }
@@ -390,8 +390,8 @@ export class MmdService {
       return {
         ok: false,
         started: false,
-        reason: `端口 ${plan.port} 被别的程序占用了`,
-        detail: '换一个端口再试，服务地址也要跟着改',
+        reason: `端口 ${plan.port} 已被其他程序占用`,
+        detail: '请更换端口，服务地址需同步修改',
         exit_code: 3
       }
     }
@@ -401,7 +401,7 @@ export class MmdService {
     return {
       ok: false,
       started: false,
-      reason: '转换服务没能启动',
+      reason: '转换服务启动失败',
       detail: tail === '' ? undefined : tail,
       exit_code: code
     }
@@ -485,12 +485,12 @@ export class MmdService {
         this.reviveAttempted = true
         const started = await this.ensureRunning()
         if (started.ok) continue
-        this.noteFinalFailure({ ...result, message: '转换服务不可用，重新启动也没起来' })
+        this.noteFinalFailure({ ...result, message: '转换服务超时重试失败' })
         return {
           ok: false,
           kind: 'unavailable',
           code: 'unreachable',
-          message: '转换服务不可用，重新启动也没起来',
+          message: '转换服务超时重试失败',
           hint: started.reason
         }
       }
@@ -499,12 +499,12 @@ export class MmdService {
       this.noteFinalFailure(final)
       return final
     }
-    this.noteFinalFailure({ ok: false, kind: 'unavailable', code: 'unreachable', message: '转换服务反复失败，已停止本次转换' })
+    this.noteFinalFailure({ ok: false, kind: 'unavailable', code: 'unreachable', message: '转换服务连续失败，已停止本次转换' })
     return {
       ok: false,
       kind: 'unavailable',
       code: 'unreachable',
-      message: '转换服务反复失败，已停止本次转换'
+      message: '转换服务连续失败，已停止本次转换'
     }
   }
 
@@ -535,14 +535,14 @@ export class MmdService {
           ok: false,
           kind: 'single',
           code: 'timeout',
-          message: `转换超时（${Math.round(timeoutMs / 1000)} 秒）`
+          message: `转换超时：${Math.round(timeoutMs / 1000)} 秒`
         }
       }
       return {
         ok: false,
         kind: 'unavailable',
         code: 'unreachable',
-        message: '连不上转换服务',
+        message: '无法连接转换服务',
         hint: messageOf(err)
       }
     }
@@ -568,7 +568,7 @@ export class MmdService {
           ok: false,
           kind: 'single',
           code: 'read_failed',
-          message: '转换结果读不出来',
+          message: '转换结果读取失败',
           hint: messageOf(err)
         }
       }
@@ -701,7 +701,7 @@ export function classifyHttp(
   info: { code?: string; message?: string; hint?: string }
 ): MmdConvertFailure {
   const code = info.code ?? `http_${status}`
-  const message = info.message ?? `转换服务返回 HTTP ${status}`
+  const message = info.message ?? `转换服务返回异常状态码 HTTP ${status}`
   const base = { ...(info.hint ? { hint: info.hint } : {}) }
   switch (status) {
     // 单张的错：图本身的问题，继续下一张

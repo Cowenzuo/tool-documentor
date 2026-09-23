@@ -53,7 +53,7 @@ export default function Welcome(): JSX.Element {
               <h1 className="welcome-title">Documentor</h1>
               <span className="welcome-version">v{version || FALLBACK_VERSION}</span>
             </div>
-            <p className="welcome-subtitle">模板驱动的结构化文档写作台</p>
+            <p className="welcome-subtitle">结构化文档写作台 · 模板驱动</p>
             <div className="welcome-actions">
               <button
                 type="button"
@@ -109,7 +109,7 @@ export default function Welcome(): JSX.Element {
                 ))}
               </ul>
             ) : (
-              <div className="welcome-recents-empty">暂无最近打开的工程</div>
+              <div className="welcome-recents-empty">暂无最近打开工程</div>
             )}
           </section>
         </div>

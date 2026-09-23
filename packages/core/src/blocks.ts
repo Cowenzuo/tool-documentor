@@ -21,7 +21,7 @@ export type BlockTypeName = (typeof BLOCK_TYPE_NAMES)[number]
 export function blockTypeIndex(name: BlockTypeName): number {
   const i = BLOCK_TYPE_NAMES.indexOf(name)
   // 写库前必须拦住：历史上写成 -1 会让整个工程再也打不开（load 时抛错）
-  if (i < 0) throw new Error(`未知内容块类型: ${String(name)}`)
+  if (i < 0) throw new Error(`未知内容块类型：${String(name)}`)
   return i
 }
 
@@ -43,7 +43,7 @@ export function parseBlockType(type: number | string): BlockTypeName | null {
 
 export function blockTypeName(index: number | string): BlockTypeName {
   const name = parseBlockType(index)
-  if (!name) throw new Error(`未知内容块类型: ${index}`)
+  if (!name) throw new Error(`未知内容块类型：${index}`)
   return name
 }
 
@@ -194,7 +194,7 @@ export function createBlock<T extends BlockTypeName>(type: T): ContentBlock & { 
       break
     default:
       // 拦住"凭空造块"：调用方传了枚举外的类型时立刻报错，而不是存进库变成打不开的工程
-      throw new Error(`未知内容块类型: ${String(type)}`)
+      throw new Error(`未知内容块类型：${String(type)}`)
   }
   return base as unknown as ContentBlock & { type: T }
 }

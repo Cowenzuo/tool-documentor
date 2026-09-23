@@ -74,7 +74,7 @@ export function validateStyleMap(
       level: 'error',
       rule: 'style.uuid.invalid',
       path: 'uuid',
-      message: `顶层uuid缺失或非法`
+      message: `顶层 uuid 缺失或非法`
     })
   }
   const cn = doc['cn']
@@ -83,7 +83,7 @@ export function validateStyleMap(
       level: 'error',
       rule: 'style.cn.missing',
       path: 'cn',
-      message: `顶层cn缺失`
+      message: `顶层 cn 缺失`
     })
   }
   const styleMap = asObject(doc['styleMap'])
@@ -92,7 +92,7 @@ export function validateStyleMap(
       level: 'error',
       rule: 'style.styleMap.missing',
       path: 'styleMap',
-      message: `顶层styleMap缺失`
+      message: `顶层 styleMap 缺失`
     })
     return out
   }
@@ -104,7 +104,7 @@ export function validateStyleMap(
       level: 'error',
       rule: 'style.key.missing',
       path: 'styleMap',
-      message: `缺逻辑键：${missingKeys.join(' / ')}`
+      message: `逻辑键缺失：${missingKeys.join(' / ')}`
     })
   }
 
@@ -114,7 +114,7 @@ export function validateStyleMap(
       level: 'error',
       rule: 'style.docxFolder.missing',
       path: 'docxFolder',
-      message: `docxFolder缺失`
+      message: `docxFolder 缺失`
     })
     return out
   }
@@ -203,7 +203,7 @@ export function validateStyleMap(
           level: 'warn',
           rule: 'style.captionNumbering.chapterStyleNames',
           path: 'captionNumbering.chapterStyleNames',
-          message: `章节号不随标题自动更新 · 英文版 Word 取不到标题样式名`
+          message: `章节号不随标题自动更新 · 英文版 Word 无标题样式名`
         })
       }
     }

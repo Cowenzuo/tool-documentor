@@ -54,7 +54,7 @@ export function serializeWithWarnings(
   }
   const look = (key: string, context: string): string => {
     const value = lookup(key)
-    if (!value) warnings.push(`${context}的样式未生效，已按默认样式输出`)
+    if (!value) warnings.push(`${context} 样式未生效，已按默认样式输出`)
     return value
   }
   /** 图片/图形段落样式：figure（可选键）→ 缺省回退 body（老样式表向后兼容，不报警） */
@@ -159,7 +159,7 @@ export function serializeWithWarnings(
       // 章节号显式留空，writer 便不写那个固定的连字符，也就不会出现「表-1」这种残号。
       if (!warnedNoChapter) {
         warnedNoChapter = true
-        warnings.push('部分题注取不到章节号，已按不带章节号导出')
+        warnings.push('部分题注无章节号，已按不带章节号导出')
       }
       out.push({
         opType: 'InsertCaption',
@@ -215,14 +215,14 @@ export function serializeWithWarnings(
       switch (block.type) {
         case 'text': {
           if (block.content.length > 0) {
-            out.push(paragraph(look('body', `“${node.title}”的正文段落`), block.content, 0))
+            out.push(paragraph(look('body', `“${node.title}”正文段落`), block.content, 0))
           }
           break
         }
         case 'orderedList':
         case 'unorderedList': {
           const listKey = block.type === 'orderedList' ? 'list.ordered.1' : 'list.unordered.1'
-          const styleName = look(listKey, `“${node.title}”的列表`)
+          const styleName = look(listKey, `“${node.title}”列表`)
           const groupId = nextListGroupId++
           for (const item of block.items) {
             if (item.length === 0) continue
@@ -235,7 +235,7 @@ export function serializeWithWarnings(
           // 但要把"哪张表、哪里对不上"报出去，不静默
           warnTableShape(node, block, warnings)
           if (block.caption.length > 0) {
-            emitCaption('table', block.caption, 'table.caption', `“${node.title}”的表格题注`)
+            emitCaption('table', block.caption, 'table.caption', `“${node.title}”表格题注`)
           }
           out.push({
             opType: 'InsertTable',
@@ -244,8 +244,8 @@ export function serializeWithWarnings(
               cols: block.cols,
               headers: [...block.headers],
               rowsData: block.data.map((row) => [...row]),
-              headerStyle: look('table.header', `“${node.title}”的表格`),
-              bodyStyle: look('table.body', `“${node.title}”的表格`),
+              headerStyle: look('table.header', `“${node.title}”表格`),
+              bodyStyle: look('table.body', `“${node.title}”表格`),
               // 显式跨度原样透传（判定与摊平都在 writer 里统一做）
               ...(block.rowSpans ? { rowSpans: block.rowSpans } : {}),
               mergeVertical: block.mergeVertical === true
@@ -255,14 +255,14 @@ export function serializeWithWarnings(
         }
         case 'image': {
           const abs = block.imagePath.length > 0 ? resolveImage(block.imagePath) : null
-          const style = figureStyle(`“${node.title}”的图片`)
+          const style = figureStyle(`“${node.title}”图片`)
           if (abs) {
             out.push({ opType: 'InsertImage', content: { srcPath: abs, styleName: style } })
           } else if (block.imagePath.length > 0) {
-            out.push(paragraph(style, `[图片: ${block.imagePath}]`, 0))
+            out.push(paragraph(style, `[图片：${block.imagePath}]`, 0))
           }
           if (block.caption.length > 0) {
-            emitCaption('figure', block.caption, 'figure.caption', `“${node.title}”的图片题注`)
+            emitCaption('figure', block.caption, 'figure.caption', `“${node.title}”图片题注`)
           }
           break
         }
@@ -270,14 +270,14 @@ export function serializeWithWarnings(
           if (block.code.length > 0) {
             out.push(
               paragraph(
-                figureStyle(`“${node.title}”的流程图`),
+                figureStyle(`“${node.title}”流程图`),
                 mermaidPlaceholder(block.code),
                 0
               )
             )
           }
           if (block.caption.length > 0) {
-            emitCaption('figure', block.caption, 'figure.caption', `“${node.title}”的图片题注`)
+            emitCaption('figure', block.caption, 'figure.caption', `“${node.title}”图片题注`)
           }
           break
         }
@@ -311,12 +311,12 @@ const MERMAID_PLACEHOLDER_LIMIT = 2000
  * 旧实现固定切前 60 字符：尾部无声丢失、切在半截 token 上，与"以文本形式导出"的提示说的不是一回事。
  */
 function mermaidPlaceholder(code: string): string {
-  if (code.length <= MERMAID_PLACEHOLDER_LIMIT) return `[Mermaid 图表: ${code}]`
+  if (code.length <= MERMAID_PLACEHOLDER_LIMIT) return `[Mermaid 图表：${code}]`
   const head = code.slice(0, MERMAID_PLACEHOLDER_LIMIT)
   const lineEnd = head.lastIndexOf('\n')
   // 优先切在行尾，免得留半截 token；单行过长（超过一半）时只能按长度切
   const kept = lineEnd > MERMAID_PLACEHOLDER_LIMIT / 2 ? head.slice(0, lineEnd) : head
-  return `[Mermaid 图表: ${kept}（已截断，源码共 ${code.length} 字符，完整源码见工程文件）]`
+  return `[Mermaid 图表：${kept}（已截断，源码共 ${code.length} 字符，完整源码见工程文件）]`
 }
 
 function paragraph(styleName: string, text: string, listGroupId: number): WriteInstruction {
@@ -355,11 +355,11 @@ function warnTableShape(node: DocumentNode, block: TableBlock, warnings: string[
   if (issues.length === 0) return
   const text = issues.map((issue) => tableIssueText(issue, block)).join('；')
   const caption = block.caption.trim()
-  const label = caption.length > 0 ? `表格“${caption}”` : `“${node.title}”下的表格`
+  const label = caption.length > 0 ? `表格“${caption}”` : `“${node.title}”下方表格`
   // 后果按 writer.renderTable 的口径说：列数取表头、cols 与各行的最大值，短行补空格子
   warnings.push(
-    `${label}与设定的列数 ${block.cols} 不一致：${text}；` +
-      `导出按表头与最宽的一行为准，短行补空格子`
+    `${label}与设定列数 ${block.cols} 不一致：${text}；` +
+      `导出按表头与最宽一行对齐，短行补空格子`
   )
 }
 
@@ -371,7 +371,7 @@ function warnTableShape(node: DocumentNode, block: TableBlock, warnings: string[
  * 认不出的 where（core 以后新增检查项）退回原样透出，宁可口径糙一点也不能丢警告。
  */
 function tableIssueText(issue: TableShapeIssue, block: TableBlock): string {
-  if (issue.where === 'cols') return `列数不合法（${block.cols}）`
+  if (issue.where === 'cols') return `列数不合法：${block.cols}`
   if (issue.where === 'headers') {
     return `表头 ${block.headers.length} 列与列数 ${block.cols} 不一致`
   }

@@ -96,7 +96,7 @@ function createMainWindow(): void {
       const choice = dialog.showMessageBoxSync(mainWindow as BrowserWindow, {
         type: 'error',
         title: '保存失败',
-        message: '工程保存失败，现在退出会丢掉未保存的改动。',
+        message: '工程保存失败。现在退出会丢失未保存内容。',
         detail: result.error,
         buttons: ['返回编辑', '仍然退出'],
         defaultId: 0,

@@ -48,7 +48,7 @@ const LOCK_OPTIONS: Array<{ value: string; label: string }> = [
  * 旧档位那一句带作者侧的动作建议，只在这一侧说。
  */
 function lockHint(lock: string): string {
-  if (lock === 'type') return `${BLOCK_TIER.legacy.name}：${BLOCK_TIER.legacy.tip} · 建议改成${BLOCK_TIER.keep.name}`
+  if (lock === 'type') return `${BLOCK_TIER.legacy.name}：${BLOCK_TIER.legacy.tip} · 应改成${BLOCK_TIER.keep.name}`
   return blockTierOf(lock).tip
 }
 
@@ -118,15 +118,15 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
     // 没写 type 的块：下拉里得有它自己那一项，否则控件显示成空白
     typeOptions.unshift({ value: '', label: '类型未写' })
   } else if (!(BLOCK_TYPE_NAMES as readonly string[]).includes(type)) {
-    typeOptions.push({ value: type, label: `${type} · 不认识` })
+    typeOptions.push({ value: type, label: `${type} · 无法识别` })
   }
   const lockOptions = [...LOCK_OPTIONS]
   if (unknownLock !== null) {
-    lockOptions.push({ value: unknownLock, label: `${unknownLock} · 不认识` })
+    lockOptions.push({ value: unknownLock, label: `${unknownLock} · 无法识别` })
   }
   const lockTip =
     unknownLock !== null
-      ? `字段 lock · 取值「${unknownLock}」不认识，程序按不锁处理`
+      ? `字段 lock · 取值「${unknownLock}」无法识别，按未锁定处理`
       : jsonTip('lock', lockHint(lock))
 
   return (
@@ -142,7 +142,7 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
           type="button"
           className="tpl-block-toggle"
           aria-expanded={open}
-          aria-label={open ? '收起这一块' : '展开这一块'}
+          aria-label={open ? '收起该块' : '展开该块'}
           onClick={onToggle}
         >
           <ChevronDownIcon size={13} className={open ? 'open' : ''} />
@@ -153,7 +153,7 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
             <span className="tpl-block-index">{index + 1}.</span>
             <select
               className="tpl-select tpl-select-inline"
-              aria-label="这一块的类型"
+              aria-label="类型"
               title={jsonTip('type')}
               value={type}
               onChange={(event) => onPatch({ type: event.target.value })}
@@ -166,7 +166,7 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
             </select>
             <select
               className={`tpl-select tpl-select-inline${unknownLock !== null ? ' tpl-select-bad' : ''}`}
-              aria-label="这一块的锁"
+              aria-label="锁"
               title={lockTip}
               value={unknownLock ?? lock}
               onChange={(event) => {
@@ -186,7 +186,7 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
               <button
                 type="button"
                 className="tpl-mini"
-                title="旧档位 type · 改成类型限制编辑（类型固定且不可删）"
+                title="旧档位 type · 应改成类型限制编辑，类型固定且不可删"
                 onClick={() => onPatch({ lock: 'keep' })}
               >
                 改成类型限制编辑
@@ -215,7 +215,7 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
           <button
             type="button"
             className="tpl-icon-btn"
-            aria-label="上移这一块"
+            aria-label="上移该块"
             onClick={() => onMove(-1)}
             disabled={index === 0}
           >
@@ -224,7 +224,7 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
           <button
             type="button"
             className="tpl-icon-btn"
-            aria-label="下移这一块"
+            aria-label="下移该块"
             onClick={() => onMove(1)}
             disabled={index === count - 1}
           >
@@ -233,7 +233,7 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
           <button
             type="button"
             className="tpl-icon-btn tpl-danger"
-            aria-label="删除这一块"
+            aria-label="删除该块"
             onClick={onRemove}
           >
             <TrashIcon />
@@ -366,14 +366,14 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
                 <button
                   type="button"
                   className="tpl-mini"
-                  title="从本机选一张图片，路径填进这个字段"
+                  title="从本机选择图片，把路径填进该字段"
                   onClick={() => {
                     void onPickImage().then((picked) => {
                       if (picked !== null && picked !== '') onPatch({ content: picked })
                     })
                   }}
                 >
-                  选图片…
+                  选择图片…
                 </button>
               </div>
             </>
@@ -392,7 +392,7 @@ export function BlockForm(props: BlockFormProps): JSX.Element {
 
         {typo !== null && (
           <p className="tpl-note tpl-note-bad">
-            这份块里的「{typo.key}」与「{typo.known}」只差大小写，程序按没写处理（改过来才会生效）
+            块里「{typo.key}」与「{typo.known}」只差大小写，程序按未写处理 · 改过来才会生效
           </p>
         )}
 

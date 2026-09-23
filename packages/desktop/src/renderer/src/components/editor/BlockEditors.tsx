@@ -69,7 +69,7 @@ export function ImageEditor(props: EditorBaseProps<ImageBlock>): React.JSX.Eleme
   const [thumb, setThumb] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const fileRef = useRef<HTMLInputElement | null>(null)
-  const lockedHint = readOnly === true ? '模板规定该图片为只读，不能更换' : undefined
+  const lockedHint = readOnly === true ? '禁止更换图片' : undefined
 
   useEffect(() => {
     let disposed = false
@@ -126,7 +126,7 @@ export function ImageEditor(props: EditorBaseProps<ImageBlock>): React.JSX.Eleme
           className="be-input be-image-caption"
           value={block.caption}
           onChange={(e) => onChange({ ...block, caption: e.target.value })}
-          placeholder="图名（题注，将显示在图下方）"
+          placeholder="图名 · 题注，显示在图下方"
           readOnly={readOnly === true}
         />
         <div className="be-image-actions">
@@ -145,7 +145,7 @@ export function ImageEditor(props: EditorBaseProps<ImageBlock>): React.JSX.Eleme
               className="be-btn"
               onClick={() => onChange({ ...block, imagePath: '' })}
               disabled={readOnly === true}
-              title={readOnly === true ? '模板规定该图片为只读，不能移除' : undefined}
+              title={readOnly === true ? '禁止移除图片' : undefined}
             >
               移除
             </button>
@@ -191,7 +191,7 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
    * 单元格内容照常可改（只读那一档在上面已经把内容也锁了）。
    */
   const shapeLocked = locked || props.shapeLocked === true
-  const shapeWhy = locked ? '模板规定该表格为只读' : (props.shapeLockedWhy ?? '')
+  const shapeWhy = locked ? '禁止编辑表格' : (props.shapeLockedWhy ?? '')
 
   // 显示真实规模：以前行数框显示 clamp 后的 50，而界面渲染 85 行，两处对不上。
   // 上限只用来提示"超出界面舒适区"，不再当作数据的截断依据。
@@ -269,7 +269,7 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
           className="be-input be-table-caption"
           value={block.caption}
           onChange={(e) => onChange({ ...block, caption: e.target.value })}
-          placeholder="表名（题注，将显示在表上方）"
+          placeholder="表名 · 题注，显示在表上方"
           readOnly={locked}
         />
         <div className="be-table-size">
@@ -301,16 +301,15 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
       {/* 超出界面舒适区只提示，不裁剪数据：表照常保存与导出 */}
       {overLimit && (
         <p className="be-table-warn">
-          本表 {realRows} 行 × {realCols} 列，超出界面一次编辑的舒适规模（
-          {TABLE_MAX_ROWS} 行 × {TABLE_MAX_COLS} 列）。数据完整保留，导出不受影响；
-          建议分批编辑或拆表。
+          本表 {realRows} 行 × {realCols} 列，超出界面一次编辑上限（{TABLE_MAX_ROWS} 行 ×{' '}
+          {TABLE_MAX_COLS} 列）。数据完整保留，导出不受影响；请分批编辑或拆表。
         </p>
       )}
 
       <div className="be-table-merge-bar">
         <label
           className="be-table-merge"
-          title={shapeLocked ? `${shapeWhy}，合并不了` : '同列相邻同值合并'}
+          title={shapeLocked ? `${shapeWhy}，不能合并` : '同列相邻同值合并'}
         >
           <input
             type="checkbox"
@@ -327,7 +326,7 @@ export function TableEditor(props: EditorBaseProps<TableBlock>): React.JSX.Eleme
           相同内容自动合并（纵向）
           {block.mergeVertical === true && (
             <span className="be-table-merge-hint">
-              {mergeCount > 0 ? `已合并 ${mergeCount} 处` : '当前没有可合并的相邻单元格'}
+              {mergeCount > 0 ? `已合并 ${mergeCount} 处` : '当前无可合并单元格'}
             </span>
           )}
         </label>
@@ -542,7 +541,7 @@ export function CodeEditor(props: EditorBaseProps<CodeBlock>): React.JSX.Element
           rows={Math.min(30, Math.max(5, block.code.split('\n').length + 1))}
         />
       ) : (
-        <pre className="code-highlight-view" tabIndex={0} aria-label="代码高亮浏览（只读）">
+        <pre className="code-highlight-view" tabIndex={0} aria-label="代码高亮浏览 · 只读">
           <code
             className={`language-${language}`}
             dangerouslySetInnerHTML={{ __html: html }}
@@ -603,7 +602,7 @@ export function MermaidEditor(props: EditorBaseProps<MermaidBlock>): React.JSX.E
           className="be-input"
           value={block.caption}
           onChange={(e) => onChange({ ...block, caption: e.target.value })}
-          placeholder="图名（题注，将显示在图下方）"
+          placeholder="图名 · 题注，显示在图下方"
           readOnly={locked}
         />
       </div>
@@ -667,7 +666,7 @@ export function ListEditor(
       className="be-textarea be-list-area"
       value={text}
       onChange={(e) => handle(e.target.value)}
-      placeholder={props.ordered ? '每行一个条目（自动编号）' : '每行一个条目'}
+      placeholder={props.ordered ? '每行一个条目 · 自动编号' : '每行一个条目'}
       readOnly={props.readOnly === true}
       rows={Math.min(20, Math.max(2, text.split('\n').length + 1))}
     />

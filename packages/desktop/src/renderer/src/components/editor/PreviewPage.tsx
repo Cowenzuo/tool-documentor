@@ -85,13 +85,13 @@ export function PreviewPage(): React.JSX.Element {
         if (r.images.missing.length > 0) {
           const head = r.images.missing.slice(0, 3).join('、')
           const more = r.images.missing.length > 3 ? ` 等 ${r.images.missing.length} 张` : ''
-          list.push(`这些图片找不到文件：${head}${more}`)
+          list.push(`图片文件不存在：${head}${more}`)
         }
         if (r.mermaid.total > 0 && !r.mermaid.converterAvailable) {
-          list.push(`${r.mermaid.total} 幅流程图以文本形式导出，图不出现在正式文档里`)
+          list.push(`${r.mermaid.total} 幅流程图以文本形式导出，正式文档中不出现图形`)
         }
         if (r.tables.overLimit > 0) {
-          list.push(`${r.tables.overLimit} 个表格超出界面上限，导出照常，建议拆表`)
+          list.push(`${r.tables.overLimit} 个表格超出界面上限，导出照常，请拆表`)
         }
         setIssues(list)
       })
@@ -180,7 +180,7 @@ export function PreviewPage(): React.JSX.Element {
             </section>
           ))}
           {nodes.every((n) => n.contentBlocks.length === 0) && (
-            <div className="pv-empty">整篇还没有内容</div>
+            <div className="pv-empty">整篇无内容</div>
           )}
         </article>
       </div>

@@ -65,7 +65,7 @@ export async function embedVsdxIntoDocx(
   const docEntry = zip.file('word/document.xml')
   const ctEntry = zip.file('[Content_Types].xml')
   if (!docEntry || !ctEntry) {
-    throw new Error('embed: docx 缺少 word/document.xml / Content_Types')
+    throw new Error('embed：docx 内 word/document.xml / Content_Types 缺失')
   }
   let docXml = await docEntry.async('string')
   // rels 部件可能缺失（最小骨架）；嵌入时必须存在 → 合成空关系表后合并
@@ -110,7 +110,7 @@ export async function embedVsdxIntoDocx(
   }
   if (holderIdx.length !== figures.length) {
     warnings.push(
-      `图与插入位置的数量对不上：文档里 ${holderIdx.length} 处、图 ${figures.length} 张，按 ${Math.min(holderIdx.length, figures.length)} 张处理`
+      `图与插入位置数量对不上：文档里 ${holderIdx.length} 处、图 ${figures.length} 张，按 ${Math.min(holderIdx.length, figures.length)} 张处理`
     )
   }
 
@@ -135,7 +135,7 @@ export async function embedVsdxIntoDocx(
     const fig = figures[k]
     if (!fig || !fig.vsdx) continue // 转换失败的槽位：保留占位文本
     if (seen.has(fig.name)) {
-      warnings.push(`「${fig.name}」重名，这一张跳过`)
+      warnings.push(`「${fig.name}」重名，已跳过`)
       continue
     }
     seen.add(fig.name)

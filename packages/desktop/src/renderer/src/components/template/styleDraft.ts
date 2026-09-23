@@ -20,7 +20,7 @@ import { asObject, type TemplateObject } from './templateDoc'
 export type CaptionKind = 'table' | 'figure'
 /** 三种编号方式（缺省 auto） */
 export const CAPTION_MODES: ReadonlyArray<{ value: string; label: string; why: string }> = [
-  { value: 'auto', label: '按样式自动编号', why: '号取自题注样式的多级列表 · 样式须自带编号' },
+  { value: 'auto', label: '按样式自动编号', why: '编号取自题注样式多级列表 · 样式须自带编号' },
   { value: 'static', label: '题注文字自带', why: '号写在题注文字里 · 原样导出' },
   { value: 'field', label: '题注域', why: 'STYLEREF + SEQ 域 · 章节号随标题' }
 ]

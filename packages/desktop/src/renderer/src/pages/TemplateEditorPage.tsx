@@ -227,7 +227,7 @@ export default function TemplateEditorPage(): JSX.Element {
             ))}
             {dirs.length === 0 && (
               <option value="">
-                {editor.status === 'ready' ? '（没配置模板目录）' : '正在读取…'}
+                {editor.status === 'ready' ? '（未配置模板目录）' : '正在读取…'}
               </option>
             )}
           </select>
@@ -247,7 +247,7 @@ export default function TemplateEditorPage(): JSX.Element {
               这里只说"没打开"与"读不到骨架"这两件看不出来的事 */}
           {styleOpen && editor.style ? (
             editor.style.skeletonExists ? null : (
-              <span className="tpl-count tpl-note-bad">骨架没读到</span>
+              <span className="tpl-count tpl-note-bad">骨架未读到</span>
             )
           ) : open ? null : (
             <span className="tpl-count">
@@ -414,18 +414,18 @@ export default function TemplateEditorPage(): JSX.Element {
           <div
             className="tpl-status tpl-status-warn tpl-status-alert"
             role="alertdialog"
-            aria-label="有未保存的改动"
+            aria-label="有未保存改动"
           >
             <span className="tpl-status-text">
               {editor.pending.kind === 'reload'
-                ? '未保存的改动 · 重新加载将丢弃'
-                : '未保存的改动 · 换模板将丢弃'}
+                ? '有未保存改动 · 重新加载将丢弃'
+                : '有未保存改动 · 换模板将丢弃'}
             </span>
             <button type="button" className="tpl-mini" onClick={editor.cancelPending}>
               取消
             </button>
             <button type="button" className="tpl-mini tpl-danger" onClick={editor.confirmPending}>
-              {editor.pending.kind === 'reload' ? '丢掉改动并重新加载' : '丢掉改动并切换'}
+              {editor.pending.kind === 'reload' ? '放弃改动并重新加载' : '放弃改动并切换'}
             </button>
           </div>
         ) : (
@@ -529,7 +529,7 @@ function IssueIndex({
         type="button"
         className="tpl-pop-trigger tpl-foot-summary"
         aria-expanded={open}
-        title={fromServer ? '主进程给出的结论' : undefined}
+        title={fromServer ? '结论' : undefined}
         onClick={() => setOpen((value) => !value)}
       >
         {errors} 个错误 · {warnings} 处提示
@@ -538,7 +538,7 @@ function IssueIndex({
         </span>
       </button>
       {open && (
-        <span className="tpl-pop tpl-pop-wide" role="region" aria-label="问题在哪">
+        <span className="tpl-pop tpl-pop-wide" role="region" aria-label="出错位置">
           {groups.map((group) => (
             <span className="tpl-pop-row" key={group.where ?? '(doc)'}>
               {/* 没有位置的（整份模板级的结论）不写位置标签：这一行开头就是条数 */}

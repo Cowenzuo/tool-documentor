@@ -15,7 +15,7 @@ function SaveButton(): React.JSX.Element | null {
       className="tb-btn tb-action"
       onClick={() => void saveProject()}
       disabled={busy}
-      title="保存 (Ctrl+S)"
+      title="保存（Ctrl+S）"
       aria-label="保存工程"
     >
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

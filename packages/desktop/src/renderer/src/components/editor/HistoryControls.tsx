@@ -104,7 +104,7 @@ export function HistoryControls(): React.JSX.Element {
       {open && (
         <div className="hist-panel">
           {applied.length === 0 && undone.length === 0 ? (
-            <p className="hist-empty">还没有可撤销的编辑</p>
+            <p className="hist-empty">无可撤销编辑</p>
           ) : (
             <>
               {applied.length > 0 && (

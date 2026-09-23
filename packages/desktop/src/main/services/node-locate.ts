@@ -98,7 +98,7 @@ export function nodeCandidates(options: LocateOptions = {}): NodeCandidate[] {
 
   const explicit = (options.explicit ?? '').trim()
   if (explicit !== '') {
-    push({ path: explicit, source: '设置里指定的' })
+    push({ path: explicit, source: '设置指定' })
     return out
   }
 
@@ -132,7 +132,7 @@ export function nodeCandidates(options: LocateOptions = {}): NodeCandidate[] {
 
   const electronPath = (options.electronPath ?? '').trim()
   if (electronPath !== '') {
-    push({ path: electronPath, source: '应用自带的 Node', electronAsNode: true })
+    push({ path: electronPath, source: '应用内置 Node', electronAsNode: true })
   }
 
   return out
@@ -173,10 +173,10 @@ export async function probeNode(
   }
   const version = await versionOf(candidate)
   if (version === null) {
-    return { ...candidate, version: null, ok: false, reason: '跑不起来，可能不是可执行文件或者权限不足' }
+    return { ...candidate, version: null, ok: false, reason: '无法运行：不是可执行文件，或权限不足' }
   }
   if (!satisfiesMinNode(version)) {
-    return { ...candidate, version, ok: false, reason: `版本 ${version} 低于要求的 ${MIN_NODE_TEXT}` }
+    return { ...candidate, version, ok: false, reason: `版本 ${version} 低于最低要求 ${MIN_NODE_TEXT}` }
   }
   return { ...candidate, version, ok: true }
 }

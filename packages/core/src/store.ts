@@ -82,7 +82,7 @@ export class ProjectStore {
     const columns = this.projectColumns()
     if (columns.length === 0) {
       this.close()
-      throw new Error('工程数据异常：project 表读不到')
+      throw new Error('工程数据异常：project 表读取失败')
     }
     const col = (name: string): string => (columns.includes(name) ? name : "''")
     const row = db
@@ -348,7 +348,7 @@ export class ProjectStore {
       .prepare('SELECT id, title, description FROM node WHERE parent_id IS NULL LIMIT 1')
       .get()
     if (!rootRow) {
-      throw new Error('工程数据异常：缺少根节点')
+      throw new Error('工程数据异常：根节点缺失')
     }
     const root = new DocumentNode(0, str(rootRow['id']))
     root.title = str(rootRow['title'])
@@ -443,11 +443,11 @@ export class ProjectStore {
       )
       .all(node.id)
     for (const [index, brow] of blockRows.entries()) {
-      const where = `节点「${node.title || '·'}」(${node.id}) 第 ${index + 1} 块`
+      const where = `节点「${node.title || '·'}」· ${node.id} · 第 ${index + 1} 块`
       const rawType = str(brow['block_type'])
       const name = parseBlockType(rawType)
       if (!name) {
-        throw new Error(`工程数据损坏：${where}的类型「${rawType}」认不出来`)
+        throw new Error(`工程数据损坏：无法识别类型「${rawType}」· ${where}`)
       }
       let props: Record<string, unknown>
       try {
@@ -457,12 +457,12 @@ export class ProjectStore {
         }
         props = parsed as Record<string, unknown>
       } catch {
-        throw new Error(`工程数据损坏：${where}的属性读不出来`)
+        throw new Error(`工程数据损坏：读取属性失败 · ${where}`)
       }
       // 锁取值不认识：照常打开（按不锁处理），但要让人知道，不静默
       if (props['lock'] !== undefined && parseBlockLock(props['lock']) === undefined) {
         this.loadWarningsValue.push(
-          `${where}的 lock 取值「${String(props['lock'])}」不认识，已按不锁处理`
+          `无法识别 lock 取值「${String(props['lock'])}」（${where}），已按未锁定处理`
         )
       }
       const block: ContentBlock = blockFromDb(name, props)

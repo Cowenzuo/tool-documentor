@@ -303,7 +303,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
         // 结构视图在前：样式那一段收起来（能走到这里说明它没有未保存的改动）
         closeStyleView()
       } catch (err) {
-        setNotice({ kind: 'error', text: '读不到这份模板', detail: errorText(err) })
+        setNotice({ kind: 'error', text: '无法读取这份模板', detail: errorText(err) })
       } finally {
         setBusy(false)
       }
@@ -330,7 +330,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
         setNotice(null)
         setPending(null)
       } catch (err) {
-        setNotice({ kind: 'error', text: '读不到这份样式模板', detail: errorText(err) })
+        setNotice({ kind: 'error', text: '无法读取这份样式模板', detail: errorText(err) })
       } finally {
         setBusy(false)
       }
@@ -381,7 +381,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
       closeStyleView()
     } catch (err) {
       setStatus('failed')
-      setNotice({ kind: 'error', text: '读不到模板目录', detail: errorText(err) })
+      setNotice({ kind: 'error', text: '无法读取模板目录', detail: errorText(err) })
     } finally {
       setBusy(false)
     }
@@ -582,7 +582,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
         })
         void refreshSnapshot()
       } catch (err) {
-        setNotice({ kind: 'error', text: '保存失败，文件没有被改动', detail: errorText(err) })
+        setNotice({ kind: 'error', text: '保存失败，文件未改动', detail: errorText(err) })
       } finally {
         setBusy(false)
       }
@@ -605,7 +605,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
       // 徽标跟着新结论走；草稿不动
       void refreshSnapshot()
     } catch (err) {
-      setNotice({ kind: 'error', text: '保存失败，文件没有被改动', detail: errorText(err) })
+      setNotice({ kind: 'error', text: '保存失败，文件未改动', detail: errorText(err) })
     } finally {
       setBusy(false)
     }
@@ -651,7 +651,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
       if (styleDirty) {
         setNotice({
           kind: 'warn',
-          text: '未保存的改动 · 先保存或丢弃再导入'
+          text: '有未保存改动 · 先保存或丢弃再导入'
         })
         return false
       }
@@ -697,7 +697,7 @@ export function useTemplateEditor(): UseTemplateEditorResult {
     const api = templateApi()
     if (!api || !dir) return false
     if (dirty || styleDirty) {
-      setNotice({ kind: 'warn', text: '未保存的改动 · 先保存或丢弃再迁移' })
+      setNotice({ kind: 'warn', text: '有未保存改动 · 先保存或丢弃再迁移' })
       return false
     }
     setBusy(true)
@@ -728,8 +728,8 @@ export function useTemplateEditor(): UseTemplateEditorResult {
         kind: result.skipped.length > 0 ? 'warn' : 'info',
         text:
           migrated === 0
-            ? '没有可迁移的旧格式目录'
-            : `已迁移 结构 ${result.structures} 份 · 样式 ${result.styles} 份`,
+            ? '无可迁移旧格式目录'
+            : `已迁移：结构 ${result.structures} 份 · 样式 ${result.styles} 份`,
         ...(lines.length === 0 ? {} : { detail: lines.join('\n') })
       })
       return true

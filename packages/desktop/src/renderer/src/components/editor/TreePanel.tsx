@@ -280,12 +280,12 @@ export default function TreePanel(): React.JSX.Element {
     ? ''
     : menuNode.headingLevel === 0
       ? '根节点不能复制'
-      : '模板未开放复制'
+      : '模板不允许复制'
   const deleteDeniedReason = !menuNode
     ? ''
     : menuNode.headingLevel === 0
       ? '根节点不能裁剪'
-      : '模板未开放裁剪'
+      : '模板不允许裁剪'
 
   const onMenuKeyDown = (event: React.KeyboardEvent): void => {
     const items = [...(menuRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])]
@@ -412,7 +412,7 @@ export default function TreePanel(): React.JSX.Element {
         >
           <span className="tree-caret tree-caret-empty" />
           <span className="tree-badge tree-badge-root">根</span>
-          <span className="tree-title">{root.title || '(未命名文档)'}</span>
+          <span className="tree-title">{root.title || '（未命名文档）'}</span>
         </div>
         {root.children.map((child, i) => (
           <TreeNodeRow
@@ -437,9 +437,9 @@ export default function TreePanel(): React.JSX.Element {
             }}
           />
         ))}
-        {root.children.length === 0 && <div className="tree-empty">模板里还没有章节</div>}
+        {root.children.length === 0 && <div className="tree-empty">模板里无章节</div>}
         {root.children.length > 0 && searching && match.hits.size === 0 && (
-          <div className="tree-empty">没有匹配的章节</div>
+          <div className="tree-empty">无匹配章节</div>
         )}
       </div>
 
@@ -481,7 +481,7 @@ export default function TreePanel(): React.JSX.Element {
           <button
             role="menuitem"
             disabled={menuNode.children.length === 0}
-            title={menuNode.children.length === 0 ? '该章节没有子章节' : '收起该章节下的所有层级'}
+            title={menuNode.children.length === 0 ? '该章节无子章节' : '收起该章节所有层级'}
             onClick={() => {
               collapseBranch(menuNode.id)
               setMenu(null)

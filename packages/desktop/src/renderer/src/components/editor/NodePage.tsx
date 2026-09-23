@@ -665,7 +665,7 @@ export default function NodePage(): React.JSX.Element {
                 type="button"
                 role="menuitem"
                 disabled={current}
-                title={current ? '已经是这个类型' : describeBlockType(type)}
+                title={current ? '已是当前类型' : describeBlockType(type)}
                 onClick={() => void handleChangeType(typeMenu.index, type)}
               >
                 <span className="np-add-label">{BLOCK_TYPE_LABELS[type]}</span>
