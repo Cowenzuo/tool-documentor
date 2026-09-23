@@ -93,6 +93,27 @@
   align-self: flex-start;
 }
 
+/* 设置弹层里的输入框统一外观。
+   原来只有向导那套 `.w-field` 里的 input 有样式，上面几段（默认工程目录、模板目录）是裸 input，
+   落回浏览器默认外观——明暗两套下背景与描边都跟底下的对不上。
+   这里是**唯一一份**外观定义：`.settings-body` 管弹层里的全部输入框，`.w-field` 顺带管向导那几行。
+   别处不要再写第二份（welcome.css 里那份已经撤掉，只留宽度）。 */
+.settings-body input:not([type='checkbox']):not([type='radio']),
+.w-field input {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-input);
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  padding: 7px 10px;
+}
+
+.settings-body input:not([type='checkbox']):not([type='radio']):focus,
+.w-field input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 /* 「转换服务」一节的开关与字段。
    排法照「模板目录」那节的「一行配置 + 紧跟一条就地状态」，只是这里字段不同质，
    所以带标签（借向导那套 .w-field），状态行紧贴自己那一行。 */
