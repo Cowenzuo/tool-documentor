@@ -30,7 +30,9 @@ import {
 import type { DocumentTree, DocumentNode } from '@documentor/core/tree'
 import { createBlock, type BlockTypeName, type ContentBlock } from '@documentor/core/blocks'
 import { blockPermissions, lockRefusal, reshapeRefusal } from '../../shared/permissionTerms'
-import { exportTreeToDocxWithFigures, collectMermaidFigures, resolveMmdFacade, skeletonTextWidthTwips } from '@documentor/docx'
+import { exportTreeToDocxWithFigures, collectMermaidFigures, skeletonTextWidthTwips } from '@documentor/docx'
+import type { FigureConvertFn } from '@documentor/docx'
+import type { MmdService } from './mmd-service'
 import { displayNameOf } from '@documentor/templates'
 import type { TemplateManager } from '@documentor/templates'
 import type {
@@ -76,6 +78,8 @@ export class ProjectService {
   private projectDirValue = ''
   private store = new ProjectStore()
   private managerValue: TemplateManager
+  /** 图转换服务客户端（mmd2vsdx，本机常驻 HTTP 服务）；没给就当转换不可用，整篇文本导出 */
+  private readonly mmdValue: MmdService | undefined
   /** 会话级撤销栈：跟着当前打开的工程走，开关工程时清空 */
   private readonly history = new HistoryStack<TreeSnapshot>({
     maxSteps: HISTORY_MAX_STEPS,
@@ -83,8 +87,9 @@ export class ProjectService {
     measure: estimateSnapshotBytes
   })
 
-  constructor(manager: TemplateManager) {
+  constructor(manager: TemplateManager, mmd?: MmdService) {
     this.managerValue = manager
+    this.mmdValue = mmd
   }
 
   /** 模板目录热重载后替换（不打断当前会话） */
@@ -585,7 +590,7 @@ export class ProjectService {
         }
       })
     }
-    result.mermaid.converterAvailable = await isMermaidConversionAvailable()
+    result.mermaid.converterAvailable = await this.mermaidAvailable()
     return result
   }
 
@@ -627,7 +632,7 @@ export class ProjectService {
       })
     }
     const mermaid = this.countMermaidFigures()
-    return { images, mermaid, mermaidAvailable: await isMermaidConversionAvailable(), tables }
+    return { images, mermaid, mermaidAvailable: await this.mermaidAvailable(), tables }
   }
 
   saveUiState(key: string, value: string): void {
@@ -651,9 +656,11 @@ export class ProjectService {
     this.store.save(tree)
     this.history.seal()
     // 图块链路自动执行（无“占位/预览”用户选项）：Mermaid → VSDX → OLE 嵌入；
-    // 预览 = 上游转换附带物（无则为无预览嵌入）；mmd2vsdx 不可用自动降级为文本占位 + 警告
+    // 转换走本机常驻 HTTP 服务（mmd2vsdx），服务不可用时整篇降级为文本占位 + 警告
+    const convert = this.figureConvert()
     const withFigs = await exportTreeToDocxWithFigures(tree, styleDef, input.outputPath, {
-      imageBaseDir: this.projectDirValue
+      imageBaseDir: this.projectDirValue,
+      ...(convert ? { convert } : {})
     })
     return {
       outputPath: withFigs.outputPath,
@@ -665,6 +672,35 @@ export class ProjectService {
   }
 
   // ================= 内部 =================
+
+  /**
+   * 图转换服务是否可用（弱确认，带短缓存）。
+   * 导出对话框会反复问，不能每次都打一次 /health；真导出时走的是新鲜探测。
+   */
+  private async mermaidAvailable(): Promise<boolean> {
+    if (!this.mmdValue) return false
+    return this.mmdValue.available()
+  }
+
+  /**
+   * 把 HTTP 客户端适配成 docx 库认的转换函数。
+   *
+   * 约定（DESIGN-07 的"与库的接口"一节，别改）：
+   *   - 单张失败 → `{ ok:false }`：记进 failed，继续下一张；
+   *   - 服务整体不可用 → `{ ok:false, unavailable:true }`：库立刻停手、整篇文本版交付。
+   * docx 库不认 HTTP 状态码，也不认上游错误码——判定全在客户端。
+   */
+  private figureConvert(): FigureConvertFn | undefined {
+    const mmd = this.mmdValue
+    if (!mmd) return undefined
+    return async (code) => {
+      const r = await mmd.convert(code)
+      if (r.ok) {
+        return { ok: true, vsdxBase64: Buffer.from(r.bytes).toString('base64') }
+      }
+      return { ok: false, error: r.message, unavailable: r.kind === 'unavailable' }
+    }
+  }
 
   private requireTree(): DocumentTree {
     if (!this.treeValue) throw new ProjectServiceError('工程未打开')
@@ -758,21 +794,6 @@ function assertTableShape(block: ContentBlock): void {
     )
   }
   for (const i of issues) console.warn('[table]', i.where, i.reason)
-}
-
-/**
- * 上游 mmd2vsdx 的门面是否可用（只探测，不转换）。
- * 用于导出对话框提前告知：不可用时 mmd-visio 会按文本导出，而不是交付可双击的对象。
- * 不复用导出链路里的加载函数——那个会带上"安装指引"这类面向失败场景的长文案。
- */
-async function isMermaidConversionAvailable(): Promise<boolean> {
-  try {
-    const mod = await import('mmd2vsdx')
-    resolveMmdFacade(mod)
-    return true
-  } catch {
-    return false
-  }
 }
 
 /** 一个节点固有字段（级别/权限/子级名单）折算成的固定开销 */

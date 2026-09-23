@@ -121,6 +121,10 @@ const api: DesktopApi = {
       invoke(ProjectIpc.DialogSelectImage) as ReturnType<DesktopApi['dialog']['selectImage']>,
     selectDocx: () =>
       invoke(ProjectIpc.DialogSelectDocx) as ReturnType<DesktopApi['dialog']['selectDocx']>,
+    selectExecutable: () =>
+      invoke(ProjectIpc.DialogSelectExecutable) as ReturnType<
+        DesktopApi['dialog']['selectExecutable']
+      >,
     savePath: (options: SavePathDialogOptions) =>
       invoke(ProjectIpc.DialogSavePath, options) as ReturnType<DesktopApi['dialog']['savePath']>
   },
@@ -129,6 +133,10 @@ const api: DesktopApi = {
       invoke(ProjectIpc.ExportDocx, input) as ReturnType<DesktopApi['export']['docx']>,
     figureCounts: () =>
       invoke(ProjectIpc.ExportFigureCounts) as ReturnType<DesktopApi['export']['figureCounts']>
+  },
+  mmd: {
+    status: (config) => invoke(ProjectIpc.MmdStatus, config) as ReturnType<DesktopApi['mmd']['status']>,
+    start: (config) => invoke(ProjectIpc.MmdStart, config) as ReturnType<DesktopApi['mmd']['start']>
   },
   files: {
     readAsDataUrl: (relPath: string) =>

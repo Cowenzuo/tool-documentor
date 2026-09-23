@@ -93,6 +93,108 @@
   align-self: flex-start;
 }
 
+/* 设置弹层里的输入框统一外观。
+   原来只有向导那套 `.w-field` 里的 input 有样式，上面几段（默认工程目录、模板目录）是裸 input，
+   落回浏览器默认外观——明暗两套下背景与描边都跟底下的对不上。
+   这里是**唯一一份**外观定义：`.settings-body` 管弹层里的全部输入框，`.w-field` 顺带管向导那几行。
+   别处不要再写第二份（welcome.css 里那份已经撤掉，只留宽度）。 */
+.settings-body input:not([type='checkbox']):not([type='radio']),
+.w-field input {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-input);
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  padding: 7px 10px;
+}
+
+.settings-body input:not([type='checkbox']):not([type='radio']):focus,
+.w-field input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* 「转换服务」一节的开关与字段。
+   排法照「模板目录」那节的「一行配置 + 紧跟一条就地状态」，只是这里字段不同质，
+   所以带标签（借向导那套 .w-field），状态行紧贴自己那一行。 */
+.settings-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* 就地状态灯：绿=就位、红=有问题；后面可跟一小段字（版本号之类）。
+   理由进悬停——一行字说"已找到"纯属占地方，所以这里连一行都不占。 */
+.settings-light-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 6px;
+}
+
+.settings-light {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+.settings-light.bad {
+  background: var(--danger);
+}
+
+.settings-light-text {
+  font-style: normal;
+}
+
+.settings-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* 地址、端口、「默认拉起」同一行：地址吃掉剩余宽度，端口固定窄列，开关吊在行尾 */
+.settings-endpoint {
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.settings-host {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-port {
+  flex: 0 0 104px;
+}
+
+.settings-auto-start {
+  flex: 0 0 auto;
+  /* 去掉标签行占的高度，与两个输入框的底边对齐 */
+  padding-bottom: 8px;
+}
+
+/* 服务现状与两颗按钮同一行：状态贴左，按钮靠右 */
+.settings-mmd-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.settings-mmd-actions .settings-status {
+  margin: 0;
+}
+
+.settings-mmd-actions .w-row {
+  margin-left: auto;
+}
+
 .settings-foot-actions {
   display: flex;
   gap: var(--space-2);

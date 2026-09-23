@@ -9,6 +9,7 @@ import type {
   DesktopExportApi,
   DesktopFileApi,
   DesktopHistoryApi,
+  DesktopMmdApi,
   DesktopProjectApi,
   DesktopSettingsApi,
   DesktopTemplatesApi,
@@ -67,4 +68,5 @@ export interface DesktopApi {
   templates: DesktopTemplatesApi
   templateEditor: DesktopTemplateEditorApi
   files: DesktopFileApi
+  mmd: DesktopMmdApi
 }

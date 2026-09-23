@@ -10,7 +10,8 @@
 
 - 规格基线：旧版 C++/Qt 实现的实测规格 01 到 06，已通读
 - 现役设计：`docs/版本开发过程/` 下的 DESIGN 系列，一篇管一块；文档索引见那一区的 README
-- 图嵌入（M7）最后做：链路与上游现状见 `docs/版本开发过程/DESIGN-07-导出、题注与图嵌入.md`
+- 图嵌入（M7）：链路、上游（本机常驻 HTTP 服务）的接法与降级口径见
+  `docs/版本开发过程/DESIGN-07-导出、题注与图嵌入.md`
 
 ## 技术栈
 
@@ -30,7 +31,7 @@ packages/              # 本工程的全部模块，平级放在这里（pnpm wo
   core/ templates/     #   纯逻辑库：零 UI 依赖、可单测
   docx/ postprocess/
 samples/               # demo 级实例：示例模板、样例工程、实例样例，供直接打开测试，无外部版权内容
-scripts/               # 入库脚本：上游契约检查、产物校验、按需构建库、一键启动
+scripts/               # 入库脚本：产物校验、按需构建库、一键启动
 release/               # electron-builder 打包产物（可分发，不入库）
 localscripts/          # 本机脚本（不入库）：单测、E2E 探针、Word 核对脚本、开发工具
 temp/                  # 临时产物（不入库，可随时清空）
@@ -59,18 +60,26 @@ pnpm install    # 首次或依赖变动后
 pnpm dev        # electron-vite dev：渲染层 HMR（需先在 设置→模板目录 配置模板或经 DOC_E2E_TEMPLATES 注入开发模板）
 pnpm typecheck  # 全仓 TS strict 检查
 pnpm build      # 产物 packages/desktop/out/
-pnpm verify     # 门禁：typecheck + build，收尾再跑上游契约检查（只报告不阻断；不再跑测试）
-pnpm verify:upstream  # 上游契约检查的严格模式，漂移即退出码 1（发布前用）
+pnpm verify     # 门禁：typecheck + build（上游契约检查那一项已撤，理由见 DESIGN-07 第 6 节）
 pnpm test:local     # 本机单测：源码在 localscripts/tests/（不入库）
 node localscripts/tools/test-export.cjs <instance.json> [out.docx] --templates <模板目录>   # 无界面导出对照（本机工具）
-DOC_REAL_MMD=1 pnpm test:local   # 真实图转换契约测试（缺省跳过，需 Chromium）
+DOC_REAL_MMD=1 pnpm test:local   # 真实图转换契约测试（缺省跳过，需 Chromium 与转换服务；测试自己会拉起服务）
 pnpm package:dir  # 免安装包：release/win-unpacked（仓库根）
 pnpm package      # NSIS 安装包：release/Documentor-<version>-setup.exe
 pnpm verify:package   # 出免安装目录后校验 asar 内容（必需项齐全 / mmd2vsdx 不入包 / 无开发依赖）
 ```
 
-能力自检九份，脚本都在本机 `localscripts/`（不入库）。一个能力一份，改哪块跑哪块；
-界面那四份要先 `pnpm build`：
+图转换是**外部件**（本机自备的服务进程，软件只探测与点火、不接管它的生命周期）：
+
+```bash
+pnpm check:mmd      # 转换服务真实链路：起服务、真转换、确定性、错误码（自己拉起、跑完停掉）
+pnpm check:mmd:ui   # 设置 →「转换服务」一节：字段、测试连接、配置落盘
+powershell -NoProfile -ExecutionPolicy Bypass -File localscripts\word-checks\word-ole.ps1 -Path 出.docx -Expected 258
+                    # Word 回读：嵌入对象数与 ProgID=Visio.Drawing.15（对象多时慢，留足时间）
+```
+
+能力自检十一份，脚本都在本机 `localscripts/`（不入库）。一个能力一份，改哪块跑哪块；
+界面那几份要先 `pnpm build`：
 
 ```bash
 pnpm check:locks       # 权限：模板里写的锁，工程侧拦不拦得住
@@ -82,6 +91,8 @@ pnpm check:ui          # 模板编辑界面
 pnpm check:open:ui     # 工程打开界面
 pnpm check:terms:ui    # 权限标签、置灰与换类型入口
 pnpm check:undo        # 撤销：改形状这一步退得回去，保存前后都退得回去
+pnpm check:mmd         # 图转换服务：真转换 + 确定性 + 错误码
+pnpm check:mmd:ui      # 设置里的「转换服务」一节
 ```
 
 > **单测、E2E 探针、核对脚本、开发工具都在本机 `localscripts/`，不入库**。`.gitignore`
@@ -119,9 +130,9 @@ pnpm check:undo        # 撤销：改形状这一步退得回去，保存前后�
 | 项 | 说明 |
 |---|---|
 | 模板目录 | 由用户提供，目录里是 `structures/<uuid>/` 与 `styles/<uuid>/`；软件不内置模板 |
-| 图转换 | Mermaid 转 Visio 对象嵌入依赖上游 `mmd2vsdx` 与本机 Chromium，开发期用 `link:` 指到本机目录。发行包不含上游，版权边界见 `docs/版本开发过程/DESIGN-07-导出、题注与图嵌入.md`；上游缺失时导出照常成功，图以文本形式呈现 |
-| 上游接口 | 唯一消费点是 `packages/docx/src/figure-export.ts`，契约与同步清单见 `docs/版本开发过程/DESIGN-07-导出、题注与图嵌入.md` 的上游一节 |
-| 已知状态 | 上游 2026-09-09 重构后接口已变，图嵌入待修复，见 `docs/版本开发过程/DESIGN-07-导出、题注与图嵌入.md`；`pnpm verify` 的上游检查当前是预期红灯 |
+| 图转换 | Mermaid 转 Visio 对象嵌入，靠本机一个**常驻转换服务**（`mmd2vsdx`，形态是本地 HTTP 服务）。它是运行期外部件：软件只探测与按需点火，**不接管它的生命周期**；发行包不含它（版权边界见 `docs/版本开发过程/DESIGN-07-导出、题注与图嵌入.md`）。服务不在或没配好时导出照常成功，图以文本形式呈现 |
+| 图转换的运行时前置 | 服务那一侧要 Node ≥22.2、Chromium（`npx playwright install chromium`，同一 Windows 用户下全机共用）；软件这一侧在 设置 →「转换服务」里配：运行环境、服务程序目录、地址与端口、要不要默认拉起。这些字段都可手填（各带一个「浏览…」），也能在设置里点「启动服务」把它拉起来 |
+| 与服务的接口 | 我方用两个路由：`GET /health` 弱确认、`POST /convert` 送 mermaid 原文拿 `.vsdx` 字节。契约的唯一事实源是上游 `docs/接口协议.md`，我方怎么用见 `docs/版本开发过程/DESIGN-07-导出、题注与图嵌入.md` 第 6 节 |
 
 ## 打包与安全
 

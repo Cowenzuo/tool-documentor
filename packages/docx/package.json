@@ -15,8 +15,7 @@
     "@documentor/core": "workspace:*",
     "@documentor/templates": "workspace:*",
     "@documentor/postprocess": "workspace:*",
-    "jszip": "^3.10.1",
-    "mmd2vsdx": "link:../../../tool-mmd2vsdx"
+    "jszip": "^3.10.1"
   },
   "devDependencies": {
     "@types/node": "^22.20.1"

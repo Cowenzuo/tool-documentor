@@ -19,6 +19,7 @@ import type {
   HistoryStateDto,
   HistoryJumpInput,
   ImageImportInput,
+  MmdServiceConfigDto,
   NodeCopyInput,
   NodeDeleteInput,
   NodeDescriptionInput,
@@ -59,6 +60,8 @@ import {
 import { ProjectServiceError } from './services/project-service'
 import type { ProjectService } from './services/project-service'
 import { TemplateEditorService } from './services/template-editor-service'
+import { normalizeMmdConfig } from './services/mmd-service'
+import type { MmdService } from './services/mmd-service'
 
 type Handler<T, R> = (arg: T) => R | Promise<R>
 
@@ -77,7 +80,7 @@ function windowOf(): BrowserWindow | null {
   return BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null
 }
 
-export function registerProjectIpc(service: ProjectService): void {
+export function registerProjectIpc(service: ProjectService, mmd: MmdService): void {
   // 模板编辑（DESIGN-03）：只动模板目录里的 JSON，与工程库无关，所以单独一个服务。
   // 依赖从设置与 Electron 取：模板目录列表每次现读（设置里改完不用重启），
   // 备份不写：模板目录通常受版本控制，可恢复性归 git（服务里明确不写 .bak、不留备份目录）。
@@ -238,6 +241,20 @@ export function registerProjectIpc(service: ProjectService): void {
     return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]!
   })
 
+  // 运行环境可执行文件：不想用 PATH 上那个时手挑一个（Windows 给 exe 过滤，别的平台不过滤）
+  handle<void, string | null>(ProjectIpc.DialogSelectExecutable, async () => {
+    const win = windowOf()
+    if (!win) return null
+    const result = await dialog.showOpenDialog(win, {
+      title: '选择运行环境',
+      ...(process.platform === 'win32'
+        ? { filters: [{ name: '可执行文件', extensions: ['exe'] }] }
+        : {}),
+      properties: ['openFile']
+    })
+    return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]!
+  })
+
   handle<{ defaultPath: string }, string | null>(ProjectIpc.DialogSavePath, async (input) => {
     const win = windowOf()
     if (!win) return null
@@ -259,7 +276,8 @@ export function registerProjectIpc(service: ProjectService): void {
       version: settings.version,
       default_project_dir: settings.default_project_dir,
       template_dirs: settings.template_dirs,
-      recents: loadRecents()
+      recents: loadRecents(),
+      mmd2vsdx: settings.mmd2vsdx
     }
   })
 
@@ -270,11 +288,25 @@ export function registerProjectIpc(service: ProjectService): void {
     saveAppSettings({
       ...current,
       default_project_dir: patch.default_project_dir ?? current.default_project_dir,
-      template_dirs: patch.template_dirs ?? current.template_dirs
+      template_dirs: patch.template_dirs ?? current.template_dirs,
+      // 转换服务的设置即时生效：MmdService 每次都是现读配置，不缓存
+      mmd2vsdx: patch.mmd2vsdx ? normalizeMmdConfig(patch.mmd2vsdx) : current.mmd2vsdx
     })
     // 模板目录变更即时生效：重建 TemplateManager 并替换服务引用
     service.setManager(buildTemplateManager().manager)
   })
+
+  // ---------- 图转换服务（mmd2vsdx）----------
+  // 只探测与点火；服务的退出、升级、停服都不归我们管（上游没有 /shutdown）。
+  // 入参是设置页的表单现值：改完还没点「保存设置」时，测的应当是眼前那一份，不落盘。
+  handle<MmdServiceConfigDto | undefined, Awaited<ReturnType<MmdService['status']>>>(
+    ProjectIpc.MmdStatus,
+    (override) => mmd.status(override ? normalizeMmdConfig(override) : undefined)
+  )
+  handle<MmdServiceConfigDto | undefined, Awaited<ReturnType<MmdService['ensureRunning']>>>(
+    ProjectIpc.MmdStart,
+    (override) => mmd.ensureRunning(override ? normalizeMmdConfig(override) : undefined)
+  )
 
   handle<void, StructureTemplateDto[]>(ProjectIpc.TemplatesListStructures, () =>
     service.getManager().listStructures().map((s) => ({

@@ -1,10 +1,16 @@
 /**
  * 应用配置（对齐旧版 config.json 字段语义；位置 = Electron userData）。
- * { version, default_project_dir, template_dirs }
+ * { version, default_project_dir, template_dirs, mmd2vsdx }
+ *
+ * `mmd2vsdx` 一节是图转换服务（本机常驻 HTTP 服务）的配置：运行环境跑哪、目录在哪、
+ * 地址与端口、要不要默认拉起。上游不在发行包里（合规边界），所以这几样都得用户给，
+ * 缺省值只是"最可能对"的起点，详见 DESIGN-07。
  */
 import { app } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { DEFAULT_MMD_CONFIG, normalizeMmdConfig } from './mmd-service'
+import type { MmdServiceConfigDto } from '../../shared/project'
 
 export interface AppSettings {
   version: number
@@ -12,13 +18,16 @@ export interface AppSettings {
   template_dirs: string[]
   /** 最近打开的 dproj 绝对路径（最新在前） */
   recents?: string[]
+  /** 图转换服务（mmd2vsdx） */
+  mmd2vsdx: MmdServiceConfigDto
 }
 
 const SETTINGS_FILE = 'config.json'
 const DEFAULT_SETTINGS: AppSettings = {
   version: 1,
   default_project_dir: '',
-  template_dirs: []
+  template_dirs: [],
+  mmd2vsdx: DEFAULT_MMD_CONFIG
 }
 
 export function configFilePath(): string {
@@ -28,7 +37,7 @@ export function configFilePath(): string {
 export function loadAppSettings(): AppSettings {
   try {
     const file = configFilePath()
-    if (!existsSync(file)) return { ...DEFAULT_SETTINGS }
+    if (!existsSync(file)) return { ...DEFAULT_SETTINGS, mmd2vsdx: { ...DEFAULT_MMD_CONFIG } }
     const raw = JSON.parse(readFileSync(file, 'utf8')) as Partial<AppSettings>
     return {
       version: Number(raw.version ?? 1),
@@ -36,10 +45,11 @@ export function loadAppSettings(): AppSettings {
       template_dirs: Array.isArray(raw.template_dirs)
         ? raw.template_dirs.filter((d): d is string => typeof d === 'string')
         : [],
-      recents: Array.isArray(raw.recents) ? raw.recents.filter((d): d is string => typeof d === 'string') : []
+      recents: Array.isArray(raw.recents) ? raw.recents.filter((d): d is string => typeof d === 'string') : [],
+      mmd2vsdx: normalizeMmdConfig(raw.mmd2vsdx)
     }
   } catch {
-    return { ...DEFAULT_SETTINGS }
+    return { ...DEFAULT_SETTINGS, mmd2vsdx: { ...DEFAULT_MMD_CONFIG } }
   }
 }
 
@@ -53,7 +63,8 @@ export function saveAppSettings(settings: AppSettings): void {
         version: settings.version,
         default_project_dir: settings.default_project_dir,
         template_dirs: settings.template_dirs,
-        recents: settings.recents ?? []
+        recents: settings.recents ?? [],
+        mmd2vsdx: settings.mmd2vsdx
       },
       null,
       2

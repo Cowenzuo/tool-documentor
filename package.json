@@ -24,8 +24,7 @@
     "package": "pnpm build && pnpm --filter @documentor/desktop package",
     "verify:package": "pnpm package:dir && node scripts/verify-package.cjs",
     "typecheck": "pnpm -r typecheck",
-    "verify": "pnpm typecheck && pnpm build && node scripts/check-upstream.cjs",
-    "verify:upstream": "node scripts/check-upstream.cjs --strict",
+    "verify": "pnpm typecheck && pnpm build",
     "test:local": "set NODE_OPTIONS=--experimental-sqlite&& vitest run -c localscripts/vitest.config.ts",
     "check:locks": "node localscripts/lock-check.cjs",
     "check:open": "node localscripts/open-check.cjs",
@@ -35,6 +34,8 @@
     "check:terms": "node localscripts/terms-check.cjs",
     "check:terms:ui": "node localscripts/e2e/run.cjs --fixture localscripts/e2e/fixture-permissions.cjs --probe localscripts/e2e/probe-permissions.cjs",
     "check:undo": "node localscripts/e2e/run.cjs --fixture localscripts/e2e/fixture-permissions.cjs --probe localscripts/e2e/probe-undo.cjs",
-    "check:ui": "node localscripts/e2e/run.cjs"
+    "check:ui": "node localscripts/e2e/run.cjs",
+    "check:mmd:ui": "node localscripts/e2e/run.cjs --probe localscripts/e2e/probe-mmd-settings.cjs",
+    "check:mmd": "node localscripts/mmd-check.cjs"
   }
 }
