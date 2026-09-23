@@ -22,10 +22,10 @@ export interface PermissionTerm {
 
 /** 节点级：模板作者给用户的四个开关，按 DESIGN-06的顺序 */
 export const NODE_PERMISSION = {
-  copyable: { name: '复制', tip: '模板允许复制这一章及其子章节' },
-  deletable: { name: '裁剪', tip: '模板允许裁掉这一章' },
-  allowContentBlocks: { name: '编辑', tip: '模板允许编辑这一章的内容块' },
-  allowLayoutEdit: { name: '排版', tip: '模板允许改这一章的块集合、顺序与类型' }
+  copyable: { name: '复制', tip: '模板允许复制本章及其子章节' },
+  deletable: { name: '裁剪', tip: '模板允许裁掉本章' },
+  allowContentBlocks: { name: '编辑', tip: '模板允许编辑本章内容块' },
+  allowLayoutEdit: { name: '排版', tip: '模板允许改本章块集合、顺序与类型' }
 } as const
 
 /** 内容块级：三档加一个作废的旧档位 */
@@ -41,7 +41,7 @@ export const BLOCK_TIER: Record<'free' | 'keep' | 'readonly' | 'legacy', Permiss
  * 权限词表管"能不能做"，这里管"这件事叫什么"，两处都只有这一个说法。
  */
 export const BLOCK_ACTION = {
-  changeType: { name: '换类型', tip: '换成别的类型；这一块的内容能带的一起带过去' }
+  changeType: { name: '换类型', tip: '换成其他类型；可带内容一并带过去' }
 } as const
 
 /** 块上写的 lock 值 → 档位；不写就是自由编辑 */
@@ -62,7 +62,7 @@ export interface NodePermissionInput {
  * 编辑 × 排版 取交之后，这一章的块能做什么（DESIGN-06那张表）。
  *
  * 三条轴的分工：
- *   - 编辑关 → 内容块一律不动；
+ *   - 编辑关 → 内容一律不动；
  *   - 排版关 → 集合、顺序、类型都不能动，只剩改各块的内容；
  *   - 块档位 → 在写入侧再叠一层：只读连内容也不能改，类型限制编辑能改内容、不能删也不能换形状。
  *     位置不归块档位管：那是排版的事。
@@ -71,6 +71,8 @@ export interface NodePermissionInput {
  * 块档位不否决章节级动作 —— 作者要护住整章，把「裁剪」关掉就是（缺省就是关的）。
  *
  * 界面与写入侧用的是同一个函数、同一批说法，所以置灰提示与拒绝语不会各说各话。
+ * 说法一律是被禁那件事的短语（`禁止编辑内容`、`禁止增加内容`…）：不写成句子、
+ * 不描述开关状态、也不出现「内容块」这种内部说法（见 产品文案口径.md）。
  */
 export interface BlockPermissions {
   editContent: boolean
@@ -83,32 +85,39 @@ export interface BlockPermissions {
   whyAdd: string
   whyRemove: string
   whyMove: string
+  /** 换类型／改表头被总闸挡住时的说法（`reshapeRefusal` 的第一档） */
+  whyShape: string
 }
 
 export function blockPermissions(node: NodePermissionInput): BlockPermissions {
   const editing = node.allowContentBlocks
   const layout = node.allowLayoutEdit
-  // 拒绝语先说挡在最前面的那一条：编辑关着就说编辑，编辑开着还拦得住就是排版
-  const which = (what: string): string =>
-    editing ? `模板把这一章的排版关着，不能${what}` : `模板把这一章的编辑关着，不能${what}`
+  /**
+   * 被挡住的说明一律是**短语「禁止…」**，不写成句子。
+   *
+   * 说明挂在被禁的那个控件上（按钮的悬停、输入框的 title），上下文已经说明了
+   * "这件事是什么、在哪里"，所以只差一个结论：这件事被禁了。
+   * 不写"模板里哪个开关处于什么状态"——那是机制，用户看不见也改不了。
+   */
   return {
     editContent: editing,
     reshape: editing && layout,
     add: editing && layout,
     remove: editing && layout,
     move: editing && layout,
-    whyEditContent: '模板把这一章的编辑关着，内容块不能改',
-    whyAdd: which('加内容'),
-    whyRemove: which('删内容'),
-    whyMove: which('移动内容')
+    whyEditContent: '禁止编辑内容',
+    whyAdd: '禁止增加内容',
+    whyRemove: '禁止删除内容',
+    whyMove: '禁止移动内容',
+    whyShape: '禁止修改类型与表头'
   }
 }
 
-/** 换类型与换表头被拒时的说法：先看排版，再看块档位 */
+/** 换类型与换表头被拒时的说法：先看总闸，再看块档位 */
 export function reshapeRefusal(lock: string | undefined, perms: BlockPermissions): string {
-  if (!perms.reshape) return '模板把这一章的排版关着，类型与表头不能改'
+  if (!perms.reshape) return perms.whyShape
   if (lock === 'readonly') return '模板规定该内容为只读，类型不能改'
-  return '模板规定的类型不能改，内容可以照常编辑'
+  return '模板规定类型不能改，内容可以照常编辑'
 }
 
 /**

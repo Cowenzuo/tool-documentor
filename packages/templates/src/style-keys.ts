@@ -48,14 +48,14 @@ export const STYLE_KEY_INFO: readonly LogicalStyleKeyInfo[] = [
   ...([1, 2, 3, 4, 5, 6, 7] as const).map((level) => ({
     key: `heading.${level}`,
     group: '标题' as const,
-    usage: `${level} 级标题的段落样式`,
+    usage: `${level} 级标题段落样式`,
     read: true,
     fallback: null
   })),
   ...([1, 2, 3] as const).map((depth) => ({
     key: `subtitle.${depth}`,
     group: '列表子标题' as const,
-    usage: `列表子标题第 ${depth} 层的段落样式`,
+    usage: `列表子标题第 ${depth} 层段落样式`,
     read: true,
     fallback: null
   })),
@@ -69,42 +69,42 @@ export const STYLE_KEY_INFO: readonly LogicalStyleKeyInfo[] = [
   {
     key: 'figure',
     group: '图片',
-    usage: '图片与图形所在段落的样式',
+    usage: '图片与图形所在段落样式',
     read: true,
     fallback: 'body'
   },
   {
     key: 'figure.caption',
     group: '图片',
-    usage: '图片题注的段落样式',
+    usage: '图片题注段落样式',
     read: true,
     fallback: null
   },
   {
     key: 'table.caption',
     group: '表格',
-    usage: '表格题注的段落样式',
+    usage: '表格题注段落样式',
     read: true,
     fallback: null
   },
   {
     key: 'table.header',
     group: '表格',
-    usage: '表头行的段落样式',
+    usage: '表头行段落样式',
     read: true,
     fallback: null
   },
   {
     key: 'table.body',
     group: '表格',
-    usage: '表格内容行的段落样式',
+    usage: '表格内容行段落样式',
     read: true,
     fallback: null
   },
   {
     key: 'list.unordered.1',
     group: '列表',
-    usage: '无序列表的段落样式',
+    usage: '无序列表段落样式',
     read: true,
     fallback: null
   },
@@ -125,7 +125,7 @@ export const STYLE_KEY_INFO: readonly LogicalStyleKeyInfo[] = [
   {
     key: 'list.ordered.1',
     group: '列表',
-    usage: '有序列表的段落样式',
+    usage: '有序列表段落样式',
     read: true,
     fallback: null
   },
@@ -166,7 +166,7 @@ export function styleKeyInfo(key: string): LogicalStyleKeyInfo {
   return {
     key,
     group: '其他',
-    usage: '程序认不出这个逻辑键，配了不生效',
+    usage: '无法识别该逻辑键，配置不生效',
     read: false,
     fallback: null
   }
@@ -285,15 +285,15 @@ function statusOf(args: {
     if (!info.read) {
       return {
         status: 'unset',
-        message: '未配 · 不读取'
+        message: '未配置 · 不读取'
       }
     }
     return {
       status: 'unset',
       message:
         info.fallback === null
-          ? '没配：用到时按 Word 默认样式输出'
-          : `没配：程序回退用 ${info.fallback}`
+          ? '未配置：用到时按 Word 默认样式输出'
+          : `未配置：程序回退用 ${info.fallback}`
     }
   }
   if (styleIds === null) {
@@ -305,7 +305,7 @@ function statusOf(args: {
   if (!styleIds.has(styleId)) {
     return {
       status: 'dangling',
-      message: `指向的样式 ${styleId} 在骨架 styles.xml 里不存在，导出时这些位置按默认样式输出`
+      message: `指向样式 ${styleId} 在骨架 styles.xml 里不存在，导出时按默认样式输出`
     }
   }
   return {

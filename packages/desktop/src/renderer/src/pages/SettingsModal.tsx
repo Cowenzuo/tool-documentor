@@ -177,14 +177,14 @@ function MmdSection({
       const why = status.node_candidates[0]?.reason ?? ''
       return { text: '不可用', bad: true, why }
     }
-    return { text: '未找到', bad: true, why: '没找到可用的运行环境（需要 22.2 以上）' }
+    return { text: '未找到', bad: true, why: '未找到运行环境 · 需 22.2 以上' }
   })()
 
   const dirState = ((): { text: string; bad: boolean; why: string } | null => {
     if (!status || mmd.dir.trim() === '') return null
     return status.dir_ok
-      ? { text: '', bad: false, why: '这个目录里有服务程序' }
-      : { text: '', bad: true, why: '这个目录里没有服务程序' }
+      ? { text: '', bad: false, why: '该目录中有服务程序' }
+      : { text: '', bad: true, why: '该目录中无服务程序' }
   })()
   const serviceLine = ((): { text: string; bad: boolean } | null => {
     if (!status) return null
@@ -216,10 +216,10 @@ function MmdSection({
   /** 已经确认在跑就别再让人点「启动服务」；没探过则允许点，主进程那边会先探再决定 */
   const running = status?.probe.ok === true
   const startWhy = running
-    ? '转换服务已经在运行'
+    ? '转换服务已在运行'
     : mmd.auto_start
       ? ''
-      : '没打开「默认拉起」'
+      : '未启用「默认拉起」'
 
   return (
     <section className="settings-group">
@@ -302,7 +302,7 @@ function MmdSection({
             </label>
             <label
               className="settings-check settings-auto-start"
-              title="没在运行时替你把它拉起来；启动后不归本软件管，也不会随本软件关闭"
+              title="未运行时自动拉起；启动后不归本软件管理，也不会随本软件关闭"
             >
               <input
                 type="checkbox"
@@ -407,7 +407,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
               <div className="w-row">
                 <input
                   value={cfg.default_project_dir}
-                  placeholder="新建工程向导的起始目录"
+                  placeholder="新建工程向导起始目录"
                   onChange={(e) =>
                     setCfg({ ...cfg, default_project_dir: e.target.value })
                   }
@@ -444,7 +444,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
                       <div className="w-row">
                         <input
                           value={dir}
-                          placeholder="模板目录（要选到模板仓库的 packages 子目录）"
+                          placeholder="模板目录 · 须选到模板仓库 packages 子目录"
                           onChange={(e) => {
                             const next = [...cfg.template_dirs]
                             next[i] = e.target.value
@@ -504,7 +504,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
                 </button>
               </div>
               {report && !report.loadedAny && cfg.template_dirs.some((d) => d.trim()) && (
-                <p className="settings-status bad">没有加载到任何模板，新建工程向导会是空的</p>
+                <p className="settings-status bad">未加载到任何模板，新建工程向导将为空</p>
               )}
             </section>
             <MmdSection cfg={cfg} onChange={setCfg} />

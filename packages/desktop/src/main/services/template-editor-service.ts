@@ -124,7 +124,7 @@ function assertTemplateUuid(uuid: unknown, what: string): asserts uuid is string
     typeof uuid !== 'string' ||
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(uuid)
   ) {
-    throw new TemplateEditorError(`${what}「${String(uuid)}」不是合法的 uuid`)
+    throw new TemplateEditorError(`${what}「${String(uuid)}」不是合法 uuid`)
   }
 }
 
@@ -140,7 +140,7 @@ function assertSafeFolderName(folder: unknown, what: string): asserts folder is 
     folder.endsWith('.') ||
     folder.endsWith(' ')
   ) {
-    throw new TemplateEditorError(`${what}「${String(folder)}」不是合法的目录名`)
+    throw new TemplateEditorError(`${what}「${String(folder)}」不是合法目录名`)
   }
 }
 
@@ -411,7 +411,7 @@ export class TemplateEditorService {
           level: 'error',
           rule: 'template.unreadable',
           path,
-          message: item.problem ?? '模板读不出来'
+          message: item.problem ?? '模板读取失败'
         }
       ]
     } else {
@@ -497,7 +497,7 @@ export class TemplateEditorService {
     if (firstError) {
       // 有 error 的模板实例化出来也是坏的：先让作者改好，别拿一份坏模板去试
       throw new TemplateEditorError(
-        `这份模板校验没过，先改好再试跑（${firstError.path}）：${firstError.message}`
+        `这份模板未通过校验，请先修正再试跑 · ${firstError.path}：${firstError.message}`
       )
     }
 
@@ -505,18 +505,18 @@ export class TemplateEditorService {
     manager.loadTemplateDir(located.dir)
     const def = manager.findStructureByUuid(located.uuid)
     if (!def) {
-      throw new TemplateEditorError('加载器没认出这份模板，试跑不了')
+      throw new TemplateEditorError('无法识别这份模板，不能试跑')
     }
     const ref = manager.styleForStructure(def)
     if (!ref.style) {
       throw new TemplateEditorError(
         ref.unset
-          ? '这份结构没配默认样式，试跑不知道用哪份'
-          : '这份结构的默认样式找不到，可能已被删除，先重选一份'
+          ? '这份结构未配置默认样式，无法试跑'
+          : '未找到该结构默认样式，请重新选择'
       )
     }
     const tree = manager.instantiate(def)
-    if (!tree) throw new TemplateEditorError('实例化失败：这份结构模板没生成出文档树')
+    if (!tree) throw new TemplateEditorError('实例化失败：这份结构模板未生成文档树')
 
     const outputDir = join(this.trialRoot(), located.uuid)
     mkdirSync(outputDir, { recursive: true })
@@ -536,7 +536,7 @@ export class TemplateEditorService {
   private trialRoot(): string {
     const base = this.deps.appDataDir()
     if (typeof base !== 'string' || base.trim() === '') {
-      throw new TemplateEditorError('取不到应用数据目录，试跑产物没地方放')
+      throw new TemplateEditorError('无法获取应用数据目录，试跑产物无处存放')
     }
     return join(resolve(base), TRIAL_DIR)
   }
@@ -554,16 +554,16 @@ export class TemplateEditorService {
     if (cn === '') throw new TemplateEditorError('样式模板名不能为空')
     const en = typeof input.en === 'string' ? input.en.trim() : ''
     const source = typeof input.source === 'string' ? input.source.trim() : ''
-    if (source === '') throw new TemplateEditorError('没有选样式文件（.docx 或已解包的骨架目录）')
+    if (source === '') throw new TemplateEditorError('未选择样式文件 · 可选 .docx 或已解包骨架目录')
     const sourcePath = resolve(source)
     if (!existsSync(sourcePath)) {
-      throw new TemplateEditorError(`选中的样式文件不存在：${sourcePath}`)
+      throw new TemplateEditorError(`样式文件不存在：${sourcePath}`)
     }
     const styleFolder =
       typeof input.styleFolder === 'string' && input.styleFolder.trim() !== ''
         ? input.styleFolder.trim()
         : DEFAULT_SKELETON_FOLDER
-    assertSafeFolderName(styleFolder, '骨架文件夹名')
+    assertSafeFolderName(styleFolder, '骨架目录名')
 
     const uuid = newTemplateUuid()
     const idDir = join(dir, TEMPLATE_SUBDIR.style, uuid)
@@ -584,14 +584,14 @@ export class TemplateEditorService {
       )
       if (missing.length > 0) {
         throw new TemplateEditorError(
-          `这份样式缺必需部件：${missing.join(' / ')}（.docx 至少要带 word/styles.xml、` +
+          `必需部件缺失：${missing.join(' / ')} · .docx 至少需要 word/styles.xml、` +
             `word/numbering.xml、word/document.xml 与关系表）`
         )
       }
       const index = parseSkeletonIndex(skeletonDir)
       if (index.styleIds.length === 0) {
         throw new TemplateEditorError(
-          `骨架 ${styleFolder}/word/styles.xml 里读不到任何 styleId，这份样式没法用`
+          `骨架 ${styleFolder}/word/styles.xml 里未读到任何 styleId，这份样式不可用`
         )
       }
 
@@ -632,7 +632,7 @@ export class TemplateEditorService {
       const target = resolve(join(base, entryName))
       // zip 里的条目名可以写 `..`：解包不许跑到目标目录外面去
       if (target !== base && !target.startsWith(base + sep)) {
-        throw new TemplateEditorError(`docx 里的条目名越出目标目录：${entryName}`)
+        throw new TemplateEditorError(`docx 条目名超出目标目录：${entryName}`)
       }
       mkdirSync(dirname(target), { recursive: true })
       writeFileSync(target, await entry.async('nodebuffer'))
@@ -653,7 +653,7 @@ export class TemplateEditorService {
     const firstError = issues.find((i) => i.level === 'error')
     if (firstError) {
       throw new TemplateEditorError(
-        `样式模板校验未通过，未写入（${firstError.path}）：${firstError.message}`
+        `样式模板校验未通过，未写入 · ${firstError.path}：${firstError.message}`
       )
     }
     this.writeDoc(located, input.doc)
@@ -672,7 +672,7 @@ export class TemplateEditorService {
     const firstError = issues.find((i) => i.level === 'error')
     if (firstError) {
       throw new TemplateEditorError(
-        `结构模板校验未通过，未写入（${firstError.path}）：${firstError.message}`
+        `结构模板校验未通过，未写入 · ${firstError.path}：${firstError.message}`
       )
     }
     this.writeDoc(located, input.doc)
@@ -707,7 +707,7 @@ export class TemplateEditorService {
     if (firstError) {
       // 自造的模板不该带上 error：出现了就是实现跑偏，宁可失败也不要写出一份坏模板
       throw new TemplateEditorError(
-        `新建的结构模板校验未通过，未写入（${firstError.path}）：${firstError.message}`
+        `新建结构模板校验未通过，未写入 · ${firstError.path}：${firstError.message}`
       )
     }
 
@@ -741,7 +741,7 @@ export class TemplateEditorService {
       const oldDir = join(dir, TEMPLATE_SUBDIR.style, oldName)
       const file = legacyJsonFile(oldDir, oldName, 'stylemap')
       if (file === null) {
-        skipped.push(`${label}：找不到样式模板 JSON`)
+        skipped.push(`${label}：未找到样式模板 JSON`)
         continue
       }
       let doc: Record<string, unknown>
@@ -752,7 +752,7 @@ export class TemplateEditorService {
         continue
       }
       if (!isPlainObject(doc['styleMap'])) {
-        skipped.push(`${label}：没有 styleMap，不像一份样式模板`)
+        skipped.push(`${label}：styleMap 缺失，不像是样式模板`)
         continue
       }
       const uuid = newTemplateUuid()
@@ -794,7 +794,7 @@ export class TemplateEditorService {
       const oldDir = join(dir, TEMPLATE_SUBDIR.structure, oldName)
       const file = legacyJsonFile(oldDir, oldName, 'structure')
       if (file === null) {
-        skipped.push(`${label}：找不到结构模板 JSON`)
+        skipped.push(`${label}：未找到结构模板 JSON`)
         continue
       }
       let doc: Record<string, unknown>
@@ -806,7 +806,7 @@ export class TemplateEditorService {
       }
       const root = isPlainObject(doc['root']) ? doc['root'] : null
       if (root === null) {
-        skipped.push(`${label}：没有 root，不像一份结构模板`)
+        skipped.push(`${label}：root 缺失，不像是结构模板`)
         continue
       }
       const uuid = newTemplateUuid()
@@ -840,7 +840,7 @@ export class TemplateEditorService {
       }
       structures += 1
       if (declared !== undefined && defaultStyleUuid === '') {
-        restyle.push(`${identity.cn}：旧文件里写的样式 ${declared} 不在这个目录里，默认样式留空待选`)
+        restyle.push(`${identity.cn}：样式 ${declared} 不在该目录（记录于旧文件），默认样式留空待选`)
       }
     }
 
@@ -868,7 +868,7 @@ export class TemplateEditorService {
       const firstError = issues.find((i) => i.level === 'error')
       if (firstError) {
         throw new TemplateEditorError(
-          `结构模板校验未通过，未写入（${firstError.path}）：${firstError.message}`
+          `结构模板校验未通过，未写入 · ${firstError.path}：${firstError.message}`
         )
       }
       this.writeDoc(located, doc)
@@ -894,7 +894,7 @@ export class TemplateEditorService {
       const firstError = issues.find((i) => i.level === 'error')
       if (firstError) {
         throw new TemplateEditorError(
-          `样式模板校验未通过，未写入（${firstError.path}）：${firstError.message}`
+          `样式模板校验未通过，未写入 · ${firstError.path}：${firstError.message}`
         )
       }
       this.writeDoc(located, doc)

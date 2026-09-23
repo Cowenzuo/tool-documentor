@@ -70,14 +70,14 @@ export function checkTableShape(src: {
   if (headers.length > 0 && headers.length !== cols) {
     issues.push({
       where: 'headers',
-      reason: `表头 ${headers.length} 列与 cols ${cols} 不一致（表头要么留空，要么写满 cols 列）`
+      reason: `表头 ${headers.length} 列与列数 ${cols} 不一致`
     })
   }
   for (const [i, row] of data.entries()) {
     if (row.length !== cols) {
       issues.push({
         where: `data[${i}]`,
-        reason: `第 ${i + 1} 行 ${row.length} 列与 cols ${cols} 不一致`
+        reason: `第 ${i + 1} 行 ${row.length} 列与列数 ${cols} 不一致`
       })
       if (issues.length >= 5) break // 只报前几条，避免刷屏
     }
@@ -86,8 +86,8 @@ export function checkTableShape(src: {
     issues.push({
       where: 'rows',
       reason:
-        `rows ${src.rows} 小于正文行数 ${data.length}：rows 不含表头且渲染只认 data，` +
-        `这里可能是把表头算进了 rows（旧口径），建议改为 ${data.length}`
+        `rows ${src.rows} 小于正文行数 ${data.length}：rows 不含表头，程序只读 data，` +
+        `rows 应为 ${data.length} · 不含表头`
     })
   }
   return issues

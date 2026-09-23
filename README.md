@@ -83,7 +83,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File localscripts\word-checks\wor
 
 ```bash
 pnpm check:locks       # 权限：模板里写的锁，工程侧拦不拦得住
-pnpm check:terms       # 权限文案：一个权限一个词，旧说法一个不剩
+pnpm check:terms       # 权限词表：词表齐不齐、两侧是不是都从它取词（不验措辞）
 pnpm check:structure   # 结构模板编辑：目录快照、新建、读、保存、改名、删除、试跑、迁移
 pnpm check:styles      # 样式模板编辑：读、写回、导入、改名、删除、试跑、迁移
 pnpm check:open        # 工程打开：老格式工程的引用认出 uuid、保存补列

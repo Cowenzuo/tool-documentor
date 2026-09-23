@@ -70,7 +70,7 @@ export function StyleTable({
         </header>
         <div className="tpl-col-body">
           <p className="tpl-empty">
-            {status === 'ready' ? '没有打开样式模板' : '正在读取模板目录…'}
+            {status === 'ready' ? '未打开样式模板' : '正在读取模板目录…'}
           </p>
         </div>
       </section>
@@ -179,7 +179,7 @@ export function StyleTable({
             <div className="tpl-caption-names">
               <div className="tpl-caption-names-head">
                 <span className="tpl-field-label">章节样式名</span>
-                <span className="tpl-count">STYLEREF 引用的样式名 · 中文 Word 为「标题 N」</span>
+                <span className="tpl-count">STYLEREF 引用样式名 · 中文 Word 为「标题 N」</span>
                 <button
                   type="button"
                   className="tpl-mini"
@@ -196,7 +196,7 @@ export function StyleTable({
               </div>
               {chapterLevels.length === 0 ? (
                 <p className="tpl-note">
-                  未配章节样式名 · 回退「标题 N」，英文版 Word 算不出章节号
+                  未配章节样式名 · 回退「标题 N」，英文版 Word 无法计算章节号
                 </p>
               ) : (
                 <ul className="tpl-caption-name-list">
@@ -213,7 +213,7 @@ export function StyleTable({
                         type="button"
                         className="tpl-icon-btn"
                         title="删除后按「标题 N」"
-                        aria-label={`删掉 ${level} 级标题的章节样式名`}
+                        aria-label={`删除 ${level} 级标题章节样式名`}
                         onClick={() => onChapterStyleName(level, null)}
                       >
                         <CloseIcon size={12} />
@@ -314,7 +314,7 @@ function GroupRows({
                 ))}
                 {/* 文件里配了一条骨架里没有的：留着它，别让下拉悄悄把值改掉 */}
                 {row.styleId !== '' && !byId.has(row.styleId) && (
-                  <option value={row.styleId}>{`${row.styleId}（样式文件里没有）`}</option>
+                  <option value={row.styleId}>{`${row.styleId} · 样式文件里无`}</option>
                 )}
               </select>
             </td>

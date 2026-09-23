@@ -100,7 +100,7 @@
   [DESIGN-06-权限与锁.md](DESIGN-06-权限与锁.md)；
 - **根节点的行也要写全**：根行只有 `heading_level = 0` / `parent_id = NULL` / `node_type = 'root'`
   三处特殊，标题、编制说明、内容块与四个开关都是真数据，保存时必须一起落库；
-- 读树从 `parent_id IS NULL` 的那一行起步，一行都找不到就是"工程数据异常：缺少根节点"。
+- 读树从 `parent_id IS NULL` 的那一行起步，一行都找不到就是"工程数据异常：根节点缺失"。
 
 ### 3.3 `content_block`：内容块
 

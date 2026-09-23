@@ -195,7 +195,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         // 打开时的非致命问题（当前是块上的 lock 取值不认识）要说出来，别让用户以为没事。
         // 老工程只记模板名、又没认到 uuid 时也在这里说一句：状态栏空着等于没说原因
         if (result.info.templateUuid === '' && result.info.legacyTemplateName !== '') {
-          notices.push(`模板未认到：${result.info.legacyTemplateName}`)
+          notices.push(`模板未识别：${result.info.legacyTemplateName}`)
         }
         if (notices.length > 0) {
           showToast({ kind: 'warn', text: notices.join('；') })
@@ -458,7 +458,7 @@ export function AppProvider({ children }: { children: ReactNode }): React.JSX.El
         applyHistoryResult(await run())
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
-        if (message.includes('没有可撤销') || message.includes('没有可重做')) return
+        if (message.includes('无可撤销') || message.includes('无可重做')) return
         showToast({ kind: 'error', text: message })
       }
     },

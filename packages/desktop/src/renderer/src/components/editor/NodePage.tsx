@@ -517,7 +517,7 @@ export default function NodePage(): React.JSX.Element {
               {!node.copyable && !node.deletable && !node.allowContentBlocks && !node.allowLayoutEdit && (
                 <span
                   className="np-chip"
-                  title="模板限定：复制、裁剪、内容块与排版都关着，标题与编制说明照常可改"
+                  title="禁止复制、裁剪、编辑、排版；标题与编制说明照常可改"
                 >
                   内容只读
                 </span>
@@ -535,7 +535,8 @@ export default function NodePage(): React.JSX.Element {
           />
 
           {!perms.editContent && node.contentBlocks.length === 0 ? (
-            <div className="np-block-hint">模板把这一章的编辑关着，内容块不能改</div>
+            // 用写入侧同一句拒绝语，别在这儿另写一份说法
+            <div className="np-block-hint">{perms.whyEditContent}</div>
           ) : (
             <div className="np-blocks">
               {blocks.length > 0 && (
@@ -664,7 +665,7 @@ export default function NodePage(): React.JSX.Element {
                 type="button"
                 role="menuitem"
                 disabled={current}
-                title={current ? '已经是这个类型' : describeBlockType(type)}
+                title={current ? '已是当前类型' : describeBlockType(type)}
                 onClick={() => void handleChangeType(typeMenu.index, type)}
               >
                 <span className="np-add-label">{BLOCK_TYPE_LABELS[type]}</span>

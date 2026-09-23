@@ -53,7 +53,7 @@ function readJsonObject(file: string): { doc: Record<string, unknown> | null; pr
   try {
     raw = readFileSync(file, 'utf8')
   } catch {
-    return { doc: null, problem: '模板文件读不到' }
+    return { doc: null, problem: '模板文件读取失败' }
   }
   let parsed: unknown
   try {
@@ -103,7 +103,7 @@ function scanKind(root: string, kind: TemplateKind, scan: TemplateScan): void {
       name: identity !== null && !mismatch ? displayNameOf(identity) : name.slice(0, 8),
       dir,
       file,
-      problem: problem ?? (identity === null ? '模板缺少 uuid' : mismatch ? '目录名与 uuid 不一致' : null),
+      problem: problem ?? (identity === null ? '模板 uuid 缺失' : mismatch ? '目录名与 uuid 不一致' : null),
       doc: mismatch ? null : doc
     })
   }

@@ -291,7 +291,7 @@ export function blockSummary(block: TemplateObject): string {
     case 'formula':
       return cut(content) || '公式未写'
     default:
-      return type === '' ? '类型未写' : `${type} · 界面不认的类型`
+      return type === '' ? '类型未写' : `${type} · 界面不支持该类型`
   }
 }
 
@@ -652,7 +652,7 @@ export function createTemplateBlock(type: string): TemplateObject {
     case 'unorderedList':
       return { type, items: [''] }
     default:
-      throw new Error(`未知内容块类型: ${type}`)
+      throw new Error(`未知内容块类型：${type}`)
   }
 }
 

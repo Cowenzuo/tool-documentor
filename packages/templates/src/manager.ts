@@ -82,22 +82,22 @@ export class TemplateManager {
     }
     for (const legacy of scan.legacy) {
       result.skipped.push(
-        `${TEMPLATE_SUBDIR[legacy.kind]}/${legacy.name} 的目录名不是 uuid，未加载`
+        `目录名不是 uuid，未加载：${TEMPLATE_SUBDIR[legacy.kind]}/${legacy.name}`
       )
     }
 
     for (const item of scan.structures) {
       if (item.problem !== null || item.doc === null) {
-        result.skipped.push(`${whereOf(item)}：${item.problem ?? '模板读不出来'}`)
+        result.skipped.push(`${whereOf(item)}：${item.problem ?? '模板读取失败'}`)
         continue
       }
       const def = this.parseTemplateDef(item.doc, result)
       if (!def) {
-        result.skipped.push(`${whereOf(item)}：缺少 root，整份未加载`)
+        result.skipped.push(`${whereOf(item)}：root 缺失，整份未加载`)
         continue
       }
       if (this.structures.has(item.uuid)) {
-        result.skipped.push(`${whereOf(item)}：这份结构模板已经在别的目录里加载过，忽略本次`)
+        result.skipped.push(`${whereOf(item)}：这份结构模板已在其他目录加载过，忽略本次`)
         continue
       }
       this.structures.set(item.uuid, def)
@@ -106,16 +106,16 @@ export class TemplateManager {
 
     for (const item of scan.styles) {
       if (item.problem !== null || item.doc === null) {
-        result.skipped.push(`${whereOf(item)}：${item.problem ?? '模板读不出来'}`)
+        result.skipped.push(`${whereOf(item)}：${item.problem ?? '模板读取失败'}`)
         continue
       }
       const styleDef = this.parseStyleTemplateDef(item.doc, item.dir)
       if (!styleDef) {
-        result.skipped.push(`${whereOf(item)}：缺少 styleMap，整份未加载`)
+        result.skipped.push(`${whereOf(item)}：styleMap 缺失，整份未加载`)
         continue
       }
       if (this.styles.has(item.uuid)) {
-        result.skipped.push(`${whereOf(item)}：这份样式模板已经在别的目录里加载过，忽略本次`)
+        result.skipped.push(`${whereOf(item)}：这份样式模板已在其他目录加载过，忽略本次`)
         continue
       }
       this.styles.set(item.uuid, styleDef)
@@ -269,8 +269,8 @@ export class TemplateManager {
       // 认不出的块类型会在实例化时被丢掉，这里就报出来，别让模板静默少块
       if (!isKnownTemplateBlockType(type)) {
         sink.skipped.push(
-          `结构模板「${templateName}」节点「${nodeTitle}」的内容块类型「${type || '（空）'}」` +
-            '不认识，实例化时该块会被跳过'
+          `结构模板「${templateName}」节点「${nodeTitle}」内容块类型「${type || '（空）'}」` +
+            '无法识别，实例化时将跳过该块'
         )
       }
       contentBlocks.push({
@@ -427,8 +427,8 @@ function skeletonRelsWarning(skeletonPath: string): string | null {
   if (existsSync(join(skeletonPath, 'word', 'numbering.xml'))) parts.push('numbering.xml')
   if (parts.length === 0) return null
   return (
-    `样式骨架 ${basename(skeletonPath)} 缺少 word/_rels/document.xml.rels，` +
-    `${parts.join(' 与 ')} 可能不被 Word 识别（导出时会补出这两条关系）`
+    `样式骨架 ${basename(skeletonPath)} 内 word/_rels/document.xml.rels 缺失，` +
+    `${parts.join(' 与 ')} 缺失时 Word 打不开 · 导出会补出这两条关系`
   )
 }
 
@@ -446,8 +446,8 @@ function parseLockValue(
   const lock = parseBlockLock(value)
   if (!lock && value != null) {
     warn(
-      `结构模板「${templateName}」节点「${nodeTitle}」的内容块 lock 取值` +
-        `「${String(value)}」不认识，按不锁处理`
+      `结构模板「${templateName}」节点「${nodeTitle}」内容块 lock 取值` +
+        `「${String(value)}」无法识别，按未锁定处理`
     )
   }
   return lock

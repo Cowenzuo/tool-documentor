@@ -9,11 +9,11 @@ export default function StatusBar(): React.JSX.Element | null {
   if (!session) return null
   const stats = countTree(session.root)
   // 模板认不到时状态栏不能空着：空着看不出是"没模板"还是界面坏了
-  const templateLabel = session.info.templateName !== '' ? session.info.templateName : '模板未认到'
+  const templateLabel = session.info.templateName !== '' ? session.info.templateName : '模板未识别'
   const templateTitle =
     session.info.templateName !== ''
       ? session.info.templateName
-      : `模板未认到：${session.info.legacyTemplateName || session.info.templateUuid || '未记引用'}`
+      : `模板未识别：${session.info.legacyTemplateName || session.info.templateUuid || '未记录引用'}`
 
   return (
     <footer className="statusbar">

@@ -126,7 +126,7 @@ export function convertBlock(block: ContentBlock, to: BlockTypeName): BlockConve
   let losesText = false
   if (!HAS_MAIN_TEXT[to] && lines.some((line) => line.trim() !== '')) {
     losesText = true
-    dropped.push('这一块的内容')
+    dropped.push('正文')
   }
   if (hasCaption && !captionToSlot && !captionToText) {
     losesText = true

@@ -58,13 +58,13 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
       if (f && f.total > 0) {
         if (f.unavailable) {
           // 转换服务整体不可用：total 张全都没嵌进去，不能让人以为正文里有图
-          figureText = f.total === 1 ? '（图以文本形式导出）' : `（${f.total} 张图以文本形式导出）`
+          figureText = f.total === 1 ? ' · 图以文本形式导出' : ` · ${f.total} 张图以文本形式导出`
         } else if (failCount === f.total) {
-          figureText = f.total === 1 ? '（图以文本形式导出）' : `（${f.total} 张图以文本形式导出）`
+          figureText = f.total === 1 ? ' · 图以文本形式导出' : ` · ${f.total} 张图以文本形式导出`
         } else if (failCount > 0) {
-          figureText = `（含 ${f.embedded} 张图，另有 ${failCount} 张以文本形式导出）`
+          figureText = ` · 含 ${f.embedded} 张图，另有 ${failCount} 张以文本形式导出`
         } else if (f.embedded > 0) {
-          figureText = `（含 ${f.embedded} 张图）`
+          figureText = ` · 含 ${f.embedded} 张图`
         }
       }
       const failText =
@@ -107,7 +107,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
                   setOutputPath((p) => p.replace(/\.md$/i, '.docx'))
                 }}
               />
-              DOCX（Word 文档）
+              DOCX · Word 文档
             </label>
             <label className="export-radio export-radio-disabled">
               <input type="radio" disabled checked={false} />
@@ -134,7 +134,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
             </div>
             {!hasStyles && (
               <p className="settings-hint export-style-desc">
-                模板目录里没有样式模板，先放一份进去
+                模板目录里无样式模板，请先放入一份
               </p>
             )}
           </section>
@@ -147,12 +147,12 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
                 {figures.mermaid > 0 && !figures.mermaidAvailable && (
                   <span style={{ color: 'var(--danger)' }}>
                     {' '}
-                    · 其中 {figures.mermaid} 张以文本形式导出，双击编辑暂不可用
+                    · 其中 {figures.mermaid} 张以文本形式导出，双击编辑不可用
                   </span>
                 )}
               </p>
             ) : (
-              <p className="settings-hint export-style-desc">没有图片</p>
+              <p className="settings-hint export-style-desc">无图片</p>
             )}
           </section>
 
@@ -161,7 +161,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
             <p className="settings-hint export-style-desc">
               {figures && figures.tables > 0
                 ? `${figures.tables} 个表格按 Word 原生表格导出`
-                : '没有表格'}
+                : '无表格'}
             </p>
           </section>
 
@@ -190,9 +190,9 @@ export function ExportDialog({ onClose }: { onClose: () => void }): React.JSX.El
         <footer className="wizard-foot">
           <span className="wizard-error">
             {canExport
-              ? '导出为 Word 可直接打开的标准 DOCX'
+              ? '导出标准 DOCX，Word 可直接打开'
               : !hasStyles
-                ? '模板目录里没有样式模板，导出已禁用'
+                ? '模板目录里无样式模板，导出已禁用'
                 : ''}
           </span>
           <button

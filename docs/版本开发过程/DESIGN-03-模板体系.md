@@ -61,8 +61,8 @@
 | `title` | 初始标题 | 空串 |
 | `headingLevel` | 标题级别，导出取 `heading.<N>` 样式的那个 N | `1`（根是 0） |
 | `description` | 写给文档作者看的填写说明 | 空串 |
-| `copyable` / `deletable` | 模板允许复制 / 裁剪这一章 | **`false`**（漏写就是不许） |
-| `allowContentBlocks` | 允许编辑这一章的内容块 | **`true`** |
+| `copyable` / `deletable` | 模板允许复制 / 裁剪本章 | **`false`**（漏写就是不许） |
+| `allowContentBlocks` | 模板允许编辑本章内容块 | **`true`** |
 | `allowLayoutEdit` | 允许改块集合、顺序与类型 | **`true`** |
 | `children` | 子节点定义 | 空数组 |
 | `contentBlocks` | 预置内容块定义 | 空数组 |

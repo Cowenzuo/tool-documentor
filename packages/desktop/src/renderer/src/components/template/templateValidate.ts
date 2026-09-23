@@ -63,7 +63,7 @@ export function validateStructureDoc(def: unknown): TemplateIssueDto[] {
       level: 'error',
       rule: 'structure.uuid.invalid',
       path: 'uuid',
-      message: `顶层uuid缺失或非法`
+      message: `顶层 uuid 缺失或非法`
     })
   }
   const cn = doc['cn']
@@ -72,7 +72,7 @@ export function validateStructureDoc(def: unknown): TemplateIssueDto[] {
       level: 'error',
       rule: 'structure.cn.missing',
       path: 'cn',
-      message: `顶层cn缺失`
+      message: `顶层 cn 缺失`
     })
   }
   const root = asObject(doc['root'])
@@ -81,7 +81,7 @@ export function validateStructureDoc(def: unknown): TemplateIssueDto[] {
       level: 'error',
       rule: 'structure.root.missing',
       path: 'root',
-      message: `顶层root缺失`
+      message: `顶层 root 缺失`
     })
     return out
   }
@@ -106,7 +106,7 @@ function checkStructureNode(
       level: 'warn',
       rule: 'node.title.missing',
       path: `${path}.title`,
-      message: `title缺失`
+      message: `title 缺失`
     })
   }
   // lock 是块级字段：写在节点上不生效，节点级仍用 copyable / deletable / allowContentBlocks
@@ -115,7 +115,7 @@ function checkStructureNode(
       level: 'error',
       rule: 'node.lock.misplaced',
       path: `${path}.lock`,
-      message: `lock位置错误`
+      message: `lock 位置错误`
     })
   }
   if (level !== undefined && (!Number.isInteger(level) || (level as number) < 0)) {
@@ -123,7 +123,7 @@ function checkStructureNode(
       level: 'error',
       rule: 'node.headingLevel.invalid',
       path: `${path}.headingLevel`,
-      message: `headingLevel非法`
+      message: `headingLevel 非法`
     })
   }
   if ((level as number) > 9) {
@@ -131,7 +131,7 @@ function checkStructureNode(
       level: 'warn',
       rule: 'node.headingLevel.deep',
       path: `${path}.headingLevel`,
-      message: `headingLevel超深`
+      message: `headingLevel 层级过深`
     })
   }
 
@@ -143,7 +143,7 @@ function checkStructureNode(
       level: 'error',
       rule: 'node.allowLayoutEdit.invalid',
       path: `${path}.allowLayoutEdit`,
-      message: `allowLayoutEdit需为布尔值`
+      message: `allowLayoutEdit 需为布尔值`
     })
   }
 
@@ -153,7 +153,7 @@ function checkStructureNode(
       level: 'error',
       rule: 'node.defaultStyleUuid.misplaced',
       path: `${path}.defaultStyleUuid`,
-      message: `defaultStyleUuid位置错误`
+      message: `defaultStyleUuid 位置错误`
     })
   }
 
@@ -184,7 +184,7 @@ function checkStructureNode(
         level: 'warn',
         rule: 'block.description.unread',
         path: `${bp}.description`,
-        message: `description 写在块上不读取`
+        message: `description 写在块上不会被读取`
       })
     }
     // 块锁：认 keep / readonly 两档，外加已作废的 type；其它值程序按自由编辑处理并记警告
@@ -231,7 +231,7 @@ function checkStructureNode(
         level: 'error',
         rule: 'block.text.content',
         path: `${bp}.content`,
-        message: `content缺失`
+        message: `content 缺失`
       })
     }
     if (
@@ -242,7 +242,7 @@ function checkStructureNode(
         level: 'error',
         rule: 'block.list.items',
         path: `${bp}.items`,
-        message: `items缺失`
+        message: `items 缺失`
       })
     }
     if (b['type'] === 'image') {
@@ -251,7 +251,7 @@ function checkStructureNode(
           level: 'error',
           rule: 'block.image.content',
           path: `${bp}.content`,
-          message: `content缺失`
+          message: `content 缺失`
         })
       }
       if (!b['caption']) {
@@ -269,7 +269,7 @@ function checkStructureNode(
           level: 'error',
           rule: 'block.mermaid.content',
           path: `${bp}.content`,
-          message: `content缺失`
+          message: `content 缺失`
         })
       }
       if (!b['caption']) {
@@ -286,7 +286,7 @@ function checkStructureNode(
         level: 'error',
         rule: 'block.code.content',
         path: `${bp}.content`,
-        message: `content缺失`
+        message: `content 缺失`
       })
     }
 
@@ -370,7 +370,7 @@ function checkTableBlock(
           rule: 'block.table.rows',
           path: `${bp}.rows`,
           // 与主进程同一份说法：只说对不上
-          message: `rows=${text(b['rows'])} ≠ 正文行数 ${data.length}（含表头 ${data.length + 1}）`
+          message: `rows=${text(b['rows'])} ≠ 正文行数 ${data.length} · 含表头应为 ${data.length + 1}`
         })
       }
     }

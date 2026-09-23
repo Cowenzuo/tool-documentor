@@ -66,7 +66,7 @@ interface NodeFormProps {
  */
 function AddBlockMenu({ onPick }: { onPick: (type: string) => void }): JSX.Element {
   return (
-    <div className="tpl-add-menu" role="menu" aria-label="要加的内容块类型">
+    <div className="tpl-add-menu" role="menu" aria-label="内容块类型">
       {BLOCK_TYPE_NAMES.map((name) => (
         <button
           key={name}
@@ -168,7 +168,7 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
         </header>
         <div className="tpl-col-body">
           <p className="tpl-empty">
-            {doc ? '在中间选一个节点' : status === 'ready' ? '还没有打开结构模板' : '正在读取模板目录…'}
+            {doc ? '在中间选一个节点' : status === 'ready' ? '未打开结构模板' : '正在读取模板目录…'}
           </p>
         </div>
       </section>
@@ -213,7 +213,7 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
     declaredDefault !== '' && !props.styles.some((entry) => entry.uuid === declaredDefault)
   const styleChoices: Array<{ value: string; label: string }> = [
     // 悬挂那份先占一个位置：当前值得看得见，选了别的才换掉
-    ...(danglingDefault ? [{ value: declaredDefault, label: '找不到这份样式' }] : []),
+    ...(danglingDefault ? [{ value: declaredDefault, label: '未找到这份样式' }] : []),
     { value: '', label: '未指定' },
     ...[...props.styles]
       .sort((a, b) => a.name.localeCompare(b.name, 'zh'))
@@ -228,7 +228,7 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
     { value: 'heading', label: '层级标题' },
     { value: 'listSubTitle', label: '列表子标题' }
   ]
-  if (kind === 'unknown') kindOptions.push({ value: 'unknown', label: `（原值：${nodeType(node)}）` })
+  if (kind === 'unknown') kindOptions.push({ value: 'unknown', label: `原值：${nodeType(node)}` })
 
   /**
    * 类型也不是随便改的：同一父节点下不许混（见 templateDoc 的 `kindChangeProblem`），
@@ -238,7 +238,7 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
   const kindProblem =
     isRoot || kind === 'unknown' ? null : kindChangeProblem(doc, path, otherKind)
   const kindLocked = isRoot || kindProblem !== null
-  const kindWhy = isRoot ? '根节点是整篇文档，没有可选的类型' : (kindProblem ?? '')
+  const kindWhy = isRoot ? '根节点是整篇文档，无可选类型' : (kindProblem ?? '')
   /**
    * 已经混着的那一组：单改一个还是混着（程序会拦），所以给一个整组动作。
    * 合规的结构没有这个动作——它只在真出问题时出现。
@@ -286,13 +286,13 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
               <span className="tpl-switches" role="group" aria-label="用户在新工程里能做什么">
                 <CheckField
                   label={NODE_PERMISSION.copyable.name}
-                  tip={jsonTip('copyable', '缺省 false · 用户能不能把这一章连子树复制一份')}
+                  tip={jsonTip('copyable', '缺省 false · 用户能否把本章连同子树复制一份')}
                   checked={nodeSwitch(node, 'copyable')}
                   onChange={(checked) => props.onPatch({ copyable: checked })}
                 />
                 <CheckField
                   label={NODE_PERMISSION.deletable.name}
-                  tip={jsonTip('deletable', '缺省 false · 用户能不能裁掉这一章')}
+                  tip={jsonTip('deletable', '缺省 false · 用户能否裁掉本章')}
                   checked={nodeSwitch(node, 'deletable')}
                   onChange={(checked) => props.onPatch({ deletable: checked })}
                 />
@@ -300,7 +300,7 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
                   label={NODE_PERMISSION.allowContentBlocks.name}
                   tip={jsonTip(
                     'allowContentBlocks',
-                    '缺省 true · 内容块总闸：关掉整章内容块只读，一个字段都不能改'
+                    '缺省 true · 总闸：关掉后整章内容只读，用户不能修改任何字段'
                   )}
                   checked={nodeSwitch(node, 'allowContentBlocks')}
                   onChange={(checked) => props.onPatch({ allowContentBlocks: checked })}
@@ -309,7 +309,7 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
                   label={NODE_PERMISSION.allowLayoutEdit.name}
                   tip={jsonTip(
                     'allowLayoutEdit',
-                    '缺省 true · 关掉后集合、顺序、类型都固定，只能改各块的内容'
+                    '缺省 true · 关掉后集合、顺序、类型都固定，只能改各块内容'
                   )}
                   checked={nodeSwitch(node, 'allowLayoutEdit')}
                   onChange={(checked) => props.onPatch({ allowLayoutEdit: checked })}
@@ -344,7 +344,7 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
               }`}
               onClick={props.onGroupFix}
             >
-              把这一组改齐（都改成{groupFix.target === 'heading' ? '层级标题' : '列表子标题'}）
+              把该组改齐 · 都改成{groupFix.target === 'heading' ? '层级标题' : '列表子标题'}
             </button>
           </p>
         )}
@@ -360,7 +360,7 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
           label="说明"
           tip={jsonTip('description')}
           value={str(node['description'])}
-          placeholder="给作者与用户看的填写提示（可留空）"
+          placeholder="填写提示，作者与用户都看得到 · 可留空"
           rows={3}
           onChange={(value) => props.onPatch({ description: value })}
         />
@@ -390,7 +390,7 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
                   }
                 />
                 {danglingDefault && (
-                  <p className="tpl-note tpl-note-bad">默认样式找不到 · 可能已被删除，重选一份</p>
+                  <p className="tpl-note tpl-note-bad">默认样式未找到 · 请重新选择一份</p>
                 )}
                 {declaredDefault === '' && (
                   <p className="tpl-note">未指定默认样式 · 导出时先选一份</p>
@@ -408,10 +408,10 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
             <span className="tpl-count">{blocks.length} 块</span>
           </header>
           {!nodeSwitch(node, 'allowContentBlocks') && (
-            <p className="tpl-note">内容块开关关着：用户在新工程里不能往这个节点加内容块</p>
+            <p className="tpl-note">内容块开关已关：用户在新工程里不能往该节点加内容块</p>
           )}
           {blocks.length === 0 ? (
-            <p className="tpl-empty">这个节点还没有内容块</p>
+            <p className="tpl-empty">该节点无内容块</p>
           ) : (
             blocks.map((raw, index) => {
               const block = asObject(raw)
@@ -419,7 +419,7 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
                 return (
                   <p key={`bad-${index}`} className="tpl-issue tpl-issue-error">
                     <span className="tpl-issue-text">
-                      第 {index + 1} 个内容块不是对象，程序会丢弃这一块
+                      第 {index + 1} 个内容块不是对象，程序会丢弃该块
                     </span>
                   </p>
                 )
@@ -484,17 +484,17 @@ export function NodeForm(props: NodeFormProps): JSX.Element {
           head={blockMenuHead}          items={[
             {
               label: '上方插入',
-              title: '在这一块上面插入一块',
+              title: '上方插入一块',
               run: () => setInsertAt(blockMenu.payload!.index)
             },
             {
               label: '下方插入',
-              title: '在这一块下面插入一块',
+              title: '下方插入一块',
               run: () => setInsertAt(blockMenu.payload!.index + 1)
             },
             {
-              label: '复制这一块',
-              title: '把这一块连同内容与锁复制一份，插在它下面',
+              label: '复制该块',
+              title: '复制该块内容与锁，插在它下方',
               run: () => duplicateBlock(blockMenu.payload!.index)
             }
           ]}

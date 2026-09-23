@@ -173,7 +173,7 @@ export class ProjectService {
     const projectDir = dirname(dprojPath)
     const anchor = readAnchor(projectDir)
     if (!anchor) {
-      throw new ProjectServiceError(`无效的工程文件：${dprojPath}`)
+      throw new ProjectServiceError(`工程文件无效：${dprojPath}`)
     }
     const dbPath = dbPathOf(projectDir, anchor)
     if (!existsSync(dbPath)) {
@@ -309,7 +309,7 @@ export class ProjectService {
     if (node.isRoot()) throw new ProjectServiceError('根章节不能复制')
     if (!node.copyable) throw new ProjectServiceError('该章节不允许复制')
     const parent = node.parent
-    if (!parent) throw new ProjectServiceError('找不到上级章节')
+    if (!parent) throw new ProjectServiceError('未找到上级章节')
     // 动的是父节点的子级名单，快照存父节点
     return this.withSnapshot('复制章节', parent, null, () => {
       const clone = node.deepClone()
@@ -327,7 +327,7 @@ export class ProjectService {
     // 能不能裁只看这一个开关：块档位管的是块自己的改与删，不否决章节级动作。
     // 作者要护住整章，就把裁剪关掉（缺省就是关的）
     const parent = node.parent
-    if (!parent) throw new ProjectServiceError('找不到上级章节')
+    if (!parent) throw new ProjectServiceError('未找到上级章节')
     // 同复制：动的是父节点的子级名单，快照存父节点
     this.withSnapshot('裁剪章节', parent, null, () => {
       parent.removeChild(node)
@@ -372,14 +372,14 @@ export class ProjectService {
     const perms = blockPermissions(node)
     if (!perms.remove) throw new ProjectServiceError(perms.whyRemove)
     const existing = node.contentBlocks[input.index]
-    if (!existing) throw new ProjectServiceError('内容位置不对，请刷新后重试')
+    if (!existing) throw new ProjectServiceError('内容位置错误，请刷新后重试')
     // 锁在这里也要拦一道：界面按档位置灰只是提示，写入侧才是最后一道
     if (isBlockPinned(existing.lock)) {
       throw new ProjectServiceError(lockRefusal(existing.lock, 'remove'))
     }
     return this.withSnapshot('删除内容', node, null, () => {
       if (!node.removeContentBlockAt(input.index)) {
-        throw new ProjectServiceError('内容位置不对，请刷新后重试')
+        throw new ProjectServiceError('内容位置错误，请刷新后重试')
       }
       return node.contentBlocks.length
     })
@@ -391,7 +391,7 @@ export class ProjectService {
     if (!perms.move) throw new ProjectServiceError(perms.whyMove)
     const from = node.contentBlocks[input.from]
     const to = node.contentBlocks[input.to]
-    if (!from || !to) throw new ProjectServiceError('内容位置不对，请刷新后重试')
+    if (!from || !to) throw new ProjectServiceError('内容位置错误，请刷新后重试')
     // 位置归「排版」管：块档位不再管顺序，keep 块排版开着也挪得动
     this.withSnapshot('移动内容', node, null, () => {
       node.swapContentBlocks(input.from, input.to)
@@ -403,7 +403,7 @@ export class ProjectService {
     const perms = blockPermissions(node)
     if (!perms.editContent) throw new ProjectServiceError(perms.whyEditContent)
     const existing = node.contentBlocks[input.index]
-    if (!existing) throw new ProjectServiceError('内容位置不对，请刷新后重试')
+    if (!existing) throw new ProjectServiceError('内容位置错误，请刷新后重试')
     // 只读档连内容都不能改；换类型与表头另按形状那一关看
     if (existing.lock === 'readonly') {
       throw new ProjectServiceError(lockRefusal(existing.lock, 'edit'))
@@ -432,7 +432,7 @@ export class ProjectService {
     if (!perms.editContent) throw new ProjectServiceError(perms.whyEditContent)
     const existing = node.contentBlocks[input.index]
     if (!existing || existing.type !== 'image') {
-      throw new ProjectServiceError('目标不是图片块')
+      throw new ProjectServiceError('目标内容不是图片')
     }
     // 换图也是改内容：先拦下来，免得图片已经复制进工程目录却被拒绝
     if (existing.lock === 'readonly') {
@@ -456,7 +456,7 @@ export class ProjectService {
     const resolved = resolve(this.projectDirValue, input.relPath)
     const rel = relative(this.projectDirValue, resolved)
     if (rel.startsWith('..') || isAbsolute(rel)) {
-      throw new ProjectServiceError('非法路径：越出工程目录')
+      throw new ProjectServiceError('路径非法：超出工程目录')
     }
     mkdirSync(dirname(resolved), { recursive: true })
     writeFileSync(resolved, Buffer.from(input.base64, 'base64'))
@@ -469,7 +469,7 @@ export class ProjectService {
     const resolved = resolve(this.projectDirValue, relPath)
     const rel = relative(this.projectDirValue, resolved)
     if (rel.startsWith('..') || isAbsolute(rel)) {
-      throw new ProjectServiceError('非法路径：越出工程目录')
+      throw new ProjectServiceError('路径非法：超出工程目录')
     }
     // 兼容只记了文件名的历史数据：图片实际都放在工程 images/ 下
     const target = existsSync(resolved)
@@ -488,14 +488,14 @@ export class ProjectService {
   /** 撤销最近一步：把该步的"改动前"子树写回，整树交回界面替换 */
   undo(): HistoryResultDto {
     const entry = this.history.undo()
-    if (!entry) throw new ProjectServiceError('没有可撤销的编辑')
+    if (!entry) throw new ProjectServiceError('无可撤销编辑')
     return this.applyHistoryStep(entry.before)
   }
 
   /** 重做最近撤销的一步：写回该步的"改动后"子树 */
   redo(): HistoryResultDto {
     const entry = this.history.redo()
-    if (!entry) throw new ProjectServiceError('没有可重做的编辑')
+    if (!entry) throw new ProjectServiceError('无可重做编辑')
     return this.applyHistoryStep(entry.after)
   }
 
@@ -650,7 +650,7 @@ export class ProjectService {
     const tree = this.requireTree()
     const styleDef = this.managerValue.findStyleByUuid(input.styleUuid)
     if (!styleDef) {
-      throw new ProjectServiceError('找不到这份样式模板，可能已经被删除')
+      throw new ProjectServiceError('未找到该样式模板')
     }
     // 导出前先落库，保证导出内容与当前编辑一致；落库即封口，与保存同一口径
     this.store.save(tree)
@@ -709,7 +709,7 @@ export class ProjectService {
 
   private requireNode(nodeId: string): DocumentNode {
     const node = this.requireTree().nodeById(nodeId)
-    if (!node) throw new ProjectServiceError('找不到该章节，可能已被删除')
+    if (!node) throw new ProjectServiceError('未找到该章节')
     return node
   }
 
