@@ -30,5 +30,5 @@ export {
 export type { CompObjOptions } from './ole-streams'
 export { embedVsdxIntoDocx, docxBodyWidthPt } from './embed'
 export type { FigureInput, EmbedVsdxOptions, EmbedVsdxResult } from './embed'
-export { vsdxContentBbox, patchVsdxPageSize } from './vsdx'
+export { vsdxContentBbox, vsdxPageSize, patchVsdxPageSize } from './vsdx'
 export type { VsdxBbox } from './vsdx'

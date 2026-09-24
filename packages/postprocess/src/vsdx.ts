@@ -45,10 +45,13 @@ export async function vsdxContentBbox(vsdxData: Uint8Array | ArrayBuffer): Promi
   while ((m = shapeRe.exec(pageXml)) !== null) {
     const shape = m[0]
     const cells = new Map<string, [number, string]>()
-    const cellRe = /<Cell N="(PinX|PinY|Width|Height)" V="([\d.eE+-]+)" U="(\w+)"/g
+    // U 可以缺省：缺省表示按页面默认单位（mmd2vsdx 写出来的多数格就没有 U，那批是英寸）。
+    // **缺省不等于这个形状不算数** —— 曾经要求 U 必须存在，于是把整批缺省形状漏掉，
+    // 包围盒只剩带 MM 的那几个小形状，页面被压到 3mm，图在文档里成了 8.5pt 的小点。
+    const cellRe = /<Cell N="(PinX|PinY|Width|Height)" V="([\d.eE+-]+)"(?: U="(\w+)")?/g
     let cm: RegExpExecArray | null
     while ((cm = cellRe.exec(shape)) !== null) {
-      cells.set(cm[1]!, [parseFloat(cm[2]!), cm[3]!])
+      cells.set(cm[1]!, [parseFloat(cm[2]!), cm[3] ?? 'IN'])
     }
     if (!cells.has('PinX') || !cells.has('PinY') || !cells.has('Width') || !cells.has('Height')) continue
     const [cx, cxU] = cells.get('PinX')!
@@ -77,7 +80,8 @@ export async function vsdxContentBbox(vsdxData: Uint8Array | ArrayBuffer): Promi
 
 /**
  * 把 visio/pages/pages.xml 的 PageSheet 页面尺寸修补为内容包围盒（英寸）。
- * 只替换 PageSheet 内的首个该 Cell 值并保留原 U 单位（mmd2vsdx 写 IN）。
+ * **按格子自己的单位换算了再写**：格子可能写 MM/CM/PT（U 属性），
+ * 早先直接把英寸数写进去，`U="MM"` 的页面就被缩成 1/25.4（实测把 A4 页写成 4.7mm）。
  * 返回重新打包（DEFLATE）后的 vsdx 字节。
  */
 export async function patchVsdxPageSize(
@@ -90,9 +94,13 @@ export async function patchVsdxPageSize(
   if (!pageEntry) return new Uint8Array(vsdxData instanceof ArrayBuffer ? new Uint8Array(vsdxData) : vsdxData)
   let text = await pageEntry.async('string')
 
-  const fix = (cellName: string, value: number): void => {
-    const re = new RegExp(`(<Cell N="${cellName}" V=")[\\d.eE+-]*(")`)
-    text = text.replace(re, (_all, head: string, tail: string) => head + value.toFixed(3) + tail)
+  const fix = (cellName: string, inches: number): void => {
+    const re = new RegExp(`<Cell N="${cellName}" V="[\\d.eE+-]*"((?:\\s+U="\\w+")?)\\s*/>`)
+    text = text.replace(re, (_all, unitAttr: string) => {
+      const unit = (/U="(\w+)"/.exec(unitAttr)?.[1] ?? 'IN').toUpperCase()
+      const perUnit = UNIT_TO_INCH[unit] ?? 1
+      return `<Cell N="${cellName}" V="${(inches / perUnit).toFixed(3)}"${unitAttr}/>`
+    })
   }
   fix('PageWidth', widthIn)
   fix('PageHeight', heightIn)
@@ -105,6 +113,36 @@ export async function patchVsdxPageSize(
     platform: 'DOS'
   })
   return buf
+}
+
+/**
+ * 读 visio/pages/pages.xml 的页面尺寸（英寸）；读不到返回 null。
+ *
+ * **对象框的基准尺寸就是它**：页面 = 这张图的画布，72pt/in，乘出来就是图的自然尺寸。
+ * 不能用内容包围盒（那是形状范围，不含页边，也不是画布）。
+ */
+export async function vsdxPageSize(
+  vsdxData: Uint8Array | ArrayBuffer
+): Promise<VsdxBbox | null> {
+  let pagesXml: string
+  try {
+    const zip = await JSZip.loadAsync(vsdxData)
+    const pages = zip.file('visio/pages/pages.xml')
+    if (!pages) return null
+    pagesXml = await pages.async('string')
+  } catch {
+    return null
+  }
+  const cell = (name: string): number | null => {
+    const m = new RegExp(`<Cell N="${name}" V="([\\d.eE+-]+)"(?: U="(\\w+)")?`).exec(pagesXml)
+    if (!m) return null
+    const k = UNIT_TO_INCH[(m[2] ?? 'IN').toUpperCase()]
+    return k !== undefined ? parseFloat(m[1]!) * k : null
+  }
+  const widthIn = cell('PageWidth')
+  const heightIn = cell('PageHeight')
+  if (widthIn === null || heightIn === null || widthIn <= 0 || heightIn <= 0) return null
+  return { widthIn, heightIn }
 }
 
 /** 从 vsdx 字节读取 page1.xml（测试辅助） */
