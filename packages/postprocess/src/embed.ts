@@ -12,12 +12,13 @@
  *   - 占位段：文本以 "[Mermaid" 开头的段落（序列化器输出的 [Mermaid 图表: …] 占位）；
  *   槽位 k ↔ figures[k]，调用方必须按文档顺序构造 figures；
  *   - 每个槽位取前一图题注（向后扫首个非空段 + 可选样式 ID 限定）用于诊断；
- *   - 尺寸：显示宽度 = 正文宽（sectPr 推导）留 10pt 余量；高度按内容包围盒比例；
+ *   - 尺寸：**用图的自然尺寸**（vsdx 页面 × 72pt），只在超过可用宽/高时**等比缩小**，绝不放大；
+ *     比例一律取页面真实比例（不夹、不猜），并锁 `aspectratio="t"`；
  *     同时把 vsdx 页面尺寸修正为包围盒（首选项 patchPageSize，默认开启）。
  */
 import JSZip from 'jszip'
 import { makeVisioOle } from './ole-streams'
-import { vsdxContentBbox, patchVsdxPageSize } from './vsdx'
+import { vsdxContentBbox, vsdxPageSize, patchVsdxPageSize } from './vsdx'
 
 const NS_W10 = 'urn:schemas-microsoft-com:office:word'
 
@@ -38,12 +39,9 @@ export interface EmbedVsdxOptions {
   figureStyleId?: string
   /** 是否修补 VSDX 页面尺寸为内容包围盒（默认 true） */
   patchPageSize?: boolean
-  /** 内容比例上下限（默认 0.1 / 3.0） */
-  ratioMin?: number
-  ratioMax?: number
-  /** 最大对象高度 pt（默认 550） */
+  /** 最大对象高度 pt（默认 550）；自然高度超了才等比缩小 */
   maxHeightPt?: number
-  /** 宽度余量 pt（默认 10） */
+  /** 宽度余量 pt（默认 10）；正文宽减掉它才是可用宽度 */
   widthMarginPt?: number
 }
 
@@ -79,8 +77,6 @@ export async function embedVsdxIntoDocx(
 
   const bodyW = docxBodyWidthPt(docXml)
   const maxWidth = bodyW - (options.widthMarginPt ?? 10)
-  const ratioMin = options.ratioMin ?? 0.1
-  const ratioMax = options.ratioMax ?? 3.0
   const maxHeight = options.maxHeightPt ?? 550
 
   // ---- 定位占位段与图题注段 ----
@@ -120,8 +116,12 @@ export async function embedVsdxIntoDocx(
   interface SlotPlan {
     holderIndex: number
     figure: FigureInput
+    /** 对象框（写进 v:shape 的显示尺寸，超出可用宽高时已等比缩小） */
     widthPt: number
     heightPt: number
+    /** 图的自然尺寸（未缩放），写进 w:dxaOrig/dyaOrig：Word 的「原始大小」认它 */
+    naturalWPt: number
+    naturalHPt: number
     oleBytes: Uint8Array
     previewExt?: string
     previewBytes?: Uint8Array
@@ -147,19 +147,30 @@ export async function embedVsdxIntoDocx(
     }
     const oleBytes = makeVisioOle(vsdxBytes)
 
-    let ratio = bbox ? Math.min(Math.max(bbox.heightIn / bbox.widthIn, ratioMin), ratioMax) : 0.75
-    let width = maxWidth
-    let height = width * ratio
-    if (height > maxHeight) {
-      height = maxHeight
-      width = height / ratio
-    }
+    // 对象框 = 图的**自然尺寸**（页面 × 72pt）：放不下才等比缩小，**绝不放大**。
+    //
+    // 三条都是踩过的坑（258 张图里 64 张被拉变形的那个 bug）：
+    //   1. 比例必须取**页面**的真实比例。旧实现取内容包围盒的比例并夹在 [0.1, 3.0]，
+    //      求不出还退回 0.75 —— 框的比例一旦与页面不符，Word 就按框把对象非等比拉伸，
+    //      线宽、箭头、字号全跟着变形（"像缺了点东西"就是这么来的）；
+    //   2. 宽度不能一律顶满正文宽：巴掌大的小图会被放大到 8.79 倍；
+    //   3. 页面尺寸读不出来时退回包围盒（仍是真实比例），再不行才用 A4 横的一半兜底。
+    const pageIn = await vsdxPageSize(vsdxBytes)
+    const baseW = pageIn?.widthIn ?? bbox?.widthIn ?? 6
+    const baseH = pageIn?.heightIn ?? bbox?.heightIn ?? 4.5
+    const naturalW = baseW * 72
+    const naturalH = baseH * 72
+    const scale = Math.min(1, maxWidth / naturalW, maxHeight / naturalH)
+    const width = naturalW * scale
+    const height = naturalH * scale
 
     plans.push({
       holderIndex: hi,
       figure: fig,
       widthPt: width,
       heightPt: height,
+      naturalWPt: naturalW,
+      naturalHPt: naturalH,
       oleBytes,
       previewExt: fig.previewExt,
       previewBytes: fig.preview
@@ -218,7 +229,17 @@ export async function embedVsdxIntoDocx(
 
     const shapeId = `_x0000_i${2000 + k}`
     const objectId = String(maxObjId + k)
-    const block = buildObjectBlock(shapeId, objectId, ridOle, plan.widthPt, plan.heightPt, ridImg, plan.previewExt)
+    const block = buildObjectBlock(
+      shapeId,
+      objectId,
+      ridOle,
+      plan.widthPt,
+      plan.heightPt,
+      plan.naturalWPt,
+      plan.naturalHPt,
+      ridImg,
+      plan.previewExt
+    )
     const m = paras[plan.holderIndex]!
     // w:object 是 run 级元素，必须包在 w:r 内（否则 Word 不激活 OLE）；对象段落套 figure 样式并居中
     const figStyle = options.figureStyleId
@@ -307,13 +328,23 @@ export function docxBodyWidthPt(docXml: string): number {
   return (parseInt(mw[1]!, 10) - parseInt(ml[1]!, 10) - parseInt(mr[1]!, 10)) / 20.0
 }
 
-/** 构造 VML OLE 对象块（含局部 w10 命名空间声明，与旧版一致） */
+/**
+ * 构造 VML OLE 对象块（含局部 w10 命名空间声明，与旧版一致）。
+ *
+ * 三处尺寸属性都是"别再改回去"的：
+ *   - `w:dxaOrig/w:dyaOrig`：对象的**原始尺寸**（twips = pt×20），Word 的「原始大小」按它算；
+ *     不写的话 Word 拿显示框当原始尺寸，重置大小就对不上（原生嵌入件里就有这两个属性）；
+ *   - `aspectratio="t"`：**锁住宽高比**。写 `f` 等于允许 Word 非等比拉伸对象 ——
+ *     框的比例只要和页面差一点，图就被拉歪（这是 258 张图里 64 张变形的直接原因）。
+ */
 function buildObjectBlock(
   shapeId: string,
   objectId: string,
   ridOle: string,
   widthPt: number,
   heightPt: number,
+  naturalWPt: number,
+  naturalHPt: number,
   ridImg: string | undefined,
   imgExt?: string
 ): string {
@@ -322,13 +353,16 @@ function buildObjectBlock(
     : ''
   // imgExt 仅用于将来扩展（如 raster 预览的 fill 类型）；当前 imagedata 即可
   void imgExt
+  const twips = (pt: number): number => Math.round(pt * 20)
   return (
-    '<w:object xmlns:w10="' + NS_W10 + '">' +
+    '<w:object xmlns:w10="' + NS_W10 + '" ' +
+    `w:dxaOrig="${twips(naturalWPt)}" w:dyaOrig="${twips(naturalHPt)}">` +
     `<v:shape id="${shapeId}" o:spt="75" type="#_x0000_t75" ` +
-    `style="height:${heightPt.toFixed(1)}pt;width:${widthPt.toFixed(1)}pt;" ` +
+    // 两位小数：图的尺寸可能是几 pt（空图/微型图），只留一位会把宽高比舍歪（8pt 上一位=0.6%）
+    `style="height:${heightPt.toFixed(2)}pt;width:${widthPt.toFixed(2)}pt;" ` +
     'o:ole="t" filled="f" o:preferrelative="t" stroked="f" coordsize="21600,21600">' +
     '<v:path/><v:fill on="f" focussize="0,0"/><v:stroke on="f"/>' + imagedata +
-    '<o:lock v:ext="edit" aspectratio="f"/>' +
+    '<o:lock v:ext="edit" aspectratio="t"/>' +
     '<w10:wrap type="none"/><w10:anchorlock/>' +
     '</v:shape>' +
     `<o:OLEObject Type="Embed" ProgID="Visio.Drawing.15" ShapeID="${shapeId}" ` +
