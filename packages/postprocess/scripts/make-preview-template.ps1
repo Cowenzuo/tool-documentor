@@ -22,10 +22,12 @@ $outTs = Join-Path $root 'packages\postprocess\src\preview-template.ts'
 New-Item -ItemType Directory -Force $resDir | Out-Null
 Get-ChildItem $resDir -Filter 'preview-template*.emf' -ErrorAction SilentlyContinue | Remove-Item -Force
 
-$aspects = @(0.5, 0.667, 1.0, 1.5, 2.0)
-# 尺寸档：按 √2 步长铺满 0.5in ~ 16in 的自然长边（像素 = 英寸 × 96）。
-# 运行时目标 = 画布 × 1.25（LogicalDpi 固定 120、参考 96），挑最接近的一档 ⇒ 铺满误差 ≤ ~10%。
-$longSides = @(48, 68, 96, 135, 192, 272, 384, 543, 768, 1085, 1536)
+# 比例档：**按几何铺开**，2 倍步长覆盖 1:32 ~ 32:1（11 档）。
+# 不是随手挑的几个数：预览要多大、什么比例，只有消费端（documentor）知道，生产端只给 .vsdx；
+# 所以这里要能覆盖任意画布比例 ⇒ 最坏情况（落在两档之间）单轴铺满 ≈ 1/√2 = 0.71，而不是 0.09。
+$aspects = @(0.03125, 0.0625, 0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0)
+# 尺寸档：长边像素，√2 步长从 24px（≈0.17in，够最小的对象框）到 1085px（≈7.5in，够最高的对象框）。
+$longSides = @(24, 34, 48, 68, 96, 136, 192, 272, 384, 543, 768, 1085)
 
 # 估一行文字的像素宽度：汉字约等于字号，拉丁约 0.55 倍
 function Get-TextWidth([string]$Text, [double]$FontSize) {

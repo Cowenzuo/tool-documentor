@@ -228,6 +228,9 @@ function setLogicalDpi(emf: Uint8Array, lx: number, ly: number): void {
  * 挑模板：目标是"画面自然尺寸 ≈ **对象框**尺寸"（Word 按自然尺寸摆放），
  * 且两轴都不超过 对象框 × 144dpi（保证不被裁）；在这个集合里挑比例最接近画布的一档。
  * 没给对象框时退回按画布挑。
+ *
+ * 模板集是**消费端自己的产物**（比例为 2 倍步长 1:32~32:1、长边 √2 步长 24~1085px）：
+ * 预览该多大、什么比例，只有这边知道，生产端只负责给 .vsdx。
  */
 export function pickTemplate(
   canvasWIn: number,
