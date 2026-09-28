@@ -122,7 +122,7 @@ OLE 激活路径下，Visio 打开的是"还没解析 master 继承"的文档：
 4. 每条连线有 `Section N='Geometry'`（**不判越界**：连线的 Geometry 坐标系与节点不同、
    `Width/Height` 可为负表示方向，连 Visio 自己的产物都不满足"落在框内"）。
 
-本机脚本 `temp/check-vsdx-materialized.cjs <x.vsdx>` 就是按这四条写的，实测对照：
+自检就按这四条写（解 vsdx 的 `visio/pages/page1.xml` 逐 shape 数 Section 即可），实测对照：
 
 | 输入 | 结果 |
 | --- | --- |
@@ -144,14 +144,12 @@ OLE 激活路径下，Visio 打开的是"还没解析 master 继承"的文档：
 
 ## 参考文件
 
-| 文件 | 是什么 |
+本文的对照是排查期的一次性产物，脚本与样本都放在本机 `temp/`（不入库，已按约定清空）。
+需要复现时照下面的口径重写即可：
+
+| 要复现什么 | 怎么做 |
 | --- | --- |
-| `temp/embed-A-blockbeta.vsdx` / `embed-B-complex.vsdx` | 工具产出（后者含 8 节点 + 9 连线） |
-| `temp/bb-Visio重存.vsdx` / `complex-Visio重存.vsdx` | 同上，经 Visio 重存后的"修复态" |
-| `temp/bb-嵌入件.vsdx` | 从导出的 docx 里抠出来的内嵌件 |
-| `temp/shape-dump.cjs` | 打印某个 shape 的完整 XML（含 pages.xml / windows.xml） |
-| `temp/sections-of.cjs` | 列出每个 shape 有哪些 Section，并统计 |
-| `temp/check-vsdx-materialized.cjs` | 上面四条判据的自检 |
-| `temp/visio-resave.ps1` | Visio 读写打开 + SaveAs（复刻"手动粘贴时的重算"），可顺带导首帧图 |
-| `temp/visio-render-compare.ps1` | 两份 vsdx 交给 Visio 渲染并比 PNG |
-| `temp/diff-vsdx.cjs` | 两份 vsdx 逐部件差异 |
+| 看形状写实度 | 解 vsdx 的 `visio/pages/page1.xml`，逐 shape 数 `Section N='Geometry'` / `'Connection'` 的行数 |
+| 看"重存后的修复态" | 用 Visio COM 只读打开再 `SaveAs`，与生成侧产物逐部件比 |
+| 比两份 vsdx | 两边都当 zip 解，逐部件比字节 |
+| 比首帧渲染 | 交给 Visio `Page.Export` 导出 PNG 后比像素 |
