@@ -16,8 +16,10 @@
  *     半嵌半不嵌的文档比一篇一致文本更难解释，所以这里不做部分提交。
  *     此时 `failed` 为空，调用方只有靠 `unavailable` 才知道 total 张全都没嵌入。
  *
- * 预览图：本工程不产出、也不消费（上游已决定不自产，见其 `docs/待讨论功能备忘.md` P-1）。
- * 嵌入时 `preview` 一律不传 → OLE 对象有效、Word 显示对象图标，不报错、不中断。
+ * 预览图：**由嵌入层自产**（2026-09 修订，见 docs/WORD处理经验/07）。
+ *   上游没提供预览时，`embedVsdxIntoDocx` 会自产一张"带示意文字"的 EMF —— 预览图是 Word 嵌入才需要的
+ *   东西，且与对象框/画布强相关，所以它归嵌入层。若将来上游要提供预览，走 `FigureConvertResult.previewBase64`
+ *   这条通道（EMF，嵌入层会校验并按自洽式校正声明尺寸）。
  */
 import { copyFileSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { normalizeMermaidSource } from '@documentor/core'
@@ -33,6 +35,11 @@ import type { WriteInstruction } from './instructions'
 export interface FigureConvertResult {
   ok: boolean
   vsdxBase64?: string
+  /**
+   * 可选的预览件（EMF，base64）。不提供时嵌入层会自产一张带示意文字的件。
+   * 提供了就必须是 EMF：嵌入层会按"声明尺寸 = 画布 × 逻辑dpi ÷ 参考dpi"校正后才用。
+   */
+  previewBase64?: string
   error?: string
   /**
    * 转换服务整体不可用（没在运行、契约版本不符、连接类失败…）。
@@ -85,6 +92,8 @@ export interface FigurePipelineResult {
 interface Slot {
   name: string
   vsdx?: Uint8Array
+  /** 上游可选提供的预览件（EMF）；无则由嵌入层自产 */
+  preview?: Uint8Array
 }
 
 /** 整体不可用时的统一提示（文案口径见 产品文案口径.md 第 7 条：不说依赖名与安装指引） */
@@ -156,7 +165,10 @@ export async function attachFiguresToDocx(
       }
       const bytes = Uint8Array.from(Buffer.from(r.vsdxBase64, 'base64'))
       stats.converted++
-      slots.push({ name, vsdx: bytes })
+      const preview = r.previewBase64
+        ? Uint8Array.from(Buffer.from(r.previewBase64, 'base64'))
+        : undefined
+      slots.push({ name, vsdx: bytes, preview })
     } catch (err) {
       stats.failed.push({
         caption: fig.caption || `图${i + 1}`,
@@ -170,7 +182,9 @@ export async function attachFiguresToDocx(
   const docxBytes = readFileSync(docxPath)
   const figuresForEmbed: FigureInput[] = slots.map((s) => ({
     name: s.name,
-    vsdx: s.vsdx
+    vsdx: s.vsdx,
+    preview: s.preview,
+    previewExt: s.preview ? 'emf' : undefined
   }))
   const embedResult = await embedVsdxIntoDocx(docxBytes, figuresForEmbed, {
     captionStyleId: options.captionStyleId ?? styleDef.styleMap['figure.caption'] ?? undefined,

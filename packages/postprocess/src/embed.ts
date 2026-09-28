@@ -14,11 +14,12 @@
  *   - 每个槽位取前一图题注（向后扫首个非空段 + 可选样式 ID 限定）用于诊断；
  *   - 尺寸：**用图的自然尺寸**（vsdx 页面 × 72pt），只在超过可用宽/高时**等比缩小**，绝不放大；
  *     比例一律取页面真实比例（不夹、不猜），并锁 `aspectratio="t"`；
- *     同时把 vsdx 页面尺寸修正为包围盒（首选项 patchPageSize，默认开启）。
+ *     页面尺寸**默认不动**（pages.xml 是生成侧的权威画布）；需要时用 patchPageSize 显式开启。
  */
 import JSZip from 'jszip'
 import { makeVisioOle } from './ole-streams'
-import { vsdxContentBbox, vsdxPageSize, patchVsdxPageSize } from './vsdx'
+import { vsdxContentBbox, vsdxPageSize, patchVsdxPageSize, stripVsdxThumbnail } from './vsdx'
+import { makePreviewEmf, normalizePreviewEmf, declaredEqualsFrame } from './preview'
 
 const NS_W10 = 'urn:schemas-microsoft-com:office:word'
 
@@ -37,7 +38,7 @@ export interface EmbedVsdxOptions {
   captionStyleId?: string
   /** figure（图片/图形所在段落）的样式 ID；缺省不加 pStyle（仅居中） */
   figureStyleId?: string
-  /** 是否修补 VSDX 页面尺寸为内容包围盒（默认 true） */
+  /** 是否修补 VSDX 页面尺寸为内容包围盒（默认 false：pages.xml 是生成侧给的权威画布） */
   patchPageSize?: boolean
   /** 最大对象高度 pt（默认 550）；自然高度超了才等比缩小 */
   maxHeightPt?: number
@@ -142,9 +143,13 @@ export async function embedVsdxIntoDocx(
 
     let vsdxBytes = fig.vsdx
     const bbox = await vsdxContentBbox(vsdxBytes)
-    if (bbox && options.patchPageSize !== false) {
+    // 页面尺寸默认**不改**（pages.xml 的 PageWidth/PageHeight 是生成侧给的权威画布，见 docs/06）：
+    //   内容包围盒只由"四个格子齐全"的形状算得，实测把 77 个形状的图纸算成其中一个形状的大小；
+    //   页面被压小后对象框跟着缩水，图纸内容也会落到页面外。要修补得显式开 patchPageSize。
+    if (bbox && options.patchPageSize === true) {
       vsdxBytes = await patchVsdxPageSize(vsdxBytes, bbox.widthIn, bbox.heightIn)
     }
+    vsdxBytes = await stripVsdxThumbnail(vsdxBytes)
     const oleBytes = makeVisioOle(vsdxBytes)
 
     // 对象框 = 图的**自然尺寸**（页面 × 72pt）：放不下才等比缩小，**绝不放大**。
@@ -156,6 +161,10 @@ export async function embedVsdxIntoDocx(
     //   2. 宽度不能一律顶满正文宽：巴掌大的小图会被放大到 8.79 倍；
     //   3. 页面尺寸读不出来时退回包围盒（仍是真实比例），再不行才用 A4 横的一半兜底。
     const pageIn = await vsdxPageSize(vsdxBytes)
+    if (!pageIn) {
+      // 读不出画布尺寸不是致命：按 A4 横的一半估。但必须报出来——框与预览尺寸都建立在这个值上。
+      warnings.push(`「${fig.name}」读不出画布尺寸，对象框与预览尺寸按 6 × 4.5in 估算`)
+    }
     const baseW = pageIn?.widthIn ?? bbox?.widthIn ?? 6
     const baseH = pageIn?.heightIn ?? bbox?.heightIn ?? 4.5
     const naturalW = baseW * 72
@@ -163,6 +172,31 @@ export async function embedVsdxIntoDocx(
     const scale = Math.min(1, maxWidth / naturalW, maxHeight / naturalH)
     const width = naturalW * scale
     const height = naturalH * scale
+
+    // 预览件（见 docs/WORD处理经验/06 与 07）：
+    //   · 有 ⇒ 只把"声明尺寸"校正成自洽值（画面与其它字节一律不动）；
+    //   · 没有 ⇒ 自产一张带示意文字的件（模板 + 自洽的声明尺寸）；
+    //   · 护栏：声明尺寸不得等于对象框尺寸，相等必被 Word 撑大。
+    let previewExt = fig.previewExt
+    let previewBytes = fig.preview
+    /** 自产件与可解析的 EMF 走同一条校正/护栏路径；PNG/JPG 原样嵌入 */
+    let emfPreview = previewBytes === undefined || previewExt === undefined || previewExt === 'emf'
+    if (previewBytes === undefined) {
+      previewBytes = makePreviewEmf(baseW, baseH)
+      previewExt = 'emf'
+    } else if (emfPreview) {
+      const fixed = normalizePreviewEmf(previewBytes, baseW, baseH)
+      if (fixed) previewBytes = fixed
+      else {
+        warnings.push(`「${fig.name}」预览件不是可解析的 EMF（缺头或 EMF+ 注释），按原样嵌入`)
+        emfPreview = false
+      }
+    }
+    if (emfPreview && previewBytes && declaredEqualsFrame(previewBytes, width, height)) {
+      warnings.push(
+        `「${fig.name}」预览图的声明尺寸与对象框相等，Word 更新对象时会撑大框（见 docs/WORD处理经验/06）`
+      )
+    }
 
     plans.push({
       holderIndex: hi,
@@ -172,8 +206,8 @@ export async function embedVsdxIntoDocx(
       naturalWPt: naturalW,
       naturalHPt: naturalH,
       oleBytes,
-      previewExt: fig.previewExt,
-      previewBytes: fig.preview
+      previewExt,
+      previewBytes
     })
 
     // 名称一致性诊断（与旧版 miss 列表同语义）
