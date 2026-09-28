@@ -8,10 +8,13 @@
  *      而替换图（Visio 现渲的那张）的声明尺寸是：`画布 × (本机逻辑dpi ÷ 本机物理dpi)`；
  *   2. 代进去 ⇒ 只要 **声明尺寸 = 画布 × (LogicalDpi ÷ 参考设备dpi)** 成立，本机 dpi 全部相消，框不变；
  *   3. 额外护栏：**声明尺寸不得等于对象框尺寸**（实测相等必被撑大）。
- *      因此模板里的 dpi 组刻意取比值 120/96 = 1.25 ≠ 1。
+ *
+ * 画面本身**按对象算，不用模板**（2026-09-28 改）：比例与尺寸必须贴合对象框，
+ * 靠"预生成档位"只能近似（2 倍步长最坏铺满 0.59 ✗），而这里几何是确定的：
+ *   画面像素 = 对象框in × 参考dpi、字号 = 画面短边 × 5.5%、内缩 = 短边 × 12% …
+ * 记录按 GDI+ 自己产出的文件逐字段对齐（rcl 用空矩形、串不加 NUL、offDx = 76 + 2n），
+ * 否则 GDI+ 解析会直接报 "A generic error occurred in GDI+"。
  */
-import { PREVIEW_TEMPLATES } from './preview-template'
-import type { PreviewTemplate } from './preview-template'
 
 /** 模板自带的 dpi 组：参考设备 96dpi、LogicalDpi 120 ⇒ 比值 1.25 */
 export const TEMPLATE_REF_DPI = 96
@@ -158,103 +161,7 @@ export function normalizePreviewEmf(emf: Uint8Array, canvasWIn: number, canvasHI
   return out
 }
 
-/** 运行时使用的参考设备 dpi（D 组实验验证过 96/144 都安全，这里统一用 144） */
-export const PREVIEW_REF_DPI = 144
-
-/**
- * 自产"带示意文字"的预览件 —— 布局按公式算，不做试凑。
- *
- * 目标（两条硬约束同时成立）：
- *   ① 画面完整不被裁 + 铺满对象框 ⇒ **画面自然尺寸 = 声明尺寸**；
- *   ② 帧不移动 ⇒ **声明尺寸 = 画布 × (LogicalDpi ÷ 参考dpi)**（自洽式）。
- *
- * 取 ref = 144dpi、L = 画面像素 ÷ 画布in，则：
- *   声明 = 画布 × L ÷ 144 = 画面像素 ÷ 144 = 画面自然尺寸   ⇒ ① 成立（按构造相等）
- *   且声明 = 画布 × L ÷ ref 本身就是自洽式                  ⇒ ② 成立
- * 两个 dpi 都落在已验证的常规区间（ref 144 属 D2 组，L 实测 90~122 与基准组 120 同档），
- * 不走"按对象把 dpi 改到 64 以下"那条会把对象框撑大的路。
- */
-export function makePreviewEmf(
-  canvasWIn: number,
-  canvasHIn: number,
-  frameWpt?: number,
-  frameHpt?: number
-): Uint8Array {
-  const t = pickTemplate(canvasWIn, canvasHIn, frameWpt, frameHpt)
-  const wIn = Math.max(canvasWIn, 0.05)
-  const hIn = Math.max(canvasHIn, 0.05)
-  const out = new Uint8Array(decodeBase64(t.base64))
-  const view = new DataView(out.buffer, out.byteOffset, out.byteLength)
-  // 参考设备改成 144dpi（像素与毫米自洽：1440/254mm、1080/190.5mm）
-  view.setInt32(72, 1440, true)
-  view.setInt32(76, 1080, true)
-  view.setInt32(80, 254, true)
-  view.setInt32(84, 191, true)
-  // 分轴 LogicalDpi：使 声明尺寸 = 画面自然尺寸
-  const lx = Math.max(1, Math.round(t.pxW / wIn))
-  const ly = Math.max(1, Math.round(t.pxH / hIn))
-  view.setInt32(24, 0, true)
-  view.setInt32(28, 0, true)
-  view.setInt32(32, Math.round(((wIn * lx) / PREVIEW_REF_DPI) * 2540), true)
-  view.setInt32(36, Math.round(((hIn * ly) / PREVIEW_REF_DPI) * 2540), true)
-  setLogicalDpi(out, lx, ly)
-  return out
-}
-
-/** 改写 EMF+ 头注释里的 LogicalDpiX/Y（分轴，常规值） */
-function setLogicalDpi(emf: Uint8Array, lx: number, ly: number): void {
-  const view = new DataView(emf.buffer, emf.byteOffset, emf.byteLength)
-  let off = view.getUint32(4, true)
-  while (off + 8 <= emf.length) {
-    const type = view.getUint32(off, true)
-    const size = view.getUint32(off + 4, true)
-    if (size < 8 || off + size > emf.length) break
-    if (type === 70 && view.getUint16(off + 16, true) === 0x4001) {
-      view.setUint32(off + 36, lx, true)
-      view.setUint32(off + 40, ly, true)
-      return
-    }
-    if (type === 14) break
-    off += size
-  }
-}
-
-/**
- * 挑模板：比例最接近画布比例、且**模板自然尺寸最接近 画布 × 1.25**。
- *
- * 为什么目标是 画布 × 1.25：这样 LogicalDpi = 画面像素 ÷ 画布 ≈ 120，与基准组（L=120、ref=96）
- * 同一档；配合运行时把参考设备设成 144，声明尺寸恰好等于画面自然尺寸（铺满且不裁），
- * 且两个 dpi 都落在 D 组验证过的常规区间内。
- */
-export function pickTemplate(
-  canvasWIn: number,
-  canvasHIn: number,
-  frameWpt?: number,
-  frameHpt?: number
-): PreviewTemplate {
-  const ratio = TEMPLATE_LOGICAL_DPI / TEMPLATE_REF_DPI // 1.25
-  const wantAspect = canvasHIn > 0 ? canvasWIn / canvasHIn : 1
-  const targetW = Math.max(canvasWIn, 0.05) * ratio
-  const frameWIn = frameWpt !== undefined ? frameWpt / 72 : undefined
-  const frameHIn = frameHpt !== undefined ? frameHpt / 72 : undefined
-  let best = PREVIEW_TEMPLATES[0]!
-  let bestScore = Number.POSITIVE_INFINITY
-  for (const t of PREVIEW_TEMPLATES) {
-    // 比例差权重高（比例不对画面变形），尺寸差次之
-    let score = 3 * Math.abs(Math.log(t.aspect / wantAspect)) + Math.abs(Math.log(t.naturalWIn / targetW))
-    // 护栏：声明尺寸 = 画面自然尺寸（= px ÷ 144）。若它落在对象框的 ±5% 内，
-    // 就与"声明 = 框"那种会撑大的情形太接近 ⇒ 重罚，换一档（相邻档差 ≈19%，能自然躲开）。
-    const declW = t.pxW / PREVIEW_REF_DPI
-    const declH = t.pxH / PREVIEW_REF_DPI
-    if (frameWIn !== undefined && Math.abs(declW / frameWIn - 1) < 0.05) score += 10
-    if (frameHIn !== undefined && Math.abs(declH / frameHIn - 1) < 0.05) score += 10
-    if (score < bestScore) {
-      bestScore = score
-      best = t
-    }
-  }
-  return best
-}
+export { PREVIEW_REF_DPI, PREVIEW_LOGICAL_DPI, makePreviewEmf, previewGeometry } from './preview-emf'
 
 export function declaredEqualsFrame(
   emf: Uint8Array,
@@ -267,4 +174,35 @@ export function declaredEqualsFrame(
   const dw = metrics.declaredWIn * 72
   const dh = metrics.declaredHIn * 72
   return Math.abs(dw - frameWidthPt) <= tolerancePt || Math.abs(dh - frameHeightPt) <= tolerancePt
+}
+
+/** dpi 允许区间：参考设备与逻辑 dpi 都必须落在里面，且**两轴必须一致** */
+export const PREVIEW_DPI_MIN = 96
+export const PREVIEW_DPI_MAX = 160
+
+/**
+ * 护栏：dpi 是否越出常规区间、或两轴不一致（越界 ⇒ Word 会认为尺寸需要重算 ⇒ 双击后对象框被改）。
+ *
+ * 为什么要有这条：曾经（2026-09）为了满足"画面自然尺寸 = 声明尺寸"，把 LogicalDpi 当成自由变量取
+ * `画面像素 ÷ 画布in`，扁图上算出 57 / 600 / 1992 这种值 —— 自洽式仍然成立、本地自检全绿，
+ * 只有人双击后才发现框被放大 ✗。**dpi 不是可调量，它是格式的常规字段**，所以在这里硬卡住。
+ * 两轴一致这条同样重要：参考设备写成 1440×1080px / 254×191mm 时，横轴 144.0、纵轴 143.6，
+ * 声明尺寸按 144 算 ⇒ 纵轴对不上（0.27%），同一类隐患。
+ */
+export function previewDpiOutOfBand(emf: Uint8Array): { ref: number; lx: number; ly: number } | null {
+  const m = readPreviewMetrics(emf)
+  if (!m || m.logicalDpi === null || m.logicalDpiY === null) return null
+  const band = (v: number): boolean => v >= PREVIEW_DPI_MIN && v <= PREVIEW_DPI_MAX
+  const skew = (a: number, b: number): boolean => Math.abs(a - b) / Math.max(a, 1) > 0.001
+  if (
+    band(m.refDpi) &&
+    band(m.refDpiY) &&
+    band(m.logicalDpi) &&
+    band(m.logicalDpiY) &&
+    !skew(m.refDpi, m.refDpiY) &&
+    !skew(m.logicalDpi, m.logicalDpiY)
+  ) {
+    return null
+  }
+  return { ref: m.refDpi, lx: m.logicalDpi, ly: m.logicalDpiY }
 }

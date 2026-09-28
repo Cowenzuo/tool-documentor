@@ -39,11 +39,12 @@ export {
   checkPreviewConsistency,
   normalizePreviewEmf,
   makePreviewEmf,
-  pickTemplate,
+  previewGeometry,
   declaredEqualsFrame,
+  previewDpiOutOfBand,
+  PREVIEW_DPI_MIN,
+  PREVIEW_DPI_MAX,
   PREVIEW_REF_DPI,
-  TEMPLATE_REF_DPI,
-  TEMPLATE_LOGICAL_DPI
+  PREVIEW_LOGICAL_DPI
 } from './preview'
 export type { PreviewMetrics } from './preview'
-export type { PreviewTemplate } from './preview-template'
