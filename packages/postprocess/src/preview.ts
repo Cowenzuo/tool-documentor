@@ -176,22 +176,33 @@ export function declaredEqualsFrame(
   return Math.abs(dw - frameWidthPt) <= tolerancePt || Math.abs(dh - frameHeightPt) <= tolerancePt
 }
 
-/** dpi 允许区间：参考设备与逻辑 dpi 都必须落在里面，且两轴之差不超过 10% */
+/** dpi 允许区间：参考设备与逻辑 dpi 都必须落在里面，且**两轴必须一致** */
 export const PREVIEW_DPI_MIN = 96
 export const PREVIEW_DPI_MAX = 160
 
 /**
- * 护栏：dpi 是否越出常规区间（越界 ⇒ Word 会认为尺寸需要重算 ⇒ 双击后对象框被改）。
+ * 护栏：dpi 是否越出常规区间、或两轴不一致（越界 ⇒ Word 会认为尺寸需要重算 ⇒ 双击后对象框被改）。
  *
  * 为什么要有这条：曾经（2026-09）为了满足"画面自然尺寸 = 声明尺寸"，把 LogicalDpi 当成自由变量取
  * `画面像素 ÷ 画布in`，扁图上算出 57 / 600 / 1992 这种值 —— 自洽式仍然成立、本地自检全绿，
  * 只有人双击后才发现框被放大 ✗。**dpi 不是可调量，它是格式的常规字段**，所以在这里硬卡住。
+ * 两轴一致这条同样重要：参考设备写成 1440×1080px / 254×191mm 时，横轴 144.0、纵轴 143.6，
+ * 声明尺寸按 144 算 ⇒ 纵轴对不上（0.27%），同一类隐患。
  */
 export function previewDpiOutOfBand(emf: Uint8Array): { ref: number; lx: number; ly: number } | null {
   const m = readPreviewMetrics(emf)
   if (!m || m.logicalDpi === null || m.logicalDpiY === null) return null
   const band = (v: number): boolean => v >= PREVIEW_DPI_MIN && v <= PREVIEW_DPI_MAX
-  const skew = Math.abs(m.logicalDpi - m.logicalDpiY) / Math.max(m.logicalDpi, 1) > 0.1
-  if (band(m.refDpi) && band(m.refDpiY) && band(m.logicalDpi) && band(m.logicalDpiY) && !skew) return null
+  const skew = (a: number, b: number): boolean => Math.abs(a - b) / Math.max(a, 1) > 0.001
+  if (
+    band(m.refDpi) &&
+    band(m.refDpiY) &&
+    band(m.logicalDpi) &&
+    band(m.logicalDpiY) &&
+    !skew(m.refDpi, m.refDpiY) &&
+    !skew(m.logicalDpi, m.logicalDpiY)
+  ) {
+    return null
+  }
   return { ref: m.refDpi, lx: m.logicalDpi, ly: m.logicalDpiY }
 }

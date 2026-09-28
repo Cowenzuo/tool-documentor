@@ -177,10 +177,10 @@ export function makePreviewEmf(
   hv.setUint32(60, 0, true)
   hv.setUint32(64, 0, true)
   hv.setUint32(68, 0, true)
-  hv.setInt32(72, 1440, true) // 参考设备：1440x1080px / 254x191mm = 144dpi
-  hv.setInt32(76, 1080, true)
+  hv.setInt32(72, 1440, true) // 参考设备：1440x1440px / 254x254mm（= 10in，两轴都严格 144.00dpi）
+  hv.setInt32(76, 1440, true)
   hv.setInt32(80, 254, true)
-  hv.setInt32(84, 191, true)
+  hv.setInt32(84, 254, true)
   return concat([header, body])
 }
 
