@@ -8,10 +8,13 @@
  *      而替换图（Visio 现渲的那张）的声明尺寸是：`画布 × (本机逻辑dpi ÷ 本机物理dpi)`；
  *   2. 代进去 ⇒ 只要 **声明尺寸 = 画布 × (LogicalDpi ÷ 参考设备dpi)** 成立，本机 dpi 全部相消，框不变；
  *   3. 额外护栏：**声明尺寸不得等于对象框尺寸**（实测相等必被撑大）。
- *      因此模板里的 dpi 组刻意取比值 120/96 = 1.25 ≠ 1。
+ *
+ * 画面本身**按对象算，不用模板**（2026-09-28 改）：比例与尺寸必须贴合对象框，
+ * 靠"预生成档位"只能近似（2 倍步长最坏铺满 0.59 ✗），而这里几何是确定的：
+ *   画面像素 = 对象框in × 参考dpi、字号 = 画面短边 × 5.5%、内缩 = 短边 × 12% …
+ * 记录按 GDI+ 自己产出的文件逐字段对齐（rcl 用空矩形、串不加 NUL、offDx = 76 + 2n），
+ * 否则 GDI+ 解析会直接报 "A generic error occurred in GDI+"。
  */
-import { PREVIEW_TEMPLATES } from './preview-template'
-import type { PreviewTemplate } from './preview-template'
 
 /** 模板自带的 dpi 组：参考设备 96dpi、LogicalDpi 120 ⇒ 比值 1.25 */
 export const TEMPLATE_REF_DPI = 96
@@ -158,106 +161,7 @@ export function normalizePreviewEmf(emf: Uint8Array, canvasWIn: number, canvasHI
   return out
 }
 
-/** 运行时使用的参考设备 dpi（D 组实验验证过 96/144 都安全，这里统一用 144） */
-export const PREVIEW_REF_DPI = 144
-
-/**
- * 自产"带示意文字"的预览件 —— 两条约束各管各的，互不牵连。
- *
- * ① **帧稳定**（硬约束）：声明尺寸 = 画布 × (LogicalDpi ÷ 参考dpi)。
- *    这里取**统一的** LogicalDpi = 120、参考设备 144dpi（都是验证过的常规值）
- *    ⇒ 声明尺寸 = 画布 × 0.833，两轴同一比例。
- *    反例（踩过两次）：为"铺满"把 LogicalDpi 取成 画面像素 ÷ 画布，扁图/长图上会算出
- *    57 / 599 / 1992 这种非常规 dpi ⇒ Word 认为尺寸需要重算 ⇒ 双击后对象框莫名放大 ✗
- *
- * ② **画面好看**：Word 按画面的**自然尺寸**摆放、超出对象框才裁（06/07 有实测依据），
- *    所以画面自然尺寸要贴近**对象框**而不是贴近画布 ⇒ 模板按"对象框 × 144dpi"挑，
- *    且两轴都不超过它（不裁切）。
- */
-export function makePreviewEmf(
-  canvasWIn: number,
-  canvasHIn: number,
-  frameWpt?: number,
-  frameHpt?: number
-): Uint8Array {
-  const t = pickTemplate(canvasWIn, canvasHIn, frameWpt, frameHpt)
-  const wIn = Math.max(canvasWIn, 0.05)
-  const hIn = Math.max(canvasHIn, 0.05)
-  // 统一 LogicalDpi；只有"声明尺寸会撞上对象框"时才整体挪 10%（110/120/130 都属常规值）
-  let lx = TEMPLATE_LOGICAL_DPI
-  let ly = TEMPLATE_LOGICAL_DPI
-  const frameWIn = frameWpt !== undefined ? frameWpt / 72 : undefined
-  const frameHIn = frameHpt !== undefined ? frameHpt / 72 : undefined
-  if (frameWIn !== undefined && Math.abs((wIn * lx) / PREVIEW_REF_DPI / frameWIn - 1) < 0.05) lx = Math.round(lx * 0.9)
-  if (frameHIn !== undefined && Math.abs((hIn * ly) / PREVIEW_REF_DPI / frameHIn - 1) < 0.05) ly = Math.round(ly * 0.9)
-
-  const out = new Uint8Array(decodeBase64(t.base64))
-  const view = new DataView(out.buffer, out.byteOffset, out.byteLength)
-  // 参考设备改写成 144dpi（像素与毫米自洽：1440/254mm、1080/191mm）
-  view.setInt32(72, 1440, true)
-  view.setInt32(76, 1080, true)
-  view.setInt32(80, 254, true)
-  view.setInt32(84, 191, true)
-  view.setInt32(24, 0, true)
-  view.setInt32(28, 0, true)
-  view.setInt32(32, Math.round(((wIn * lx) / PREVIEW_REF_DPI) * 2540), true)
-  view.setInt32(36, Math.round(((hIn * ly) / PREVIEW_REF_DPI) * 2540), true)
-  setLogicalDpi(out, lx, ly)
-  return out
-}
-
-/** 改写 EMF+ 头注释里的 LogicalDpiX/Y（常规值，两轴同值） */
-function setLogicalDpi(emf: Uint8Array, lx: number, ly: number): void {
-  const view = new DataView(emf.buffer, emf.byteOffset, emf.byteLength)
-  let off = view.getUint32(4, true)
-  while (off + 8 <= emf.length) {
-    const type = view.getUint32(off, true)
-    const size = view.getUint32(off + 4, true)
-    if (size < 8 || off + size > emf.length) break
-    if (type === 70 && view.getUint16(off + 16, true) === 0x4001) {
-      view.setUint32(off + 36, lx, true)
-      view.setUint32(off + 40, ly, true)
-      return
-    }
-    if (type === 14) break
-    off += size
-  }
-}
-
-/**
- * 挑模板：目标是"画面自然尺寸 ≈ **对象框**尺寸"（Word 按自然尺寸摆放），
- * 且两轴都不超过 对象框 × 144dpi（保证不被裁）；在这个集合里挑比例最接近画布的一档。
- * 没给对象框时退回按画布挑。
- *
- * 模板集是**消费端自己的产物**（比例为 2 倍步长 1:32~32:1、长边 √2 步长 24~1085px）：
- * 预览该多大、什么比例，只有这边知道，生产端只负责给 .vsdx。
- */
-export function pickTemplate(
-  canvasWIn: number,
-  canvasHIn: number,
-  frameWpt?: number,
-  frameHpt?: number
-): PreviewTemplate {
-  const wantAspect = canvasHIn > 0 ? canvasWIn / canvasHIn : 1
-  const targetWpx = (frameWpt !== undefined ? frameWpt / 72 : Math.max(canvasWIn, 0.05)) * PREVIEW_REF_DPI
-  const targetHpx = (frameHpt !== undefined ? frameHpt / 72 : Math.max(canvasHIn, 0.05)) * PREVIEW_REF_DPI
-  const fits = PREVIEW_TEMPLATES.filter((t) => t.pxW <= targetWpx && t.pxH <= targetHpx)
-  const pool = fits.length > 0 ? fits : PREVIEW_TEMPLATES
-  let best = pool[0]!
-  let bestScore = Number.POSITIVE_INFINITY
-  for (const t of pool) {
-    // 比例差权重高（比例不对占位画面会变成细条或小方块），尺寸差次之（越大越贴近对象框）
-    const score =
-      3 * Math.abs(Math.log(t.aspect / wantAspect)) +
-      Math.abs(Math.log(t.pxW / Math.max(targetWpx, 1))) +
-      Math.abs(Math.log(t.pxH / Math.max(targetHpx, 1)))
-    if (score < bestScore) {
-      bestScore = score
-      best = t
-    }
-  }
-  return best
-}
+export { PREVIEW_REF_DPI, PREVIEW_LOGICAL_DPI, makePreviewEmf, previewGeometry } from './preview-emf'
 
 export function declaredEqualsFrame(
   emf: Uint8Array,
