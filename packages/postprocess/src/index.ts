@@ -41,6 +41,9 @@ export {
   makePreviewEmf,
   pickTemplate,
   declaredEqualsFrame,
+  previewDpiOutOfBand,
+  PREVIEW_DPI_MIN,
+  PREVIEW_DPI_MAX,
   PREVIEW_REF_DPI,
   TEMPLATE_REF_DPI,
   TEMPLATE_LOGICAL_DPI

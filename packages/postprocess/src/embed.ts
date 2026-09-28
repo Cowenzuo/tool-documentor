@@ -19,7 +19,7 @@
 import JSZip from 'jszip'
 import { makeVisioOle } from './ole-streams'
 import { vsdxContentBbox, vsdxPageSize, patchVsdxPageSize, stripVsdxThumbnail } from './vsdx'
-import { makePreviewEmf, normalizePreviewEmf, declaredEqualsFrame } from './preview'
+import { makePreviewEmf, normalizePreviewEmf, declaredEqualsFrame, previewDpiOutOfBand } from './preview'
 
 const NS_W10 = 'urn:schemas-microsoft-com:office:word'
 
@@ -182,7 +182,9 @@ export async function embedVsdxIntoDocx(
     /** 自产件与可解析的 EMF 走同一条校正/护栏路径；PNG/JPG 原样嵌入 */
     let emfPreview = previewBytes === undefined || previewExt === undefined || previewExt === 'emf'
     if (previewBytes === undefined) {
-      previewBytes = makePreviewEmf(baseW, baseH)
+      // 自产件：把对象框一并传进去 —— 模板按"对象框 × 参考dpi"挑，画面自然尺寸贴近对象框
+      // （Word 是按画面的自然尺寸摆放、超出对象框才裁；比例尺与 dpi 的取值见 preview.ts 注释）
+      previewBytes = makePreviewEmf(baseW, baseH, width, height)
       previewExt = 'emf'
     } else if (emfPreview) {
       const fixed = normalizePreviewEmf(previewBytes, baseW, baseH)
@@ -196,6 +198,16 @@ export async function embedVsdxIntoDocx(
       warnings.push(
         `「${fig.name}」预览图的声明尺寸与对象框相等，Word 更新对象时会撑大框（见 docs/WORD处理经验/06）`
       )
+    }
+    // 护栏：dpi 越出常规区间会被 Word 当成"尺寸需要重算"，双击后对象框被改（见 preview.ts 的说明）
+    if (emfPreview && previewBytes) {
+      const outOfBand = previewDpiOutOfBand(previewBytes)
+      if (outOfBand) {
+        warnings.push(
+          `「${fig.name}」预览图的 dpi 越出常规区间（参考 ${outOfBand.ref.toFixed(0)}、逻辑 ${outOfBand.lx}/${outOfBand.ly}），` +
+            `Word 可能因此改变对象框大小（见 docs/WORD处理经验/07）`
+        )
+      }
     }
 
     plans.push({

@@ -162,17 +162,17 @@ export function normalizePreviewEmf(emf: Uint8Array, canvasWIn: number, canvasHI
 export const PREVIEW_REF_DPI = 144
 
 /**
- * 自产"带示意文字"的预览件 —— 布局按公式算，不做试凑。
+ * 自产"带示意文字"的预览件 —— 两条约束各管各的，互不牵连。
  *
- * 目标（两条硬约束同时成立）：
- *   ① 画面完整不被裁 + 铺满对象框 ⇒ **画面自然尺寸 = 声明尺寸**；
- *   ② 帧不移动 ⇒ **声明尺寸 = 画布 × (LogicalDpi ÷ 参考dpi)**（自洽式）。
+ * ① **帧稳定**（硬约束）：声明尺寸 = 画布 × (LogicalDpi ÷ 参考dpi)。
+ *    这里取**统一的** LogicalDpi = 120、参考设备 144dpi（都是验证过的常规值）
+ *    ⇒ 声明尺寸 = 画布 × 0.833，两轴同一比例。
+ *    反例（踩过两次）：为"铺满"把 LogicalDpi 取成 画面像素 ÷ 画布，扁图/长图上会算出
+ *    57 / 599 / 1992 这种非常规 dpi ⇒ Word 认为尺寸需要重算 ⇒ 双击后对象框莫名放大 ✗
  *
- * 取 ref = 144dpi、L = 画面像素 ÷ 画布in，则：
- *   声明 = 画布 × L ÷ 144 = 画面像素 ÷ 144 = 画面自然尺寸   ⇒ ① 成立（按构造相等）
- *   且声明 = 画布 × L ÷ ref 本身就是自洽式                  ⇒ ② 成立
- * 两个 dpi 都落在已验证的常规区间（ref 144 属 D2 组，L 实测 90~122 与基准组 120 同档），
- * 不走"按对象把 dpi 改到 64 以下"那条会把对象框撑大的路。
+ * ② **画面好看**：Word 按画面的**自然尺寸**摆放、超出对象框才裁（06/07 有实测依据），
+ *    所以画面自然尺寸要贴近**对象框**而不是贴近画布 ⇒ 模板按"对象框 × 144dpi"挑，
+ *    且两轴都不超过它（不裁切）。
  */
 export function makePreviewEmf(
   canvasWIn: number,
@@ -183,16 +183,21 @@ export function makePreviewEmf(
   const t = pickTemplate(canvasWIn, canvasHIn, frameWpt, frameHpt)
   const wIn = Math.max(canvasWIn, 0.05)
   const hIn = Math.max(canvasHIn, 0.05)
+  // 统一 LogicalDpi；只有"声明尺寸会撞上对象框"时才整体挪 10%（110/120/130 都属常规值）
+  let lx = TEMPLATE_LOGICAL_DPI
+  let ly = TEMPLATE_LOGICAL_DPI
+  const frameWIn = frameWpt !== undefined ? frameWpt / 72 : undefined
+  const frameHIn = frameHpt !== undefined ? frameHpt / 72 : undefined
+  if (frameWIn !== undefined && Math.abs((wIn * lx) / PREVIEW_REF_DPI / frameWIn - 1) < 0.05) lx = Math.round(lx * 0.9)
+  if (frameHIn !== undefined && Math.abs((hIn * ly) / PREVIEW_REF_DPI / frameHIn - 1) < 0.05) ly = Math.round(ly * 0.9)
+
   const out = new Uint8Array(decodeBase64(t.base64))
   const view = new DataView(out.buffer, out.byteOffset, out.byteLength)
-  // 参考设备改成 144dpi（像素与毫米自洽：1440/254mm、1080/190.5mm）
+  // 参考设备改写成 144dpi（像素与毫米自洽：1440/254mm、1080/191mm）
   view.setInt32(72, 1440, true)
   view.setInt32(76, 1080, true)
   view.setInt32(80, 254, true)
   view.setInt32(84, 191, true)
-  // 分轴 LogicalDpi：使 声明尺寸 = 画面自然尺寸
-  const lx = Math.max(1, Math.round(t.pxW / wIn))
-  const ly = Math.max(1, Math.round(t.pxH / hIn))
   view.setInt32(24, 0, true)
   view.setInt32(28, 0, true)
   view.setInt32(32, Math.round(((wIn * lx) / PREVIEW_REF_DPI) * 2540), true)
@@ -201,7 +206,7 @@ export function makePreviewEmf(
   return out
 }
 
-/** 改写 EMF+ 头注释里的 LogicalDpiX/Y（分轴，常规值） */
+/** 改写 EMF+ 头注释里的 LogicalDpiX/Y（常规值，两轴同值） */
 function setLogicalDpi(emf: Uint8Array, lx: number, ly: number): void {
   const view = new DataView(emf.buffer, emf.byteOffset, emf.byteLength)
   let off = view.getUint32(4, true)
@@ -220,11 +225,9 @@ function setLogicalDpi(emf: Uint8Array, lx: number, ly: number): void {
 }
 
 /**
- * 挑模板：比例最接近画布比例、且**模板自然尺寸最接近 画布 × 1.25**。
- *
- * 为什么目标是 画布 × 1.25：这样 LogicalDpi = 画面像素 ÷ 画布 ≈ 120，与基准组（L=120、ref=96）
- * 同一档；配合运行时把参考设备设成 144，声明尺寸恰好等于画面自然尺寸（铺满且不裁），
- * 且两个 dpi 都落在 D 组验证过的常规区间内。
+ * 挑模板：目标是"画面自然尺寸 ≈ **对象框**尺寸"（Word 按自然尺寸摆放），
+ * 且两轴都不超过 对象框 × 144dpi（保证不被裁）；在这个集合里挑比例最接近画布的一档。
+ * 没给对象框时退回按画布挑。
  */
 export function pickTemplate(
   canvasWIn: number,
@@ -232,22 +235,19 @@ export function pickTemplate(
   frameWpt?: number,
   frameHpt?: number
 ): PreviewTemplate {
-  const ratio = TEMPLATE_LOGICAL_DPI / TEMPLATE_REF_DPI // 1.25
   const wantAspect = canvasHIn > 0 ? canvasWIn / canvasHIn : 1
-  const targetW = Math.max(canvasWIn, 0.05) * ratio
-  const frameWIn = frameWpt !== undefined ? frameWpt / 72 : undefined
-  const frameHIn = frameHpt !== undefined ? frameHpt / 72 : undefined
-  let best = PREVIEW_TEMPLATES[0]!
+  const targetWpx = (frameWpt !== undefined ? frameWpt / 72 : Math.max(canvasWIn, 0.05)) * PREVIEW_REF_DPI
+  const targetHpx = (frameHpt !== undefined ? frameHpt / 72 : Math.max(canvasHIn, 0.05)) * PREVIEW_REF_DPI
+  const fits = PREVIEW_TEMPLATES.filter((t) => t.pxW <= targetWpx && t.pxH <= targetHpx)
+  const pool = fits.length > 0 ? fits : PREVIEW_TEMPLATES
+  let best = pool[0]!
   let bestScore = Number.POSITIVE_INFINITY
-  for (const t of PREVIEW_TEMPLATES) {
-    // 比例差权重高（比例不对画面变形），尺寸差次之
-    let score = 3 * Math.abs(Math.log(t.aspect / wantAspect)) + Math.abs(Math.log(t.naturalWIn / targetW))
-    // 护栏：声明尺寸 = 画面自然尺寸（= px ÷ 144）。若它落在对象框的 ±5% 内，
-    // 就与"声明 = 框"那种会撑大的情形太接近 ⇒ 重罚，换一档（相邻档差 ≈19%，能自然躲开）。
-    const declW = t.pxW / PREVIEW_REF_DPI
-    const declH = t.pxH / PREVIEW_REF_DPI
-    if (frameWIn !== undefined && Math.abs(declW / frameWIn - 1) < 0.05) score += 10
-    if (frameHIn !== undefined && Math.abs(declH / frameHIn - 1) < 0.05) score += 10
+  for (const t of pool) {
+    // 比例差权重高（比例不对占位画面会变成细条或小方块），尺寸差次之（越大越贴近对象框）
+    const score =
+      3 * Math.abs(Math.log(t.aspect / wantAspect)) +
+      Math.abs(Math.log(t.pxW / Math.max(targetWpx, 1))) +
+      Math.abs(Math.log(t.pxH / Math.max(targetHpx, 1)))
     if (score < bestScore) {
       bestScore = score
       best = t
@@ -267,4 +267,24 @@ export function declaredEqualsFrame(
   const dw = metrics.declaredWIn * 72
   const dh = metrics.declaredHIn * 72
   return Math.abs(dw - frameWidthPt) <= tolerancePt || Math.abs(dh - frameHeightPt) <= tolerancePt
+}
+
+/** dpi 允许区间：参考设备与逻辑 dpi 都必须落在里面，且两轴之差不超过 10% */
+export const PREVIEW_DPI_MIN = 96
+export const PREVIEW_DPI_MAX = 160
+
+/**
+ * 护栏：dpi 是否越出常规区间（越界 ⇒ Word 会认为尺寸需要重算 ⇒ 双击后对象框被改）。
+ *
+ * 为什么要有这条：曾经（2026-09）为了满足"画面自然尺寸 = 声明尺寸"，把 LogicalDpi 当成自由变量取
+ * `画面像素 ÷ 画布in`，扁图上算出 57 / 600 / 1992 这种值 —— 自洽式仍然成立、本地自检全绿，
+ * 只有人双击后才发现框被放大 ✗。**dpi 不是可调量，它是格式的常规字段**，所以在这里硬卡住。
+ */
+export function previewDpiOutOfBand(emf: Uint8Array): { ref: number; lx: number; ly: number } | null {
+  const m = readPreviewMetrics(emf)
+  if (!m || m.logicalDpi === null || m.logicalDpiY === null) return null
+  const band = (v: number): boolean => v >= PREVIEW_DPI_MIN && v <= PREVIEW_DPI_MAX
+  const skew = Math.abs(m.logicalDpi - m.logicalDpiY) / Math.max(m.logicalDpi, 1) > 0.1
+  if (band(m.refDpi) && band(m.refDpiY) && band(m.logicalDpi) && band(m.logicalDpiY) && !skew) return null
+  return { ref: m.refDpi, lx: m.logicalDpi, ly: m.logicalDpiY }
 }
