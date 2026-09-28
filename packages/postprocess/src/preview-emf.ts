@@ -46,22 +46,77 @@ export interface PreviewGeometry {
   ink: { left: number; top: number; right: number; bottom: number }
 }
 
-/** 估一行宽度：汉字≈字号，拉丁≈0.55 倍 */
+/**
+ * 字符步进宽度（em 倍数）—— **实测值**，不是估的。
+ *
+ * 为什么必须实测：EMR_EXTTEXTOUTW 的 Dx 数组是消费端排版依据；写小了英文就叠字
+ * （曾按 0.55em 估，而 Microsoft YaHei 的 'm' 实际 1.25em ⇒ "mmd2vsdx" 挤成一团 ✗，
+ * 汉字因为估的是 1.0em 反而看着正常）。
+ *
+ * 量法：System.Drawing.MeasureString + 差值法（W(base+c) − W(base)，消掉内边距），
+ * 字体 'Microsoft YaHei'，见 temp/工具/测步进2.ps1。未列出的字符取"宁可宽一点"的默认值，
+ * 多留一点字距看不出，叠字很难看。
+ */
+const ADVANCE_EM: Record<string, number> = {
+  m: 1.2493,
+  d: 0.8629,
+  '2': 0.7819,
+  v: 0.6999,
+  s: 0.6172,
+  x: 0.6758,
+  V: 0.9017,
+  i: 0.3548,
+  o: 0.8477,
+  ' ': 0.3945,
+  '·': 0.321,
+  '0': 0.7819,
+  '1': 0.7819,
+  '3': 0.7819,
+  '4': 0.7819,
+  '5': 0.7819,
+  '6': 0.7819,
+  '7': 0.7819,
+  '8': 0.7819,
+  '9': 0.7819
+}
+/** 汉字与全角标点：实测 1.3333em（不是 1.0） */
+const ADVANCE_CJK = 1.3333
+/** 其它拉丁/符号的保守默认（宁可宽一点） */
+const ADVANCE_DEFAULT = 0.9
+
+/** 取一个字符的步进（em） */
+function advanceEm(ch: string): number {
+  const c = ch.codePointAt(0)!
+  if (c < 0x2e80) return ADVANCE_EM[ch] ?? ADVANCE_DEFAULT
+  return ADVANCE_CJK
+}
+
+/** 估一行宽度：按实测步进表求和 */
 function estimateWidth(text: string, fontPx: number): number {
   let w = 0
-  for (const ch of text) w += ch.codePointAt(0)! < 0x2e80 ? fontPx * 0.55 : fontPx
+  for (const ch of text) w += advanceEm(ch) * fontPx
   return w
 }
 
-/** 由对象框算出全部几何（导出便于自测断言） */
-export function previewGeometry(frameWIn: number, frameHIn: number): PreviewGeometry {
-  const pxW = Math.max(8, Math.min(8192, Math.round(frameWIn * PREVIEW_REF_DPI)))
-  const pxH = Math.max(8, Math.min(8192, Math.round(frameHIn * PREVIEW_REF_DPI)))
-  const short = Math.min(pxW, pxH)
-  const pen = Math.max(1, Math.round(short * 0.008))
-  const margin = Math.max(pen, Math.round(short * 0.12))
+/** 由画布 + 对象框 + 逻辑dpi 算出全部几何（导出便于自测断言） */
+export function previewGeometry(
+  canvasWIn: number,
+  canvasHIn: number,
+  frameWIn: number,
+  frameHIn: number,
+  logicalDpi = PREVIEW_LOGICAL_DPI
+): PreviewGeometry {
+  // ① 画面像素 = 画布in × 逻辑dpi ⇒ 画面物理尺寸 = 画布 × L ÷ 参考dpi = **声明尺寸**（两者必须相等，
+  //    否则消费端把声明矩形映射到对象框时，内容只会占一角或溢出 ⇒ 没铺满/偏角/只有一部分）
+  const pxW = Math.max(8, Math.min(20000, Math.round(canvasWIn * logicalDpi)))
+  const pxH = Math.max(8, Math.min(20000, Math.round(canvasHIn * logicalDpi)))
+  // ② 视觉尺寸（在对象框上的观感）折算到画面像素：声明矩形里 1in = 参考dpi px
+  const visual = (inches: number): number => Math.max(1, Math.round(inches * PREVIEW_REF_DPI))
+  const frameShortIn = Math.min(frameWIn, frameHIn)
+  const pen = Math.max(1, visual(frameShortIn * 0.008))
+  const margin = Math.max(pen + 1, visual(frameShortIn * 0.12))
   const innerW = pxW - 2 * margin
-  let font = Math.max(1, Math.round(short * 0.055))
+  let font = Math.max(1, visual(frameShortIn * 0.055))
   // 整行不超内框（GDI+ 实际渲染比估算宽，留 1.35 倍余量）；不设固定下限，小画面就小字号
   while (font > 1 && estimateWidth(TEXT, font) * 1.35 > innerW * 0.9) font -= 1
   const textW = estimateWidth(TEXT, font)
@@ -94,7 +149,6 @@ export function makePreviewEmf(
   // 没给对象框时按画布估（调用方总会给；兜底保持可运行）
   const frameWIn = frameWpt !== undefined ? Math.max(frameWpt / 72, 0.02) : wIn * 0.833
   const frameHIn = frameHpt !== undefined ? Math.max(frameHpt / 72, 0.02) : hIn * 0.833
-  const g = previewGeometry(frameWIn, frameHIn)
 
   let lx = PREVIEW_LOGICAL_DPI
   let ly = PREVIEW_LOGICAL_DPI
@@ -102,6 +156,7 @@ export function makePreviewEmf(
   if (Math.abs((hIn * ly) / PREVIEW_REF_DPI / frameHIn - 1) < 0.05) ly = Math.round(ly * 0.9)
   const declaredW = (wIn * lx) / PREVIEW_REF_DPI
   const declaredH = (hIn * ly) / PREVIEW_REF_DPI
+  const g = previewGeometry(wIn, hIn, frameWIn, frameHIn, Math.min(lx, ly))
 
   const records: Uint8Array[] = []
   records.push(plusHeaderComment(lx, ly))
@@ -238,9 +293,10 @@ function textRecord(text: string, x: number, y: number, g: PreviewGeometry): Uin
   v.setInt32(68, -1, true)
   v.setUint32(72, 76 + n * 2, true)
   for (let i = 0; i < n; i += 1) {
-    const ch = text.charCodeAt(i)
-    v.setUint16(76 + i * 2, ch, true)
-    v.setInt32(76 + n * 2 + i * 4, ch < 0x2e80 ? Math.round(g.font * 0.55) : g.font, true)
+    const ch = text[i]!
+    v.setUint16(76 + i * 2, text.charCodeAt(i), true)
+    // 步进按实测表给（再留 2% 余量）：写小了英文会叠字
+    v.setInt32(76 + n * 2 + i * 4, Math.round(advanceEm(ch) * g.font * 1.02), true)
   }
   return out
 }
