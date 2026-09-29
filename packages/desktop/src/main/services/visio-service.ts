@@ -181,14 +181,19 @@ export interface RawVisioResult {
 
 /**
  * 解析脚本回执（纯函数，便于单测）。
- * 脚本正常时输出单个 JSON 数组；数组里也可能只有一条，所以两种都认。
+ *
+ * 两种形态都要认 —— PowerShell 的 `ConvertTo-Json` 只有**两项以上**才输出数组，
+ * 单张图时输出的是**裸对象**：`{"id":"x","ok":true}`。
+ * 踩过：解析器只找 `[` ⇒ 单张图的批次一律判成"处理失败"，而且原因还是空的（看不出是回执格式问题）。
  */
 export function parseScriptResults(stdout: string): RawVisioResult[] {
   const text = stdout.trim()
-  const start = text.indexOf('[')
+  const arr = text.indexOf('[')
+  const obj = text.indexOf('{')
+  const start = arr >= 0 && (obj < 0 || arr < obj) ? arr : obj
   if (start < 0) return []
   try {
-    const parsed = JSON.parse(text.slice(start)) as RawVisioResult | RawVisioResult[]
+    const parsed = JSON.parse(text.slice(start).replace(/\}\s*$/, '}')) as RawVisioResult | RawVisioResult[]
     return Array.isArray(parsed) ? parsed : [parsed]
   } catch {
     return []
@@ -371,12 +376,17 @@ export class VisioService {
           try {
             const raw = parseScriptResults(String(stdout ?? ''))
             const byId = new Map(raw.map((r) => [String(r.id), r]))
+            // 回执解析不出来时必须留下原始输出：否则现场只剩一句"处理失败"，没法查（踩过）
+            const rawTail = String(stdout ?? '').trim().slice(-200)
             const results: VisioNormalizeResult[] = items.map((item, i) => {
               const r = byId.get(item.id)
               if (err && !r) {
                 return { id: item.id, ok: false, reason: `Visio 调用失败：${err.message}${stderr ? ` · ${String(stderr).trim().slice(0, 200)}` : ''}` }
               }
-              if (!r || r.ok !== true) return { id: item.id, ok: false, reason: r?.reason ?? 'Visio 处理失败' }
+              if (!r || r.ok !== true) {
+                const why = r?.reason ?? (rawTail ? `回执无法解析：${rawTail}` : '脚本没有回执')
+                return { id: item.id, ok: false, reason: why }
+              }
               try {
                 const vsdx = new Uint8Array(readFileSync(join(dir, `out${i}.vsdx`)))
                 const emfPath = join(dir, `out${i}.emf`)
