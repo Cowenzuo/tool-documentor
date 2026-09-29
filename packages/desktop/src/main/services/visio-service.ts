@@ -13,13 +13,23 @@
  */
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { VisioConfigDto } from '../../shared/project'
 
-/** 脚本版本：脚本语义一变就 +1，缓存自动失效（改脚本时别忘） */
-export const VISIO_SCRIPT_VERSION = 1
+/** 脚本版本：脚本文件读不到时的兜底（正常路径用脚本内容哈希进缓存键，见 cacheKeyFor） */
+export const VISIO_SCRIPT_VERSION_FALLBACK = 1
+
+/** PowerShell 输出上限：清单回执很小，给 4MB 足够，别让异常输出把内存撑爆 */
+const MAX_STDOUT_BYTES = 1 << 22
+
+/** 孤儿判定的最小年龄：比单批上限（配置最大 600s）还久才认定是"上一次被强杀留下的" */
+const ORPHAN_MIN_AGE_MS = 15 * 60_000
+
+/** 缓存上限：条数 + 总字节（超了按最旧先删） */
+const CACHE_MAX_ENTRIES = 500
+const CACHE_MAX_BYTES = 200 * 1024 * 1024
 
 export interface VisioNormalizeInput {
   id: string
@@ -50,11 +60,78 @@ export interface VisioServiceOptions {
   visioVersion?: () => string | null
 }
 
-/** 缓存键：内容 + 脚本版本 + Visio 版本（任一变化就重算） */
-export function cacheKeyFor(vsdx: Uint8Array, visioVersion: string | null): string {
+/**
+ * 缓存键：内容 + 脚本内容哈希 + Visio 版本（任一变化就重算）。
+ *
+ * 为什么用脚本**内容哈希**而不是手工版本号：手工号靠人记得加一，忘了就复用旧结果 ——
+ * 这类"改了没生效"的坑在本项目已经踩过（dist 落后一分钟那次）。
+ */
+export function cacheKeyFor(vsdx: Uint8Array, visioVersion: string | null, scriptHash: string): string {
   const h = createHash('sha256').update(vsdx).digest('hex').slice(0, 32)
   const v = (visioVersion ?? 'unknown').replace(/[^\w.-]/g, '_')
-  return `${h}-s${VISIO_SCRIPT_VERSION}-v${v}`
+  return `${h}-s${scriptHash}-v${v}`
+}
+
+/** 读脚本内容哈希（读不到返回兜底版本号，仍然能跑，只是失效粒度变粗） */
+export function scriptHashOf(scriptPath: string): string {
+  try {
+    return createHash('sha256').update(readFileSync(scriptPath)).digest('hex').slice(0, 12)
+  } catch {
+    return `v${VISIO_SCRIPT_VERSION_FALLBACK}`
+  }
+}
+
+/**
+ * 找出"上一次被强杀留下的" pid 记录（纯函数，便于单测）。
+ *
+ * 场景：应用被强杀时，脚本里的收尾和 Node 侧的兜底都随进程死亡而失效，Visio 会变孤儿
+ * （2026-09-29 实测遇到一次）。这里只认**我们自己写下的** pid 文件，且只认足够旧的目录，
+ * 免得把正在跑的那一批误杀。
+ */
+export function stalePidFiles(tmpDir: string, now: number, minAgeMs: number = ORPHAN_MIN_AGE_MS): Array<{ dir: string; pidFile: string }> {
+  const out: Array<{ dir: string; pidFile: string }> = []
+  let entries: string[]
+  try {
+    entries = readdirSync(tmpDir)
+  } catch {
+    return out
+  }
+  for (const name of entries) {
+    if (!name.startsWith('doc-visio-')) continue
+    const dir = join(tmpDir, name)
+    const pidFile = join(dir, 'visio.pid')
+    try {
+      const st = statSync(pidFile)
+      if (now - st.mtimeMs < minAgeMs) continue
+      out.push({ dir, pidFile })
+    } catch {
+      // 没有 pid 文件的目录：只清理目录本身，不动进程
+      try {
+        const st = statSync(dir)
+        if (now - st.mtimeMs >= minAgeMs) out.push({ dir, pidFile: '' })
+      } catch {
+        // 目录已经没了
+      }
+    }
+  }
+  return out
+}
+
+/** 清掉孤儿 Visio（按我们自己记录的 PID）并删除陈旧临时目录；返回清掉的进程数 */
+export function sweepOrphanVisio(tmpDir: string = tmpdir(), now: number = Date.now()): number {
+  let killed = 0
+  for (const { dir, pidFile } of stalePidFiles(tmpDir, now)) {
+    if (pidFile !== '') {
+      const alive = killPidIfAlive(pidFile)
+      if (alive) killed += 1
+    }
+    try {
+      rmSync(dir, { recursive: true, force: true })
+    } catch {
+      // 删不掉就留着，下一轮再说
+    }
+  }
+  return killed
 }
 
 /** 清单形状（脚本按它逐张处理） */
@@ -135,13 +212,29 @@ export class VisioService {
     return this.enabled
   }
 
+  private scriptHashMemo: string | null = null
+
+  /** 脚本内容哈希（进缓存键；读一次记住） */
+  private scriptHash(): string {
+    if (this.scriptHashMemo === null) this.scriptHashMemo = scriptHashOf(this.opts.scriptPath)
+    return this.scriptHashMemo
+  }
+
   /**
    * 批量归一化。返回顺序与入参一致；失败项 `ok:false`（调用方按张回退）。
    * 命中缓存的项直接返回缓存件（不进 Visio）。
    */
   async normalizeBatch(items: VisioNormalizeInput[]): Promise<VisioNormalizeResult[]> {
     if (items.length === 0) return []
+    // 启用判定在这里再判一次是**库边界自守**（调用方也判，别删成一层）：
+    // 这个类将来可能被别处复用，谁都不想"以为没启用，结果起了一次 Visio"。
     if (!this.enabled) return items.map((i) => ({ id: i.id, ok: false, reason: 'Visio 归一化未启用' }))
+    // 开跑前扫一次：上一次被强杀留下的孤儿（我们自己记过 PID 的）先清掉，别越积越多
+    try {
+      sweepOrphanVisio()
+    } catch {
+      // 清扫失败不影响本次
+    }
 
     const version = this.opts.visioVersion?.() ?? null
     const out = new Map<string, VisioNormalizeResult>()
@@ -154,8 +247,38 @@ export class VisioService {
     if (pending.length > 0) {
       const fresh = await this.runScript(pending, version)
       for (const r of fresh) out.set(r.id, r)
+      this.enforceCacheLimit()
     }
     return items.map((i) => out.get(i.id) ?? { id: i.id, ok: false, reason: '没有拿到结果' })
+  }
+
+  /** 缓存上限：条数或总字节超了就按最旧先删（缓存是可再生的，删错也只是慢一次） */
+  private enforceCacheLimit(): void {
+    try {
+      const files = readdirSync(this.opts.cacheDir)
+        .map((name) => {
+          const p = join(this.opts.cacheDir, name)
+          try {
+            const st = statSync(p)
+            return st.isFile() ? { p, size: st.size, at: st.mtimeMs } : null
+          } catch {
+            return null
+          }
+        })
+        .filter((x): x is { p: string; size: number; at: number } => x !== null)
+        .sort((a, b) => a.at - b.at)
+      const totalBytes = files.reduce((s, f) => s + f.size, 0)
+      let count = files.length
+      let bytes = totalBytes
+      for (const f of files) {
+        if (count <= CACHE_MAX_ENTRIES && bytes <= CACHE_MAX_BYTES) break
+        rmSync(f.p, { force: true })
+        count -= 1
+        bytes -= f.size
+      }
+    } catch {
+      // 缓存清理失败不影响本次结果
+    }
   }
 
   private cachePaths(key: string): { vsdx: string; emf: string; meta: string } {
@@ -165,7 +288,7 @@ export class VisioService {
 
   private readCache(item: VisioNormalizeInput, version: string | null): VisioNormalizeResult | null {
     try {
-      const p = this.cachePaths(cacheKeyFor(item.vsdx, version))
+      const p = this.cachePaths(cacheKeyFor(item.vsdx, version, this.scriptHash()))
       if (!existsSync(p.vsdx)) return null
       const meta = existsSync(p.meta) ? (JSON.parse(readFileSync(p.meta, 'utf8')) as { emf?: boolean }) : {}
       return {
@@ -183,10 +306,10 @@ export class VisioService {
   private writeCache(item: VisioNormalizeInput, version: string | null, r: VisioNormalizeResult): void {
     try {
       mkdirSync(this.opts.cacheDir, { recursive: true })
-      const p = this.cachePaths(cacheKeyFor(item.vsdx, version))
+      const p = this.cachePaths(cacheKeyFor(item.vsdx, version, this.scriptHash()))
       if (r.vsdx) writeFileSync(p.vsdx, r.vsdx)
       if (r.previewEmf) writeFileSync(p.emf, r.previewEmf)
-      writeFileSync(p.meta, JSON.stringify({ emf: Boolean(r.previewEmf), script: VISIO_SCRIPT_VERSION, visio: version }), 'utf8')
+      writeFileSync(p.meta, JSON.stringify({ emf: Boolean(r.previewEmf), script: this.scriptHash(), visio: version }), 'utf8')
     } catch {
       // 缓存写不进去不影响本次结果
     }

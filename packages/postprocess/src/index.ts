@@ -42,8 +42,8 @@ export {
   previewGeometry,
   declaredEqualsFrame,
   previewDpiOutOfBand,
-  PREVIEW_DPI_MIN,
-  PREVIEW_DPI_MAX,
+  PREVIEW_DPI_WARN_MIN,
+  PREVIEW_DPI_WARN_MAX,
   PREVIEW_REF_DPI,
   PREVIEW_LOGICAL_DPI
 } from './preview'

@@ -665,7 +665,17 @@ export class ProjectService {
     this.history.seal()
     // 图块链路自动执行（无“占位/预览”用户选项）：Mermaid → VSDX → （可选）Visio 归一化 → OLE 嵌入；
     // 转换走本机常驻 HTTP 服务（mmd2vsdx），服务不可用时整篇降级为文本占位 + 警告
-    const pre = await this.normalizeFiguresWithVisio(tree)
+    // Visio 预处理（可选）：**不许把导出带崩** —— 它是加速器，不是必经环节。
+    // 任何异常都吞掉并退回原路径（Visio 挂了、脚本不对、缓存目录没权限，都只该影响"有没有归一化"）。
+    let pre: { byCode: Map<string, { vsdxBase64: string; previewBase64?: string; previewSource?: 'visio' | 'external' }>; warnings: string[] } = {
+      byCode: new Map(),
+      warnings: []
+    }
+    try {
+      pre = await this.normalizeFiguresWithVisio(tree)
+    } catch (err) {
+      console.warn('[visio] 预处理失败，按原样导出：', err instanceof Error ? err.message : String(err))
+    }
     const convert = this.figureConvert(pre.byCode)
     const withFigs = await exportTreeToDocxWithFigures(tree, styleDef, input.outputPath, {
       imageBaseDir: this.projectDirValue,
@@ -692,7 +702,7 @@ export class ProjectService {
    *   3. 只有 Visio 的产出仍然要过预览护栏 —— 不合规就退回自产预览（EMF 那套硬约束见 07/08）。
    */
   private async normalizeFiguresWithVisio(tree: DocumentTree): Promise<{
-    byCode: Map<string, { vsdxBase64: string; previewBase64?: string; previewTrusted?: boolean }>
+    byCode: Map<string, { vsdxBase64: string; previewBase64?: string; previewSource?: 'visio' | 'external' }>
     warnings: string[]
   }> {
     const empty = { byCode: new Map(), warnings: [] as string[] }
@@ -719,7 +729,7 @@ export class ProjectService {
     if (items.length === 0) return empty
 
     const results = await visio.normalizeBatch(items)
-    const byCode = new Map<string, { vsdxBase64: string; previewBase64?: string; previewTrusted?: boolean }>()
+    const byCode = new Map<string, { vsdxBase64: string; previewBase64?: string; previewSource?: 'visio' | 'external' }>()
     const warnings: string[] = []
     let failed = 0
     for (const r of results) {
@@ -730,13 +740,13 @@ export class ProjectService {
         if (r.reason) console.warn(`[visio] 归一化失败，按原样嵌入：${r.reason}`)
         continue
       }
-      // 口径：**走 Visio 就整套都用 Visio 的** —— vsdx 用重存件，预览用 Visio 导出的真图
-      // （本机物理 dpi 是它的正常形态，previewTrusted 让它跳过 dpi 区间告警）。
+      // 口径：**走 Visio 就整套都用 Visio 的** —— vsdx 用重存件，预览用 Visio 导出的真图，
+      // 并标明来源（visio）：嵌入层据此不改写它的声明尺寸（Visio 自带自洽声明）、也不报 dpi 告警窗。
       // 不走 Visio 的图这里根本没有 preview，由嵌入层自产。
       const previewBase64 = r.previewEmf ? Buffer.from(r.previewEmf).toString('base64') : undefined
       byCode.set(code, {
         vsdxBase64: Buffer.from(r.vsdx).toString('base64'),
-        ...(previewBase64 ? { previewBase64, previewTrusted: true } : {})
+        ...(previewBase64 ? { previewBase64, previewSource: 'visio' as const } : {})
       })
     }
     if (failed > 0) warnings.push(`Visio 归一化：${failed} 张未成功，已按原样嵌入（详见日志）`)

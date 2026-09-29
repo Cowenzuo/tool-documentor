@@ -28,6 +28,12 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $script:Started = Get-Date
+
+# 具名常量：脚本里别留魔法数（改的时候要一眼看懂含义）
+$OPEN_COPY_READONLY = 6      # visOpenCopy(4) + visOpenRO(2)：开只读副本，不碰用户原文件
+$QUIT_WAIT_TRIES = 10        # Quit 之后等它退：最多 10 次
+$QUIT_WAIT_MS = 300          # 每次 300ms（合计 3s）；还不退就强杀
+
 $items = (Get-Content -Raw -Encoding UTF8 -LiteralPath $Manifest | ConvertFrom-Json).items
 $results = New-Object System.Collections.ArrayList
 
@@ -62,9 +68,9 @@ function Stop-VisioInstance($app, [int]$visioPid, [string]$pidFile) {
     try { [GC]::Collect(); [GC]::WaitForPendingFinalizers() } catch { }
   }
   if ($visioPid -gt 0) {
-    for ($i = 0; $i -lt 10; $i++) {
+    for ($i = 0; $i -lt $QUIT_WAIT_TRIES; $i++) {
       if (-not (Get-Process -Id $visioPid -ErrorAction SilentlyContinue)) { break }
-      Start-Sleep -Milliseconds 300
+      Start-Sleep -Milliseconds $QUIT_WAIT_MS
     }
     if (Get-Process -Id $visioPid -ErrorAction SilentlyContinue) {
       Write-Warning "Visio（pid $visioPid）没随 Quit 退出，强杀"
@@ -94,7 +100,7 @@ try {
     $doc = $null
     try {
       # visOpenCopy(4) + visOpenRO(2)：打开副本且只读，不碰用户的原始文件
-      $doc = $app.Documents.OpenEx($item.in, 6)
+      $doc = $app.Documents.OpenEx($item.in, $OPEN_COPY_READONLY)
       # 重存即让 Visio 自己解一遍走线/端点/母版；输出件才是我们要嵌的那份
       $doc.SaveAs($item.outVsdx)
       $page = $doc.Pages.Item(1)

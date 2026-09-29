@@ -19,7 +19,7 @@
 import JSZip from 'jszip'
 import { makeVisioOle } from './ole-streams'
 import { vsdxContentBbox, vsdxPageSize, patchVsdxPageSize, stripVsdxThumbnail } from './vsdx'
-import { makePreviewEmf, normalizePreviewEmf, declaredEqualsFrame, previewDpiOutOfBand } from './preview'
+import { makePreviewEmf, normalizePreviewEmf, declaredEqualsFrame, previewDpiOutOfBand, readPreviewMetrics } from './preview'
 
 const NS_W10 = 'urn:schemas-microsoft-com:office:word'
 
@@ -32,13 +32,13 @@ export interface FigureInput {
   preview?: Uint8Array
   previewExt?: 'emf' | 'png' | 'jpg' | 'jpeg'
   /**
-   * 预览件来源是否可信（例如 Visio 自己导出的 EMF）。
+   * 预览件来源。**只影响两件事**：来源是 `visio` 的件不做声明尺寸改写（它自带自洽声明）、
+   * 也不报 dpi 告警窗（它用的就是本机物理 dpi，那是正常形态）。来源不明或自产的一律走既有护栏。
    *
-   * 来源可信的预览**跳过 dpi 区间告警**：Visio 导出的件用的就是本机物理 dpi（如 188.5），
-   * 那是它的正常形态（口径见 docs/WORD处理经验/10）。来源不明的外部预览仍然要告警 ——
-   * 那道护栏是因为"把 dpi 当自由变量"撑大过对象框才加的，别拆。
+   * 为什么要显式标来源而不是一个布尔旁路：旁路开关容易被误设成"跳过所有检查"，
+   * 而来源是事实描述，改错了也看得见（口径见 docs/WORD处理经验/10）。
    */
-  previewTrusted?: boolean
+  previewSource?: 'visio' | 'external'
 }
 
 export interface EmbedVsdxOptions {
@@ -195,11 +195,20 @@ export async function embedVsdxIntoDocx(
       previewBytes = makePreviewEmf(baseW, baseH, width, height)
       previewExt = 'emf'
     } else if (emfPreview) {
-      const fixed = normalizePreviewEmf(previewBytes, baseW, baseH)
-      if (fixed) previewBytes = fixed
-      else {
-        warnings.push(`「${fig.name}」预览件不是可解析的 EMF（缺头或 EMF+ 注释），按原样嵌入`)
-        emfPreview = false
+      // Visio 自己导出的件**不改声明尺寸**：它自带自洽声明（实测 声明 3.003x4.814in、墨迹 566x910px @188.5dpi
+      // ⇒ 内容 = 声明，比值 1.000），我们按"画布 × 逻辑dpi ÷ 参考dpi"重写只会把它改成 0.914 —— 等于亲手
+      // 破坏自己定的"内容 = 声明"那条约束（2026-09-29 审计发现）。来源不明/自产的件才需要校正。
+      if (fig.previewSource === 'visio') {
+        if (readPreviewMetrics(previewBytes) === null) {
+          warnings.push(`「${fig.name}」Visio 预览件解析不出头信息，按原样嵌入`)
+        }
+      } else {
+        const fixed = normalizePreviewEmf(previewBytes, baseW, baseH)
+        if (fixed) previewBytes = fixed
+        else {
+          warnings.push(`「${fig.name}」预览件不是可解析的 EMF（缺头或 EMF+ 注释），按原样嵌入`)
+          emfPreview = false
+        }
       }
     }
     if (emfPreview && previewBytes && declaredEqualsFrame(previewBytes, width, height)) {
@@ -207,9 +216,9 @@ export async function embedVsdxIntoDocx(
         `「${fig.name}」预览图的声明尺寸与对象框相等，Word 更新对象时会撑大框（见 docs/WORD处理经验/06）`
       )
     }
-    // 护栏：dpi 越出常规区间会被 Word 当成"尺寸需要重算"，双击后对象框被改（见 preview.ts 的说明）。
-    // **来源可信的预览跳过这条**（Visio 自己导出的就是本机物理 dpi，那是它的正常形态，口径见 10）
-    if (emfPreview && previewBytes && fig.previewTrusted !== true) {
+    // 护栏：dpi 越出告警窗会被 Word 当成"尺寸需要重算"，双击后对象框被改（见 preview.ts 的说明）。
+    // **来源是 Visio 的跳过这条**（它导出的就是本机物理 dpi，属正常形态，口径见 10）
+    if (emfPreview && previewBytes && fig.previewSource !== 'visio') {
       const outOfBand = previewDpiOutOfBand(previewBytes)
       if (outOfBand) {
         warnings.push(

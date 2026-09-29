@@ -1,4 +1,4 @@
-/**
+﻿/**
  * visio-locate.ts — 找本机的 Visio（主进程）。**只查不改**：不启动 Visio、不碰用户的文档。
  *
  * 为什么要有这一节：嵌入 vsdx 时，连线端点与走线由生成侧"复刻"Visio 的求解结果，
@@ -147,20 +147,24 @@ export function statusFromProbe(raw: RawProbe, ms: number): VisioStatusDto {
   }
 }
 
-/** 探测结果缓存：设置页进进出出不该每次都开进程 */
+/** 探针超时：查注册表 + 读文件版本，正常 300ms 级；卡住就该放弃（可被调用方覆盖，便于自检） */
+export const PROBE_TIMEOUT_MS = 8000
+
+/** 探测结果缓存时长：设置页进进出出不该每次都开进程 */
+export const PROBE_CACHE_MS = 60_000
 let cached: { at: number; status: VisioStatusDto } | null = null
-const CACHE_MS = 60_000
+
 
 /**
  * 快速检测（查注册表，毫秒级）。
  * `force` 传 true 表示忽略缓存（设置页的「重新检测」）。
  */
-export async function probeVisio(force = false): Promise<VisioStatusDto> {
-  if (!force && cached && Date.now() - cached.at < CACHE_MS) return cached.status
+export async function probeVisio(force = false, probeTimeoutMs: number = PROBE_TIMEOUT_MS): Promise<VisioStatusDto> {
+  if (!force && cached && Date.now() - cached.at < PROBE_CACHE_MS) return cached.status
   const started = Date.now()
   let status: VisioStatusDto
   try {
-    status = statusFromProbe(await runProbe(8000), Date.now() - started)
+    status = statusFromProbe(await runProbe(probeTimeoutMs), Date.now() - started)
   } catch (err) {
     status = {
       found: false,
