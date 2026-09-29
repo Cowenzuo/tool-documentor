@@ -138,8 +138,10 @@ export function checkPreviewConsistency(
 }
 
 /**
- * 校正外部预览件：只把 `rclFrame`（声明尺寸）改成自洽值，其余字节一律不动。
- * 画面、记录、dpi 字段全部保留 —— 改的只有"这张图声明自己多大"。
+ * 校正预览件的声明尺寸（只改 `rclFrame`，其余字节不动）。
+ *
+ * **外部件现在一律原样使用，不走这里** —— 改别人产物（设备 dpi / 逻辑 dpi / 声明矩形）属于深度干预，
+ * 这一轮为此栽过两次。留给自产路径与历史用例；新代码别拿它去"修" Visio 的件。
  */
 export function normalizePreviewEmf(emf: Uint8Array, canvasWIn: number, canvasHIn: number): Uint8Array | null {
   const metrics = readPreviewMetrics(emf)

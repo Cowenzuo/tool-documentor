@@ -1,4 +1,4 @@
-/**
+﻿/**
  * embed.ts — 把 VSDX（含 OLE CF 容器）嵌入 docx 的 Mermaid 占位段。
  *
  * 移植自《documentor 旧版 scripts/embed_vsdx.py》，结构对齐 Word 2013+ 原生嵌入对象：
@@ -19,7 +19,7 @@
 import JSZip from 'jszip'
 import { makeVisioOle } from './ole-streams'
 import { vsdxContentBbox, vsdxPageSize, patchVsdxPageSize, stripVsdxThumbnail } from './vsdx'
-import { makePreviewEmf, normalizePreviewEmf, declaredEqualsFrame, previewDpiOutOfBand, readPreviewMetrics } from './preview'
+import { makePreviewEmf, declaredEqualsFrame, previewDpiOutOfBand, readPreviewMetrics } from './preview'
 
 const NS_W10 = 'urn:schemas-microsoft-com:office:word'
 
@@ -194,15 +194,13 @@ export async function embedVsdxIntoDocx(
       previewBytes = makePreviewEmf(baseW, baseH, width, height)
       previewExt = 'emf'
     } else if (emfPreview) {
-      // **外部预览一律走声明尺寸校正**（含 Visio 导出的件）。
-      // 2026-09-29 的教训：我曾以为"Visio 的件自带自洽声明，不该改"，于是跳过校正 —— 结果声明可能
-      // 与对象框撞成相等，Word 一更新就把框撑大（人工双击实测变大）。这道校正同时在保两件事：
-      //   ① 声明 = 画布 × 逻辑dpi ÷ 参考dpi（自洽）；② 声明 ≠ 对象框（否则被撑大，见 06）。
-      // 代价是内容与声明会差几个百分点（实测 0.914，表现为图小一圈的留白），这点留白是可接受的，
-      // 而"框被撑大"不可接受。
-      const fixed = normalizePreviewEmf(previewBytes, baseW, baseH)
-      if (fixed) previewBytes = fixed
-      else {
+      // 外部预览（含 Visio 导出的件）**原样使用，一个字节都不改**。
+      //
+      // 为什么不再"校正"：改设备 dpi / 逻辑 dpi / 声明矩形，都是对别人产物的深度干预。
+      // 这一轮为此栽了两次：跳过校正 ⇒ 声明与框撞成相等、框被撑大；重新标定 ⇒ 内容与声明对不上、
+      // 靠左上留白。**这个件在我们文件里长什么样，由我们自己的旋钮决定 —— 对象框尺寸**（见上面 width/height）。
+      // 这里只做一件事：确认它是能解析的 EMF；不是就退回自产件，并如实说一句。
+      if (readPreviewMetrics(previewBytes) === null) {
         warnings.push(`「${fig.name}」预览件不是可解析的 EMF（缺头或 EMF+ 注释），按原样嵌入`)
         emfPreview = false
       }

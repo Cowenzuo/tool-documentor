@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @documentor/postprocess — Documentor DOCX 后处理（M7 图嵌入链路）。
  *
  * 分层（上游 mmd2vsdx 产出 VSDX 字节，本包只做 docx/VSDX 装配）：
