@@ -144,6 +144,9 @@ const api: DesktopApi = {
     status: (config) => invoke(ProjectIpc.MmdStatus, config) as ReturnType<DesktopApi['mmd']['status']>,
     start: (config) => invoke(ProjectIpc.MmdStart, config) as ReturnType<DesktopApi['mmd']['start']>
   },
+  visio: {
+    status: (force) => invoke(ProjectIpc.VisioStatus, force) as ReturnType<DesktopApi['visio']['status']>
+  },
   files: {
     readAsDataUrl: (relPath: string) =>
       invoke(ProjectIpc.FileReadDataUrl, relPath) as ReturnType<DesktopApi['files']['readAsDataUrl']>

@@ -15,7 +15,8 @@ import type {
   DesktopTemplatesApi,
   DesktopTemplateEditorApi,
   DesktopTreeApi,
-  DesktopUiStateApi
+  DesktopUiStateApi,
+  DesktopVisioApi
 } from './project'
 
 /**
@@ -69,4 +70,6 @@ export interface DesktopApi {
   templateEditor: DesktopTemplateEditorApi
   files: DesktopFileApi
   mmd: DesktopMmdApi
+  /** Visio（可选加速器；没装就走现状） */
+  visio: DesktopVisioApi
 }

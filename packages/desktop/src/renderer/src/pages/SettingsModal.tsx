@@ -8,7 +8,7 @@
  * 模板编辑的入口不在这里——它在欢迎页（与新建/打开工程并排），那里不打开工程也能进。
  */
 import { useEffect, useRef, useState } from 'react'
-import type { AppConfigDto, MmdStatusDto, TemplateLoadReport } from '../../../shared/project'
+import type { AppConfigDto, MmdStatusDto, TemplateLoadReport, VisioStatusDto } from '../../../shared/project'
 import { useApp } from '../state/AppContext'
 import { useTheme, type ThemePreference } from '../theme/ThemeProvider'
 import { errorText } from '../utils/errorText'
@@ -342,8 +342,109 @@ function MmdSection({
   )
 }
 
-export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.Element {
-  const { showToast } = useApp()
+/**
+ * Visio（可选）一节。
+ *
+ * 排法照「转换服务」那一节：**状态就地给**——一颗灯 + 一段字（版本 / 没检测到的原因进悬停）。
+ * 两处自己的样子：
+ *   - 检测是**快速档**（查注册表，毫秒级，不开 Visio），进设置就探一次，另有「重新检测」；
+ *   - 没有 Visio **不是错误**：这一节说清"没检测到 → 仍然照常导出，只是预览与连线走内置方案"，
+ *     所以灯红但文案不吓人，也不挡保存。
+ *
+ * 一句话口径：装了 Visio 就让它重存一次 vsdx 并导出预览真图（Word 首帧更稳），
+ * 没装就走现状——详见 docs/WORD处理经验/10。
+ */
+function VisioSection({
+  cfg,
+  onChange
+}: {
+  cfg: AppConfigDto
+  onChange: (next: AppConfigDto) => void
+}): React.JSX.Element {
+  const visio = cfg.visio
+  const [status, setStatus] = useState<VisioStatusDto | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const patch = (part: Partial<AppConfigDto['visio']>): void => {
+    onChange({ ...cfg, visio: { ...cfg.visio, ...part } })
+  }
+
+  const refresh = async (force: boolean): Promise<void> => {
+    setBusy(true)
+    try {
+      setStatus(await window.documentor.visio.status(force))
+    } catch {
+      setStatus(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // 进设置就探一次：现状不该等用户点按钮才出现
+  useEffect(() => {
+    void window.documentor.visio
+      .status(false)
+      .then(setStatus)
+      .catch(() => undefined)
+  }, [])
+
+  const found = status?.found === true
+  const detail = !status
+    ? '正在检测…'
+    : found
+      ? `Visio ${status.version ?? ''}`.trim()
+      : '未检测到 Visio'
+  const why = !status
+    ? '还没有结果'
+    : found
+      ? `${status.source}${status.bitness ? ` · ${status.bitness}` : ''}${status.exe ? ` · ${status.exe}` : ''}`
+      : `${status.probe.reason}${status.probe.detail ? `（${status.probe.detail}）` : ''}；仍照常导出，预览与连线走内置方案`
+
+  return (
+    <section className="settings-group">
+      <h3>Visio（可选）</h3>
+      <div className="settings-fields">
+        <div>
+          <div className="w-row settings-endpoint">
+            <label className="settings-check" title="装了 Visio 就让它重存一次 vsdx 并导出预览真图；没装仍照常导出">
+              <input
+                type="checkbox"
+                checked={visio.enabled}
+                disabled={!found}
+                onChange={(e) => patch({ enabled: e.target.checked })}
+              />
+              <span>嵌入前过一遍 Visio</span>
+            </label>
+            <span className="settings-light-wrap" title={why}>
+              <i className={`settings-light${found ? '' : ' bad'}`} />
+              <em className="settings-light-text">{detail}</em>
+            </span>
+            <button type="button" className="be-btn" disabled={busy} onClick={() => void refresh(true)}>
+              {busy ? '正在检测…' : '重新检测'}
+            </button>
+          </div>
+          <p className="settings-status">
+            {found
+              ? '嵌入前由 Visio 重存一次 vsdx 并导出预览图，Word 里双击的首帧位置更稳。'
+              : '没检测到 Visio：仍然照常导出，只是预览与连线走内置方案。'}
+          </p>
+        </div>
+        {found && (
+          <label className="settings-check" title="用 Visio 按页面尺寸导出的预览真图，而不是 vsdx 自带的缩略图">
+            <input
+              type="checkbox"
+              checked={visio.use_visio_preview}
+              onChange={(e) => patch({ use_visio_preview: e.target.checked })}
+            />
+            <span>预览图用 Visio 导出的真图</span>
+          </label>
+        )}
+      </div>
+    </section>
+  )
+}
+
+export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.Element {  const { showToast } = useApp()
   const [cfg, setCfg] = useState<AppConfigDto | null>(null)
   const [saving, setSaving] = useState(false)
   const [report, setReport] = useState<TemplateLoadReport | null>(null)
@@ -378,7 +479,8 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
       await window.documentor.settings.set({
         default_project_dir: cfg.default_project_dir,
         template_dirs: cfg.template_dirs,
-        mmd2vsdx: cfg.mmd2vsdx
+        mmd2vsdx: cfg.mmd2vsdx,
+        visio: cfg.visio
       })
       // 保存后主进程已重载模板，立刻刷新加载结果
       await refreshReport()
@@ -513,6 +615,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }): React.JSX.E
               )}
             </section>
             <MmdSection cfg={cfg} onChange={setCfg} />
+            <VisioSection cfg={cfg} onChange={setCfg} />
           </div>
         )}
         <footer className="wizard-foot">
