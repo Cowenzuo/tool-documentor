@@ -101,9 +101,44 @@ try {
     try {
       # visOpenCopy(4) + visOpenRO(2)：打开副本且只读，不碰用户的原始文件
       $doc = $app.Documents.OpenEx($item.in, $OPEN_COPY_READONLY)
-      # 重存即让 Visio 自己解一遍走线/端点/母版；输出件才是我们要嵌的那份
-      $doc.SaveAs($item.outVsdx)
       $page = $doc.Pages.Item(1)
+
+      # 修正画布：把页面尺寸设成 Visio 自己算出的绘图范围（含走线），余量 0。
+      # 为什么：上游 mmd2vsdx 不许调 Visio，只能按节点包围盒 + 约 10% 余量估画布，
+      # 那个画布不是真值；有了 Visio 就该换成真值。页面去余量后，更多图能"不缩放"放进版心，
+      # 于是双击时框不会被恢复成更大的页面尺寸（详见 docs/WORD处理经验/12）。
+      # 只平移不缩放：节点相对位置与现有坐标公式不受影响。
+      $fixed = $false
+      $box = $null
+      foreach ($flags in 3, 2) {
+        $x1 = 0.0; $y1 = 0.0; $x2 = 0.0; $y2 = 0.0
+        try {
+          $page.BoundingBox($flags, [ref]$x1, [ref]$y1, [ref]$x2, [ref]$y2) | Out-Null
+          if (($x2 - $x1) -gt 0.01 -and ($y2 - $y1) -gt 0.01) { $box = @([double]$x1, [double]$y1, [double]$x2, [double]$y2); break }
+        } catch { }
+      }
+      if ($box) {
+        $page.PageSheet.CellsU('PageWidth').FormulaU = ('{0:N6} in' -f ($box[2] - $box[0]))
+        $page.PageSheet.CellsU('PageHeight').FormulaU = ('{0:N6} in' -f ($box[3] - $box[1]))
+        for ($i = 1; $i -le $page.Shapes.Count; $i++) {
+          $shape = $page.Shapes.Item($i)
+          foreach ($cell in 'LockMoveX', 'LockMoveY') {
+            try { $shape.CellsU($cell).FormulaU = '0' } catch { }
+          }
+          try {
+            $shape.CellsU('PinX').FormulaU = ('{0:N6} in' -f ([double]$shape.CellsU('PinX').ResultIU - $box[0]))
+            $shape.CellsU('PinY').FormulaU = ('{0:N6} in' -f ([double]$shape.CellsU('PinY').ResultIU - $box[1]))
+          } catch {
+            # 动态连线的位置由端点驱动、本就挪不动，跟着节点走即可
+          }
+        }
+        $fixed = $true
+      }
+      Write-Verbose ("page fix: $fixed")
+
+      # 重存即让 Visio 自己解一遍走线/端点/母版；输出件才是我们要嵌的那份
+      # （放在改画布之后：保存下来的页面就是修正后的真值）
+      $doc.SaveAs($item.outVsdx)
       # 按页面尺寸导出（不是文件自带的缩略图，那张是小图、放进 Word 会糊）。
       # **只传文件名**：PowerShell 解析不了 Export 的两参数重载（报 "Cannot find an overload"），
       # Visio 会按扩展名推断格式 —— 所以清单里的 outEmf 必须是 .emf 后缀。
