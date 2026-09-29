@@ -71,6 +71,6 @@ Word 另存 PDF 后统计绘制指令。
 | 用途 | 路径 |
 | --- | --- |
 | 出问题的导出件 | `tool-documentor/temp/测试工程-block-beta/测试工程-block-beta.docx` |
-| 对照件，Word 官方写法加预览加同样放大的框 | `tool-mmd2vsdx/temp/ab/word-style-fit.docx` |
+| 对照件（Word 官方写法 + 预览 + 同样放大的框） | 临时产物，已随 temp 清掉；要复现就照这一行的三要素另做一份 |
 | 源 vsdx | `tool-mmd2vsdx/resources/vsdx-output/01-block-1.vsdx` |
-| 实测脚本 | `tool-mmd2vsdx/temp/` 下的 `compare-block.mjs`、`cfb-deep.mjs`、`pdf-total.mjs`、`word-inspect2.ps1`、`ab-control.ps1` |
+| 实测脚本 | 在 `tool-mmd2vsdx/temp/` 下现做现用（比对内嵌件、深看复合容器、数页数、Word 侧核对），不随仓库留档 |

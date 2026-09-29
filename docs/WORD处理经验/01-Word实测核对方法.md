@@ -70,7 +70,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File localscripts\word-checks\wor
 合并标记数一次给全，适合放进自动化。
 
 ```bash
-node localscripts/word-checks/docx-check.cjs temp/export/out.docx
+node localscripts/word-checks/docx-check.cjs "<导出件.docx>"
 ```
 
 ## 7. 写脚本时的两个注意
