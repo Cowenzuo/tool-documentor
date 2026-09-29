@@ -32,11 +32,10 @@ export interface FigureInput {
   preview?: Uint8Array
   previewExt?: 'emf' | 'png' | 'jpg' | 'jpeg'
   /**
-   * 预览件来源。**只影响两件事**：来源是 `visio` 的件不做声明尺寸改写（它自带自洽声明）、
-   * 也不报 dpi 告警窗（它用的就是本机物理 dpi，那是正常形态）。来源不明或自产的一律走既有护栏。
+   * 预览件来源。只影响**告警口径**：`visio` 的件用本机物理 dpi，那是它的正常形态，
+   * dpi 告警窗跳过它（口径见 docs/WORD处理经验/10）。
    *
-   * 为什么要显式标来源而不是一个布尔旁路：旁路开关容易被误设成"跳过所有检查"，
-   * 而来源是事实描述，改错了也看得见（口径见 docs/WORD处理经验/10）。
+   * 注意：来源**不**豁免声明尺寸校正 —— 那是"框被撑大"的防线（2026-09-29 人工双击实测）。
    */
   previewSource?: 'visio' | 'external'
 }
@@ -195,20 +194,17 @@ export async function embedVsdxIntoDocx(
       previewBytes = makePreviewEmf(baseW, baseH, width, height)
       previewExt = 'emf'
     } else if (emfPreview) {
-      // Visio 自己导出的件**不改声明尺寸**：它自带自洽声明（实测 声明 3.003x4.814in、墨迹 566x910px @188.5dpi
-      // ⇒ 内容 = 声明，比值 1.000），我们按"画布 × 逻辑dpi ÷ 参考dpi"重写只会把它改成 0.914 —— 等于亲手
-      // 破坏自己定的"内容 = 声明"那条约束（2026-09-29 审计发现）。来源不明/自产的件才需要校正。
-      if (fig.previewSource === 'visio') {
-        if (readPreviewMetrics(previewBytes) === null) {
-          warnings.push(`「${fig.name}」Visio 预览件解析不出头信息，按原样嵌入`)
-        }
-      } else {
-        const fixed = normalizePreviewEmf(previewBytes, baseW, baseH)
-        if (fixed) previewBytes = fixed
-        else {
-          warnings.push(`「${fig.name}」预览件不是可解析的 EMF（缺头或 EMF+ 注释），按原样嵌入`)
-          emfPreview = false
-        }
+      // **外部预览一律走声明尺寸校正**（含 Visio 导出的件）。
+      // 2026-09-29 的教训：我曾以为"Visio 的件自带自洽声明，不该改"，于是跳过校正 —— 结果声明可能
+      // 与对象框撞成相等，Word 一更新就把框撑大（人工双击实测变大）。这道校正同时在保两件事：
+      //   ① 声明 = 画布 × 逻辑dpi ÷ 参考dpi（自洽）；② 声明 ≠ 对象框（否则被撑大，见 06）。
+      // 代价是内容与声明会差几个百分点（实测 0.914，表现为图小一圈的留白），这点留白是可接受的，
+      // 而"框被撑大"不可接受。
+      const fixed = normalizePreviewEmf(previewBytes, baseW, baseH)
+      if (fixed) previewBytes = fixed
+      else {
+        warnings.push(`「${fig.name}」预览件不是可解析的 EMF（缺头或 EMF+ 注释），按原样嵌入`)
+        emfPreview = false
       }
     }
     if (emfPreview && previewBytes && declaredEqualsFrame(previewBytes, width, height)) {

@@ -775,14 +775,23 @@ export class ProjectService {
    * `preNormalized` 是导出前那次 Visio 归一化的结果（可选）：命中就直接用，
    * 顺手带上 Visio 导出的预览件；没命中（重复图、或没走 Visio）就照旧问转换服务。
    */
-  private figureConvert(preNormalized?: Map<string, { vsdxBase64: string; previewBase64?: string }>): FigureConvertFn | undefined {
+  private figureConvert(
+    preNormalized?: Map<string, { vsdxBase64: string; previewBase64?: string; previewSource?: 'visio' | 'external' }>
+  ): FigureConvertFn | undefined {
     const mmd = this.mmdValue
     if (!mmd) return undefined
     return async (code) => {
-      // Visio 预归一化过的那批直接查表（表里的预览件已过护栏，过不了的不带 previewBase64，
-      // 由嵌入层自产 —— 那套硬约束见 docs/WORD处理经验/07、08）
+      // Visio 预归一化过的那批直接查表；**来源标记必须一起带出去** ——
+      // 它决定嵌入层报不报 dpi 告警窗（声明尺寸校正则一律照做，见 embed.ts 的说明）。
       const pre = preNormalized?.get(code)
-      if (pre) return { ok: true, vsdxBase64: pre.vsdxBase64, ...(pre.previewBase64 ? { previewBase64: pre.previewBase64 } : {}) }
+      if (pre) {
+        return {
+          ok: true,
+          vsdxBase64: pre.vsdxBase64,
+          ...(pre.previewBase64 ? { previewBase64: pre.previewBase64 } : {}),
+          ...(pre.previewSource ? { previewSource: pre.previewSource } : {})
+        }
+      }
       const r = await mmd.convert(code)
       if (r.ok) {
         return { ok: true, vsdxBase64: Buffer.from(r.bytes).toString('base64') }
