@@ -65,6 +65,36 @@ export interface VisioManifestItem {
   outEmf: string
 }
 
+/**
+ * 按脚本留下的 PID 文件兜底清理（纯函数：读文件 + 杀进程，失败一律吞掉）。
+ *
+ * 为什么需要它：PowerShell 被 execFile 的超时强杀时，脚本里的 finally 不会执行，
+ * 那个隐藏的 VISIO.EXE 就成了孤儿 —— 2026-09-29 用户就是这么看到的残留。
+ */
+export function killPidIfAlive(pidFile: string): boolean {
+  try {
+    if (!existsSync(pidFile)) return false
+    const pid = Number(readFileSync(pidFile, 'utf8').trim())
+    if (!Number.isInteger(pid) || pid <= 0) return false
+    let alive = true
+    try {
+      process.kill(pid, 0)
+    } catch {
+      alive = false
+    }
+    if (alive) process.kill(pid)
+    return alive
+  } catch {
+    return false
+  } finally {
+    try {
+      rmSync(pidFile, { force: true })
+    } catch {
+      // 删不掉就算了：临时目录随后整体清理
+    }
+  }
+}
+
 /** 脚本回执（stdout 单行 JSON） */
 export interface RawVisioResult {
   id?: string
@@ -89,7 +119,12 @@ export function parseScriptResults(stdout: string): RawVisioResult[] {
 }
 
 export class VisioService {
-  constructor(private readonly opts: VisioServiceOptions) {}
+  /** 显式字段而不是构造器参数属性：这样本文件能被 `node --experimental-strip-types` 直接跑（本机验证用） */
+  private readonly opts: VisioServiceOptions
+
+  constructor(opts: VisioServiceOptions) {
+    this.opts = opts
+  }
 
   private get enabled(): boolean {
     return this.opts.config().enabled
@@ -167,6 +202,7 @@ export class VisioService {
     const allFailed = (reason: string): VisioNormalizeResult[] => items.map((i) => ({ id: i.id, ok: false, reason }))
 
     let manifestPath = ''
+    const pidFile = join(dir, 'visio.pid')
     try {
       const manifest: VisioManifestItem[] = items.map((item, i) => {
         const inPath = join(dir, `in${i}.vsdx`)
@@ -183,7 +219,19 @@ export class VisioService {
     return new Promise<VisioNormalizeResult[]>((resolve) => {
       execFile(
         'powershell.exe',
-        ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', this.opts.scriptPath, '-Manifest', manifestPath],
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-File',
+          this.opts.scriptPath,
+          '-Manifest',
+          manifestPath,
+          // 脚本会把 Visio 的 PID 写在这里：脚本自己被超时杀掉时，靠它兜底清掉 Visio
+          '-PidFile',
+          pidFile
+        ],
         { timeout: cfg.timeout_ms, windowsHide: true, maxBuffer: 1 << 22 },
         (err, stdout, stderr) => {
           try {
@@ -208,6 +256,8 @@ export class VisioService {
             })
             resolve(results)
           } finally {
+            // 超时/异常时 PowerShell 会被杀，脚本里的收尾跑不到 ⇒ 这里按 PID 兜底，别留隐藏的 VISIO.EXE
+            killPidIfAlive(pidFile)
             cleanup()
           }
         }
