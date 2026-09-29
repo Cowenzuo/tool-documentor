@@ -65,11 +65,32 @@ interface VsdxNormalizer {
 4. 回退路径：临时把 Visio 探测遮掉，确认导出与现状完全一致；
 5. 记录耗时（首图/批量/缓存命中三种）。
 
-## 10.8 待定问题（讨论点）
+## 10.8 已定口径（本轮拍定）
 
-1. 归一化时机：**每次导出都做**，还是**首次算完缓存、之后复用**？缓存键用 mermaid 内容哈希是否够（还要带转换器版本）？
-2. 预览图取舍：用 Visio 渲染的真图（信息量最大），还是保留自产件（有一行示意文字）？可否按"有 Visio 就用真图"分流？
-3. 归一化是否只做**连线部分**（我们只在意走线/端点），还是整份重存（顺带把母版、document.xml 也交给 Visio）？
-4. 失败时是否给用户一条提示（"未检测到 Visio，已用内置呈现图"），还是静默回退？
-5. Visio 版本/位数是否有最低要求（决定 `SaveAs` 的目标格式与 COM 接口可用性）？
-6. 是否需要在 CI/本机自检里加"装了 Visio 时跑一遍归一化"的用例（当前 327 个用例不依赖 Visio）。
+**由设置里的检测决定走哪条路**，和 mmd2vsdx 的「转换服务」一节同一套模式：
+
+- 设置里探测本机有没有 Visio（照 `node-locate.ts` 的形态：候选 + 每个候选的来源/版本/为什么没用上）；
+- **没有 Visio** ⇒ 完全走现状：自产预览件 + 原始 vsdx 嵌入，不报错、不阻塞、不提示失败；
+- **有 Visio** ⇒ 每张图先过一遍 Visio（重存拿归一化 vsdx，顺手导出渲染预览），再嵌入；
+- 检测结果与开关落地在设置页，用户可看可关；默认「检测到就启用」。
+
+导出期若 Visio 调用失败（超时/弹框/权限），**逐张回退**到现状并记一条警告，不让整篇导出失败。
+
+## 10.9 落地清单（按文件，照现有分层）
+
+| 步骤 | 文件 | 内容 |
+| --- | --- | --- |
+| 1 配置与状态类型 | `packages/desktop/src/shared/project.ts` | 新增 `VisioConfigDto`（enabled、exe_path/prog_id、timeout_ms、用不用它的预览）与 `VisioStatusDto`（found、source、exe、version、bitness、probe{ok,reason,detail,ms}），并加进 `AppConfigDto` |
+| 2 探测 | `packages/desktop/src/main/services/visio-locate.ts`（新） | 候选：注册表 `HKCR\Visio.Application\CLSID`、`HKLM\SOFTWARE\Microsoft\Office\*\Visio\InstallRoot`、常见安装路径；每条给 source / version / ok / reason |
+| 3 调用 | `packages/desktop/src/main/services/visio-service.ts`（新）+ `scripts/visio-normalize.ps1`（入库） | 快速探测（查注册表，毫秒级）与深度探测（真起一次 COM 再退出，1~3 秒）；批量归一化：单会话、不可见、`DisplayAlerts=0`、硬超时强杀、临时目录交换文件 |
+| 4 IPC | `packages/desktop/src/main/ipc.ts` | 设置读写加 `visio` 一节；新增「检测 Visio / 探测详情」通道（照 mmd2vsdx 那节） |
+| 5 设置界面 | `packages/desktop/src/renderer/src/pages/SettingsModal.tsx` | 新增「Visio（可选）」一节：检测结果、版本、路径、来源、原因、重新检测按钮、启用开关；文案沿用现有"为什么不生效"的写法 |
+| 6 导出链路 | `packages/desktop/src/main/services/project-service.ts` | 拿到上游 vsdx 之后、交给 writer 之前插一次归一化；不可用或失败即原样返回；归一化带回的预览件要先过现有护栏（声明尺寸/dpi），不合规退回自产件 |
+| 7 缓存 | userData 下 | 归一化结果按 vsdx 内容的 sha256 缓存，键含 Visio 版本与脚本版本；同内容不重复起 Visio |
+
+## 10.10 仍需你点头的三件小事
+
+1. **检测深度**：设置页给两档 —— 快速检测（查注册表，毫秒级，默认）+ 深度检测（真起一次 COM，1~3 秒，按钮触发）？
+2. **预览取舍**：有 Visio 时用它的 EMF（真图，信息量最大、不再需要那行示意文字）；还是保留自产预览件（有示意文字、尺寸完全可控）？我倾向用真图，护栏照过。
+3. **归一化范围**：整份重存（推荐：与 K1 实验完全一致，母版/document.xml 也交给 Visio），还是只重写连线部分？
+
