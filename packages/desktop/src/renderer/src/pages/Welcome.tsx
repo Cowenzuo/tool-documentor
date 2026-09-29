@@ -8,7 +8,9 @@ import { BrandDocGlyph } from '../components/icons'
 import { CreateProjectWizard } from './CreateProjectWizard'
 import './welcome.css'
 
-const FALLBACK_VERSION = '0.1.2-alpha1'
+// 版本号只在主进程问一次（app.getVersion()）。**不写兜底常量**：写死一个版本号，
+// 每次定版都会漏改、加载的一瞬间就显示过期版本（0.1.3-alpha1 定版时就撞上了）。
+// 拿不到就干脆不画这枚徽章。
 
 interface RecentItem {
   path: string
@@ -51,7 +53,7 @@ export default function Welcome(): JSX.Element {
             </div>
             <div className="welcome-title-row">
               <h1 className="welcome-title">Documentor</h1>
-              <span className="welcome-version">v{version || FALLBACK_VERSION}</span>
+              {version && <span className="welcome-version">v{version}</span>}
             </div>
             <p className="welcome-subtitle">结构化文档写作台 · 模板驱动</p>
             <div className="welcome-actions">
