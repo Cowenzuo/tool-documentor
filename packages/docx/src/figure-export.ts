@@ -1,4 +1,4 @@
-/**
+﻿/**
  * figure-export.ts — M7 图嵌入链路编排（Mermaid → VSDX → OLE 嵌入 docx）。
  *
  * 分工（2026-09 修订，接入形态改为本机常驻 HTTP 服务）：
@@ -25,7 +25,7 @@ import { copyFileSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { normalizeMermaidSource } from '@documentor/core'
 import type { DocumentTree } from '@documentor/core'
 import type { StyleTemplateDef } from '@documentor/templates'
-import { embedVsdxIntoDocx } from '@documentor/postprocess'
+import { embedVsdxIntoDocx, previewDpiOutOfBand } from '@documentor/postprocess'
 import type { FigureInput } from '@documentor/postprocess'
 import { collectMermaidFigures, serializeWithWarnings } from './serializer'
 import { writeDocx } from './writer'
@@ -37,9 +37,15 @@ export interface FigureConvertResult {
   vsdxBase64?: string
   /**
    * 可选的预览件（EMF，base64）。不提供时嵌入层会自产一张带示意文字的件。
-   * 提供了就必须是 EMF：嵌入层会按"声明尺寸 = 画布 × 逻辑dpi ÷ 参考dpi"校正后才用。
+   * 来源不明的件会按"声明尺寸 = 画布 × 逻辑dpi ÷ 参考dpi"校正后才用；标了 `visio` 的件不改写
+   * （Visio 自带自洽声明，改反而破坏"内容 = 声明"）。
    */
   previewBase64?: string
+  /**
+   * 预览件来源。`visio` = Visio 自己导出的真图：不改声明尺寸、不报 dpi 告警窗。
+   * 不给就按"来源不明"处理（照旧走两道护栏）。
+   */
+  previewSource?: 'visio' | 'external'
   error?: string
   /**
    * 转换服务整体不可用（没在运行、契约版本不符、连接类失败…）。
@@ -94,6 +100,8 @@ interface Slot {
   vsdx?: Uint8Array
   /** 上游可选提供的预览件（EMF）；无则由嵌入层自产 */
   preview?: Uint8Array
+  /** 预览件来源：visio = 不改声明尺寸、不报 dpi 告警窗 */
+  previewSource?: 'visio' | 'external'
 }
 
 /** 整体不可用时的统一提示（文案口径见 产品文案口径.md 第 7 条：不说依赖名与安装指引） */
@@ -168,7 +176,7 @@ export async function attachFiguresToDocx(
       const preview = r.previewBase64
         ? Uint8Array.from(Buffer.from(r.previewBase64, 'base64'))
         : undefined
-      slots.push({ name, vsdx: bytes, preview })
+      slots.push({ name, vsdx: bytes, preview, previewSource: r.previewSource })
     } catch (err) {
       stats.failed.push({
         caption: fig.caption || `图${i + 1}`,
@@ -178,13 +186,15 @@ export async function attachFiguresToDocx(
     }
   }
 
-  // 嵌入（槽位 k ↔ 文档占位段 k；转换失败槽位保留占位文本）
+  // 嵌入（槽位 k ↔ 文档占位段 k；转换失败槽位保留占位文本）。
+  // 预览件照传：来源可信的（Visio 导出的真图）直接用，来源不明的由嵌入层过 dpi 护栏。
   const docxBytes = readFileSync(docxPath)
   const figuresForEmbed: FigureInput[] = slots.map((s) => ({
     name: s.name,
     vsdx: s.vsdx,
     preview: s.preview,
-    previewExt: s.preview ? 'emf' : undefined
+    previewExt: s.preview ? 'emf' : undefined,
+    ...(s.previewSource ? { previewSource: s.previewSource } : {})
   }))
   const embedResult = await embedVsdxIntoDocx(docxBytes, figuresForEmbed, {
     captionStyleId: options.captionStyleId ?? styleDef.styleMap['figure.caption'] ?? undefined,

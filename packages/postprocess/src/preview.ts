@@ -16,10 +16,6 @@
  * 否则 GDI+ 解析会直接报 "A generic error occurred in GDI+"。
  */
 
-/** 模板自带的 dpi 组：参考设备 96dpi、LogicalDpi 120 ⇒ 比值 1.25 */
-export const TEMPLATE_REF_DPI = 96
-export const TEMPLATE_LOGICAL_DPI = 120
-
 const EMFF_SIGNATURE = 0x464d4520
 const HEADER_MIN_SIZE = 88
 
@@ -142,8 +138,10 @@ export function checkPreviewConsistency(
 }
 
 /**
- * 校正外部预览件：只把 `rclFrame`（声明尺寸）改成自洽值，其余字节一律不动。
- * 画面、记录、dpi 字段全部保留 —— 改的只有"这张图声明自己多大"。
+ * 校正预览件的声明尺寸（只改 `rclFrame`，其余字节不动）。
+ *
+ * **外部件现在一律原样使用，不走这里** —— 改别人产物（设备 dpi / 逻辑 dpi / 声明矩形）属于深度干预，
+ * 这一轮为此栽过两次。留给自产路径与历史用例；新代码别拿它去"修" Visio 的件。
  */
 export function normalizePreviewEmf(emf: Uint8Array, canvasWIn: number, canvasHIn: number): Uint8Array | null {
   const metrics = readPreviewMetrics(emf)
@@ -176,23 +174,33 @@ export function declaredEqualsFrame(
   return Math.abs(dw - frameWidthPt) <= tolerancePt || Math.abs(dh - frameHeightPt) <= tolerancePt
 }
 
-/** dpi 允许区间：参考设备与逻辑 dpi 都必须落在里面，且**两轴必须一致** */
-export const PREVIEW_DPI_MIN = 96
-export const PREVIEW_DPI_MAX = 160
+/**
+ * 未验证来源的预览件告警窗（**不是格式规则，也不是合法取值表**）。
+ *
+ * 它的语义只有一句：这份预览的 dpi 不在我们样本覆盖过的范围内，值得叫一声。
+ * 事故背景：曾把 LogicalDpi 当自由变量解出 57 / 600 / 1992，自洽式照样成立、本地自检全绿，
+ * 只有人双击才发现对象框被放大（详见 docs/WORD处理经验/07、08）。
+ *
+ * 来源可信的件（例如 Visio 自己导出的，用本机物理 dpi 188.5）不走这条 —— 见 embed.ts 的 previewSource。
+ */
+export const PREVIEW_DPI_WARN_MIN = 96
+export const PREVIEW_DPI_WARN_MAX = 160
 
 /**
- * 护栏：dpi 是否越出常规区间、或两轴不一致（越界 ⇒ Word 会认为尺寸需要重算 ⇒ 双击后对象框被改）。
+ * 护栏：dpi 是否越出告警窗、或两轴不一致（两种情况下 Word 都可能认为尺寸需要重算）。
  *
  * 为什么要有这条：曾经（2026-09）为了满足"画面自然尺寸 = 声明尺寸"，把 LogicalDpi 当成自由变量取
  * `画面像素 ÷ 画布in`，扁图上算出 57 / 600 / 1992 这种值 —— 自洽式仍然成立、本地自检全绿，
- * 只有人双击后才发现框被放大 ✗。**dpi 不是可调量，它是格式的常规字段**，所以在这里硬卡住。
+ * 只有人双击后才发现框被放大。dpi 不是可调量，它是格式的常规字段，所以在这里叫一声。
  * 两轴一致这条同样重要：参考设备写成 1440×1080px / 254×191mm 时，横轴 144.0、纵轴 143.6，
  * 声明尺寸按 144 算 ⇒ 纵轴对不上（0.27%），同一类隐患。
+ *
+ * 注意语义：这是**告警**（未验证来源），不是校验失败；调用方按来源决定要不要理会。
  */
 export function previewDpiOutOfBand(emf: Uint8Array): { ref: number; lx: number; ly: number } | null {
   const m = readPreviewMetrics(emf)
   if (!m || m.logicalDpi === null || m.logicalDpiY === null) return null
-  const band = (v: number): boolean => v >= PREVIEW_DPI_MIN && v <= PREVIEW_DPI_MAX
+  const band = (v: number): boolean => v >= PREVIEW_DPI_WARN_MIN && v <= PREVIEW_DPI_WARN_MAX
   const skew = (a: number, b: number): boolean => Math.abs(a - b) / Math.max(a, 1) > 0.001
   if (
     band(m.refDpi) &&

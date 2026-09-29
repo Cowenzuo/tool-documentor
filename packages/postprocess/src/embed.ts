@@ -1,4 +1,4 @@
-/**
+﻿/**
  * embed.ts — 把 VSDX（含 OLE CF 容器）嵌入 docx 的 Mermaid 占位段。
  *
  * 移植自《documentor 旧版 scripts/embed_vsdx.py》，结构对齐 Word 2013+ 原生嵌入对象：
@@ -19,7 +19,7 @@
 import JSZip from 'jszip'
 import { makeVisioOle } from './ole-streams'
 import { vsdxContentBbox, vsdxPageSize, patchVsdxPageSize, stripVsdxThumbnail } from './vsdx'
-import { makePreviewEmf, normalizePreviewEmf, declaredEqualsFrame, previewDpiOutOfBand } from './preview'
+import { makePreviewEmf, declaredEqualsFrame, previewDpiOutOfBand, readPreviewMetrics } from './preview'
 
 const NS_W10 = 'urn:schemas-microsoft-com:office:word'
 
@@ -31,6 +31,13 @@ export interface FigureInput {
   /** 预览图（EMF 优先，PNG/JPG 兜底） */
   preview?: Uint8Array
   previewExt?: 'emf' | 'png' | 'jpg' | 'jpeg'
+  /**
+   * 预览件来源。只影响**告警口径**：`visio` 的件用本机物理 dpi，那是它的正常形态，
+   * dpi 告警窗跳过它（口径见 docs/WORD处理经验/10）。
+   *
+   * 注意：来源**不**豁免声明尺寸校正 —— 那是"框被撑大"的防线（2026-09-29 人工双击实测）。
+   */
+  previewSource?: 'visio' | 'external'
 }
 
 export interface EmbedVsdxOptions {
@@ -187,9 +194,13 @@ export async function embedVsdxIntoDocx(
       previewBytes = makePreviewEmf(baseW, baseH, width, height)
       previewExt = 'emf'
     } else if (emfPreview) {
-      const fixed = normalizePreviewEmf(previewBytes, baseW, baseH)
-      if (fixed) previewBytes = fixed
-      else {
+      // 外部预览（含 Visio 导出的件）**原样使用，一个字节都不改**。
+      //
+      // 为什么不再"校正"：改设备 dpi / 逻辑 dpi / 声明矩形，都是对别人产物的深度干预。
+      // 这一轮为此栽了两次：跳过校正 ⇒ 声明与框撞成相等、框被撑大；重新标定 ⇒ 内容与声明对不上、
+      // 靠左上留白。**这个件在我们文件里长什么样，由我们自己的旋钮决定 —— 对象框尺寸**（见上面 width/height）。
+      // 这里只做一件事：确认它是能解析的 EMF；不是就退回自产件，并如实说一句。
+      if (readPreviewMetrics(previewBytes) === null) {
         warnings.push(`「${fig.name}」预览件不是可解析的 EMF（缺头或 EMF+ 注释），按原样嵌入`)
         emfPreview = false
       }
@@ -199,8 +210,9 @@ export async function embedVsdxIntoDocx(
         `「${fig.name}」预览图的声明尺寸与对象框相等，Word 更新对象时会撑大框（见 docs/WORD处理经验/06）`
       )
     }
-    // 护栏：dpi 越出常规区间会被 Word 当成"尺寸需要重算"，双击后对象框被改（见 preview.ts 的说明）
-    if (emfPreview && previewBytes) {
+    // 护栏：dpi 越出告警窗会被 Word 当成"尺寸需要重算"，双击后对象框被改（见 preview.ts 的说明）。
+    // **来源是 Visio 的跳过这条**（它导出的就是本机物理 dpi，属正常形态，口径见 10）
+    if (emfPreview && previewBytes && fig.previewSource !== 'visio') {
       const outOfBand = previewDpiOutOfBand(previewBytes)
       if (outOfBand) {
         warnings.push(

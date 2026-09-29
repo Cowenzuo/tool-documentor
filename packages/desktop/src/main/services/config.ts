@@ -10,7 +10,8 @@ import { app } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { DEFAULT_MMD_CONFIG, normalizeMmdConfig } from './mmd-service'
-import type { MmdServiceConfigDto } from '../../shared/project'
+import { DEFAULT_VISIO_CONFIG, normalizeVisioConfig } from './visio-locate'
+import type { MmdServiceConfigDto, VisioConfigDto } from '../../shared/project'
 
 export interface AppSettings {
   version: number
@@ -20,6 +21,8 @@ export interface AppSettings {
   recents?: string[]
   /** 图转换服务（mmd2vsdx） */
   mmd2vsdx: MmdServiceConfigDto
+  /** Visio（可选加速器：嵌入前重存一次 vsdx 并导出预览） */
+  visio: VisioConfigDto
 }
 
 const SETTINGS_FILE = 'config.json'
@@ -27,7 +30,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   version: 1,
   default_project_dir: '',
   template_dirs: [],
-  mmd2vsdx: DEFAULT_MMD_CONFIG
+  mmd2vsdx: DEFAULT_MMD_CONFIG,
+  visio: DEFAULT_VISIO_CONFIG
 }
 
 export function configFilePath(): string {
@@ -37,7 +41,7 @@ export function configFilePath(): string {
 export function loadAppSettings(): AppSettings {
   try {
     const file = configFilePath()
-    if (!existsSync(file)) return { ...DEFAULT_SETTINGS, mmd2vsdx: { ...DEFAULT_MMD_CONFIG } }
+    if (!existsSync(file)) return { ...DEFAULT_SETTINGS, mmd2vsdx: { ...DEFAULT_MMD_CONFIG }, visio: { ...DEFAULT_VISIO_CONFIG } }
     const raw = JSON.parse(readFileSync(file, 'utf8')) as Partial<AppSettings>
     return {
       version: Number(raw.version ?? 1),
@@ -46,10 +50,11 @@ export function loadAppSettings(): AppSettings {
         ? raw.template_dirs.filter((d): d is string => typeof d === 'string')
         : [],
       recents: Array.isArray(raw.recents) ? raw.recents.filter((d): d is string => typeof d === 'string') : [],
-      mmd2vsdx: normalizeMmdConfig(raw.mmd2vsdx)
+      mmd2vsdx: normalizeMmdConfig(raw.mmd2vsdx),
+      visio: normalizeVisioConfig(raw.visio)
     }
   } catch {
-    return { ...DEFAULT_SETTINGS, mmd2vsdx: { ...DEFAULT_MMD_CONFIG } }
+    return { ...DEFAULT_SETTINGS, mmd2vsdx: { ...DEFAULT_MMD_CONFIG }, visio: { ...DEFAULT_VISIO_CONFIG } }
   }
 }
 
@@ -64,7 +69,8 @@ export function saveAppSettings(settings: AppSettings): void {
         default_project_dir: settings.default_project_dir,
         template_dirs: settings.template_dirs,
         recents: settings.recents ?? [],
-        mmd2vsdx: settings.mmd2vsdx
+        mmd2vsdx: settings.mmd2vsdx,
+        visio: settings.visio
       },
       null,
       2

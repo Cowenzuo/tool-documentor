@@ -63,6 +63,7 @@ import { dialogStartDir } from './services/dialog-path'
 import { TemplateEditorService } from './services/template-editor-service'
 import { normalizeMmdConfig } from './services/mmd-service'
 import type { MmdService } from './services/mmd-service'
+import { normalizeVisioConfig, probeVisio } from './services/visio-locate'
 
 type Handler<T, R> = (arg: T) => R | Promise<R>
 
@@ -296,7 +297,8 @@ export function registerProjectIpc(service: ProjectService, mmd: MmdService): vo
       default_project_dir: settings.default_project_dir,
       template_dirs: settings.template_dirs,
       recents: loadRecents(),
-      mmd2vsdx: settings.mmd2vsdx
+      mmd2vsdx: settings.mmd2vsdx,
+      visio: settings.visio
     }
   })
 
@@ -309,7 +311,9 @@ export function registerProjectIpc(service: ProjectService, mmd: MmdService): vo
       default_project_dir: patch.default_project_dir ?? current.default_project_dir,
       template_dirs: patch.template_dirs ?? current.template_dirs,
       // 转换服务的设置即时生效：MmdService 每次都是现读配置，不缓存
-      mmd2vsdx: patch.mmd2vsdx ? normalizeMmdConfig(patch.mmd2vsdx) : current.mmd2vsdx
+      mmd2vsdx: patch.mmd2vsdx ? normalizeMmdConfig(patch.mmd2vsdx) : current.mmd2vsdx,
+      // Visio 同理：导出时才用，现读
+      visio: patch.visio ? normalizeVisioConfig(patch.visio) : current.visio
     })
     // 模板目录变更即时生效：重建 TemplateManager 并替换服务引用
     service.setManager(buildTemplateManager().manager)
@@ -325,6 +329,12 @@ export function registerProjectIpc(service: ProjectService, mmd: MmdService): vo
   handle<MmdServiceConfigDto | undefined, Awaited<ReturnType<MmdService['ensureRunning']>>>(
     ProjectIpc.MmdStart,
     (override) => mmd.ensureRunning(override ? normalizeMmdConfig(override) : undefined)
+  )
+
+  // ---------- Visio（可选加速器）----------
+  // 只探现状（快速档：查注册表），不启动 Visio；真正调用在导出期（见 docs/WORD处理经验/10）。
+  handle<boolean | undefined, Awaited<ReturnType<typeof probeVisio>>>(ProjectIpc.VisioStatus, (force) =>
+    probeVisio(force === true)
   )
 
   handle<void, StructureTemplateDto[]>(ProjectIpc.TemplatesListStructures, () =>

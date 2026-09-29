@@ -231,6 +231,60 @@ export interface AppConfigDto {
   template_dirs: string[]
   recents: string[]
   mmd2vsdx: MmdServiceConfigDto
+  visio: VisioConfigDto
+}
+
+// ---------- Visio（可选加速器：嵌入前拿它重存一次 vsdx 并导出预览）----------
+// 口径见 docs/WORD处理经验/10：**由设置里的检测决定走哪条路**——
+// 没有 Visio 就完全走现状（自产预览 + 原始 vsdx）；有就先过一遍 Visio 再嵌入。
+
+/**
+ * 应用设置里「Visio（可选）」一节的落地形状。
+ *
+ * 为什么是可选的：Visio 不是本软件的前置条件（不装也要能导出），
+ * 但装了就能让走线/端点由 Visio 自己算，Word 首帧不再依赖我们的复刻。
+ */
+export interface VisioConfigDto {
+  /** 检测到就启用；用户可关（关掉 = 一律走现状） */
+  enabled: boolean
+  /** 手填的可执行文件；空 = 用检测结果 */
+  exe_path: string
+  /** COM ProgID，默认 Visio.Application */
+  prog_id: string
+  /** 单次整批归一化的上限（毫秒），超时强杀并逐张回退 */
+  timeout_ms: number
+}
+// 注意：**没有"预览图用谁的"这一档**。口径是"走 Visio 就整套都用 Visio 的"
+// （vsdx 用 Visio 重存件、预览用 Visio 导出的真图）；不走 Visio 才用自产预览。
+// 混着用（Visio 的 vsdx + 自产的图）没有意义，也解释不清首帧到底是谁的功劳。
+
+/** 一个 Visio 候选的探查结果（设置页显示"为什么没用上"） */
+export interface VisioCandidateDto {
+  path: string
+  /** 来自哪条规则：注册表安装根 / COM 注册 / 设置里指定的 */
+  source: string
+  version: string | null
+  bitness: string | null
+  ok: boolean
+  reason?: string
+}
+
+/** 设置页一次拿全的 Visio 现状（快速档：查注册表，不开 Visio） */
+export interface VisioStatusDto {
+  found: boolean
+  /** COM 是否注册（Visio.Application 的 CLSID 在不在） */
+  registered: boolean
+  source: string
+  exe: string | null
+  version: string | null
+  bitness: string | null
+  candidates: VisioCandidateDto[]
+  probe: {
+    ok: boolean
+    reason: string
+    detail?: string
+    ms: number
+  }
 }
 
 /** 单个模板目录的加载结果（供设置界面与新建向导显示「为什么没加载到」） */
@@ -639,7 +693,9 @@ export const ProjectIpc = {
   /** 图转换服务（mmd2vsdx）：现状探测 */
   MmdStatus: 'mmd:status',
   /** 图转换服务：点火（启动服务），不接管它的生命周期 */
-  MmdStart: 'mmd:start'
+  MmdStart: 'mmd:start',
+  /** Visio（可选）：现状探测（快速档：查注册表，不开 Visio） */
+  VisioStatus: 'visio:status'
 } as const
 
 // ---------- 工具：消息 payload 类型 ----------
@@ -879,4 +935,10 @@ export interface DesktopMmdApi {
 
 export interface SavePathDialogOptions {
   defaultPath: string
+}
+
+/** Visio（可选）：只探测现状；真正调用在导出期 */
+export interface DesktopVisioApi {
+  /** 现探一次（快速档：查注册表，毫秒级）；`force` = 忽略缓存重探 */
+  status(force?: boolean): Promise<VisioStatusDto>
 }

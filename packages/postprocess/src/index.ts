@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @documentor/postprocess — Documentor DOCX 后处理（M7 图嵌入链路）。
  *
  * 分层（上游 mmd2vsdx 产出 VSDX 字节，本包只做 docx/VSDX 装配）：
@@ -42,8 +42,8 @@ export {
   previewGeometry,
   declaredEqualsFrame,
   previewDpiOutOfBand,
-  PREVIEW_DPI_MIN,
-  PREVIEW_DPI_MAX,
+  PREVIEW_DPI_WARN_MIN,
+  PREVIEW_DPI_WARN_MAX,
   PREVIEW_REF_DPI,
   PREVIEW_LOGICAL_DPI
 } from './preview'
