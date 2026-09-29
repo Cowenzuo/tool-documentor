@@ -31,6 +31,14 @@ export interface FigureInput {
   /** 预览图（EMF 优先，PNG/JPG 兜底） */
   preview?: Uint8Array
   previewExt?: 'emf' | 'png' | 'jpg' | 'jpeg'
+  /**
+   * 预览件来源是否可信（例如 Visio 自己导出的 EMF）。
+   *
+   * 来源可信的预览**跳过 dpi 区间告警**：Visio 导出的件用的就是本机物理 dpi（如 188.5），
+   * 那是它的正常形态（口径见 docs/WORD处理经验/10）。来源不明的外部预览仍然要告警 ——
+   * 那道护栏是因为"把 dpi 当自由变量"撑大过对象框才加的，别拆。
+   */
+  previewTrusted?: boolean
 }
 
 export interface EmbedVsdxOptions {
@@ -199,8 +207,9 @@ export async function embedVsdxIntoDocx(
         `「${fig.name}」预览图的声明尺寸与对象框相等，Word 更新对象时会撑大框（见 docs/WORD处理经验/06）`
       )
     }
-    // 护栏：dpi 越出常规区间会被 Word 当成"尺寸需要重算"，双击后对象框被改（见 preview.ts 的说明）
-    if (emfPreview && previewBytes) {
+    // 护栏：dpi 越出常规区间会被 Word 当成"尺寸需要重算"，双击后对象框被改（见 preview.ts 的说明）。
+    // **来源可信的预览跳过这条**（Visio 自己导出的就是本机物理 dpi，那是它的正常形态，口径见 10）
+    if (emfPreview && previewBytes && fig.previewTrusted !== true) {
       const outOfBand = previewDpiOutOfBand(previewBytes)
       if (outOfBand) {
         warnings.push(

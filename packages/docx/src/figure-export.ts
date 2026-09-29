@@ -25,7 +25,7 @@ import { copyFileSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { normalizeMermaidSource } from '@documentor/core'
 import type { DocumentTree } from '@documentor/core'
 import type { StyleTemplateDef } from '@documentor/templates'
-import { embedVsdxIntoDocx } from '@documentor/postprocess'
+import { embedVsdxIntoDocx, previewDpiOutOfBand } from '@documentor/postprocess'
 import type { FigureInput } from '@documentor/postprocess'
 import { collectMermaidFigures, serializeWithWarnings } from './serializer'
 import { writeDocx } from './writer'
@@ -40,6 +40,11 @@ export interface FigureConvertResult {
    * 提供了就必须是 EMF：嵌入层会按"声明尺寸 = 画布 × 逻辑dpi ÷ 参考dpi"校正后才用。
    */
   previewBase64?: string
+  /**
+   * 预览件来源是否可信（Visio 自己导出的 EMF 传 true）。
+   * 可信的件跳过 dpi 区间告警：Visio 用的就是本机物理 dpi（如 188.5），那是它的正常形态。
+   */
+  previewTrusted?: boolean
   error?: string
   /**
    * 转换服务整体不可用（没在运行、契约版本不符、连接类失败…）。
@@ -94,6 +99,8 @@ interface Slot {
   vsdx?: Uint8Array
   /** 上游可选提供的预览件（EMF）；无则由嵌入层自产 */
   preview?: Uint8Array
+  /** 预览件来源可信（Visio 导出的真图）⇒ 跳过 dpi 区间告警 */
+  previewTrusted?: boolean
 }
 
 /** 整体不可用时的统一提示（文案口径见 产品文案口径.md 第 7 条：不说依赖名与安装指引） */
@@ -168,7 +175,7 @@ export async function attachFiguresToDocx(
       const preview = r.previewBase64
         ? Uint8Array.from(Buffer.from(r.previewBase64, 'base64'))
         : undefined
-      slots.push({ name, vsdx: bytes, preview })
+      slots.push({ name, vsdx: bytes, preview, previewTrusted: r.previewTrusted })
     } catch (err) {
       stats.failed.push({
         caption: fig.caption || `图${i + 1}`,
@@ -178,13 +185,15 @@ export async function attachFiguresToDocx(
     }
   }
 
-  // 嵌入（槽位 k ↔ 文档占位段 k；转换失败槽位保留占位文本）
+  // 嵌入（槽位 k ↔ 文档占位段 k；转换失败槽位保留占位文本）。
+  // 预览件照传：来源可信的（Visio 导出的真图）直接用，来源不明的由嵌入层过 dpi 护栏。
   const docxBytes = readFileSync(docxPath)
   const figuresForEmbed: FigureInput[] = slots.map((s) => ({
     name: s.name,
     vsdx: s.vsdx,
     preview: s.preview,
-    previewExt: s.preview ? 'emf' : undefined
+    previewExt: s.preview ? 'emf' : undefined,
+    ...(s.previewTrusted ? { previewTrusted: true } : {})
   }))
   const embedResult = await embedVsdxIntoDocx(docxBytes, figuresForEmbed, {
     captionStyleId: options.captionStyleId ?? styleDef.styleMap['figure.caption'] ?? undefined,

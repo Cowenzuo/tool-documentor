@@ -1,15 +1,45 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, session, shell } from 'electron'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { IPC } from '../shared/contract'
 import { registerProjectIpc } from './ipc'
 import { loadAppSettings } from './services/config'
 import { MmdService } from './services/mmd-service'
+import { VisioService } from './services/visio-service'
+import { probeVisio } from './services/visio-locate'
 import { ProjectService } from './services/project-service'
 import { buildTemplateManager } from './services/template-host'
 
 let mainWindow: BrowserWindow | null = null
 let projectService: ProjectService | null = null
+
+/** Visio 的现状探测结果（启动探一次；版本进归一化缓存键） */
+let visioProbeValue: { version: string | null } | null = null
+
+/**
+ * 归一化脚本的位置。四处都试（打包后走 extraResources，开发期在仓库 scripts/ 下）：
+ *   1. 应用目录 /scripts（打包后 resources/app/scripts）
+ *   2. 应用目录上两级 /scripts（开发期 appPath = packages/desktop ⇒ 仓库根）
+ *   3. resourcesPath/scripts（electron-builder 的 extraResources）
+ *   4. 当前工作目录 /scripts（从仓库根启动时）
+ * 找不到就返回第一个候选：服务层会明确报"找不到归一化脚本"，逐张回退并进导出警告，
+ * 不会静默变成"以为归一化了其实没有"。
+ */
+function visioScriptPath(): string {
+  const rel = join('scripts', 'visio-normalize.ps1')
+  const appPath = app.getAppPath()
+  const candidates = [
+    join(appPath, rel),
+    join(appPath, '..', '..', rel),
+    join(process.resourcesPath ?? '', rel),
+    join(process.cwd(), rel)
+  ]
+  for (const p of candidates) {
+    if (existsSync(p)) return p
+  }
+  return candidates[0]!
+}
 
 // 关键：必须在 userData 路径解析前设置应用名（ready 前），否则配置目录错误
 app.setName('Documentor')
@@ -233,11 +263,26 @@ app.whenReady().then(() => {
     logFile: () => join(app.getPath('userData'), 'mmd2vsdx-server.log'),
     log: (line) => console.log(line)
   })
-  projectService = new ProjectService(manager, mmd)
+  // Visio（可选加速器）：配置现读；装了就把整批 vsdx 过一遍它（重存 + 导出预览），
+  // 没装就完全走原路径（首帧问题按既定口径接受，见 docs/WORD处理经验/10）。
+  const visio = new VisioService({
+    cacheDir: join(app.getPath('userData'), 'visio-cache'),
+    scriptPath: visioScriptPath(),
+    config: () => loadAppSettings().visio,
+    // 版本进缓存键：换了 Visio 版本，旧缓存自动失效
+    visioVersion: () => visioProbeValue?.version ?? null
+  })
+  projectService = new ProjectService(manager, mmd, visio)
   registerProjectIpc(projectService, mmd)
   // 启动就探一次：设置页一打开就有现状，导出对话框也能立刻回答"能不能嵌图"。
   // **只探不动手**——服务不在也不会被拉起来，那要用户点「启动服务」或打开「默认拉起」。
   void mmd.probe().catch(() => undefined)
+  // Visio 也启动探一次（查注册表，毫秒级，不开 Visio）：探到的版本既给设置页看，也进归一化缓存键。
+  void probeVisio()
+    .then((s) => {
+      visioProbeValue = s
+    })
+    .catch(() => undefined)
   registerIpc()
   createMainWindow()
 

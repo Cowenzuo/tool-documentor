@@ -130,6 +130,11 @@ export class VisioService {
     return this.opts.config().enabled
   }
 
+  /** 是否启用（导出链路先问这个，避免白起一次 Visio） */
+  isEnabled(): boolean {
+    return this.enabled
+  }
+
   /**
    * 批量归一化。返回顺序与入参一致；失败项 `ok:false`（调用方按张回退）。
    * 命中缓存的项直接返回缓存件（不进 Visio）。
@@ -200,6 +205,12 @@ export class VisioService {
       }
     }
     const allFailed = (reason: string): VisioNormalizeResult[] => items.map((i) => ({ id: i.id, ok: false, reason }))
+
+    // 脚本找不到要**显式**报出来：否则就会变成"以为归一化了、其实原样嵌入"这种最难查的状态
+    if (!existsSync(this.opts.scriptPath)) {
+      cleanup()
+      return Promise.resolve(allFailed(`找不到 Visio 归一化脚本：${this.opts.scriptPath}`))
+    }
 
     let manifestPath = ''
     const pidFile = join(dir, 'visio.pid')

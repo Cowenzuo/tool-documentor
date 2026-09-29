@@ -425,20 +425,10 @@ function VisioSection({
           </div>
           <p className="settings-status">
             {found
-              ? '嵌入前由 Visio 重存一次 vsdx 并导出预览图，Word 里双击的首帧位置更稳。'
-              : '没检测到 Visio：仍然照常导出，只是预览与连线走内置方案。'}
+              ? '嵌入前由 Visio 重存一次 vsdx，并用 Visio 导出的真图当预览（走 Visio 就整套都用它的）。'
+              : '没检测到 Visio：仍然照常导出，预览与连线走内置方案。'}
           </p>
         </div>
-        {found && (
-          <label className="settings-check" title="用 Visio 按页面尺寸导出的预览真图，而不是 vsdx 自带的缩略图">
-            <input
-              type="checkbox"
-              checked={visio.use_visio_preview}
-              onChange={(e) => patch({ use_visio_preview: e.target.checked })}
-            />
-            <span>预览图用 Visio 导出的真图</span>
-          </label>
-        )}
       </div>
     </section>
   )

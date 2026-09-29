@@ -21,8 +21,8 @@ export const DEFAULT_VISIO_CONFIG: VisioConfigDto = {
   enabled: true,
   exe_path: '',
   prog_id: 'Visio.Application',
-  timeout_ms: 60000,
-  use_visio_preview: true
+  // 整篇一次会话：实测启动约 1.2s + 每张约 1.8s，23 张约 42s，给到 3 分钟留足余量
+  timeout_ms: 180000
 }
 
 export function normalizeVisioConfig(raw: unknown): VisioConfigDto {
@@ -33,8 +33,7 @@ export function normalizeVisioConfig(raw: unknown): VisioConfigDto {
     exe_path: typeof r.exe_path === 'string' ? r.exe_path.trim() : '',
     prog_id: typeof r.prog_id === 'string' && r.prog_id.trim() !== '' ? r.prog_id.trim() : DEFAULT_VISIO_CONFIG.prog_id,
     // 上限给足（大图整篇重存慢），下限别让用户把自己坑了
-    timeout_ms: Number.isFinite(timeout) ? Math.min(600000, Math.max(5000, Math.round(timeout))) : DEFAULT_VISIO_CONFIG.timeout_ms,
-    use_visio_preview: r.use_visio_preview !== false
+    timeout_ms: Number.isFinite(timeout) ? Math.min(600000, Math.max(5000, Math.round(timeout))) : DEFAULT_VISIO_CONFIG.timeout_ms
   }
 }
 

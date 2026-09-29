@@ -33,6 +33,7 @@ import { blockPermissions, lockRefusal, reshapeRefusal } from '../../shared/perm
 import { exportTreeToDocxWithFigures, collectMermaidFigures, skeletonTextWidthTwips } from '@documentor/docx'
 import type { FigureConvertFn } from '@documentor/docx'
 import type { MmdService } from './mmd-service'
+import type { VisioService } from './visio-service'
 import { displayNameOf } from '@documentor/templates'
 import type { TemplateManager } from '@documentor/templates'
 import type {
@@ -80,6 +81,12 @@ export class ProjectService {
   private managerValue: TemplateManager
   /** 图转换服务客户端（mmd2vsdx，本机常驻 HTTP 服务）；没给就当转换不可用，整篇文本导出 */
   private readonly mmdValue: MmdService | undefined
+  /**
+   * Visio（可选加速器）；没给 = 不归一化。
+   * 有则导出前把整批 vsdx 过一遍 Visio（重存 + 导出预览），首帧由 Visio 自己的解保证；
+   * 没装 Visio 时首帧问题按既定口径**接受**（详见 docs/WORD处理经验/10）。
+   */
+  private readonly visioValue: VisioService | undefined
   /** 会话级撤销栈：跟着当前打开的工程走，开关工程时清空 */
   private readonly history = new HistoryStack<TreeSnapshot>({
     maxSteps: HISTORY_MAX_STEPS,
@@ -87,9 +94,10 @@ export class ProjectService {
     measure: estimateSnapshotBytes
   })
 
-  constructor(manager: TemplateManager, mmd?: MmdService) {
+  constructor(manager: TemplateManager, mmd?: MmdService, visio?: VisioService) {
     this.managerValue = manager
     this.mmdValue = mmd
+    this.visioValue = visio
   }
 
   /** 模板目录热重载后替换（不打断当前会话） */
@@ -655,9 +663,10 @@ export class ProjectService {
     // 导出前先落库，保证导出内容与当前编辑一致；落库即封口，与保存同一口径
     this.store.save(tree)
     this.history.seal()
-    // 图块链路自动执行（无“占位/预览”用户选项）：Mermaid → VSDX → OLE 嵌入；
+    // 图块链路自动执行（无“占位/预览”用户选项）：Mermaid → VSDX → （可选）Visio 归一化 → OLE 嵌入；
     // 转换走本机常驻 HTTP 服务（mmd2vsdx），服务不可用时整篇降级为文本占位 + 警告
-    const convert = this.figureConvert()
+    const pre = await this.normalizeFiguresWithVisio(tree)
+    const convert = this.figureConvert(pre.byCode)
     const withFigs = await exportTreeToDocxWithFigures(tree, styleDef, input.outputPath, {
       imageBaseDir: this.projectDirValue,
       ...(convert ? { convert } : {})
@@ -666,9 +675,72 @@ export class ProjectService {
       outputPath: withFigs.outputPath,
       clonedGroups: withFigs.clonedGroups,
       paragraphCount: withFigs.instructions.length,
-      warnings: withFigs.warnings,
+      warnings: [...withFigs.warnings, ...pre.warnings],
       figures: withFigs.figureStats
     }
+  }
+
+  /**
+   * 导出前把整批图过一遍 Visio（可选）。
+   *
+   * 为什么要预批量：Visio 启动一次就是秒级，逐张调 23 张图会慢到不可接受；
+   * 这里先自己把 mermaid 全部转成 vsdx，再交给**一次** Visio 会话，转换函数随后只查表。
+   *
+   * 边界（三条，别越）：
+   *   1. **没装 Visio / 没启用 / 中途失败** ⇒ 返回空表，一切照旧走原路径（首帧问题按既定口径接受）；
+   *   2. 单张失败只影响那一张（其余仍用 Visio 的结果），失败缘由并进导出警告；
+   *   3. 只有 Visio 的产出仍然要过预览护栏 —— 不合规就退回自产预览（EMF 那套硬约束见 07/08）。
+   */
+  private async normalizeFiguresWithVisio(tree: DocumentTree): Promise<{
+    byCode: Map<string, { vsdxBase64: string; previewBase64?: string; previewTrusted?: boolean }>
+    warnings: string[]
+  }> {
+    const empty = { byCode: new Map(), warnings: [] as string[] }
+    const visio = this.visioValue
+    const mmd = this.mmdValue
+    if (!visio || !mmd) return empty
+    if (!visio.isEnabled()) return empty
+
+    const codes = collectMermaidFigures(tree).map((f) => f.code)
+    if (codes.length === 0) return empty
+    // 同一段 mermaid 在文中可能重复出现：Visio 只处理**唯一**的那几段（重复的查表即可）
+    const uniqueCodes = [...new Set(codes)]
+
+    // 先把 mermaid 全部转成 vsdx（失败的那几张不参与归一化，交给转换函数照旧报错）
+    const items: Array<{ id: string; vsdx: Uint8Array }> = []
+    const codeById = new Map<string, string>()
+    for (const [i, code] of uniqueCodes.entries()) {
+      const r = await mmd.convert(code)
+      if (!r.ok) continue
+      const id = `f${i}`
+      items.push({ id, vsdx: r.bytes })
+      codeById.set(id, code)
+    }
+    if (items.length === 0) return empty
+
+    const results = await visio.normalizeBatch(items)
+    const byCode = new Map<string, { vsdxBase64: string; previewBase64?: string; previewTrusted?: boolean }>()
+    const warnings: string[] = []
+    let failed = 0
+    for (const r of results) {
+      const code = codeById.get(r.id)
+      if (!code) continue
+      if (!r.ok || !r.vsdx) {
+        failed += 1
+        if (r.reason) console.warn(`[visio] 归一化失败，按原样嵌入：${r.reason}`)
+        continue
+      }
+      // 口径：**走 Visio 就整套都用 Visio 的** —— vsdx 用重存件，预览用 Visio 导出的真图
+      // （本机物理 dpi 是它的正常形态，previewTrusted 让它跳过 dpi 区间告警）。
+      // 不走 Visio 的图这里根本没有 preview，由嵌入层自产。
+      const previewBase64 = r.previewEmf ? Buffer.from(r.previewEmf).toString('base64') : undefined
+      byCode.set(code, {
+        vsdxBase64: Buffer.from(r.vsdx).toString('base64'),
+        ...(previewBase64 ? { previewBase64, previewTrusted: true } : {})
+      })
+    }
+    if (failed > 0) warnings.push(`Visio 归一化：${failed} 张未成功，已按原样嵌入（详见日志）`)
+    return { byCode, warnings }
   }
 
   // ================= 内部 =================
@@ -689,11 +761,18 @@ export class ProjectService {
    *   - 单张失败 → `{ ok:false }`：记进 failed，继续下一张；
    *   - 服务整体不可用 → `{ ok:false, unavailable:true }`：库立刻停手、整篇文本版交付。
    * docx 库不认 HTTP 状态码，也不认上游错误码——判定全在客户端。
+   *
+   * `preNormalized` 是导出前那次 Visio 归一化的结果（可选）：命中就直接用，
+   * 顺手带上 Visio 导出的预览件；没命中（重复图、或没走 Visio）就照旧问转换服务。
    */
-  private figureConvert(): FigureConvertFn | undefined {
+  private figureConvert(preNormalized?: Map<string, { vsdxBase64: string; previewBase64?: string }>): FigureConvertFn | undefined {
     const mmd = this.mmdValue
     if (!mmd) return undefined
     return async (code) => {
+      // Visio 预归一化过的那批直接查表（表里的预览件已过护栏，过不了的不带 previewBase64，
+      // 由嵌入层自产 —— 那套硬约束见 docs/WORD处理经验/07、08）
+      const pre = preNormalized?.get(code)
+      if (pre) return { ok: true, vsdxBase64: pre.vsdxBase64, ...(pre.previewBase64 ? { previewBase64: pre.previewBase64 } : {}) }
       const r = await mmd.convert(code)
       if (r.ok) {
         return { ok: true, vsdxBase64: Buffer.from(r.bytes).toString('base64') }

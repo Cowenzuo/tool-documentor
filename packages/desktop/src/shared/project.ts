@@ -253,9 +253,10 @@ export interface VisioConfigDto {
   prog_id: string
   /** 单次整批归一化的上限（毫秒），超时强杀并逐张回退 */
   timeout_ms: number
-  /** 用 Visio 导出的预览真图（不是 vsdx 自带的缩略图） */
-  use_visio_preview: boolean
 }
+// 注意：**没有"预览图用谁的"这一档**。口径是"走 Visio 就整套都用 Visio 的"
+// （vsdx 用 Visio 重存件、预览用 Visio 导出的真图）；不走 Visio 才用自产预览。
+// 混着用（Visio 的 vsdx + 自产的图）没有意义，也解释不清首帧到底是谁的功劳。
 
 /** 一个 Visio 候选的探查结果（设置页显示"为什么没用上"） */
 export interface VisioCandidateDto {
